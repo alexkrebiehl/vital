@@ -5,8 +5,8 @@
 // week from Monday to Sunday — what was logged, and what the schedule expects
 // for the days still ahead. Works for every schedule shape in types.ts.
 //
-// Past days with nothing logged are left plain: the strip shows what happened
-// and what is expected, never a verdict on missed days.
+// A past day with nothing logged reads as rest — what it was — never as a
+// missed session: the strip shows what happened and what is expected.
 
 import { addDays, diffDays, formatDayKeyShort } from '../analytics/windows';
 import {
@@ -41,6 +41,10 @@ export interface CadenceDay {
   isToday: boolean;
   /** Sessions logged that day, by the workout they were attributed to. */
   logged: CadenceTemplate[];
+  /** A past day in the plan: a session was logged that matches none of its workouts. */
+  otherSession: boolean;
+  /** A past day in the plan with nothing logged. */
+  rested: boolean;
   /** What the schedule expects, for today (until something is logged) and later; null for past days. */
   expected: { kind: 'train' | 'rest' | 'open'; templates: CadenceTemplate[] } | null;
 }
@@ -69,7 +73,9 @@ export function cadenceView(
   completed: CompletedSession[],
   next: NextSessionView,
   today: string,
-  week: number
+  week: number,
+  /** Every day with a logged session, attributed to a workout or not. */
+  trainingDays: string[] = []
 ): CadenceView {
   const override = plan.blocks.find(b => b.scheduleOverride && week >= b.startWeek && week < b.startWeek + b.weeks);
   const schedule = override?.scheduleOverride ?? plan.schedule;
@@ -133,13 +139,20 @@ export function cadenceView(
   }
   if (override) caption += ` (${override.name} schedule)`;
 
-  const days: CadenceDay[] = dates.map(date => ({
-    date,
-    weekday: dayName(date),
-    isToday: date === today,
-    logged: completed.filter(c => c.date === date).map(c => nameOf(c.templateId)),
-    expected: date >= firstOpen && date >= plan.startDate ? expectedOn(date) : null,
-  }));
+  const trained = new Set(trainingDays);
+  const days: CadenceDay[] = dates.map(date => {
+    const logged = completed.filter(c => c.date === date).map(c => nameOf(c.templateId));
+    const past = date < firstOpen && date >= plan.startDate && logged.length === 0;
+    return {
+      date,
+      weekday: dayName(date),
+      isToday: date === today,
+      logged,
+      otherSession: past && trained.has(date),
+      rested: past && !trained.has(date),
+      expected: date >= firstOpen && date >= plan.startDate ? expectedOn(date) : null,
+    };
+  });
 
   return { kind: schedule.kind, pattern, caption, week: days, weekSummary };
 }

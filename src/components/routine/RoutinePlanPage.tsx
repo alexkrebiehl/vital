@@ -231,7 +231,9 @@ function WeekStrip({ days }: { days: CadenceDay[] }) {
 function dayLabel(d: CadenceDay): string {
   const when = `${d.weekday} ${formatDayKeyShort(d.date)}${d.isToday ? ' (today)' : ''}`;
   if (d.logged.length) return `${when}: logged ${d.logged.map(t => t.name).join(', ')}`;
-  if (!d.expected) return `${when}: nothing logged`;
+  if (d.otherSession) return `${when}: logged a session outside the plan's workouts`;
+  if (d.rested) return `${when}: rest`;
+  if (!d.expected) return when;
   if (d.expected.kind === 'rest') return `${when}: rest expected`;
   if (d.expected.kind === 'open') return `${when}: open`;
   return `${when}: ${d.expected.templates.map(t => t.name).join(' + ')} expected`;
@@ -259,6 +261,15 @@ function DayCell({ day }: { day: CadenceDay }) {
       </div>
     );
   }
+  if (day.otherSession) {
+    return (
+      <div className={`${base} bg-accent-tint text-[10px] sm:text-[11px] text-text-primary`} title="A logged session that matches none of the plan's workouts">
+        <Check size={12} className="text-primary shrink-0" aria-hidden="true" />
+        Session
+      </div>
+    );
+  }
+  if (day.rested) return <div className={`${base} bg-surface-muted text-[10px] sm:text-[11px] text-text-secondary`}>Rest</div>;
   const e = day.expected;
   if (!e) return <div className={`${base} border border-transparent`} />;
   if (e.kind === 'rest') return <div className={`${base} bg-surface-muted text-[10px] sm:text-[11px] text-text-secondary`}>Rest</div>;

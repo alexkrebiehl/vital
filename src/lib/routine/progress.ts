@@ -354,7 +354,7 @@ export function buildRoutine(inputs: RoutineInputs): RoutineOverview {
     lights: plan.rules.lights,
     doNotProgressIf: plan.rules.doNotProgressIf,
     paths,
-    cadence: cadenceView(plan, completed, next, today, week),
+    cadence: cadenceView(plan, completed, next, today, week, trainingDays),
     workouts: workoutViews(plan, paths, completed, next, deload, system),
     untracked: untrackedExercises(plan, inputs.sessions, inputs.dayOf, today),
   };

@@ -37,15 +37,16 @@ function plan(schedule: unknown, blocks: unknown[] = []): TrainingPlan {
 const done = (...entries: [string, string][]): CompletedSession[] =>
   entries.map(([date, templateId]) => ({ date, templateId, sessionId: `${templateId}:${date}` }));
 
-function view(p: TrainingPlan, completed: CompletedSession[], today = TODAY) {
+function view(p: TrainingPlan, completed: CompletedSession[], today = TODAY, otherDays: string[] = []) {
   const week = planWeek(p, today);
-  return cadenceView(p, completed, nextSession(p, completed, today, week, 'metric'), today, week);
+  const trainingDays = [...completed.map(c => c.date), ...otherDays];
+  return cadenceView(p, completed, nextSession(p, completed, today, week, 'metric'), today, week, trainingDays);
 }
 
-/** Each day of the strip as "Wed: A" (expected), "Mon: ✓A" (logged), "Mon: -" (past, nothing). */
+/** Each day of the strip as "Wed: A" (expected), "Mon: ✓A" (logged), "Mon: rested", "Mon: ✓other", "Mon: -" (nothing). */
 function strip(days: CadenceDay[]): string[] {
   return days.map(d => {
-    const logged = d.logged.map(t => `✓${t.name.slice(-1)}`).join('+');
+    const logged = [...d.logged.map(t => `✓${t.name.slice(-1)}`), ...(d.otherSession ? ['✓other'] : []), ...(d.rested ? ['rested'] : [])].join('+');
     const expected = !d.expected
       ? ''
       : d.expected.kind === 'train'
@@ -62,7 +63,7 @@ describe('cadenceView — cycle, moving on when a session is logged', () => {
     const c = view(plan(ABR), []);
     expect(c.caption).toBe('3-day cycle · moves on when you log a session');
     expect(c.pattern.map(n => n.current)).toEqual(['today', null, null]);
-    expect(strip(c.week)).toEqual(['Mon: -', 'Tue: -', 'Wed: A', 'Thu: B', 'Fri: rest', 'Sat: A', 'Sun: B']);
+    expect(strip(c.week)).toEqual(['Mon: rested', 'Tue: rested', 'Wed: A', 'Thu: B', 'Fri: rest', 'Sat: A', 'Sun: B']);
     expect(c.weekSummary).toBe('No sessions logged yet this week');
   });
 
@@ -86,6 +87,16 @@ describe('cadenceView — cycle, moving on when a session is logged', () => {
   });
 });
 
+describe('cadenceView — past days', () => {
+  it('shows a day with a session outside the workouts as a session, and days before the plan as blank', () => {
+    const c = view(plan(ABR), done(['2026-09-29', 'a']), TODAY, ['2026-09-28']);
+    expect(strip(c.week).slice(0, 2)).toEqual(['Mon: ✓other', 'Tue: ✓A']);
+    const early = view(plan(ABR), [], '2026-09-02');
+    // The plan starts Tue Sep 1: Monday Aug 31 is before it.
+    expect(strip(early.week).slice(0, 2)).toEqual(['Mon: -', 'Tue: rested']);
+  });
+});
+
 describe('cadenceView — other schedule shapes', () => {
   it('follows the calendar from the anchor', () => {
     const c = view(plan({ ...ABR, advance: 'calendar', anchorDate: '2026-09-01' }), []);
@@ -99,7 +110,7 @@ describe('cadenceView — other schedule shapes', () => {
     const c = view(plan({ kind: 'weekdays', days: { mon: { templateIds: ['a'] }, wed: { templateIds: ['b'] }, fri: { templateIds: ['a'] } } }), done(['2026-09-28', 'a']));
     expect(c.caption).toBe('Weekly: Mon, Wed, Fri');
     expect(c.pattern).toEqual([]);
-    expect(strip(c.week)).toEqual(['Mon: ✓A', 'Tue: -', 'Wed: B', 'Thu: rest', 'Fri: A', 'Sat: rest', 'Sun: rest']);
+    expect(strip(c.week)).toEqual(['Mon: ✓A', 'Tue: rested', 'Wed: B', 'Thu: rest', 'Fri: A', 'Sat: rest', 'Sun: rest']);
   });
 
   it('leaves the days open for a frequency plan and counts against the range', () => {
