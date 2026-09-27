@@ -25,7 +25,7 @@ export const LIGHT_LABEL: Record<Light, string> = {
 export const LIGHT_MEANING: Record<Light, string> = {
   green: 'ready to progress',
   'yellow-green': 'nearly there',
-  yellow: 'hold and build',
+  yellow: 'continue building',
   red: 'back off',
   none: 'nothing logged yet',
 };
