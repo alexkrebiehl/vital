@@ -17,7 +17,7 @@ import type { WorkoutSourceStatus } from '@/lib/workout-sources/types';
 import { Badge, Button, Card, DataStateNote, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { LightLabel, useRoutineFetch } from './shared';
-import { analystHref } from './RoutineSection';
+import { analystHref, pathHref } from './RoutineSection';
 import { formatDayKeyShort } from '@/lib/analytics/windows';
 import type { NarrativeView } from '@/lib/routine/narrative-types';
 
@@ -316,7 +316,7 @@ function AreaSiblings({ routine, path }: { routine: RoutineOverview; path: PathP
       <ul className="grid grid-cols-1 md:grid-cols-2 gap-3 list-none p-0 m-0">
         {siblings.map(p => (
           <li key={p.pathId}>
-            <Link href={`/workouts/routine/${p.pathId}`} className="block rounded-control bg-surface-muted p-3 hover:bg-accent-tint transition-colors">
+            <Link href={pathHref(p.pathId)} className="block rounded-control bg-surface-muted p-3 hover:bg-accent-tint transition-colors">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs text-text-secondary">{p.pathName}</span>
                 <LightLabel light={p.light} />

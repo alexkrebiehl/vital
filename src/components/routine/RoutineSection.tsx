@@ -370,6 +370,7 @@ function NextSession({ routine }: { routine: RoutineOverview }) {
 
 export const planHref = '/workouts/routine';
 export const workoutHref = (templateId: string) => `/workouts/routine/workouts/${encodeURIComponent(templateId)}`;
+export const pathHref = (pathId: string) => `/workouts/routine/${encodeURIComponent(pathId)}`;
 
 /** A schedule day's label with each workout in it linking to its page ("Wed: Workout B"). */
 function DayLabel({ day }: { day: ScheduledDayView }) {
@@ -393,7 +394,7 @@ function DayLabel({ day }: { day: ScheduledDayView }) {
 function PathCard({ path }: { path: PathProgress }) {
   const readiness = path.readiness;
   return (
-    <Link href={`/workouts/routine/${path.pathId}`} className="block group">
+    <Link href={pathHref(path.pathId)} className="block group">
       <Card className="p-4 h-full group-hover:shadow-sm transition-shadow">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">

@@ -15,7 +15,7 @@ import type { WorkoutSourceStatus } from '@/lib/workout-sources/types';
 import { Badge, Button, Card, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { LightLabel, ReadinessBar, useRoutineFetch } from './shared';
-import { analystHref, planHref } from './RoutineSection';
+import { analystHref, pathHref, planHref } from './RoutineSection';
 import { formatDayKeyShort } from '@/lib/analytics/windows';
 
 interface WorkoutDetailResponse {
@@ -133,7 +133,7 @@ export function RoutineWorkoutPage() {
 function SlotRow({ slot }: { slot: WorkoutSlotView }) {
   return (
     <li className="border-t border-border pt-4 first:border-t-0 first:pt-0">
-      <Link href={`/workouts/routine/${encodeURIComponent(slot.pathId)}`} className="group flex items-start justify-between gap-2">
+      <Link href={pathHref(slot.pathId)} className="group flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-[11px] text-text-secondary">
             {slot.pathName}

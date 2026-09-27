@@ -17,7 +17,7 @@ import { formatDayKeyShort } from '@/lib/analytics/windows';
 import { Badge, Button, Card, EmptyState, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { useRoutineFetch, type RoutineApiResponse } from './shared';
-import { analystHref, workoutHref } from './RoutineSection';
+import { analystHref, pathHref, workoutHref } from './RoutineSection';
 
 function BackLink() {
   return (
@@ -324,6 +324,16 @@ const PHASE_SURFACE: Record<PhaseView['status'], string> = {
   upcoming: 'bg-surface-muted',
 };
 
+/** A milestone or target, linking to the page of the path it measures when it names one. */
+function TargetLabel({ label, pathId, className = '' }: { label: string; pathId?: string; className?: string }) {
+  if (!pathId) return <span className={className}>{label}</span>;
+  return (
+    <Link href={pathHref(pathId)} className={`${className} hover:text-primary hover:underline underline-offset-2`}>
+      {label}
+    </Link>
+  );
+}
+
 function Phases({ routine }: { routine: RoutineOverview }) {
   if (routine.phases.length === 0) return null;
   const current = routine.currentPhase;
@@ -357,7 +367,7 @@ function Phases({ routine }: { routine: RoutineOverview }) {
               {p.targets.map(t => (
                 <li key={t.label} className="text-xs text-text-secondary">
                   <span aria-hidden="true">{t.met === true ? '✓ ' : t.met === false ? '○ ' : '· '}</span>
-                  <span className={t.met ? 'text-text-primary' : ''}>{t.label}</span>
+                  <TargetLabel label={t.label} pathId={t.pathId} className={t.met ? 'text-text-primary' : ''} />
                   {t.optional ? ' (optional)' : ''}
                   {t.met && t.metOn ? <span className="tnum"> · {t.metOn}</span> : null}
                 </li>
@@ -399,7 +409,7 @@ function CalendarBlocks({ routine }: { routine: RoutineOverview }) {
                   {b.targets.map(t => (
                     <span key={t.label} className="block">
                       {t.met === true ? '✓ ' : ''}
-                      {t.label}
+                      <TargetLabel label={t.label} pathId={t.pathId} />
                     </span>
                   ))}
                 </td>
