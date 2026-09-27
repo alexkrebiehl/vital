@@ -171,6 +171,22 @@ describe('OpenAI-compatible provider over a mock endpoint (SPEC §8)', () => {
     expect(harness.recorded).toHaveLength(2);
   });
 
+  it('retries once without response_format when json mode yields an empty reply', async () => {
+    const harness = await startServer((_req, res, body, index) => {
+      if (index === 0) {
+        expect(body.response_format).toEqual({ type: 'json_object' });
+        json(res, 200, { model: 'mock-analyst-1', choices: [{ finish_reason: 'stop', message: { content: '' } }] });
+        return;
+      }
+      expect(body.response_format).toBeUndefined();
+      json(res, 200, { model: 'mock-analyst-1', choices: [{ message: { content: analystReplyText() } }] });
+    });
+
+    const response = await askAnalyst({ query: 'How is my HRV trending?' }, { env: openaiEnv(harness.baseUrl) });
+    expect(response.status).toBe('ok');
+    expect(harness.recorded).toHaveLength(2);
+  });
+
   it('does not send response_format when json mode is off', async () => {
     const harness = await startServer((_req, res) => {
       json(res, 200, { model: 'mock-analyst-1', choices: [{ message: { content: analystReplyText() } }] });

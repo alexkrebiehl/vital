@@ -88,6 +88,16 @@ export function inBodyError(payload: unknown): { message: string; code: number |
   return { message, code };
 }
 
+/** The first choice's non-blank content (or null) and its finish_reason. */
+function firstChoice(payload: Record<string, unknown> | null): { text: string | null; finish: string | null } {
+  const choices = payload?.choices;
+  const first = Array.isArray(choices) ? (choices[0] as Record<string, unknown> | undefined) : undefined;
+  const message = first?.message as Record<string, unknown> | undefined;
+  const content = typeof message?.content === 'string' ? message.content : null;
+  const finish = typeof first?.finish_reason === 'string' ? first.finish_reason : null;
+  return { text: content && content.trim() ? content : null, finish };
+}
+
 export function isRateLimit(code: number | null): boolean {
   return code === 429;
 }
@@ -224,9 +234,9 @@ abstract class RemoteAnalystProviderBase implements AnalystProvider {
 /**
  * Any OpenAI-compatible /chat/completions endpoint.
  *
- * `jsonMode` sends `response_format: {type:"json_object"}` and, on HTTP 400,
- * retries once without it — servers that do not support the field reject the
- * request rather than ignoring it.
+ * `jsonMode` sends `response_format: {type:"json_object"}` and, on HTTP 400 or
+ * an empty reply, retries once without it — servers that do not support the
+ * field either reject the request or answer with nothing.
  *
  * Two failure shapes this endpoint family produces are handled explicitly,
  * because both otherwise masquerade as "the model said nothing":
@@ -266,6 +276,34 @@ export class OpenAICompatibleProvider extends RemoteAnalystProviderBase {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (this.config.apiKey) headers.Authorization = `Bearer ${this.config.apiKey}`;
 
+    let payload = await this.request(headers, body, useJsonMode);
+    let first = firstChoice(payload);
+    if (useJsonMode && body.response_format && !first.text && first.finish !== 'length') {
+      // Some servers (LocalAI with a reasoning model) accept response_format but
+      // let the grammar end the reply before any content. Retry once without it.
+      delete body.response_format;
+      payload = await this.request(headers, body, false);
+      first = firstChoice(payload);
+    }
+
+    const { text, finish } = first;
+    if (!text) {
+      throw new AnalystProviderError(
+        finish === 'length'
+          ? `The provider stopped at the ${this.config.maxTokens} token limit before producing an answer. Raise ANALYST_MAX_TOKENS or ask a narrower question.`
+          : 'The provider answered with an empty message, so there was nothing to validate.'
+      );
+    }
+    const model = typeof payload?.model === 'string' ? payload.model : this.config.model;
+    return { text, model };
+  }
+
+  /** POST the body, handling the HTTP 400 JSON-mode retry, in-body errors and rate limits. */
+  private async request(
+    headers: Record<string, string>,
+    body: Record<string, unknown>,
+    useJsonMode: boolean
+  ): Promise<Record<string, unknown> | null> {
     let payload: Record<string, unknown> | null = null;
     for (let attempt = 0; attempt <= RATE_LIMIT_RETRIES; attempt++) {
       let response = await this.post(this.url(), headers, body);
@@ -291,21 +329,7 @@ export class OpenAICompatibleProvider extends RemoteAnalystProviderBase {
         reported.code
       );
     }
-
-    const choices = payload?.choices;
-    const first = Array.isArray(choices) ? (choices[0] as Record<string, unknown> | undefined) : undefined;
-    const message = first?.message as Record<string, unknown> | undefined;
-    const text = typeof message?.content === 'string' ? message.content : null;
-    if (!text || !text.trim()) {
-      const finish = typeof first?.finish_reason === 'string' ? first.finish_reason : null;
-      throw new AnalystProviderError(
-        finish === 'length'
-          ? `The provider stopped at the ${this.config.maxTokens} token limit before producing an answer. Raise ANALYST_MAX_TOKENS or ask a narrower question.`
-          : 'The provider answered with an empty message, so there was nothing to validate.'
-      );
-    }
-    const model = typeof payload?.model === 'string' ? payload.model : this.config.model;
-    return { text, model };
+    return payload;
   }
 
   private url(): string {
