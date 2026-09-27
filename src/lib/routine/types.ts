@@ -256,3 +256,22 @@ export interface PlanRevisionSummary {
   summary: string;
   createdAt: string;
 }
+
+/**
+ * One change to the plans, as the analyst reports it and the reader may undo
+ * it. Configuration only: names, stages and targets — never a measurement.
+ */
+export interface PlanChange {
+  kind: 'create' | 'update' | 'archive';
+  planId: string;
+  planTitle: string;
+  /** Revision before the change (null for a new plan). */
+  fromRevision: number | null;
+  /** Revision the change produced. */
+  toRevision: number;
+  /** The plan that was active before a new one replaced it. */
+  previousActivePlanId: string | null;
+  summary: string;
+  /** Short lines describing what changed. */
+  diff: string[];
+}

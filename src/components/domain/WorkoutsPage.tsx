@@ -24,6 +24,8 @@ import {
 import { MetricChart } from '@/components/charts';
 import { DomainHeader, SectionTitle } from './DomainShared';
 import { useUnits } from '@/components/ui/UnitsProvider';
+import { RoutineSection } from '@/components/routine/RoutineSection';
+import { SessionExercises } from '@/components/routine/SessionExercises';
 
 const RANGE_OPTIONS = [
   { value: '30', label: 'Last 30 days' },
@@ -67,6 +69,8 @@ export function WorkoutsPage() {
         title="Workouts"
         subtitle={`Recorded sessions across ${filtered.window.label.toLowerCase()} (${filtered.views.length} shown of ${filtered.inWindowCount} in the window). Only the fields the dataset actually contains are shown.`}
       />
+
+      <RoutineSection />
 
       {/* ── Filters ─────────────────────────────────── */}
       <Card className="p-5 space-y-4" as="section">
@@ -423,6 +427,8 @@ function WorkoutDetail({
         <DetailRow label="Source" value={view.source} />
         <DetailRow label="Record id" value={view.id} />
       </dl>
+
+      <SessionExercises start={view.start_time} end={view.end_time} units={units} />
 
       <div className="pt-3 border-t border-border">
         <h3 className="text-sm font-semibold text-text-primary mb-1">How this session compares</h3>
