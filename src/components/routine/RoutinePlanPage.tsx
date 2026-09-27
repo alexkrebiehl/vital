@@ -12,6 +12,7 @@ import { Fragment } from 'react';
 import { ArrowLeft, ArrowRight, Check, MessageSquare, Repeat } from 'lucide-react';
 import type { CadenceDay, CadenceNode, CadenceView } from '@/lib/routine/cadence';
 import type { RoutineOverview } from '@/lib/routine/progress';
+import type { PhaseView } from '@/lib/routine/position';
 import { formatDayKeyShort } from '@/lib/analytics/windows';
 import { Badge, Button, Card, EmptyState, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { useUnits } from '@/components/ui/UnitsProvider';
@@ -315,6 +316,14 @@ function Workouts({ routine }: { routine: RoutineOverview }) {
 
 // ── Phases and calendar blocks ──────────────────────────
 
+// The current phase takes the logged-day fill from the cadence strip; completed
+// phases sit on the card itself; upcoming ones stay muted.
+const PHASE_SURFACE: Record<PhaseView['status'], string> = {
+  current: 'bg-accent-tint',
+  complete: '',
+  upcoming: 'bg-surface-muted',
+};
+
 function Phases({ routine }: { routine: RoutineOverview }) {
   if (routine.phases.length === 0) return null;
   const current = routine.currentPhase;
@@ -330,7 +339,7 @@ function Phases({ routine }: { routine: RoutineOverview }) {
       </p>
       <ol className="mt-3 space-y-3 list-none p-0">
         {routine.phases.map(p => (
-          <li key={p.id} className={`rounded-control p-3 ${p.status === 'current' ? 'bg-accent-tint/40' : 'bg-surface-muted'}`}>
+          <li key={p.id} className={`rounded-control p-3 ${PHASE_SURFACE[p.status]}`}>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <p className={`text-sm ${p.status === 'upcoming' ? 'text-text-secondary' : 'text-text-primary'} font-medium`}>
                 {p.index + 1}. {p.name}
@@ -382,7 +391,7 @@ function CalendarBlocks({ routine }: { routine: RoutineOverview }) {
           </thead>
           <tbody>
             {routine.blocks.map(b => (
-              <tr key={b.id} className={`border-b border-border last:border-b-0 align-top ${b.status === 'current' ? 'bg-accent-tint/40' : ''}`}>
+              <tr key={b.id} className={`border-b border-border last:border-b-0 align-top ${b.status === 'current' ? 'bg-accent-tint' : ''}`}>
                 <td className="py-2 pr-3 text-text-primary font-medium">{b.name}</td>
                 <td className="py-2 pr-3 text-text-secondary tnum whitespace-nowrap">{b.weeks[0] === b.weeks[1] ? b.weeks[0] : `${b.weeks[0]}–${b.weeks[1]}`}</td>
                 <td className="py-2 pr-3 text-text-secondary">{b.goals.join('; ')}</td>
