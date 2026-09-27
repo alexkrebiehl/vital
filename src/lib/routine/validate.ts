@@ -24,6 +24,8 @@ import {
   type Path,
   type PathHistoryEntry,
   type PathHold,
+  type Phase,
+  type PhaseTarget,
   type PlanRules,
   type ProgressionModelId,
   type Range,
@@ -45,6 +47,8 @@ export const PLAN_LIMITS = {
   stagesPerPath: 16,
   stepsPerStage: 8,
   blocks: 52,
+  phases: 16,
+  targetsPerPhase: 12,
   templates: 12,
   slotsPerTemplate: 8,
   cycleDays: 14,
@@ -569,6 +573,56 @@ function readBlock(
   return block;
 }
 
+function readPhase(r: Reader, value: unknown, where: string, paths: Map<string, Path>): Phase | null {
+  const o = r.obj(value, where);
+  if (!o) return null;
+  const name = r.str(o.name, `${where}.name`, { required: true, max: PLAN_LIMITS.title });
+  const phase: Phase = {
+    id: r.id(o.id, name, `${where}.id`, 'phase'),
+    name,
+    goals: r.strings(o.goals, `${where}.goals`),
+    targets: r
+      .arr(o.targets, `${where}.targets`, PLAN_LIMITS.targetsPerPhase)
+      .map((t, i): PhaseTarget | null => {
+        const at = `${where}.targets[${i}]`;
+        const to = r.obj(t, at);
+        if (!to) return null;
+        const target: PhaseTarget = { label: r.str(to.label, `${at}.label`, { required: true }) };
+        if (to.pathId !== undefined) {
+          const pid = r.str(to.pathId, `${at}.pathId`, { max: 48 });
+          const path = paths.get(pid);
+          if (pid && !path) r.fail(`${at}.pathId`, `"${pid}" is not a path id (${[...paths.keys()].join(', ')}).`);
+          if (pid) target.pathId = pid;
+          if (to.stageId !== undefined) {
+            const sid = r.str(to.stageId, `${at}.stageId`, { max: 48 });
+            if (path && sid && !path.stages.some(s => s.id === sid)) {
+              r.fail(`${at}.stageId`, `"${sid}" is not a stage of path "${pid}" (${path.stages.map(s => s.id).join(', ')}).`);
+            }
+            if (sid) {
+              target.stageId = sid;
+              target.reach = r.enumOf(to.reach, `${at}.reach`, ['started', 'mastered'] as const, 'mastered');
+            }
+          }
+        } else if (to.stageId !== undefined) {
+          r.fail(`${at}.stageId`, 'needs a pathId.');
+        }
+        const dose = readDose(r, to.dose, `${at}.dose`);
+        if (dose) {
+          if (!target.pathId) r.fail(`${at}.dose`, 'needs a pathId to be checked against sessions.');
+          target.dose = dose;
+        }
+        if (to.optional === true) target.optional = true;
+        return target;
+      })
+      .filter((t): t is PhaseTarget => t !== null),
+  };
+  const expected = r.range(o.expectedWeeks, `${where}.expectedWeeks`, 0, 104);
+  if (expected) phase.expectedWeeks = expected;
+  const notes = r.str(o.notes, `${where}.notes`);
+  if (notes) phase.notes = notes;
+  return phase;
+}
+
 /** Check and normalize a whole plan. */
 export function validatePlan(input: unknown): PlanValidation {
   const r = new Reader();
@@ -614,6 +668,12 @@ export function validatePlan(input: unknown): PlanValidation {
     ? (r.fail('plan.schedule', 'is required: {kind:"cycle", days:[…]}, {kind:"weekdays", days:{mon:…}} or {kind:"frequency", sessionsPerWeek:[3,4], rotation:[…]}.'), null)
     : readSchedule(r, o.schedule, 'plan.schedule', templateIds);
 
+  const pathsById = new Map(focusAreas.flatMap(a => a.paths.map(p => [p.id, p] as const)));
+  const phases = r
+    .arr(o.phases, 'plan.phases', PLAN_LIMITS.phases)
+    .map((p, i) => readPhase(r, p, `plan.phases[${i}]`, pathsById))
+    .filter((p): p is Phase => p !== null);
+
   const blocks = r
     .arr(o.blocks, 'plan.blocks', PLAN_LIMITS.blocks)
     .map((b, i) => readBlock(r, b, `plan.blocks[${i}]`, weeks, pathIds, templateIds))
@@ -629,6 +689,7 @@ export function validatePlan(input: unknown): PlanValidation {
     durationWeeks: weeks,
     focusAreas,
     rules: readRules(r, o.rules, 'plan.rules'),
+    phases,
     blocks,
     templates,
     schedule: schedule ?? { kind: 'frequency', sessionsPerWeek: [3, 3], rotation: templates.map(t => t.id) },

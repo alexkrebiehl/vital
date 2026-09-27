@@ -61,6 +61,7 @@ const PLAN_SCHEMA_TEXT = `A plan is JSON (ranges are [min,max] or a single numbe
   rules: { qualifyingSessions: range, effort?: { rpe?: range, rir?: range }, lights: { green: [string], yellow: [string], red: [string] },
     doNotProgressIf: [string], deload?: { everyWeeks: range, volumeReduction: [0.3,0.5] },
     recoveryGates: [{ signal: "resting_hr"|"hrv"|"sleep_hours"|"body_weight_rate"|"training_load", rule: "rising"|"falling"|"below"|"above", threshold, severity: "watch"|"warn", note? }] },
+  phases: [{ id?, name, goals: [string], expectedWeeks?: range, targets: [{ label, pathId?, stageId?, reach?: "started"|"mastered", dose?: Dose, optional? }] }],
   blocks: [{ id?, name, startWeek, weeks, kind?: "build"|"deload"|"peak"|"taper"|"test", goals: [string], targets: [{ pathId?, label, dose?: Dose }], scheduleOverride?: Schedule }],
   templates: [{ id?, name, minutes?, warmup?: [string], slots: [{ pathIds: [pathId], dose?: Dose, optional?, rotate?, note? }] }],
   schedule: Schedule }
@@ -69,6 +70,7 @@ Schedule (pick what the person asked for — never assume a cadence):
   { kind: "cycle", days: [templateId | "rest", …] (any length: ["a","b","rest"], ["full","rest"], ["daily"]), advance: "on-completion"|"calendar" }
   { kind: "weekdays", days: { mon: templateId, thu: templateId, … } }
   { kind: "frequency", sessionsPerWeek: range, rotation: [templateId, …], minRestHours? }
+Phases are the plan's milestones, reached by progress: the current phase is the first whose required targets are not met, worked out from the logged sessions — never from the date, so nobody is "behind". Give each phase checkable targets: a stage started or mastered on a path, or a dose reached on a stage (pathId + stageId + dose; without stageId any stage of the path counts, so name the stage when easier variations could satisfy the dose). expectedWeeks is only a guide. Use blocks only for true calendar periods (deload weeks, a peak, a taper, a test week).
 Ids are optional (derived from names as lowercase-dashed); slots, targets and schedules refer to those ids.
 Models: ${Object.entries(MODEL_PARAM_SPECS).map(([id, s]) => `${id} — ${s.description}${Object.keys(s.params).length ? ` params: ${Object.entries(s.params).map(([k, p]) => `${k} (${p.description})`).join(', ')}` : ''}`).join(' | ')}`;
 
@@ -101,8 +103,12 @@ function overviewSummary(r: RoutineOverview, detailPathId?: string) {
     revision: r.revision,
     title: r.title,
     goal: r.goal,
-    week: r.started ? `${r.week} of ${r.durationWeeks}` : `starts ${r.startDate}`,
-    currentBlocks: r.currentBlocks,
+    week: r.started ? r.week : `starts ${r.startDate}`,
+    currentPhase: r.currentPhase
+      ? { phase: `${r.currentPhase.index + 1} of ${r.currentPhase.count}`, name: r.currentPhase.name, since: r.currentPhase.since, milestones: `${r.currentPhase.progress.met} of ${r.currentPhase.progress.total}` }
+      : r.phases.length ? 'all phases complete' : null,
+    phases: r.phases.map(p => ({ name: p.name, status: p.status, targets: p.targets.map(t => `${t.met === true ? 'met' : t.met === false ? 'not yet' : 'unchecked'}: ${t.label}${t.optional ? ' (optional)' : ''}`) })),
+    calendarBlocksThisWeek: r.currentBlocks,
     nextSession: { due: r.next.due.label, why: r.next.why, slots: r.next.due.templates.flatMap(t => t.slots.map(s => `${s.stageName}${s.dose ? ` — ${s.dose}` : ''}${s.optional ? ' (optional)' : ''}`)) },
     adherence: r.adherence.text,
     deload: r.deload.text,
@@ -153,7 +159,7 @@ export const ANALYST_TOOLS: AnalystTool[] = [
     name: 'get_routine_progress',
     kind: 'read',
     description:
-      'The active training plan evaluated against the logged sessions: plan week and blocks, the next session, adherence, deload timing, recovery indicators, and for every progression path its current stage, light (green / yellow-green / yellow / red / none), reasons, readiness for the next stage, next action and recent sessions. Pass pathId for that path\'s full recent history.',
+      'The active training plan evaluated against the logged sessions: the current phase (worked out from progress) and every phase\'s milestones, plan week and calendar blocks, the next session, adherence, deload timing, recovery indicators, and for every progression path its current stage, light (green / yellow-green / yellow / red / none), reasons, readiness for the next stage, next action and recent sessions. Pass pathId for that path\'s full recent history.',
     parameters: { type: 'object', properties: { pathId: { type: 'string', description: 'Optional path id for more session history.' } }, additionalProperties: false },
     async run(args, ctx) {
       const { routine } = await routineNow(ctx);

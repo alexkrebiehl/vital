@@ -140,10 +140,15 @@ export async function demoPlanAnswer(question: string, system: UnitSystem, deps:
       planChange: null,
       answer: answer(
         'plan-status',
-        `${routine.title}: week ${routine.week} of ${routine.durationWeeks}`,
+        routine.currentPhase ? `${routine.title}: phase ${routine.currentPhase.index + 1}, ${routine.currentPhase.name.toLowerCase()}` : routine.title,
         paths.map(p => `${p.pathName}: ${p.stage.name.toLowerCase()} — ${p.light}${p.lastSession ? `; last ${p.lastSession.work} on ${p.lastSession.date}` : ''}${p.readiness ? ` (${p.readiness.label})` : ''}.`),
         paths.map(p => `${p.pathName}: ${p.nextAction}`),
-        [routine.recovery.text, routine.deload.text, routine.adherence.text],
+        [
+          ...(routine.currentPhase ? [`Phase ${routine.currentPhase.index + 1} of ${routine.currentPhase.count} is worked out from your sessions: ${routine.currentPhase.progress.met} of ${routine.currentPhase.progress.total} of its milestones are reached.`] : []),
+          routine.recovery.text,
+          routine.deload.text,
+          routine.adherence.text,
+        ],
         ['Create a 6-month calisthenics plan']
       ),
     };

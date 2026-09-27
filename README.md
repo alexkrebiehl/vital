@@ -330,7 +330,7 @@ writable volume:
 
 ### The training routine on `/workouts`
 
-The Workouts page opens with the active **training plan**: plan week and blocks, the next
+The Workouts page opens with the active **training plan**: the current phase, the next
 session, recovery and deload status, and a card per progression path with its light (green,
 yellow-green, yellow, red), progress toward the next stage and the next action. Each card opens
 `/workouts/routine/[pathId]` with the session table and what each session signals, the
@@ -344,6 +344,11 @@ assessment, the stage map, cues and checks, and recovery indicators.
   configured provider the model uses tools to read your sessions and write the plan; the demo
   analyst handles these requests by pattern from example plans. Every change is shown in the answer
   with an **Undo** button. With no plan, the Workouts page also offers the examples directly.
+- **Phases follow progress, not the calendar.** A plan's milestones are phases with checkable
+  targets (a stage started or mastered, a dose reached). The current phase is the first one whose
+  required targets are not met, worked out from your sessions — so nobody is ever shown as behind.
+  Durations are guides ("typically 4–6 weeks"). Calendar blocks are kept only for true calendar
+  periods such as deload weeks, peaks and tapers.
 - **Computed, then explained.** Lights, readiness and next actions are computed from your sessions.
   A configured model may rewrite the path note in plain language; it is shown only when every
   number in it traces to the computed figures.

@@ -751,12 +751,12 @@ Workout sources (src/lib/workout-sources/):
 - Settings → Connections lists every source with its real status.
 
 Training plans (src/lib/routine/):
-- A plan is configuration and may be stored (migration 0004, with a revision per write). It is discipline-agnostic: focus areas → paths → ordered stages, each path judged by a pluggable progression model (variation, load, percentage, volume, maintain); rules (qualifying sessions, effort, light definitions, deloads, recovery gates); blocks; session templates; and a schedule that may be a cycle of any length, fixed weekdays, or N sessions a week. No cadence or discipline is privileged.
+- A plan is configuration and may be stored (migration 0004, with a revision per write). It is discipline-agnostic: focus areas → paths → ordered stages, each path judged by a pluggable progression model (variation, load, percentage, volume, maintain); rules (qualifying sessions, effort, light definitions, deloads, recovery gates); phases — milestones reached by progress, the current one derived from the data and never from the date, so the reader is never "behind"; calendar blocks only for deloads, peaks and tapers; session templates; and a schedule that may be a cycle of any length, fixed weekdays, or N sessions a week. No cadence or discipline is privileged.
 - Progress is computed, never generated: each path gets session rows with signals, a light on one scale (green / yellow-green / yellow / red / none) with reasons, readiness for the next stage and a next action. Holds, recovery gates and deloads apply to every model.
 - Qualitative checks (pain, form) are shown as checks for the person; no data source records them.
 
 Workouts page:
-- A Routine section shows the plan week and blocks, the next session, recovery and deload status, and a card per path. Each card opens /workouts/routine/[pathId]: current stage, session table (Date | Work | Total | Effort | Signal), light and reasons, next action, stage map, cues and checks, recovery indicators.
+- A Routine section shows the current phase (from the data), the next session, recovery and deload status, and a card per path. Each card opens /workouts/routine/[pathId]: current stage, session table (Date | Work | Total | Effort | Signal), light and reasons, next action, stage map, cues and checks, recovery indicators.
 - The path note may be rewritten by a model from a fact sheet; it is shown only when every number traces to the computed figures and it names the computed light, otherwise the computed text is shown and the page says why.
 
 AI analyst (§8 amended):

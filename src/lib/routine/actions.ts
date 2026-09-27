@@ -53,7 +53,8 @@ export function describePlanDiff(before: TrainingPlan | null, after: TrainingPla
   for (const [id, p] of bPaths) if (!aPaths.has(id)) out.push(`Removed path ${p.name}`);
   if (JSON.stringify(before.schedule) !== JSON.stringify(after.schedule)) out.push('Schedule changed');
   if (JSON.stringify(before.templates) !== JSON.stringify(after.templates)) out.push('Session templates changed');
-  if (JSON.stringify(before.blocks) !== JSON.stringify(after.blocks)) out.push('Blocks changed');
+  if (JSON.stringify(before.phases) !== JSON.stringify(after.phases)) out.push('Phases changed');
+  if (JSON.stringify(before.blocks) !== JSON.stringify(after.blocks)) out.push('Calendar blocks changed');
   if (JSON.stringify(before.rules) !== JSON.stringify(after.rules)) out.push('Progression rules changed');
   if (before.deloads.length !== after.deloads.length) out.push(`Deload recorded (${after.deloads[after.deloads.length - 1]})`);
   return out.length ? out : ['No visible change'];

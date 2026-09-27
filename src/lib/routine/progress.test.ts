@@ -379,6 +379,71 @@ describe('schedule', () => {
 
 // ── Plan-level views ────────────────────────────────────
 
+describe('phases', () => {
+  const phased = (phases: unknown[]) => pushPlan({ phases });
+
+  it('puts the reader in the first phase whose milestones are not all met, whatever the date', () => {
+    const p = phased([
+      { name: 'Foundation', targets: [{ pathId: 'push', stageId: 'floor', label: 'Floor push-ups mastered' }] },
+      { name: 'Declines', expectedWeeks: [3, 5], targets: [
+        { pathId: 'push', stageId: 'decline', reach: 'started', label: 'Decline push-ups' },
+        { pathId: 'push', stageId: 'decline', label: 'Decline push-ups mastered' },
+      ] },
+      { name: 'Close grip', targets: [{ pathId: 'push', stageId: 'close-grip', reach: 'started', label: 'Close-grip push-ups' }] },
+    ]);
+    // Far into the plan by the calendar; the data still says phase 2.
+    const r = run(p, EXAMPLE, '2026-10-20');
+    expect(r.phases.map(x => x.status)).toEqual(['complete', 'current', 'upcoming']);
+    expect(r.currentPhase).toMatchObject({ index: 1, name: 'Declines', since: '2026-09-08', progress: { met: 1, total: 2 } });
+    expect(r.phases[0].completedOn).toBe('2026-09-08');
+    expect(r.phases[1].targets.map(t => t.met)).toEqual([true, false]);
+  });
+
+  it('moves on once the stage is mastered, and optional or unverifiable targets never hold a phase open', () => {
+    const more = [
+      ...EXAMPLE,
+      session('2026-09-22', [{ name: 'Decline Push Up', sets: reps([12, 12, 11], [8, 8.5, 9]) }]),
+      session('2026-09-25', [{ name: 'Decline Push Up', sets: reps([12, 12, 12], [8, 8.5, 9]) }]),
+    ];
+    const p = phased([
+      { name: 'Declines', targets: [
+        { pathId: 'push', stageId: 'decline', label: 'Decline push-ups mastered' },
+        { pathId: 'push', dose: { sets: [3, 3], reps: [20, 25] }, label: '3×20 push-ups', optional: true },
+      ] },
+      { name: 'Mobility', goals: ['Stretch daily'], targets: [{ label: 'Daily stretching' }] },
+      { name: 'Close grip', targets: [{ pathId: 'push', stageId: 'close-grip', reach: 'started', label: 'Close-grip push-ups' }] },
+    ]);
+    const r = run(p, more, '2026-09-25');
+    expect(r.phases.map(x => x.status)).toEqual(['complete', 'current', 'upcoming']);
+    const all = run(p, more, '2026-09-25').phases[0];
+    expect(all.progress).toEqual({ met: 1, total: 1 });
+  });
+
+  it('checks a dose on the named stage only, or on any stage without one', () => {
+    const p = phased([{ name: 'Volume', targets: [
+      { pathId: 'push', dose: { sets: [3, 3], reps: [12, 15] }, label: 'any stage 3×12' },
+      { pathId: 'push', stageId: 'decline', dose: { sets: [3, 3], reps: [12, 15] }, label: 'decline 3×12' },
+      { pathId: 'push', stageId: 'floor', dose: { sets: [3, 3], reps: [15, 20] }, label: 'floor 3×15' },
+    ] }]);
+    // Floor 15/12/9 misses 3×12; declines reach 12/12/10 → still not every set at 12.
+    expect(run(p, EXAMPLE, '2026-09-18').phases[0].targets.map(t => t.met)).toEqual([false, false, false]);
+    const more = [...EXAMPLE, session('2026-09-22', [{ name: 'Decline Push Up', sets: reps([12, 12, 12], [8, 8, 8]) }])];
+    expect(run(p, more, '2026-09-22').phases[0].targets.map(t => t.met)).toEqual([true, true, false]);
+  });
+
+  it('does not count a first stage as started until something is logged on it', () => {
+    const p = phased([{ name: 'Start', targets: [{ pathId: 'push', stageId: 'floor', reach: 'started', label: 'Floor push-ups' }] }]);
+    const fresh = pushPlan({ phases: p.phases }, { currentStageId: 'floor', history: [] });
+    expect(run(fresh, [], '2026-09-18').phases[0].targets[0].met).toBe(false);
+    expect(run(fresh, EXAMPLE.slice(0, 1), '2026-09-18').phases[0].targets[0]).toMatchObject({ met: true, metOn: '2026-08-25' });
+  });
+
+  it('rejects a phase target on a stage the path does not have', () => {
+    const v = validatePlan({ ...pushPlan(), phases: [{ name: 'X', targets: [{ pathId: 'push', stageId: 'nope', label: 'x' }] }] });
+    expect(v.ok ? [] : v.errors).toEqual([expect.stringContaining('"nope" is not a stage of path "push"')]);
+  });
+});
+
 describe('plan position and deloads', () => {
   it('reports the week, block status and target checks', () => {
     const p = pushPlan({
@@ -393,7 +458,8 @@ describe('plan position and deloads', () => {
     });
     const r = run(p, EXAMPLE, '2026-09-18');
     expect(r.week).toBe(7);
-    expect(r.blocks.map(b => b.status)).toEqual(['behind', 'current', 'future']);
+    // Blocks are calendar periods: past / current / future, never "behind".
+    expect(r.blocks.map(b => b.status)).toEqual(['past', 'current', 'future']);
     // Any stage of the path counts: 12/12/10 decline push-ups meet 3×10–15; nothing reached 16.
     expect(r.blocks[0].targets.map(t => t.met)).toEqual([true, false]);
   });

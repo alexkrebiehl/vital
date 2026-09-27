@@ -12,7 +12,8 @@
 //          recovery    → a `warn` gate caps the light at yellow, `watch` at yellow-green
 //          deloads     → a deload block, or an overdue deload, replaces "move on" advice
 //   for the plan
-//     week and blocks, what session is next, adherence, deload timing, recovery.
+//     the current phase (from the data), calendar blocks, what session is next,
+//     adherence, deload timing, recovery.
 //
 // Pure: everything it reads is passed in, so it runs the same in tests, in the
 // API routes and in the analyst's tools.
@@ -24,7 +25,7 @@ import { doseText } from './format';
 import { MODEL_PARAM_SPECS } from './model-params';
 import { PROGRESSION_MODELS, type Light, type ModelEvaluation, type ProgressRow, type Readiness } from './models';
 import { LIGHT_ORDER } from './models/types';
-import { currentBlocks, deloadStatus, planPosition, planWeek, type BlockView, type DeloadStatus } from './position';
+import { currentBlocks, deloadStatus, phaseViews, planPosition, planWeek, type BlockView, type DeloadStatus, type PathState, type PhaseView } from './position';
 import { recordsForStage, type PerformanceRecord } from './records';
 import { recoveryIndicators, recoverySummary, type DayValue, type RecoveryIndicator } from './recovery';
 import { adherence, completedSessions, nextSession, type Adherence, type NextSessionView } from './schedule';
@@ -77,8 +78,12 @@ export interface RoutineOverview {
   durationWeeks: number;
   week: number;
   started: boolean;
+  /** Calendar blocks running this week (deloads, peaks, tapers). */
   currentBlocks: string[];
   blocks: BlockView[];
+  /** Milestones; the current one is worked out from the data, never from the date. */
+  phases: PhaseView[];
+  currentPhase: { index: number; count: number; name: string; since: string | null; progress: PhaseView['progress'] } | null;
   next: NextSessionView;
   adherence: Adherence;
   deload: DeloadStatus;
@@ -232,14 +237,27 @@ export function buildRoutine(inputs: RoutineInputs): RoutineOverview {
   const deload = deloadStatus(plan, today);
 
   const recordsByPath = new Map<string, PerformanceRecord[]>();
+  const states = new Map<string, PathState>();
   const paths: PathProgress[] = [];
   for (const area of plan.focusAreas) {
     for (const path of area.paths) {
       const byStage = pathRecords(path, inputs);
-      recordsByPath.set(path.id, [...byStage.values()].flat().sort((a, b) => a.startTime.localeCompare(b.startTime)));
-      paths.push(evaluatePath(plan, area.id, area.name, path, byStage, recoveryCap, deload, inputs));
+      const records = [...byStage.values()].flat().sort((a, b) => a.startTime.localeCompare(b.startTime));
+      recordsByPath.set(path.id, records);
+      const progress = evaluatePath(plan, area.id, area.name, path, byStage, recoveryCap, deload, inputs);
+      paths.push(progress);
+      states.set(path.id, {
+        path,
+        currentIndex: progress.stage.index,
+        // Readiness is about performance; a hold or recovery cap does not undo a milestone.
+        ready: Boolean(progress.readiness?.met),
+        records,
+        byStage,
+      });
     }
   }
+  const phases = phaseViews(plan, states, system);
+  const current = phases.find(p => p.status === 'current') ?? null;
 
   return {
     planId: stored.id,
@@ -253,6 +271,10 @@ export function buildRoutine(inputs: RoutineInputs): RoutineOverview {
     started: today >= plan.startDate,
     currentBlocks: currentBlocks(plan, week).map(b => b.name),
     blocks: planPosition(plan, recordsByPath, today, system),
+    phases,
+    currentPhase: current
+      ? { index: current.index, count: phases.length, name: current.name, since: current.since, progress: current.progress }
+      : null,
     next: nextSession(plan, completed, today, week, system),
     adherence: adherence(plan, completed, today, week),
     deload,

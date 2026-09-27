@@ -26,7 +26,7 @@ import type { PathProgress, RoutineOverview } from './progress';
 
 export const NARRATIVE_FAILURE_COOLDOWN_MS = 10 * 60 * 1000;
 /** Bumped when the prompt or the checks change, so notes written under the old ones are not served. */
-export const NARRATIVE_VERSION = 4;
+export const NARRATIVE_VERSION = 5;
 const MAX_TEXT = 900;
 
 export interface NarrativeDeps {
@@ -91,7 +91,7 @@ Return ONE JSON object and nothing else:
 export function factSheet(routine: RoutineOverview, path: PathProgress) {
   return {
     plan: routine.title,
-    week: `${routine.week} of ${routine.durationWeeks}`,
+    currentPhase: routine.currentPhase ? `${routine.currentPhase.name} (phase ${routine.currentPhase.index + 1} of ${routine.currentPhase.count}, from progress — not behind or ahead of any calendar)` : null,
     path: path.pathName,
     stage: path.stage.name,
     stageStartedOn: path.stage.startedOn,

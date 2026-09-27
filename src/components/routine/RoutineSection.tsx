@@ -150,9 +150,16 @@ function RoutineBody({ data, routine, onChange }: { data: RoutineApiResponse; ro
             <h3 className="text-base font-semibold text-text-primary">{routine.title}</h3>
             <p className="text-xs text-text-secondary mt-0.5 max-w-2xl">{routine.goal}</p>
             <div className="flex flex-wrap items-center gap-2 mt-2">
-              <Badge variant="accent">
-                {routine.started ? `Week ${routine.week} of ${routine.durationWeeks}` : `Starts ${routine.startDate}`}
-              </Badge>
+              {routine.currentPhase ? (
+                <span title={`${routine.currentPhase.progress.met} of ${routine.currentPhase.progress.total} milestones reached — worked out from your sessions`}>
+                  <Badge variant="accent">
+                    Phase {routine.currentPhase.index + 1} of {routine.currentPhase.count}: {routine.currentPhase.name}
+                  </Badge>
+                </span>
+              ) : routine.phases.length > 0 ? (
+                <Badge variant="success">All phases complete</Badge>
+              ) : null}
+              <Badge>{routine.started ? `Week ${routine.week}` : `Starts ${routine.startDate}`}</Badge>
               {routine.currentBlocks.map(b => (
                 <Badge key={b}>{b}</Badge>
               ))}
@@ -187,7 +194,8 @@ function RoutineBody({ data, routine, onChange }: { data: RoutineApiResponse; ro
         </div>
       ))}
 
-      <PlanPosition routine={routine} />
+      <Phases routine={routine} />
+      <CalendarBlocks routine={routine} />
       <SourceNote data={data} />
     </div>
   );
@@ -335,14 +343,66 @@ function PathCard({ path }: { path: PathProgress }) {
   );
 }
 
-function PlanPosition({ routine }: { routine: RoutineOverview }) {
+function Phases({ routine }: { routine: RoutineOverview }) {
+  const [open, setOpen] = useState(false);
+  if (routine.phases.length === 0) return null;
+  const current = routine.currentPhase;
+  return (
+    <Card className="p-4">
+      <button type="button" className="w-full flex items-center justify-between gap-3 text-left" onClick={() => setOpen(o => !o)} aria-expanded={open}>
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold text-text-primary">Phases</span>
+          <span className="block text-[11px] text-text-secondary">
+            {current
+              ? `Phase ${current.index + 1}: ${current.name} — ${current.progress.met} of ${current.progress.total} milestones reached${current.since ? `, since ${current.since}` : ''}. Phases follow your progress, not the calendar.`
+              : 'Every phase is complete.'}
+          </span>
+        </span>
+        <ChevronDown size={16} className={`text-text-secondary shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
+      </button>
+      {open && (
+        <ol className="mt-3 space-y-3 list-none p-0">
+          {routine.phases.map(p => (
+            <li key={p.id} className={`rounded-control p-3 ${p.status === 'current' ? 'bg-accent-tint/40' : 'bg-surface-muted'}`}>
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <p className={`text-sm ${p.status === 'upcoming' ? 'text-text-secondary' : 'text-text-primary'} font-medium`}>
+                  {p.index + 1}. {p.name}
+                </p>
+                <span className="text-[11px] text-text-secondary">
+                  {p.status === 'complete'
+                    ? `Complete${p.completedOn ? ` · ${p.completedOn}` : ''}`
+                    : p.status === 'current'
+                      ? `Current · ${p.progress.met} of ${p.progress.total}`
+                      : `Upcoming${p.expectedWeeks ? ` · typically ${p.expectedWeeks[0]}–${p.expectedWeeks[1]} weeks` : ''}`}
+                </span>
+              </div>
+              {p.goals.length > 0 && <p className="text-[11px] text-text-secondary mt-0.5">{p.goals.join(' · ')}</p>}
+              <ul className="mt-1.5 space-y-0.5">
+                {p.targets.map(t => (
+                  <li key={t.label} className="text-xs text-text-secondary">
+                    <span aria-hidden="true">{t.met === true ? '✓ ' : t.met === false ? '○ ' : '· '}</span>
+                    <span className={t.met ? 'text-text-primary' : ''}>{t.label}</span>
+                    {t.optional ? ' (optional)' : ''}
+                    {t.met && t.metOn ? <span className="tnum"> · {t.metOn}</span> : null}
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ol>
+      )}
+    </Card>
+  );
+}
+
+function CalendarBlocks({ routine }: { routine: RoutineOverview }) {
   const [open, setOpen] = useState(false);
   if (routine.blocks.length === 0) return null;
-  const statusLabel = { complete: 'Complete', behind: 'Behind', elapsed: 'Elapsed', current: 'Current', future: 'Future' } as const;
+  const statusLabel = { past: 'Done', current: 'This week', future: 'Upcoming' } as const;
   return (
     <Card className="p-4">
       <button type="button" className="w-full flex items-center justify-between text-left" onClick={() => setOpen(o => !o)} aria-expanded={open}>
-        <span className="text-sm font-semibold text-text-primary">Plan position</span>
+        <span className="text-sm font-semibold text-text-primary">Calendar blocks</span>
         <ChevronDown size={16} className={`text-text-secondary transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
       </button>
       {open && (
@@ -354,7 +414,7 @@ function PlanPosition({ routine }: { routine: RoutineOverview }) {
                 <th className="py-1.5 pr-3 font-medium">Weeks</th>
                 <th className="py-1.5 pr-3 font-medium">Goals</th>
                 <th className="py-1.5 pr-3 font-medium">Targets</th>
-                <th className="py-1.5 font-medium">Status</th>
+                <th className="py-1.5 font-medium">When</th>
               </tr>
             </thead>
             <tbody>
@@ -366,7 +426,7 @@ function PlanPosition({ routine }: { routine: RoutineOverview }) {
                   <td className="py-2 pr-3 text-text-secondary">
                     {b.targets.map(t => (
                       <span key={t.label} className="block">
-                        {t.met === true ? '✓ ' : t.met === false ? '○ ' : ''}
+                        {t.met === true ? '✓ ' : ''}
                         {t.label}
                       </span>
                     ))}
@@ -376,7 +436,6 @@ function PlanPosition({ routine }: { routine: RoutineOverview }) {
               ))}
             </tbody>
           </table>
-          <p className="text-[11px] text-text-secondary mt-2">✓ reached in a logged session since the block began · ○ not yet reached.</p>
         </div>
       )}
     </Card>

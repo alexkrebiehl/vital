@@ -12,7 +12,8 @@
 //   │       └─ stages[]    ordered; a stage changes the variation, the load, or the volume
 //   │           └─ steps[] optional sub-ladder inside a stage (box heights, 1 → 3×3 → 3×5)
 //   ├─ rules               when to progress, the light definitions, deloads, recovery gates
-//   ├─ blocks[]            time periods: months, mesocycles, base/build/taper, deload weeks
+//   ├─ phases[]            milestones reached by progress; the current one comes from the data
+//   ├─ blocks[]            calendar periods: deload weeks, mesocycles, peaks, tapers
 //   ├─ templates[]         session templates whose slots point at paths
 //   └─ schedule            cycle (any length), fixed weekdays, or N sessions a week
 //
@@ -173,6 +174,36 @@ export interface Block {
   scheduleOverride?: Schedule;
 }
 
+/**
+ * A milestone of the plan, reached by progress rather than by date. The phase
+ * the reader is in is worked out from their data: the first phase whose
+ * required targets are not all met. `expectedWeeks` is a guide, never a deadline.
+ */
+export interface PhaseTarget {
+  label: string;
+  pathId?: string;
+  /** With `pathId`: the stage this target is about. */
+  stageId?: string;
+  /**
+   * `started`  the path has reached the stage (a session on it or later, or a recorded stage change);
+   * `mastered` the path has moved past the stage, or is on it and ready to move on (default).
+   */
+  reach?: 'started' | 'mastered';
+  /** Met once a session reaches this dose — on `stageId` when given, else on any stage of the path. */
+  dose?: Dose;
+  /** Nice to have: does not hold the phase open. */
+  optional?: boolean;
+}
+
+export interface Phase {
+  id: string;
+  name: string;
+  goals: string[];
+  targets: PhaseTarget[];
+  expectedWeeks?: Range;
+  notes?: string;
+}
+
 export interface TemplateSlot {
   /** Paths this slot trains; several means "pick one" or a rotation. */
   pathIds: string[];
@@ -228,6 +259,9 @@ export interface TrainingPlan {
   durationWeeks: number;
   focusAreas: FocusArea[];
   rules: PlanRules;
+  /** Milestones, in order, reached by progress (see `Phase`). */
+  phases: Phase[];
+  /** Calendar periods: deload weeks, peaks, tapers, test weeks. */
   blocks: Block[];
   templates: SessionTemplate[];
   schedule: Schedule;

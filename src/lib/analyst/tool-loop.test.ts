@@ -233,7 +233,8 @@ describe('demo analyst plan requests', () => {
     expect(created.answer?.observed.join(' ')).toContain('Horizontal push: Decline push-up');
 
     const status = await ask('How is my routine going?');
-    expect(status.answer?.title).toMatch(/week 13 of 26/);
+    // The phase comes from the demo sessions (decline push-ups not yet mastered), not the calendar.
+    expect(status.answer?.title).toMatch(/phase 3, unilateral strength/);
 
     const paused = await ask('My low back is sore after reverse crunches');
     expect(paused.planChange?.diff[0]).toMatch(/^Core: on hold/);
