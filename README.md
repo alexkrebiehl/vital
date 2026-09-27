@@ -17,7 +17,7 @@ security* below.
 
 ## Data sources
 
-**Vital supports exactly one data source today: Apple Health, via the Health Auto Export app for
+**Vital supports exactly one health-data source today: Apple Health, via the Health Auto Export app for
 iPhone, paired with a self-hosted metrics API server —
 [HealthyApps/health-auto-export-server](https://github.com/HealthyApps/health-auto-export-server).**
 
@@ -44,6 +44,30 @@ What that means in practice:
   *Integrations*): a module that knows the wire protocol, a mapping into the internal dataset
   shape, and a unit mapping. Nothing else in the app changes, because both modes produce the same
   dataset.
+
+### Workout sources (detailed training data)
+
+Apple Health knows a strength session only as "Strength Training" with a duration and calories.
+A **workout source** reads a training app's own API for what was actually done — exercises,
+sets, reps, load, duration, distance and RPE — which the training routine on `/workouts` needs.
+Sources are plugins under `src/lib/workout-sources/<id>/`, registered in `registry.ts`; each
+normalizes into the shared `TrainingSession` model, so nothing downstream knows which app a
+session came from.
+
+**Hevy** is the first source (Hevy Pro; create a key at hevy.com/settings?developer):
+
+```bash
+# .env
+HEVY_API_KEY=your-hevy-api-key
+# HEVY_CACHE_TTL_SECONDS=300       # how long synced sessions are served before a refresh
+# WORKOUT_SOURCE_LOOKBACK_DAYS=400 # how far back the first sync reads
+```
+
+The first sync pages `GET /v1/workouts` back to the lookback window and reads the exercise
+catalogue once; later syncs read only Hevy's change feed (`GET /v1/workouts/events?since=`).
+Like the Health Auto Export history, sessions live in server memory and are **never written to
+the database**; demo mode serves committed demo sessions (`src/data/training-fixtures.json`)
+and calls nothing. Settings → Connections shows each source's status.
 
 ---
 
@@ -304,6 +328,30 @@ writable volume:
   `localStorage`; no API key, token or health record does — and the timezone no longer does either.
   The live profile file is gitignored and excluded from the Docker build context.
 
+### The training routine on `/workouts`
+
+The Workouts page opens with the active **training plan**: plan week and blocks, the next
+session, recovery and deload status, and a card per progression path with its light (green,
+yellow-green, yellow, red), progress toward the next stage and the next action. Each card opens
+`/workouts/routine/[pathId]` with the session table and what each session signals, the
+assessment, the stage map, cues and checks, and recovery indicators.
+
+- **Any discipline, any schedule.** A plan is focus areas → paths → stages, each path judged by a
+  progression model (`variation`, `load`, `percentage`, `volume`, `maintain`), with a schedule that
+  can be a cycle of any length (A/B/rest, on/off, every day), fixed weekdays, or N sessions a week.
+- **Created and changed through the analyst.** Ask "Create a 6-month calisthenics plan", "build me
+  a 12-week 10k plan, 4 runs a week" or "my low back is sore after reverse crunches". With a
+  configured provider the model uses tools to read your sessions and write the plan; the demo
+  analyst handles these requests by pattern from example plans. Every change is shown in the answer
+  with an **Undo** button. With no plan, the Workouts page also offers the examples directly.
+- **Computed, then explained.** Lights, readiness and next actions are computed from your sessions.
+  A configured model may rewrite the path note in plain language; it is shown only when every
+  number in it traces to the computed figures.
+- **Stored as configuration.** Plans (never sessions) are saved in Postgres (migration 0004) or
+  `./data/training-plans.json`, with a revision per change.
+- `ANALYST_TOOLS=off` keeps a configured model from calling tools (for servers without tool calling);
+  a server that rejects tool definitions is answered without them automatically.
+
 ### The daily briefing on `/`
 
 The Overview hero (*"Today's briefing"*) is written by the same provider stack described above —
@@ -399,7 +447,8 @@ Only the host side moves; the container port stays 3000.
 | `/sleep` | Sleep analysis |
 | `/body` | Body metrics |
 | `/nutrition` | Dietary intake |
-| `/workouts` | Workout history |
+| `/workouts` | Training routine and workout history |
+| `/workouts/routine/[pathId]` | One progression path of the training plan |
 | `/insights` | Discovered patterns |
 | `/analyst` | Question console (demo analyst or configured provider) |
 | `/settings` | Preferences, the profile (Account tab), coverage and connections |
@@ -408,6 +457,10 @@ Only the host side moves; the container port stays 3000.
 | `/api/analyst` | Analyst provider state and questions (server-side) |
 | `/api/profile` | The profile: `GET`, and `PUT` to replace it (validated, server-side) |
 | `/api/briefing` | Today's briefing: `GET` reads it, `POST` regenerates the current day's once |
+| `/api/routine` | The active plan evaluated against your sessions (`GET`); start from an example or archive (`POST`) |
+| `/api/routine/[pathId]` | One path in detail, with its note |
+| `/api/routine/undo` | Undo a plan change (`POST`) |
+| `/api/workout-sources/match` | The workout-source session matching an Apple Health workout |
 
 ---
 
@@ -451,11 +504,16 @@ What is still demo or unwired in this build, exhaustively:
 - **The live dataset is cached in process memory.** One read-only cache fill warms it at
   process start, and stale-while-revalidate refreshes it in the background after the TTL
   lapses; a request only waits for upstream on a genuinely cold process. There is still no
-  background ingestion job, no scheduler and no persisted copy of the dataset on disk.
+  background ingestion job and no persisted copy of the dataset on disk; the only timer is the
+  daily briefing's (it writes the briefing at the profile's briefing hour).
 
 ## Integrations
 
-**Health Auto Export — implemented (server-side), and the only source.** Apple Health records are
+**Hevy — implemented (server-side), as a workout source** (see *Workout sources*): `GET
+/v1/workouts`, `/v1/workouts/events`, `/v1/exercise_templates` and `/v1/user/info` (probe) with an
+`api-key` header, in `src/lib/workout-sources/hevy/`.
+
+**Health Auto Export — implemented (server-side), and the only health-data source.** Apple Health records are
 exported by the iOS app and received by a
 [`health-auto-export-server`](https://github.com/HealthyApps/health-auto-export-server) instance —
 the metrics API server this app requires — and Vital reads them from that server over these

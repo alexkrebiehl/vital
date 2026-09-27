@@ -15,6 +15,7 @@ env_get() { grep -m1 "^$1=" .env | cut -d= -f2-; }
 KEY="$(env_get ANALYST_API_KEY)"
 HAE_KEY="$(env_get HAE_API_KEY)"
 LOCAL_KEY="$(env_get VITAL_LLM_API_KEY)"
+HEVY_KEY="$(env_get HEVY_API_KEY)"
 PROMPT_FILE_MARKER="You are the analysis component of Vital"
 PROMPT_QUOTE_MARKER="Quote these strings verbatim"
 UNTRUSTED_MARKER="UNTRUSTED_CONTEXT_START"
@@ -43,6 +44,7 @@ echo "Scanned tree: $(find .next/static -name '*.js' | wc -l) javascript files"
 check "ANALYST_API_KEY value"      "$KEY"
 check "HAE_API_KEY value"          "$HAE_KEY"
 check "VITAL_LLM_API_KEY value"    "$LOCAL_KEY"
+check "HEVY_API_KEY value"         "$HEVY_KEY"
 check "system prompt text"         "$PROMPT_FILE_MARKER"
 check "prompt display rule"        "$PROMPT_QUOTE_MARKER"
 check "untrusted-block delimiter"  "$UNTRUSTED_MARKER"
@@ -54,5 +56,10 @@ check "OpenRouter host"            "openrouter.ai"
 # browser gets the rendered text and the attribution string, and nothing else.
 check "briefing context builder"   "buildBriefingContext"
 check "briefing engine"            "resolveBriefingEngine"
+
+# The routine's model instructions and the workout-source clients are server-only.
+check "analyst tool instructions"  "Training plans — you also have tools"
+check "routine note prompt"        "You write the progress note for one progression path"
+check "Hevy client"                "/v1/workouts/events"
 
 exit "$status"

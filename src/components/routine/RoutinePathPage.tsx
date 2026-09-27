@@ -9,6 +9,7 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { useEffect, useRef } from 'react';
 import { ArrowLeft, CheckCircle2, Circle, CircleDot, MessageSquare, PauseCircle } from 'lucide-react';
 import type { PathProgress, RoutineOverview } from '@/lib/routine/progress';
 import type { RecoveryIndicator } from '@/lib/routine/recovery';
@@ -41,6 +42,18 @@ export function RoutinePathPage() {
   const { pathId } = useParams<{ pathId: string }>();
   const { units } = useUnits();
   const { state, reload } = useRoutineFetch<PathDetailResponse>(`/api/routine/${encodeURIComponent(pathId)}`, units);
+
+  // A model note is written in the background: poll a few times, backing off.
+  const polls = useRef(0);
+  const pending = state.status === 'ok' && state.data.narrative?.pending === true;
+  useEffect(() => {
+    if (!pending || polls.current >= 6) return;
+    const timer = setTimeout(() => {
+      polls.current += 1;
+      reload();
+    }, 3000 * 2 ** polls.current);
+    return () => clearTimeout(timer);
+  }, [pending, state, reload]);
 
   if (state.status === 'loading') {
     return (
@@ -131,7 +144,7 @@ function Assessment({ path, narrative }: { path: PathProgress; narrative?: Narra
       {narrative && (
         <p className="text-[11px] text-text-secondary">
           {narrative.source === 'model'
-            ? `Written by ${narrative.model ?? 'the configured model'} from the figures above; every number was checked against them.`
+            ? `Written by ${narrative.model ?? 'the configured model'} from the computed figures; every number was checked against them.`
             : narrative.note}
         </p>
       )}
