@@ -315,7 +315,7 @@ interface NumericToken {
  * exactly as the analyst's grounding audit does — two audits that disagreed
  * about what one token is would be worse than one.
  */
-export const DURATION_RE = /(\d+(?:\.\d+)?)\s*h(?:ours?|rs?)?\s*(?:(\d+(?:\.\d+)?)\s*m(?:in(?:utes?)?)?)?/gi;
+export const DURATION_RE = /(\d+(?:\.\d+)?)\s*h(?:ours?|rs?)?\b\s*(?:(\d+(?:\.\d+)?)\s*m(?:in(?:utes?)?)?\b)?/gi;
 
 /**
  * Extract numeric tokens from a line of prose.

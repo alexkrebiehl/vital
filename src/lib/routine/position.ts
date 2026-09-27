@@ -50,7 +50,8 @@ export interface BlockView {
   weeks: [number, number];
   goals: string[];
   targets: BlockTargetView[];
-  status: 'complete' | 'behind' | 'current' | 'future';
+  /** `elapsed`: over, but none of its targets can be checked against sessions. */
+  status: 'complete' | 'behind' | 'elapsed' | 'current' | 'future';
 }
 
 export function planPosition(
@@ -79,7 +80,9 @@ export function planPosition(
           ? 'current'
           : targets.some(t => t.met === false)
             ? 'behind'
-            : 'complete';
+            : targets.some(t => t.met === true)
+              ? 'complete'
+              : 'elapsed';
     return {
       id: block.id,
       name: block.name,

@@ -338,7 +338,7 @@ function PathCard({ path }: { path: PathProgress }) {
 function PlanPosition({ routine }: { routine: RoutineOverview }) {
   const [open, setOpen] = useState(false);
   if (routine.blocks.length === 0) return null;
-  const statusLabel = { complete: 'Complete', behind: 'Behind', current: 'Current', future: 'Future' } as const;
+  const statusLabel = { complete: 'Complete', behind: 'Behind', elapsed: 'Elapsed', current: 'Current', future: 'Future' } as const;
   return (
     <Card className="p-4">
       <button type="button" className="w-full flex items-center justify-between text-left" onClick={() => setOpen(o => !o)} aria-expanded={open}>

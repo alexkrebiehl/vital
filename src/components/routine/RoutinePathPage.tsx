@@ -16,7 +16,7 @@ import type { RecoveryIndicator } from '@/lib/routine/recovery';
 import type { WorkoutSourceStatus } from '@/lib/workout-sources/types';
 import { Badge, Button, Card, DataStateNote, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { useUnits } from '@/components/ui/UnitsProvider';
-import { LightDot, LightLabel, useRoutineFetch } from './shared';
+import { LightLabel, useRoutineFetch } from './shared';
 import { analystHref } from './RoutineSection';
 import { formatDayKeyShort } from '@/lib/analytics/windows';
 import type { NarrativeView } from '@/lib/routine/narrative-types';
@@ -130,10 +130,7 @@ function Assessment({ path, narrative }: { path: PathProgress; narrative?: Narra
   return (
     <Card className="p-5 space-y-3">
       <div className="flex flex-wrap items-center gap-3">
-        <span className="text-sm font-semibold text-text-primary inline-flex items-center gap-2">
-          <LightDot light={path.light} size={12} />
-          Light:
-        </span>
+        <span className="text-sm font-semibold text-text-primary">Light:</span>
         <LightLabel light={path.light} />
         {path.readiness && <span className="text-xs text-text-secondary tnum">{path.readiness.label}</span>}
       </div>

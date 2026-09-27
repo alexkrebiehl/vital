@@ -52,6 +52,9 @@ describe('path narrative', () => {
     expect(checkNarrative({ assessment: 'You did 40 reps.', nextAction: 'Rest.' }, facts, p.light)).toMatch(/not in the computed data \(40\)/);
     expect(checkNarrative({ assessment: 'The light is green.', nextAction: 'Move on.' }, facts, p.light)).toMatch(/as green/);
     expect(checkNarrative(JSON.parse(GOOD), facts, p.light)).toBeNull();
+    // Pain and form are never recorded: asserting them is refused, asking to check them is fine.
+    expect(checkNarrative({ assessment: 'You have shown no shoulder discomfort and maintain good form.', nextAction: 'Repeat.' }, facts, p.light)).toMatch(/no data source records/);
+    expect(checkNarrative({ assessment: 'Make sure your shoulders stay comfortable.', nextAction: 'Repeat with consistent form.' }, facts, p.light)).toBeNull();
 
     const complete = async () => ({ text: JSON.stringify({ assessment: 'Green light: 50 reps!', nextAction: 'Progress.' }), model: 'm' });
     narrativeFor(r, p, '2026-09-18', 'metric', { complete });
@@ -61,10 +64,34 @@ describe('path narrative', () => {
     expect(view.note).toMatch(/was not used because it stated figures/);
   });
 
+  it('retries once with the reason, and uses a corrected note', async () => {
+    const { r, p } = routine();
+    const prompts: string[] = [];
+    const complete = async (_s: string, user: string) => {
+      prompts.push(user);
+      return prompts.length === 1
+        ? { text: JSON.stringify({ assessment: 'Your form is solid with no discomfort.', nextAction: 'Repeat.' }), model: 'm' }
+        : { text: GOOD, model: 'm' };
+    };
+    narrativeFor(r, p, '2026-09-18', 'metric', { complete });
+    await awaitNarrativesIdle();
+    expect(narrativeFor(r, p, '2026-09-18', 'metric', { complete }).source).toBe('model');
+    expect(prompts[1]).toMatch(/rejected because it described things no data source records/);
+  });
+
   it('explains when no model is configured', async () => {
     const { r, p } = routine();
     narrativeFor(r, p, '2026-09-18', 'metric', { env: {} as NodeJS.ProcessEnv });
     await awaitNarrativesIdle();
     expect(narrativeFor(r, p, '2026-09-18', 'metric', { env: {} as NodeJS.ProcessEnv }).note).toMatch(/No AI model is configured/);
+  });
+});
+
+describe('number extraction', () => {
+  it('does not read "RPE 9 however" as nine hours', async () => {
+    const { extractNumericTokens } = await import('../analyst/validate');
+    expect(extractNumericTokens('effort reached RPE 9 however you held form').map(t => t.value)).toEqual([9]);
+    expect(extractNumericTokens('slept 7h 32m').map(t => t.value)).toEqual([452]);
+    expect(extractNumericTokens('7 hours 5 min').map(t => t.value)).toEqual([425]);
   });
 });

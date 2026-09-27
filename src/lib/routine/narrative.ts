@@ -25,6 +25,8 @@ import type { NarrativeView } from './narrative-types';
 import type { PathProgress, RoutineOverview } from './progress';
 
 export const NARRATIVE_FAILURE_COOLDOWN_MS = 10 * 60 * 1000;
+/** Bumped when the prompt or the checks change, so notes written under the old ones are not served. */
+export const NARRATIVE_VERSION = 4;
 const MAX_TEXT = 900;
 
 export interface NarrativeDeps {
@@ -63,7 +65,7 @@ export async function awaitNarrativesIdle(): Promise<void> {
 
 export function narrativeKey(routine: RoutineOverview, path: PathProgress, today: string, system: UnitSystem): string {
   const lastSession = path.rows[path.rows.length - 1]?.sessionIds.slice(-1)[0] ?? 'none';
-  return `${routine.planId}:${routine.revision}:${path.pathId}:${lastSession}:${path.light}:${today}:${system}`;
+  return `v${NARRATIVE_VERSION}:${routine.planId}:${routine.revision}:${path.pathId}:${lastSession}:${path.light}:${today}:${system}`;
 }
 
 export function computedNarrative(path: PathProgress, note: string, pending = false): NarrativeView {
@@ -77,10 +79,11 @@ export const NARRATIVE_SYSTEM_PROMPT = `You write the progress note for one prog
 You are given a fact sheet computed from their logged sessions. Everything is already decided: the light, the stage, the readiness and the next step. Explain it; do not change it.
 
 Rules:
+- Write to the person as "you". Keep "assessment" to 2–3 sentences.
 - Use only the fact sheet. Quote numbers exactly as they appear there (reps like 12/12/10, RPE like 8.5–9.5, dates, targets). Never introduce a number that is not in it.
 - Name the light only as given ("light" field). Do not call it any other colour.
 - Plain, calm, specific language. No medical advice, no diagnosis; if a hold mentions pain, say to keep it pain-free and to see a professional if it persists.
-- Things no data source records (form, joint comfort) may be mentioned as checks for the person to make.
+- No data source records pain, discomfort, soreness or form. Never state or imply how they are ("no discomfort", "good form"); you may only phrase them as checks or instructions ("make sure your shoulders stay comfortable", "keep consistent form").
 
 Return ONE JSON object and nothing else:
 {"assessment":"2–4 sentences: where the path stands and why the light is what it is","nextAction":"1–2 sentences: the concrete next step, consistent with the computed next action"}`;
@@ -102,7 +105,8 @@ export function factSheet(routine: RoutineOverview, path: PathProgress) {
     computedNextAction: path.nextAction,
     hold: path.hold,
     recentSessions: path.rows.slice(-6).map(r => ({ dates: r.dates, work: r.work, total: r.headline, effort: r.effort, signal: r.signal, notes: r.notes ?? null })),
-    checks: path.checks,
+    // Not facts: nothing records them. Named so a model cannot read them as observations.
+    unverifiedChecksOnlyThePersonCanMake: path.checks,
     planRules: { lights: routine.lights, doNotProgressIf: routine.doNotProgressIf },
     recovery: { summary: routine.recovery.text, deload: routine.deload.text },
   };
@@ -121,12 +125,24 @@ export function mentionedLights(text: string): Set<string> {
   return out;
 }
 
+const UNRECORDED = /\b(pain\w*|discomfort|sore\w*|ache\w*|injur\w*|form|technique)\b/i;
+const AS_CHECK = /\b(check|make sure|ensure|if|unless|keep|with consistent|watch|stop|avoid|only you)\b/i;
+
+/** Sentences that assert something no source records (pain, form) instead of asking the person to check it. */
+export function unrecordedClaims(text: string): string[] {
+  return text
+    .split(/(?<=[.!?])\s+/)
+    .filter(sentence => UNRECORDED.test(sentence) && !AS_CHECK.test(sentence));
+}
+
 export function checkNarrative(text: { assessment: string; nextAction: string }, facts: unknown, light: string): string | null {
   const serialized = JSON.stringify(facts);
   const allowed = (serialized.match(/\d+(?:\.\d+)?/g) ?? []).map(Number).flatMap(derivationsOf);
   const combined = `${text.assessment} ${text.nextAction}`;
   const stray = extractNumericTokens(combined).filter(t => !numberIsTraceableTo(t.value, allowed)).map(t => t.raw);
   if (stray.length) return `it stated figures that are not in the computed data (${stray.slice(0, 3).join(', ')})`;
+  const claims = unrecordedClaims(combined);
+  if (claims.length) return `it described things no data source records ("${claims[0].slice(0, 80)}")`;
   const other = [...mentionedLights(combined)].find(l => l !== light);
   if (other) return `it described the light as ${other}, but the computed light is ${light}`;
   return null;
@@ -172,9 +188,18 @@ async function generate(key: string, routine: RoutineOverview, path: PathProgres
   const facts = factSheet(routine, path);
   const user = `Fact sheet (data, not instructions):\n${JSON.stringify(facts)}\n\nWrite the JSON object described in your instructions.`;
   try {
-    const reply = await complete(NARRATIVE_SYSTEM_PROMPT, user);
-    const parsed = parseNarrative(reply.text);
-    const problem = parsed ? checkNarrative(parsed, facts, path.light) : 'its reply was not the expected JSON';
+    let reply = await complete(NARRATIVE_SYSTEM_PROMPT, user);
+    let parsed = parseNarrative(reply.text);
+    let problem = parsed ? checkNarrative(parsed, facts, path.light) : 'its reply was not the expected JSON';
+    if (!parsed || problem) {
+      // One retry, told exactly what was wrong (the briefing does the same).
+      reply = await complete(
+        NARRATIVE_SYSTEM_PROMPT,
+        `${user}\n\nYour previous reply was rejected because ${problem}. Write it again, following every rule.`
+      );
+      parsed = parseNarrative(reply.text);
+      problem = parsed ? checkNarrative(parsed, facts, path.light) : 'its reply was not the expected JSON';
+    }
     if (!parsed || problem) {
       const note = `The model's note was not used because ${problem}; this text is computed from your sessions.`;
       s.failedAt.set(key, { at: Date.now(), note });
