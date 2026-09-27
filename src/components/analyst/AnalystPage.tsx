@@ -17,6 +17,7 @@ import { exchangesFromMessages, type ConversationExchange } from './conversation
 import { useConversations } from './useConversations';
 import { providerBadge, useAnalystConfig } from './useAnalystConfig';
 import { PlanChangeCard } from '@/components/routine/shared';
+import { parseConversationId } from '@/lib/analyst/conversation-rules';
 
 /** The ask endpoint's response: the answer plus what happened to the turn. */
 interface AskResponse extends AnalystResponse {
@@ -31,6 +32,8 @@ export function AnalystPage() {
   const { units } = useUnits();
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q') ?? '';
+  // ?c=<id> reopens a stored conversation, so a refresh lands back on it.
+  const initialConversation = parseConversationId(searchParams.get('c'));
   const { state: configState, error: configError } = useAnalystConfig();
 
   // Whether a provider is actually configured decides the copy and the controls.
@@ -83,6 +86,7 @@ export function AnalystPage() {
         // so the selector shows it without a reload.
         if (data.conversation) {
           setActiveId(data.conversation.id);
+          syncAddress(data.conversation.id);
           void refreshConversations();
         }
       } catch (error) {
@@ -109,6 +113,7 @@ export function AnalystPage() {
   const startNewConversation = useCallback(() => {
     setActiveId(null);
     setExchanges([]);
+    syncAddress(null);
   }, []);
 
   /** Load a stored conversation and rebuild what was shown for each turn. */
@@ -119,9 +124,14 @@ export function AnalystPage() {
         return;
       }
       const detail = await loadConversation(id);
-      if (!detail) return;
+      if (!detail) {
+        // Gone (deleted, or another database): do not keep pointing at it.
+        syncAddress(null);
+        return;
+      }
       setActiveId(detail.id);
       setExchanges(exchangesFromMessages(detail.messages));
+      syncAddress(detail.id);
     },
     [loadConversation, startNewConversation]
   );
@@ -139,17 +149,28 @@ export function AnalystPage() {
       if (removed && id === activeId) {
         setActiveId(null);
         setExchanges([]);
+        syncAddress(null);
       }
     },
     [deleteConversation, activeId]
   );
 
-  // /analyst?q=… prefills and runs the question.
+  // /analyst?q=… runs the question once: q leaves the address as it is sent,
+  // and ?c=<id> takes its place when the server has stored the turn, so a
+  // refresh reopens the conversation instead of asking again.
+  // /analyst?c=<id> (no q) reopens that conversation.
   useEffect(() => {
-    if (started.current || !initialQuery.trim()) return;
-    started.current = true;
-    void ask(initialQuery.trim());
-  }, [initialQuery, ask]);
+    if (started.current) return;
+    if (initialQuery.trim()) {
+      started.current = true;
+      syncAddress(null);
+      setInput('');
+      void ask(initialQuery.trim());
+    } else if (initialConversation !== null) {
+      started.current = true;
+      void openConversation(initialConversation);
+    }
+  }, [initialQuery, initialConversation, ask, openConversation]);
 
   useEffect(() => {
     // Announce-ready region: keep the newest exchange in view.
@@ -384,6 +405,20 @@ function AnswerPending() {
 }
 
 // ── Answer ─────────────────────────────────────────────
+
+/**
+ * Keep the address in step with the view: drop a consumed ?q= and point ?c= at
+ * the open conversation (or remove it). replaceState integrates with the App
+ * Router's useSearchParams and adds no history entry.
+ */
+function syncAddress(conversationId: number | null) {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('q');
+  if (conversationId === null) url.searchParams.delete('c');
+  else url.searchParams.set('c', String(conversationId));
+  const next = `${url.pathname}${url.search}${url.hash}`;
+  if (next !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.replaceState(null, '', next);
+}
 
 /** The provider refused the plan tools, so the answer was made without them. */
 function ToolsUnavailableNote({ text }: { text: string }) {
