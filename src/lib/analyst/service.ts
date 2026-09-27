@@ -251,6 +251,8 @@ export async function askAnalyst(
 
   let answer: AnalystAnswer | null = null;
   let grounding: AnalystGrounding = NO_GROUNDING;
+  // Why the plan tools could not be used, when the provider refused them.
+  let toolsUnavailable: string | null = null;
 
   // A configured model may use the training-plan tools (ANALYST_TOOLS=off disables them).
   if (config.tools === 'auto' && supportsTools(provider)) {
@@ -298,8 +300,11 @@ export async function askAnalyst(
         }
         throw error;
       }
+      // Answered without tools below — but say so, so a refusal cannot hide.
+      toolsUnavailable = toolsUnavailableNote(error.message);
     }
   }
+  const noTools = toolsUnavailable ? { toolsUnavailable } : {};
 
   try {
     const result = await provider.answer({
@@ -315,6 +320,7 @@ export async function askAnalyst(
     if (!result) {
       return base('unsupported', {
         ...withContext,
+        ...noTools,
         message: 'That handler produced no answer from the selected context.',
       });
     }
@@ -328,6 +334,7 @@ export async function askAnalyst(
       if (!parsed.ok || !parsed.answer) {
         return base('error', {
           ...withContext,
+          ...noTools,
           message: parsed.reason ?? "The model's reply could not be read as an answer.",
         });
       }
@@ -337,17 +344,24 @@ export async function askAnalyst(
   } catch (error) {
     if (error instanceof AnalystProviderError) {
       // The message is already scrubbed by the provider (no key, no credential URL).
-      return base('error', { ...withContext, message: error.message });
+      return base('error', { ...withContext, ...noTools, message: error.message });
     }
     throw error;
   }
 
   return base('ok', {
     ...withContext,
+    ...noTools,
     answer,
     message: null,
     grounding,
   });
+}
+
+/** The provider's refusal, bounded, as a note shown with the tool-less answer. */
+export function toolsUnavailableNote(reason: string): string {
+  const trimmed = reason.length > 400 ? `${reason.slice(0, 399)}…` : reason;
+  return `Plan tools were unavailable, so this answer was made from the health summary alone and cannot see or change your training plan. ${trimmed}`;
 }
 
 /** The prompt list a caller may offer, generated from the handler registry. */

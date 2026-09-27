@@ -78,6 +78,7 @@ export interface StoredAssistantPayload {
   /** The plan change the answer made (configuration only), so a reloaded turn can still undo it. */
   planChange?: PlanChange | null;
   toolsUsed?: string[];
+  toolsUnavailable?: string;
   /** True when the stored payload was cut to fit the size cap. */
   truncated?: boolean;
 }

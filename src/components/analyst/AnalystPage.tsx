@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertCircle, Bot, Loader2, Send, ShieldCheck, Sparkles, User,
+  AlertCircle, Bot, Loader2, Send, ShieldCheck, Sparkles, User, Wrench,
 } from 'lucide-react';
 import { Badge, Button, Card, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { TrendFigure } from '@/components/charts';
@@ -385,6 +385,16 @@ function AnswerPending() {
 
 // ── Answer ─────────────────────────────────────────────
 
+/** The provider refused the plan tools, so the answer was made without them. */
+function ToolsUnavailableNote({ text }: { text: string }) {
+  return (
+    <p role="note" className="flex items-start gap-1.5 rounded-control bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200 px-3 py-2 text-xs">
+      <Wrench size={13} className="shrink-0 mt-px" aria-hidden="true" />
+      <span className="min-w-0 break-words">{text}</span>
+    </p>
+  );
+}
+
 function AnswerView({ response, onFollowUp }: { response: AnalystResponse; onFollowUp: (q: string) => void }) {
   const answer = response.answer;
 
@@ -401,6 +411,11 @@ function AnswerView({ response, onFollowUp }: { response: AnalystResponse; onFol
             </Badge>
           </div>
           <p className="text-sm text-text-primary mb-3">{response.message}</p>
+          {response.toolsUnavailable && (
+            <div className="mb-3">
+              <ToolsUnavailableNote text={response.toolsUnavailable} />
+            </div>
+          )}
           {response.planChange && (
             <div className="mb-3">
               <PlanChangeCard change={response.planChange} />
@@ -448,6 +463,7 @@ function AnswerView({ response, onFollowUp }: { response: AnalystResponse; onFol
 
         <h2 className="text-base font-semibold text-text-primary">{answer.title}</h2>
 
+        {response.toolsUnavailable && <ToolsUnavailableNote text={response.toolsUnavailable} />}
         {response.planChange && <PlanChangeCard change={response.planChange} />}
         {response.toolsUsed && response.toolsUsed.length > 0 && (
           <p className="text-[11px] text-text-secondary">

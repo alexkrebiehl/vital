@@ -63,6 +63,7 @@ export function responseFromMessage(message: ConversationMessage): AnalystRespon
     untrustedNotes: payload.untrustedNotes,
     planChange: payload.planChange ?? null,
     toolsUsed: payload.toolsUsed ?? [],
+    toolsUnavailable: payload.toolsUnavailable ?? null,
   };
 }
 

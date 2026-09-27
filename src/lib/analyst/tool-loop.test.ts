@@ -76,6 +76,7 @@ describe('tool calling over the OpenAI-compatible protocol', () => {
     );
     expect(response.status).toBe('ok');
     expect(response.toolsUsed).toEqual(['get_routine_progress']);
+    expect(response.toolsUnavailable).toBeUndefined();
     expect(response.planChange).toBeNull();
     // Every figure in the answer came from the tool result.
     expect(response.grounding.unmatched).toEqual([]);
@@ -127,6 +128,10 @@ describe('tool calling over the OpenAI-compatible protocol', () => {
     expect(response.status).toBe('ok');
     expect(response.toolsUsed).toBeUndefined();
     expect(model.bodies.some(b => !b.tools)).toBe(true);
+    // The refusal is reported with the answer instead of hidden.
+    expect(response.toolsUnavailable).toMatch(/^Plan tools were unavailable, so this answer was made from the health summary alone/);
+    expect(response.toolsUnavailable).toContain('tools are not supported');
+    expect(response.toolsUnavailable).not.toContain(KEY);
   });
 });
 

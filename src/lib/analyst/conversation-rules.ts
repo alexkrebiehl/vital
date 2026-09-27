@@ -173,6 +173,7 @@ export function buildStoredPayload(response: AnalystResponse): StoredAssistantPa
     notice: response.notice,
     ...(response.planChange ? { planChange: { ...response.planChange, diff: response.planChange.diff.slice(0, 20) } } : {}),
     ...(response.toolsUsed?.length ? { toolsUsed: response.toolsUsed.slice(0, 24) } : {}),
+    ...(response.toolsUnavailable ? { toolsUnavailable: response.toolsUnavailable.slice(0, 600) } : {}),
   };
   return truncatePayload(payload);
 }

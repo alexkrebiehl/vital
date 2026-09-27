@@ -223,4 +223,9 @@ export interface AnalystResponse {
   planChange?: PlanChange | null;
   /** Names of the tools the model called, in order (never their data). */
   toolsUsed?: string[];
+  /**
+   * Set when the provider refused the training-plan tools and the answer was
+   * made without them: why, in the provider's (scrubbed) words.
+   */
+  toolsUnavailable?: string | null;
 }
