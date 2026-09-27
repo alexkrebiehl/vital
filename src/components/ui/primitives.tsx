@@ -88,9 +88,11 @@ interface BadgeProps {
   children: ReactNode;
   variant?: 'default' | 'accent' | 'success' | 'warning' | 'info' | 'hero';
   className?: string;
+  /** Tooltip. Set here rather than on a wrapper, which would shift the badge off the row's alignment. */
+  title?: string;
 }
 
-export function Badge({ children, variant = 'default', className = '' }: BadgeProps) {
+export function Badge({ children, variant = 'default', className = '', title }: BadgeProps) {
   const variants: Record<string, string> = {
     default: 'bg-surface-muted text-text-secondary',
     accent: 'bg-accent-tint text-primary',
@@ -100,7 +102,7 @@ export function Badge({ children, variant = 'default', className = '' }: BadgePr
     info: 'bg-blue-50 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200',
   };
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${variants[variant]} ${className}`}>
+    <span title={title} className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${variants[variant]} ${className}`}>
       {children}
     </span>
   );

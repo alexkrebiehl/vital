@@ -151,11 +151,12 @@ function RoutineBody({ data, routine, onChange }: { data: RoutineApiResponse; ro
             <p className="text-xs text-text-secondary mt-0.5 max-w-2xl">{routine.goal}</p>
             <div className="flex flex-wrap items-center gap-2 mt-2">
               {routine.currentPhase ? (
-                <span title={`${routine.currentPhase.progress.met} of ${routine.currentPhase.progress.total} milestones reached — worked out from your sessions`}>
-                  <Badge variant="accent">
-                    Phase {routine.currentPhase.index + 1} of {routine.currentPhase.count}: {routine.currentPhase.name}
-                  </Badge>
-                </span>
+                <Badge
+                  variant="accent"
+                  title={`${routine.currentPhase.progress.met} of ${routine.currentPhase.progress.total} milestones reached — worked out from your sessions`}
+                >
+                  Phase {routine.currentPhase.index + 1} of {routine.currentPhase.count}: {routine.currentPhase.name}
+                </Badge>
               ) : routine.phases.length > 0 ? (
                 <Badge variant="success">All phases complete</Badge>
               ) : null}
@@ -206,9 +207,9 @@ function RecoveryChip({ routine }: { routine: RoutineOverview }) {
   const variant = r.status === 'warn' ? 'warning' : r.status === 'watch' ? 'info' : r.status === 'ok' ? 'success' : 'default';
   const label = r.status === 'warn' ? 'Recovery: hold' : r.status === 'watch' ? 'Recovery: watch' : r.status === 'ok' ? 'Recovery: ok' : 'Recovery: unknown';
   return (
-    <span title={r.text}>
-      <Badge variant={variant}>{label}</Badge>
-    </span>
+    <Badge variant={variant} title={r.text}>
+      {label}
+    </Badge>
   );
 }
 
