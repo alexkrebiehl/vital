@@ -254,12 +254,16 @@ export async function fetchWorkoutEvents(
   const out: HevyWireEvent[] = [];
   const since = encodeURIComponent(sinceIso);
   for (let page = 1; page <= HEVY_MAX_PAGES; page++) {
-    const body = await hevyGet<Paged & { events?: unknown }>(
+    const body = await hevyGet<Paged & { events?: unknown; workouts?: unknown }>(
       config,
       `/v1/workouts/events?since=${since}&page=${page}&pageSize=${HEVY_WORKOUT_PAGE_SIZE}`,
       deps
     );
-    const events = requireArray<HevyWireEvent>(body.events, 'events');
+    // With nothing to report, the live API answers `{ workouts: [] }` rather than
+    // the documented `{ events: [] }` (observed 2026-09-27). An empty list under
+    // either name means "no changes"; anything else is still an invalid page.
+    const noChanges = body.events === undefined && Array.isArray(body.workouts) && body.workouts.length === 0;
+    const events = noChanges ? [] : requireArray<HevyWireEvent>(body.events, 'events');
     out.push(...events);
     if (events.length === 0 || page >= pageCount(body)) break;
   }

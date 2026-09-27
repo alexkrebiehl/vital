@@ -187,7 +187,7 @@ export function calisthenicsTemplate(startDate: string): unknown {
               { id: 'plank', name: 'Plank', match: { names: ['Plank'] },
                 prescription: { sets: [3, 3], holdS: [45, 60] }, advanceWhen: { sets: [3, 3], holdS: [55, 60] },
                 cues: ['No hip sag', 'Controlled breathing'], checks: ['No low-back discomfort'] },
-              { id: 'hollow-hold', name: 'Hollow hold', match: { names: ['Hollow Body Hold', 'Hollow Hold'] },
+              { id: 'hollow-hold', name: 'Hollow hold', match: { names: ['Hollow Body Hold', 'Hollow Hold', 'Hollow Tuck Hold'] },
                 prescription: { sets: [3, 3], holdS: [20, 30] }, advanceWhen: { sets: [3, 3], holdS: [25, 30] },
                 cues: ['Low back pressed down'], checks: [] },
               { id: 'reverse-crunch', name: 'Reverse crunch', match: { names: ['Reverse Crunch'] },

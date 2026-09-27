@@ -103,10 +103,20 @@ export interface MatchContext {
   dayOf: (iso: string) => string;
 }
 
+/**
+ * The same name without a "(Bodyweight)" qualifier. Apps such as Hevy log
+ * "Split Squat (Bodyweight)" where a plan says "Split squat"; bodyweight is the
+ * default, so the qualifier adds nothing. Other qualifiers ("(Dumbbell)",
+ * "(Band)", "(Assisted)") name a different exercise and are kept.
+ */
+function withoutBodyweight(name: string): string {
+  return name.replace(/\s*\(\s*body\s*-?\s*weight\s*\)\s*/gi, ' ').trim();
+}
+
 export function stageMatchesExercise(stage: Stage, templateId: string | null, name: string): boolean {
   if (templateId && stage.match.templateIds?.includes(templateId)) return true;
-  const key = nameKey(name);
-  return stage.match.names.some(n => nameKey(n) === key);
+  const keys = new Set([nameKey(name), nameKey(withoutBodyweight(name))]);
+  return stage.match.names.some(n => keys.has(nameKey(n)) || keys.has(nameKey(withoutBodyweight(n))));
 }
 
 /** Every session in which `stage` was trained, oldest first. */

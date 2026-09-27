@@ -243,6 +243,17 @@ describe('syncHevy', () => {
     expect(second.state.sessions['hevy:w0'].exercises[0].sets.map(s => s.reps)).toEqual([12, 12, 12]);
   });
 
+  it('reads the live API\'s `{ workouts: [] }` answer as "no changes"', async () => {
+    const { route } = pagedWorkouts();
+    const first = await syncHevy(CONFIG, null, 30, { fetchImpl: fakeFetch([route, TEMPLATES_ROUTE]).impl, now: () => NOW });
+    const { impl } = fakeFetch([
+      { match: /^\/v1\/workouts\/events$/, respond: () => ({ body: { page: 1, page_count: 1, workouts: [] } }) },
+    ]);
+    const second = await syncHevy(CONFIG, first.state, 30, { fetchImpl: impl, now: () => NOW + 60_000 });
+    expect(second).toMatchObject({ mode: 'incremental', read: 0 });
+    expect(Object.keys(second.state.sessions)).toEqual(Object.keys(first.state.sessions));
+  });
+
   it('prunes sessions that fell out of the lookback window', async () => {
     const { route } = pagedWorkouts();
     const first = await syncHevy(CONFIG, null, 30, { fetchImpl: fakeFetch([route, TEMPLATES_ROUTE]).impl, now: () => NOW });

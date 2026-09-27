@@ -407,6 +407,15 @@ describe('plan position and deloads', () => {
   });
 });
 
+describe('exercise matching', () => {
+  it('ignores a "(Bodyweight)" qualifier but keeps other equipment distinct', () => {
+    const p = pushPlan({}, { currentStageId: 'decline', history: [] });
+    const logged = (name: string) => [session('2026-09-10', [{ name, sets: reps([10, 10, 10]) }])];
+    expect(run(p, logged('Decline Push Up (Bodyweight)'), '2026-09-11').paths[0].rows).toHaveLength(1);
+    expect(run(p, logged('Decline Push Up (Weighted)'), '2026-09-11').paths[0].rows).toHaveLength(0);
+  });
+});
+
 describe('inferCurrentStages', () => {
   it('places each path on the furthest stage trained recently, with history', () => {
     const p = pushPlan({}, { currentStageId: 'floor', history: [] });
