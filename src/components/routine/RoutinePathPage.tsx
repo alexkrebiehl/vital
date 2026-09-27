@@ -164,7 +164,7 @@ function SessionTable({ path }: { path: PathProgress }) {
     );
   }
   const rows = all ? path.rows : path.rows.slice(-12);
-  const otherStages = new Set(path.rows.filter(r => r.stageId !== path.stage.id).map(r => r.stageId)).size;
+  const otherStages = new Set(path.rows.flatMap(r => [r, ...(r.also ?? [])]).filter(r => r.stageId !== path.stage.id).map(r => r.stageId)).size;
   return (
     <Card className="p-5 overflow-x-auto" as="section" aria-label="Recent sessions">
       <table className="w-full text-sm">
@@ -178,18 +178,33 @@ function SessionTable({ path }: { path: PathProgress }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map(r => (
-            <tr key={`${r.stageId}:${r.sessionIds.join(',') || r.dates.join(',')}`} className={`border-b border-border last:border-b-0 align-top ${r.stageId !== path.stage.id ? 'text-text-secondary' : ''}`}>
-              <td className="py-2 pr-4 whitespace-nowrap tnum">{r.dates.map(formatDayKeyShort).join(' / ')}</td>
-              <td className="py-2 pr-4">
-                {r.work}
-                {r.notes && <span className="block text-[11px] text-text-secondary italic">{r.notes}</span>}
-              </td>
-              <td className="py-2 pr-4 text-right tnum whitespace-nowrap">{r.headline}</td>
-              <td className="py-2 pr-4 whitespace-nowrap text-text-secondary">{r.effort ?? '—'}</td>
-              <td className="py-2">{r.signal}</td>
-            </tr>
-          ))}
+          {rows.map(r => {
+            // One row per day: the lead entry, then other stages' work from the same day.
+            const entries = [r, ...(r.also ?? [])];
+            const tone = (e: typeof r) => (e.stageId !== path.stage.id ? 'text-text-secondary' : 'text-text-primary');
+            return (
+              <tr key={`${r.dates.join(',')}:${r.stageId}`} className="border-b border-border last:border-b-0 align-top">
+                <td className={`py-2 pr-4 whitespace-nowrap tnum ${tone(r)}`}>{r.dates.map(formatDayKeyShort).join(' / ')}</td>
+                <td className="py-2 pr-4">
+                  {entries.map(e => (
+                    <span key={e.stageId} className={`block ${tone(e)}`}>
+                      {e.work}
+                      {e.notes && <span className="block text-[11px] text-text-secondary italic">{e.notes}</span>}
+                    </span>
+                  ))}
+                </td>
+                <td className="py-2 pr-4 text-right tnum whitespace-nowrap">
+                  {entries.map(e => <span key={e.stageId} className={`block ${tone(e)}`}>{e.headline}</span>)}
+                </td>
+                <td className="py-2 pr-4 whitespace-nowrap text-text-secondary">
+                  {entries.map(e => <span key={e.stageId} className="block">{e.effort ?? '—'}</span>)}
+                </td>
+                <td className="py-2">
+                  {entries.map(e => <span key={e.stageId} className={`block ${tone(e)}`}>{e.signal}</span>)}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
       <div className="flex flex-wrap items-center justify-between gap-2 mt-2">

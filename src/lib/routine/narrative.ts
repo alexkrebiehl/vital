@@ -104,7 +104,15 @@ export function factSheet(routine: RoutineOverview, path: PathProgress) {
     prescription: path.prescription,
     computedNextAction: path.nextAction,
     hold: path.hold,
-    recentSessions: path.rows.slice(-6).map(r => ({ dates: r.dates, work: r.work, total: r.headline, effort: r.effort, signal: r.signal, notes: r.notes ?? null })),
+    recentSessions: path.rows.slice(-6).map(r => ({
+      dates: r.dates,
+      work: r.work,
+      total: r.headline,
+      effort: r.effort,
+      signal: r.signal,
+      notes: r.notes ?? null,
+      sameDayOtherStages: (r.also ?? []).map(a => ({ work: a.work, total: a.headline, effort: a.effort })),
+    })),
     // Not facts: nothing records them. Named so a model cannot read them as observations.
     unverifiedChecksOnlyThePersonCanMake: path.checks,
     planRules: { lights: routine.lights, doNotProgressIf: routine.doNotProgressIf },

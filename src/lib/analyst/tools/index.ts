@@ -93,7 +93,15 @@ function pathSummary(p: PathProgress, rows = 4) {
     marker: p.target,
     nextAction: p.nextAction,
     hold: p.hold,
-    recentSessions: p.rows.slice(-rows).map(r => ({ dates: r.dates, work: r.work, total: r.headline, effort: r.effort, signal: r.signal, notes: r.notes })),
+    recentSessions: p.rows.slice(-rows).map(r => ({
+      dates: r.dates,
+      work: r.work,
+      total: r.headline,
+      effort: r.effort,
+      signal: r.signal,
+      notes: r.notes,
+      ...(r.also?.length ? { sameDayOtherStages: r.also.map(a => ({ work: a.work, total: a.headline, effort: a.effort, signal: a.signal })) } : {}),
+    })),
   };
 }
 

@@ -121,6 +121,50 @@ function pathRecords(path: Path, inputs: RoutineInputs): Map<string, Performance
   return out;
 }
 
+const COUNT_SUFFIX = / · \d+ sessions$/;
+
+/**
+ * One row per training day: the current stage's work leads, other stages'
+ * work from the same day sits under it (`also`), and consecutive days with
+ * identical work merge into one row ("Sep 18 / Sep 22 · 2 sessions").
+ */
+export function rowsByDay(rows: ProgressRow[], path: Path, currentStageId: string): ProgressRow[] {
+  const order = (id: string) => (id === currentStageId ? -1 : path.stages.findIndex(s => s.id === id));
+  const days = new Map<string, ProgressRow[]>();
+  for (const row of rows) {
+    row.dates.forEach((date, i) => {
+      const single: ProgressRow = {
+        ...row,
+        dates: [date],
+        sessionIds: row.sessionIds[i] !== undefined ? [row.sessionIds[i]] : [],
+        signal: row.signal.replace(COUNT_SUFFIX, ''),
+      };
+      days.set(date, [...(days.get(date) ?? []), single]);
+    });
+  }
+  const perDay: ProgressRow[] = [...days.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, entries]) => {
+      const [lead, ...rest] = entries.sort((a, b) => order(a.stageId) - order(b.stageId));
+      return rest.length ? { ...lead, also: rest } : lead;
+    });
+
+  const same = (a: ProgressRow, b: ProgressRow) =>
+    a.stageId === b.stageId && a.work === b.work && (a.also ?? []).map(x => x.work).join('|') === (b.also ?? []).map(x => x.work).join('|');
+  const out: ProgressRow[] = [];
+  for (const row of perDay) {
+    const prev = out[out.length - 1];
+    if (prev && same(prev, row) && !/before progression/.test(prev.signal) && !/before progression/.test(row.signal)) {
+      prev.dates.push(...row.dates);
+      prev.sessionIds.push(...row.sessionIds);
+      prev.signal = `${prev.signal.replace(COUNT_SUFFIX, '')} · ${prev.dates.length} sessions`;
+      continue;
+    }
+    out.push({ ...row, dates: [...row.dates], sessionIds: [...row.sessionIds] });
+  }
+  return out;
+}
+
 export function evaluatePath(
   plan: TrainingPlan,
   areaId: string,
@@ -205,9 +249,7 @@ export function evaluatePath(
             i > index ? 'Ahead of the current stage' : startedOn && r.date >= startedOn ? 'Alongside the current stage' : 'Earlier stage';
           return stageRows(s, extra, plan.rules, inputs.system, note);
         });
-  const rows = [...evaluation.rows, ...others].sort(
-    (a, b) => a.dates[0].localeCompare(b.dates[0]) || (a.stageId === stage.id ? 1 : 0) - (b.stageId === stage.id ? 1 : 0)
-  );
+  const rows = others.length ? rowsByDay([...evaluation.rows, ...others], path, stage.id) : evaluation.rows;
 
   return {
     areaId,

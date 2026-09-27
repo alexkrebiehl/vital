@@ -28,6 +28,8 @@ export interface ProgressRow {
   effort: string | null;
   signal: string;
   notes?: string;
+  /** Work on other stages of the path from the same day(s), shown in the same row. */
+  also?: ProgressRow[];
 }
 
 export interface Readiness {

@@ -488,9 +488,13 @@ describe('exercise matching', () => {
       { name: 'Push Up', sets: reps([15, 15, 12], [7, 7.5, 8]) },
     ])];
     const path = run(p, both, '2026-09-22').paths[0];
-    const last = path.rows.slice(-2);
-    expect(last.map(r => r.work)).toEqual(['Floor push-up 15/15/12', 'Decline push-up 12/12/11']);
-    expect(last[0].signal).toMatch(/^Alongside the current stage · /);
+    // One row per day: the current stage leads, the other stage's work sits under it.
+    const last = path.rows[path.rows.length - 1];
+    expect(last.dates).toEqual(['2026-09-22']);
+    expect(last.work).toBe('Decline push-up 12/12/11');
+    expect(last.also?.map(a => a.work)).toEqual(['Floor push-up 15/15/12']);
+    expect(last.also?.[0].signal).toMatch(/^Alongside the current stage · /);
+    expect(new Set(path.rows.flatMap(r => r.dates)).size).toBe(path.rows.flatMap(r => r.dates).length);
     // The light still judges only the current stage.
     expect(path.stage.name).toBe('Decline push-up');
     expect(path.lastSession?.work).toBe('Decline push-up 12/12/11');
