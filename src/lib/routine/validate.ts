@@ -632,6 +632,11 @@ export function validatePlan(input: unknown): PlanValidation {
     blocks,
     templates,
     schedule: schedule ?? { kind: 'frequency', sessionsPerWeek: [3, 3], rotation: templates.map(t => t.id) },
+    deloads: r
+      .arr(o.deloads, 'plan.deloads', 52)
+      .map((d, i) => r.date(d, `plan.deloads[${i}]`, true))
+      .filter((d): d is string => Boolean(d))
+      .sort(),
   };
 
   return r.errors.length ? { ok: false, errors: r.errors } : { ok: true, plan };

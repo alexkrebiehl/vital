@@ -231,6 +231,8 @@ export interface TrainingPlan {
   blocks: Block[];
   templates: SessionTemplate[];
   schedule: Schedule;
+  /** Days (YYYY-MM-DD) a deload was started outside a deload block. */
+  deloads: string[];
 }
 
 // ── Storage records ─────────────────────────────────────

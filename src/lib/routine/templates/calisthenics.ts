@@ -235,7 +235,7 @@ export function calisthenicsTemplate(startDate: string): unknown {
       recoveryGates: [
         { signal: 'resting_hr', rule: 'rising', threshold: 3, severity: 'watch', note: 'Resting heart rate trending up is a deload sign.' },
         { signal: 'hrv', rule: 'falling', threshold: 10, severity: 'watch' },
-        { signal: 'sleep_hours', rule: 'below', threshold: 6.5, severity: 'warn', note: 'Poor sleep is a reason to hold, not progress.' },
+        { signal: 'sleep_hours', rule: 'below', threshold: 6, severity: 'warn', note: 'Poor sleep is a reason to hold, not progress.' },
         { signal: 'body_weight_rate', rule: 'below', threshold: -0.9, severity: 'watch', note: 'Losing faster than ~2 lb/week makes recovery harder.' },
       ],
     },
