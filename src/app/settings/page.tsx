@@ -15,7 +15,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Bell, Clock, Database, Info, Palette, Ruler, Save, Shield, Trash2, TriangleAlert, UserRound,
+  Bell, Clock, Database, Dumbbell, Info, Palette, Ruler, Save, Shield, Trash2, TriangleAlert, UserRound,
 } from 'lucide-react';
 import { getAllMetrics, getMetric } from '@/lib/metrics';
 import { convertValue, displayUnit, formatMetricWithUnit, hasConversion } from '@/lib/metrics/format';
@@ -739,6 +739,43 @@ function ConnectionsTab() {
             Credentials are read from the server environment only and are never returned to the browser. Every health
             read happens in server code: the browser never calls the export API and never receives the token. When live
             mode is selected and the source cannot be read, the app shows a connection error rather than demo data.
+          </DataStateNote>
+        </div>
+      </Card>
+
+      <Card className="p-6">
+        <SectionHead icon={<Dumbbell size={18} className="text-text-secondary" />} title="Workout sources" />
+        <p className="text-xs text-text-secondary leading-relaxed mb-3">
+          Apple Health records a workout&apos;s type, time and calories only. A workout source adds what was actually
+          done — exercises, sets, reps, load and effort — which the routine on the Workouts page needs.
+        </p>
+        <div className="space-y-3 text-sm">
+          {(report?.workoutSources ?? []).map(source => (
+            <StatusRow
+              key={source.id}
+              label={source.displayName}
+              value={
+                source.origin === 'demo'
+                  ? `Demo sessions (${source.sessions})`
+                  : !source.configured
+                    ? `Not configured (set ${source.envVars[0]})`
+                    : source.lastError
+                      ? `Error: ${source.lastError}`
+                      : `Connected (${source.host ?? 'host unknown'}) · ${source.sessions} session${source.sessions === 1 ? '' : 's'}${
+                          source.lastSyncAt ? ` · synced ${source.lastSyncAt.slice(0, 16).replace('T', ' ')} UTC` : ''
+                        }`
+              }
+              tone={source.lastError ? 'warning' : source.configured || source.origin === 'demo' ? 'neutral' : 'muted'}
+            />
+          ))}
+          {report && report.workoutSources.length === 0 && (
+            <p className="text-xs text-text-secondary">No workout source was checked.</p>
+          )}
+        </div>
+        <div className="mt-4">
+          <DataStateNote>
+            Source API keys are read from the server environment only. Synced sessions stay in the server&apos;s memory
+            and are never written to the database.
           </DataStateNote>
         </div>
       </Card>

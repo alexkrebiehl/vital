@@ -1,0 +1,4488 @@
+{
+ "$comment": "Demo training sessions in the shared TrainingSession shape, as the Hevy plugin would produce them. Generated; the upper-body block ends with the decline push-up progression used as the routine example.",
+ "sourceId": "hevy",
+ "displayName": "Hevy",
+ "sessions": [
+  {
+   "id": "hevy:demo-a-2026-06-19",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-06-19T23:10:00.000Z",
+   "endTime": "2026-06-19T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B201",
+     "name": "Incline Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 8,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 8,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 7,
+       "rpe": 8
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 36,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 36,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 4,
+       "weightKg": 36,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B304",
+     "name": "Inverted Row",
+     "loadMeaning": "none",
+     "primaryMuscle": "upper_back",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 9,
+       "rpe": 8
+      }
+     ],
+     "secondaryMuscles": [
+      "lats",
+      "biceps"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-06-20",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-06-20T23:05:00.000Z",
+   "endTime": "2026-06-20T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B401",
+     "name": "Bodyweight Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 6.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 7
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 7.5
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B501",
+     "name": "Plank",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 40,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 35,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 30,
+       "rpe": 8
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-06-22",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-06-22T23:10:00.000Z",
+   "endTime": "2026-06-22T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B201",
+     "name": "Incline Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 9,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 9,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 8,
+       "rpe": 8
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 36,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 36,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 4,
+       "weightKg": 36,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-06-23",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-06-23T23:05:00.000Z",
+   "endTime": "2026-06-23T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B401",
+     "name": "Bodyweight Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 16,
+       "rpe": 6.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 16,
+       "rpe": 7
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 16,
+       "rpe": 7.5
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B501",
+     "name": "Plank",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 42,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 37,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 32,
+       "rpe": 8
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-06-25",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-06-25T23:10:00.000Z",
+   "endTime": "2026-06-25T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B201",
+     "name": "Incline Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 9,
+       "rpe": 8
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 36,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 36,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 4,
+       "weightKg": 36,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-06-26",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-06-26T23:05:00.000Z",
+   "endTime": "2026-06-26T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B401",
+     "name": "Bodyweight Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 17,
+       "rpe": 6.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 17,
+       "rpe": 7
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 17,
+       "rpe": 7.5
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B501",
+     "name": "Plank",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 44,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 39,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 34,
+       "rpe": 8
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-06-28",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-06-28T23:10:00.000Z",
+   "endTime": "2026-06-28T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B201",
+     "name": "Incline Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 11,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 11,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 8
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 34.5,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 34.5,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 4,
+       "weightKg": 34.5,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B304",
+     "name": "Inverted Row",
+     "loadMeaning": "none",
+     "primaryMuscle": "upper_back",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 9,
+       "rpe": 8
+      }
+     ],
+     "secondaryMuscles": [
+      "lats",
+      "biceps"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-06-29",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-06-29T23:05:00.000Z",
+   "endTime": "2026-06-29T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B401",
+     "name": "Bodyweight Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 18,
+       "rpe": 6.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 18,
+       "rpe": 7
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 18,
+       "rpe": 7.5
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B501",
+     "name": "Plank",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 46,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 41,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 36,
+       "rpe": 8
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-07-01",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-07-01T23:10:00.000Z",
+   "endTime": "2026-07-01T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B201",
+     "name": "Incline Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 11,
+       "rpe": 8
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 34.5,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 34.5,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 4,
+       "weightKg": 34.5,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-07-02",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-07-02T23:05:00.000Z",
+   "endTime": "2026-07-02T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B401",
+     "name": "Bodyweight Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 19,
+       "rpe": 6.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 19,
+       "rpe": 7
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 19,
+       "rpe": 7.5
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B501",
+     "name": "Plank",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 48,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 43,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 38,
+       "rpe": 8
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-07-04",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-07-04T23:10:00.000Z",
+   "endTime": "2026-07-04T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B201",
+     "name": "Incline Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 11,
+       "rpe": 8
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 34.5,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 34.5,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 4,
+       "weightKg": 34.5,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-07-05",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-07-05T23:05:00.000Z",
+   "endTime": "2026-07-05T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B401",
+     "name": "Bodyweight Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 20,
+       "rpe": 6.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 20,
+       "rpe": 7
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 19,
+       "rpe": 7.5
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B501",
+     "name": "Plank",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 50,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 45,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 40,
+       "rpe": 8
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-07-07",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-07-07T23:10:00.000Z",
+   "endTime": "2026-07-07T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B202",
+     "name": "Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 8,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 8,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 6,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 33,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 33,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 4,
+       "weightKg": 33,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B304",
+     "name": "Inverted Row",
+     "loadMeaning": "none",
+     "primaryMuscle": "upper_back",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 9,
+       "rpe": 8
+      }
+     ],
+     "secondaryMuscles": [
+      "lats",
+      "biceps"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-07-08",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-07-08T23:05:00.000Z",
+   "endTime": "2026-07-08T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B401",
+     "name": "Bodyweight Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 20,
+       "rpe": 6.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 20,
+       "rpe": 7
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 19,
+       "rpe": 7.5
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B501",
+     "name": "Plank",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 52,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 47,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 42,
+       "rpe": 8
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-07-10",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-07-10T23:10:00.000Z",
+   "endTime": "2026-07-10T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B202",
+     "name": "Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 9,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 8,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 6,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 33,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 33,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 4,
+       "weightKg": 33,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-07-11",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-07-11T23:05:00.000Z",
+   "endTime": "2026-07-11T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B401",
+     "name": "Bodyweight Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 20,
+       "rpe": 6.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 20,
+       "rpe": 7
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 19,
+       "rpe": 7.5
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B501",
+     "name": "Plank",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 54,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 49,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 44,
+       "rpe": 8
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-07-13",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-07-13T23:10:00.000Z",
+   "endTime": "2026-07-13T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B202",
+     "name": "Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 8,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 6,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 33,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 33,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 4,
+       "weightKg": 33,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-07-14",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-07-14T23:05:00.000Z",
+   "endTime": "2026-07-14T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B402",
+     "name": "Pause Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 8
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B501",
+     "name": "Plank",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 56,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 51,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 46,
+       "rpe": 8
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-07-16",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-07-16T23:10:00.000Z",
+   "endTime": "2026-07-16T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B202",
+     "name": "Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 11,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 8,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 6,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 31.5,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 31.5,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 4,
+       "weightKg": 31.5,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B304",
+     "name": "Inverted Row",
+     "loadMeaning": "none",
+     "primaryMuscle": "upper_back",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 9,
+       "rpe": 8
+      }
+     ],
+     "secondaryMuscles": [
+      "lats",
+      "biceps"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-07-17",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-07-17T23:05:00.000Z",
+   "endTime": "2026-07-17T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B402",
+     "name": "Pause Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 11,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 11,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 11,
+       "rpe": 8
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B501",
+     "name": "Plank",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 58,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 53,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 48,
+       "rpe": 8
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-07-19",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-07-19T23:10:00.000Z",
+   "endTime": "2026-07-19T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B202",
+     "name": "Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 9,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 7,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 31.5,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 31.5,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 4,
+       "weightKg": 31.5,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-07-20",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-07-20T23:05:00.000Z",
+   "endTime": "2026-07-20T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B402",
+     "name": "Pause Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 8
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B501",
+     "name": "Plank",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 60,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 55,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 50,
+       "rpe": 8
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-07-22",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-07-22T23:10:00.000Z",
+   "endTime": "2026-07-22T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B202",
+     "name": "Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 13,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 8,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 31.5,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 31.5,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 4,
+       "weightKg": 31.5,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-07-23",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-07-23T23:05:00.000Z",
+   "endTime": "2026-07-23T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B402",
+     "name": "Pause Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 13,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 13,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 13,
+       "rpe": 8
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B501",
+     "name": "Plank",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 60,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 55,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 50,
+       "rpe": 8
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-07-25",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-07-25T23:10:00.000Z",
+   "endTime": "2026-07-25T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B202",
+     "name": "Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 14,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 11,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 9,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 30,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 30,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 4,
+       "weightKg": 30,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B304",
+     "name": "Inverted Row",
+     "loadMeaning": "none",
+     "primaryMuscle": "upper_back",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 9,
+       "rpe": 8
+      }
+     ],
+     "secondaryMuscles": [
+      "lats",
+      "biceps"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-07-26",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-07-26T23:05:00.000Z",
+   "endTime": "2026-07-26T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B402",
+     "name": "Pause Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 14,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 14,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 14,
+       "rpe": 8
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B502",
+     "name": "Hollow Body Hold",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 15,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 13,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 11,
+       "rpe": 8.5
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-07-28",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-07-28T23:10:00.000Z",
+   "endTime": "2026-07-28T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B202",
+     "name": "Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 30,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 30,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 4,
+       "weightKg": 30,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-07-29",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-07-29T23:05:00.000Z",
+   "endTime": "2026-07-29T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B403",
+     "name": "Split Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ],
+     "notes": "Reps per leg"
+    },
+    {
+     "sourceTemplateId": "D0A1B502",
+     "name": "Hollow Body Hold",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 17,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 15,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 13,
+       "rpe": 8.5
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-07-31",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-07-31T23:10:00.000Z",
+   "endTime": "2026-07-31T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B202",
+     "name": "Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 30,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 30,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 4,
+       "weightKg": 30,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-08-01",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-08-01T23:05:00.000Z",
+   "endTime": "2026-08-01T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B403",
+     "name": "Split Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 11,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 11,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ],
+     "notes": "Reps per leg"
+    },
+    {
+     "sourceTemplateId": "D0A1B502",
+     "name": "Hollow Body Hold",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 19,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 17,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 15,
+       "rpe": 8.5
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-08-03",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-08-03T23:10:00.000Z",
+   "endTime": "2026-08-03T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B202",
+     "name": "Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 28.5,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 28.5,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 4,
+       "weightKg": 28.5,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B304",
+     "name": "Inverted Row",
+     "loadMeaning": "none",
+     "primaryMuscle": "upper_back",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 9,
+       "rpe": 8
+      }
+     ],
+     "secondaryMuscles": [
+      "lats",
+      "biceps"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-08-04",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-08-04T23:05:00.000Z",
+   "endTime": "2026-08-04T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B403",
+     "name": "Split Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 11,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ],
+     "notes": "Reps per leg"
+    },
+    {
+     "sourceTemplateId": "D0A1B502",
+     "name": "Hollow Body Hold",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 21,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 19,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 17,
+       "rpe": 8.5
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-08-06",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-08-06T23:10:00.000Z",
+   "endTime": "2026-08-06T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B202",
+     "name": "Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 28.5,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 28.5,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 4,
+       "weightKg": 28.5,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-08-07",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-08-07T23:05:00.000Z",
+   "endTime": "2026-08-07T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B403",
+     "name": "Split Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 13,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 13,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ],
+     "notes": "Reps per leg"
+    },
+    {
+     "sourceTemplateId": "D0A1B502",
+     "name": "Hollow Body Hold",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 23,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 21,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 19,
+       "rpe": 8.5
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-08-09",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-08-09T23:10:00.000Z",
+   "endTime": "2026-08-09T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B202",
+     "name": "Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 28.5,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 28.5,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 4,
+       "weightKg": 28.5,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-08-10",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-08-10T23:05:00.000Z",
+   "endTime": "2026-08-10T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B403",
+     "name": "Split Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 14,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 14,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 13,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ],
+     "notes": "Reps per leg"
+    },
+    {
+     "sourceTemplateId": "D0A1B502",
+     "name": "Hollow Body Hold",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 25,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 23,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 21,
+       "rpe": 8.5
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-08-12",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-08-12T23:10:00.000Z",
+   "endTime": "2026-08-12T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B202",
+     "name": "Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 27,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 27,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 4,
+       "weightKg": 27,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B304",
+     "name": "Inverted Row",
+     "loadMeaning": "none",
+     "primaryMuscle": "upper_back",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 9,
+       "rpe": 8
+      }
+     ],
+     "secondaryMuscles": [
+      "lats",
+      "biceps"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-08-13",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-08-13T23:05:00.000Z",
+   "endTime": "2026-08-13T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B403",
+     "name": "Split Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 14,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ],
+     "notes": "Reps per leg"
+    },
+    {
+     "sourceTemplateId": "D0A1B502",
+     "name": "Hollow Body Hold",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 27,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 25,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 23,
+       "rpe": 8.5
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-08-15",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-08-15T23:10:00.000Z",
+   "endTime": "2026-08-15T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B202",
+     "name": "Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 27,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 27,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 4,
+       "weightKg": 27,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-08-16",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-08-16T23:05:00.000Z",
+   "endTime": "2026-08-16T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B403",
+     "name": "Split Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 14,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ],
+     "notes": "Reps per leg"
+    },
+    {
+     "sourceTemplateId": "D0A1B502",
+     "name": "Hollow Body Hold",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 29,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 27,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 25,
+       "rpe": 8.5
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-08-18",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-08-18T23:10:00.000Z",
+   "endTime": "2026-08-18T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B202",
+     "name": "Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 27,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 27,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 4,
+       "weightKg": 27,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-08-19",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-08-19T23:05:00.000Z",
+   "endTime": "2026-08-19T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B403",
+     "name": "Split Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 14,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ],
+     "notes": "Reps per leg"
+    },
+    {
+     "sourceTemplateId": "D0A1B502",
+     "name": "Hollow Body Hold",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 30,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 28,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 26,
+       "rpe": 8.5
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-08-21",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-08-21T23:10:00.000Z",
+   "endTime": "2026-08-21T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B202",
+     "name": "Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 25.5,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 25.5,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 4,
+       "weightKg": 25.5,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B304",
+     "name": "Inverted Row",
+     "loadMeaning": "none",
+     "primaryMuscle": "upper_back",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 9,
+       "rpe": 8
+      }
+     ],
+     "secondaryMuscles": [
+      "lats",
+      "biceps"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-08-22",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-08-22T23:05:00.000Z",
+   "endTime": "2026-08-22T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B403",
+     "name": "Split Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 14,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ],
+     "notes": "Reps per leg"
+    },
+    {
+     "sourceTemplateId": "D0A1B502",
+     "name": "Hollow Body Hold",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 30,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 28,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 26,
+       "rpe": 8.5
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-08-24",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-08-24T23:10:00.000Z",
+   "endTime": "2026-08-24T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B202",
+     "name": "Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 9
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 9,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 25.5,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 25.5,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 4,
+       "weightKg": 25.5,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-08-25",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-08-25T23:05:00.000Z",
+   "endTime": "2026-08-25T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B403",
+     "name": "Split Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 14,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ],
+     "notes": "Reps per leg"
+    },
+    {
+     "sourceTemplateId": "D0A1B502",
+     "name": "Hollow Body Hold",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 30,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 28,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 26,
+       "rpe": 8.5
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-08-27",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-08-27T23:10:00.000Z",
+   "endTime": "2026-08-27T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B202",
+     "name": "Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 9,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 25.5,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 25.5,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 25.5,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-08-28",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-08-28T23:05:00.000Z",
+   "endTime": "2026-08-28T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B403",
+     "name": "Split Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 14,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ],
+     "notes": "Reps per leg"
+    },
+    {
+     "sourceTemplateId": "D0A1B502",
+     "name": "Hollow Body Hold",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 30,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 28,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 26,
+       "rpe": 8.5
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-09-03",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-09-03T23:10:00.000Z",
+   "endTime": "2026-09-03T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B202",
+     "name": "Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 9,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 24,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 24,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 24,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B304",
+     "name": "Inverted Row",
+     "loadMeaning": "none",
+     "primaryMuscle": "upper_back",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 9,
+       "rpe": 8
+      }
+     ],
+     "secondaryMuscles": [
+      "lats",
+      "biceps"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-09-04",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-09-04T23:05:00.000Z",
+   "endTime": "2026-09-04T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B403",
+     "name": "Split Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 8
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ],
+     "notes": "Reps per leg"
+    },
+    {
+     "sourceTemplateId": "D0A1B502",
+     "name": "Hollow Body Hold",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 30,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 28,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 26,
+       "rpe": 8.5
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-09-07",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-09-07T23:10:00.000Z",
+   "endTime": "2026-09-07T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B203",
+     "name": "Decline Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 8,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 8,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 8,
+       "rpe": 8.5
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 24,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 24,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 24,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-09-08",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-09-08T23:05:00.000Z",
+   "endTime": "2026-09-08T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B403",
+     "name": "Split Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 8
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ],
+     "notes": "Reps per leg"
+    },
+    {
+     "sourceTemplateId": "D0A1B502",
+     "name": "Hollow Body Hold",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 30,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 28,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 26,
+       "rpe": 8.5
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-09-10",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-09-10T23:10:00.000Z",
+   "endTime": "2026-09-10T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B203",
+     "name": "Decline Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 9
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 8,
+       "rpe": 9.5
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 24,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 24,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 24,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-09-11",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-09-11T23:05:00.000Z",
+   "endTime": "2026-09-11T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B403",
+     "name": "Split Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 8
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ],
+     "notes": "Reps per leg"
+    },
+    {
+     "sourceTemplateId": "D0A1B502",
+     "name": "Hollow Body Hold",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "durationS": 30,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "durationS": 28,
+       "rpe": 8
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "durationS": 26,
+       "rpe": 8.5
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-09-14",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-09-14T23:10:00.000Z",
+   "endTime": "2026-09-14T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B203",
+     "name": "Decline Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 8.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 11,
+       "rpe": 9
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 9,
+       "rpe": 9.5
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 23,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 23,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 23,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B302",
+     "name": "Negative Pull Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 4,
+       "rpe": 8.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 4,
+       "rpe": 9
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 3,
+       "rpe": 9.5
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps"
+     ],
+     "notes": "5-second lowering"
+    },
+    {
+     "sourceTemplateId": "D0A1B304",
+     "name": "Inverted Row",
+     "loadMeaning": "none",
+     "primaryMuscle": "upper_back",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 9,
+       "rpe": 8
+      }
+     ],
+     "secondaryMuscles": [
+      "lats",
+      "biceps"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-b-2026-09-15",
+   "sourceId": "hevy",
+   "title": "Workout B: Lower body & core",
+   "startTime": "2026-09-15T23:05:00.000Z",
+   "endTime": "2026-09-15T23:34:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B403",
+     "name": "Split Squat",
+     "loadMeaning": "none",
+     "primaryMuscle": "quadriceps",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 7.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 7.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 8
+      }
+     ],
+     "secondaryMuscles": [
+      "glutes"
+     ],
+     "notes": "Reps per leg"
+    },
+    {
+     "sourceTemplateId": "D0A1B503",
+     "name": "Reverse Crunch",
+     "loadMeaning": "none",
+     "primaryMuscle": "abdominals",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 9
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 15,
+       "rpe": 9.5
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hevy:demo-a-2026-09-17",
+   "sourceId": "hevy",
+   "title": "Workout A: Upper body",
+   "startTime": "2026-09-17T23:10:00.000Z",
+   "endTime": "2026-09-17T23:42:00.000Z",
+   "exercises": [
+    {
+     "sourceTemplateId": "D0A1B203",
+     "name": "Decline Push Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "chest",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 8.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 12,
+       "rpe": 9
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 10,
+       "rpe": 9.5
+      }
+     ],
+     "secondaryMuscles": [
+      "triceps",
+      "shoulders"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B301",
+     "name": "Pull Up (Assisted)",
+     "loadMeaning": "assistance",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 23,
+       "rpe": 8
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 23,
+       "rpe": 8.5
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 5,
+       "weightKg": 23,
+       "rpe": 9
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps",
+      "upper_back"
+     ]
+    },
+    {
+     "sourceTemplateId": "D0A1B302",
+     "name": "Negative Pull Up",
+     "loadMeaning": "none",
+     "primaryMuscle": "lats",
+     "sets": [
+      {
+       "index": 0,
+       "kind": "normal",
+       "reps": 4,
+       "rpe": 8.5
+      },
+      {
+       "index": 1,
+       "kind": "normal",
+       "reps": 4,
+       "rpe": 9
+      },
+      {
+       "index": 2,
+       "kind": "normal",
+       "reps": 3,
+       "rpe": 9.5
+      }
+     ],
+     "secondaryMuscles": [
+      "biceps"
+     ],
+     "notes": "5-second lowering"
+    }
+   ]
+  }
+ ],
+ "templates": [
+  {
+   "sourceId": "hevy",
+   "id": "D0A1B201",
+   "name": "Incline Push Up",
+   "kind": "reps_only",
+   "loadMeaning": "none",
+   "primaryMuscle": "chest",
+   "secondaryMuscles": [
+    "triceps",
+    "shoulders"
+   ],
+   "custom": false
+  },
+  {
+   "sourceId": "hevy",
+   "id": "D0A1B202",
+   "name": "Push Up",
+   "kind": "reps_only",
+   "loadMeaning": "none",
+   "primaryMuscle": "chest",
+   "secondaryMuscles": [
+    "triceps",
+    "shoulders"
+   ],
+   "custom": false
+  },
+  {
+   "sourceId": "hevy",
+   "id": "D0A1B203",
+   "name": "Decline Push Up",
+   "kind": "reps_only",
+   "loadMeaning": "none",
+   "primaryMuscle": "chest",
+   "secondaryMuscles": [
+    "triceps",
+    "shoulders"
+   ],
+   "custom": false
+  },
+  {
+   "sourceId": "hevy",
+   "id": "D0A1B204",
+   "name": "Diamond Push Up",
+   "kind": "reps_only",
+   "loadMeaning": "none",
+   "primaryMuscle": "triceps",
+   "secondaryMuscles": [
+    "chest"
+   ],
+   "custom": false
+  },
+  {
+   "sourceId": "hevy",
+   "id": "D0A1B205",
+   "name": "Archer Push Up",
+   "kind": "reps_only",
+   "loadMeaning": "none",
+   "primaryMuscle": "chest",
+   "secondaryMuscles": [
+    "triceps"
+   ],
+   "custom": false
+  },
+  {
+   "sourceId": "hevy",
+   "id": "D0A1B206",
+   "name": "Pike Push Up",
+   "kind": "reps_only",
+   "loadMeaning": "none",
+   "primaryMuscle": "shoulders",
+   "secondaryMuscles": [
+    "triceps"
+   ],
+   "custom": false
+  },
+  {
+   "sourceId": "hevy",
+   "id": "D0A1B301",
+   "name": "Pull Up (Assisted)",
+   "kind": "bodyweight_assisted_reps",
+   "loadMeaning": "assistance",
+   "primaryMuscle": "lats",
+   "secondaryMuscles": [
+    "biceps",
+    "upper_back"
+   ],
+   "custom": false
+  },
+  {
+   "sourceId": "hevy",
+   "id": "D0A1B302",
+   "name": "Negative Pull Up",
+   "kind": "reps_only",
+   "loadMeaning": "none",
+   "primaryMuscle": "lats",
+   "secondaryMuscles": [
+    "biceps"
+   ],
+   "custom": false
+  },
+  {
+   "sourceId": "hevy",
+   "id": "D0A1B303",
+   "name": "Pull Up",
+   "kind": "bodyweight_reps",
+   "loadMeaning": "added",
+   "primaryMuscle": "lats",
+   "secondaryMuscles": [
+    "biceps"
+   ],
+   "custom": false
+  },
+  {
+   "sourceId": "hevy",
+   "id": "D0A1B304",
+   "name": "Inverted Row",
+   "kind": "reps_only",
+   "loadMeaning": "none",
+   "primaryMuscle": "upper_back",
+   "secondaryMuscles": [
+    "lats",
+    "biceps"
+   ],
+   "custom": false
+  },
+  {
+   "sourceId": "hevy",
+   "id": "D0A1B401",
+   "name": "Bodyweight Squat",
+   "kind": "reps_only",
+   "loadMeaning": "none",
+   "primaryMuscle": "quadriceps",
+   "secondaryMuscles": [
+    "glutes"
+   ],
+   "custom": false
+  },
+  {
+   "sourceId": "hevy",
+   "id": "D0A1B402",
+   "name": "Pause Squat",
+   "kind": "reps_only",
+   "loadMeaning": "none",
+   "primaryMuscle": "quadriceps",
+   "secondaryMuscles": [
+    "glutes"
+   ],
+   "custom": false
+  },
+  {
+   "sourceId": "hevy",
+   "id": "D0A1B403",
+   "name": "Split Squat",
+   "kind": "reps_only",
+   "loadMeaning": "none",
+   "primaryMuscle": "quadriceps",
+   "secondaryMuscles": [
+    "glutes"
+   ],
+   "custom": false
+  },
+  {
+   "sourceId": "hevy",
+   "id": "D0A1B404",
+   "name": "Bulgarian Split Squat",
+   "kind": "reps_only",
+   "loadMeaning": "none",
+   "primaryMuscle": "quadriceps",
+   "secondaryMuscles": [
+    "glutes"
+   ],
+   "custom": false
+  },
+  {
+   "sourceId": "hevy",
+   "id": "D0A1B501",
+   "name": "Plank",
+   "kind": "duration",
+   "loadMeaning": "none",
+   "primaryMuscle": "abdominals",
+   "custom": false
+  },
+  {
+   "sourceId": "hevy",
+   "id": "D0A1B502",
+   "name": "Hollow Body Hold",
+   "kind": "duration",
+   "loadMeaning": "none",
+   "primaryMuscle": "abdominals",
+   "custom": false
+  },
+  {
+   "sourceId": "hevy",
+   "id": "D0A1B503",
+   "name": "Reverse Crunch",
+   "kind": "reps_only",
+   "loadMeaning": "none",
+   "primaryMuscle": "abdominals",
+   "custom": false
+  },
+  {
+   "sourceId": "hevy",
+   "id": "D0A1B601",
+   "name": "Bench Press (Barbell)",
+   "kind": "weight_reps",
+   "loadMeaning": "added",
+   "primaryMuscle": "chest",
+   "secondaryMuscles": [
+    "triceps"
+   ],
+   "custom": false
+  },
+  {
+   "sourceId": "hevy",
+   "id": "D0A1B602",
+   "name": "Squat (Barbell)",
+   "kind": "weight_reps",
+   "loadMeaning": "added",
+   "primaryMuscle": "quadriceps",
+   "secondaryMuscles": [
+    "glutes"
+   ],
+   "custom": false
+  }
+ ]
+}

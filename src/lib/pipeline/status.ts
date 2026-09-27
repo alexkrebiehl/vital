@@ -17,6 +17,7 @@ import { datasetMeta, type DatasetMeta } from '../adapters/dataset';
 import { cacheStatus, installDataset, readDataMode, LiveDataUnavailableError } from '../adapters/runtime';
 import { haeHost, readHaeConfig, type HaeProbeResult } from '../adapters/hae';
 import { probeHae } from '../adapters/hae';
+import { loadTrainingData } from '../workout-sources/store';
 import type {
   PipelineConfig,
   PipelineDatasetSummary,
@@ -138,7 +139,12 @@ export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<Pi
     }
   }
 
-  // ── 3. Stages ─────────────────────────────────────────
+  // ── 3. Workout sources (a real sync, or the demo fixtures) ──
+  const workoutSources = deps.skipDataset
+    ? []
+    : (await loadTrainingData({ env, fetchImpl: deps.fetchImpl, now })).statuses;
+
+  // ── 4. Stages ─────────────────────────────────────────
   const stages: PipelineStage[] = [
     {
       id: 'health_auto_export',
@@ -219,6 +225,7 @@ export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<Pi
       misses: cache.misses,
       keys: cache.keys.length,
     },
+    workoutSources,
     dataAsOf: summary.lastObservationAt,
     checkedAt: new Date(now()).toISOString(),
     summary: summarySentence,
