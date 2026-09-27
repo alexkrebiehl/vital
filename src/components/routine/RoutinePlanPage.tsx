@@ -164,19 +164,22 @@ function Cadence({ cadence, adherence }: { cadence: CadenceView; adherence: stri
 /** The repeating pattern: workouts as boxes, rest as pills, arrows between, and back to the start. */
 function Pattern({ nodes }: { nodes: CadenceNode[] }) {
   return (
-    <ol className="flex flex-wrap items-end gap-y-3 list-none p-0" aria-label="Repeating pattern">
+    // The Today/Next tag floats above its node, so every node and arrow shares one centre line.
+    <ol className="flex flex-wrap items-center gap-y-7 pt-5 list-none p-0" aria-label="Repeating pattern">
       {nodes.map((node, i) => (
-        <li key={i} className="inline-flex items-end">
-          <div className="flex flex-col items-center">
-            <span className={`text-[10px] font-semibold uppercase tracking-wide mb-1 ${node.current ? 'text-primary' : 'invisible'}`}>
-              {node.current === 'today' ? 'Today' : 'Next'}
-            </span>
+        <li key={i} className="inline-flex items-center">
+          <div className="relative flex">
+            {node.current && (
+              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 text-[10px] font-semibold uppercase tracking-wide text-primary whitespace-nowrap">
+                {node.current === 'today' ? 'Today' : 'Next'}
+              </span>
+            )}
             <PatternNode node={node} />
           </div>
           {i < nodes.length - 1 ? (
-            <ArrowRight size={14} className="mx-1.5 mb-3 text-text-secondary shrink-0" aria-hidden="true" />
+            <ArrowRight size={14} className="mx-1.5 text-text-secondary shrink-0" aria-hidden="true" />
           ) : (
-            <span className="inline-flex items-center gap-1 ml-2 mb-2.5 text-[11px] text-text-secondary">
+            <span className="inline-flex items-center gap-1 ml-2 text-[11px] text-text-secondary">
               <Repeat size={13} aria-hidden="true" />
               back to start
             </span>
