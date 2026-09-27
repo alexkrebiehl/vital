@@ -316,11 +316,11 @@ function Workouts({ routine }: { routine: RoutineOverview }) {
 
 // ── Phases and calendar blocks ──────────────────────────
 
-// The current phase takes the logged-day fill from the cadence strip; completed
-// phases sit on the card itself; upcoming ones stay muted.
+// The current phase takes the logged-day fill from the cadence strip; the others
+// stay muted, with upcoming ones in muted text as well.
 const PHASE_SURFACE: Record<PhaseView['status'], string> = {
   current: 'bg-accent-tint',
-  complete: '',
+  complete: 'bg-surface-muted',
   upcoming: 'bg-surface-muted',
 };
 
