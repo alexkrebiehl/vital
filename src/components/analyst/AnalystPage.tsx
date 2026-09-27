@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertCircle, Bot, Loader2, Send, ShieldCheck, Sparkles, User,
+  AlertCircle, Bot, ChevronRight, Loader2, Send, ShieldCheck, Sparkles, User,
 } from 'lucide-react';
 import { Badge, Button, Card, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { TrendFigure } from '@/components/charts';
@@ -14,6 +14,7 @@ import type { AnalystAnswer, AnalystResponse } from '@/lib/analyst/types';
 import type { ConversationAvailability, ConversationSummary } from '@/lib/analyst/conversation-types';
 import { ConversationSelector } from './ConversationSelector';
 import { exchangesFromMessages, type ConversationExchange } from './conversation-view';
+import { askAnalystStreaming, askWithStreamingFallback } from './stream-client';
 import { useConversations } from './useConversations';
 import { providerBadge, useAnalystConfig } from './useAnalystConfig';
 
@@ -24,7 +25,14 @@ interface AskResponse extends AnalystResponse {
   conversation?: ConversationSummary | null;
 }
 
-type Exchange = ConversationExchange;
+type Exchange = ConversationExchange & {
+  /** Reasoning streamed so far for this turn; display only, never the answer. */
+  reasoning?: string;
+  /** Answer text streamed so far, before validation. Cleared on the final result. */
+  streamingText?: string;
+  /** True while the answer is being streamed (as opposed to awaiting a result). */
+  streaming?: boolean;
+};
 
 export function AnalystPage() {
   const { units } = useUnits();
@@ -44,6 +52,8 @@ export function AnalystPage() {
   const nextId = useRef(1);
   const conversationRef = useRef<HTMLDivElement>(null);
   const started = useRef(false);
+  /** Aborts the in-flight streamed ask when the page unmounts. */
+  const abortRef = useRef<AbortController | null>(null);
 
   // ── Conversations ───────────────────────────────────────
   // The list and the turns come from the server, so the history survives a
@@ -60,47 +70,95 @@ export function AnalystPage() {
   } = useConversations();
   const [activeId, setActiveId] = useState<number | null>(null);
 
+  /** The non-streaming fallback: one POST /api/analyst and the whole response. */
+  const askNonStreaming = useCallback(
+    async (question: string, id: number) => {
+      const res = await fetch('/api/analyst', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // A null conversation means "a new one": the server creates it and
+        // titles it from this question.
+        body: JSON.stringify({ query: question, system: units, conversationId: activeId }),
+      });
+      if (!res.ok) throw new Error(`The analyst endpoint answered HTTP ${res.status}.`);
+      const data = (await res.json()) as AskResponse;
+      setExchanges(prev =>
+        prev.map(e => (e.id === id ? { ...e, response: data, pending: false, streaming: false, streamingText: '' } : e))
+      );
+      // The turn belongs to a conversation now: adopt it and refresh the list
+      // so the selector shows it without a reload.
+      if (data.conversation) {
+        setActiveId(data.conversation.id);
+        void refreshConversations();
+      }
+    },
+    [units, activeId, refreshConversations]
+  );
+
   const ask = useCallback(
     async (question: string) => {
       const id = nextId.current++;
-      setExchanges(prev => [...prev, { id, question, response: null, pending: true, failed: null }]);
+      const controller = new AbortController();
+      abortRef.current = controller;
+      setExchanges(prev => [
+        ...prev,
+        { id, question, response: null, pending: true, streaming: true, reasoning: '', streamingText: '', failed: null },
+      ]);
       setPending(true);
       try {
-        const res = await fetch('/api/analyst', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          // A null conversation means "a new one": the server creates it and
-          // titles it from this question.
-          body: JSON.stringify({ query: question, system: units, conversationId: activeId }),
-        });
-        if (!res.ok) throw new Error(`The analyst endpoint answered HTTP ${res.status}.`);
-        const data = (await res.json()) as AskResponse;
-        setExchanges(prev =>
-          prev.map(e => (e.id === id ? { ...e, response: data, pending: false } : e))
+        // The streaming path shows reasoning and answer as they arrive. Any
+        // failure falls back to the non-streaming endpoint so the user still gets
+        // an answer rather than a dead turn.
+        await askWithStreamingFallback(
+          () =>
+            askAnalystStreaming(
+              { query: question, system: units, conversationId: activeId },
+              {
+                onReasoning: text =>
+                  setExchanges(prev =>
+                    prev.map(e => (e.id === id ? { ...e, reasoning: (e.reasoning ?? '') + text } : e))
+                  ),
+                onAnswer: text =>
+                  setExchanges(prev =>
+                    prev.map(e => (e.id === id ? { ...e, streamingText: `${e.streamingText ?? ''}${text}` } : e))
+                  ),
+                onResult: response => {
+                  const data = response as AskResponse;
+                  setExchanges(prev =>
+                    prev.map(e =>
+                      e.id === id ? { ...e, response: data, pending: false, streaming: false, streamingText: '' } : e
+                    )
+                  );
+                  if (data.conversation) {
+                    setActiveId(data.conversation.id);
+                    void refreshConversations();
+                  }
+                },
+              },
+              controller.signal
+            ),
+          () => askNonStreaming(question, id)
         );
-        // The turn belongs to a conversation now: adopt it and refresh the list
-        // so the selector shows it without a reload.
-        if (data.conversation) {
-          setActiveId(data.conversation.id);
-          void refreshConversations();
-        }
       } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
         setExchanges(prev =>
           prev.map(e =>
             e.id === id
               ? {
                   ...e,
                   pending: false,
+                  streaming: false,
                   failed: error instanceof Error ? error.message : 'The question could not be sent.',
                 }
               : e
           )
         );
       } finally {
+        abortRef.current = null;
         setPending(false);
       }
     },
-    [units, activeId, refreshConversations]
+    [units, activeId, refreshConversations, askNonStreaming]
   );
 
   /** Start fresh: an empty view. The server creates the conversation on the
@@ -154,6 +212,9 @@ export function AnalystPage() {
     // Announce-ready region: keep the newest exchange in view.
     conversationRef.current?.scrollTo({ top: conversationRef.current.scrollHeight, behavior: 'smooth' });
   }, [exchanges]);
+
+  // A page that unmounts mid-stream cancels its own upstream request.
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const handleSend = () => {
     const question = input.trim();
@@ -288,9 +349,23 @@ export function AnalystPage() {
                   </div>
                 </div>
 
-                {ex.pending && <AnswerPending />}
+                {ex.pending && (
+                  <>
+                    {ex.reasoning ? (
+                      <ReasoningBlock reasoning={ex.reasoning} />
+                    ) : (
+                      <AnswerPending />
+                    )}
+                    {ex.streamingText ? (
+                      <Card className="flex-1 p-4 space-y-3" variant="muted">
+                        <StatusHint text="Streaming the answer…" />
+                        <p className="text-sm text-text-primary whitespace-pre-wrap leading-relaxed">{ex.streamingText}</p>
+                      </Card>
+                    ) : null}
+                  </>
+                )}
 
-                {ex.failed && (
+                {!ex.pending && ex.failed && (
                   <Card className="p-4">
                     <ErrorState
                       title="The question could not be answered"
@@ -299,6 +374,8 @@ export function AnalystPage() {
                     />
                   </Card>
                 )}
+
+                {!ex.pending && ex.reasoning && <ReasoningBlock reasoning={ex.reasoning} />}
 
                 {ex.response && <AnswerView response={ex.response} onFollowUp={q => void ask(q)} />}
               </div>
@@ -364,6 +441,42 @@ export function AnalystPage() {
 }
 
 // ── Pending state ──────────────────────────────────────
+
+/** A small status line: a spinner plus a plain-language state. */
+function StatusHint({ text }: { text: string }) {
+  return (
+    <p className="flex items-center gap-1.5 text-[11px] text-text-secondary" role="status" aria-live="polite">
+      <Loader2 size={12} className="animate-spin" aria-hidden="true" />
+      {text}
+    </p>
+  );
+}
+
+/**
+ * The model's streamed reasoning, in a COLLAPSED-BY-DEFAULT block.
+ *
+ * It is labelled plainly as "Reasoning" and is deliberately NOT the answer: the
+ * answer arrives separately and is the only thing that is validated. `<details>`
+ * gives collapse for free, so it works without JavaScript state and is reachable
+ * by keyboard.
+ */
+function ReasoningBlock({ reasoning }: { reasoning: string }) {
+  if (!reasoning.trim()) return null;
+  return (
+    <div className="flex gap-3">
+      <div className="w-8 h-8 rounded-full bg-surface-muted text-text-secondary flex items-center justify-center shrink-0">
+        <Bot size={15} aria-hidden="true" />
+      </div>
+      <details className="flex-1 rounded-card border border-border bg-surface-muted/40 group">
+        <summary className="flex cursor-pointer items-center gap-1.5 px-3 py-2 text-[11px] text-text-secondary select-none">
+          <ChevronRight size={12} className="transition-transform group-open:rotate-90" aria-hidden="true" />
+          Reasoning <span className="text-text-secondary/70">(the model&apos;s own working, not the answer)</span>
+        </summary>
+        <p className="px-3 pb-3 text-xs text-text-secondary whitespace-pre-wrap leading-relaxed">{reasoning}</p>
+      </details>
+    </div>
+  );
+}
 
 function AnswerPending() {
   return (

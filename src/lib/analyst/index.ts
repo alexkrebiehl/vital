@@ -9,6 +9,7 @@ export * from './types';
 
 export {
   askAnalyst,
+  streamAnalyst,
   supportedPrompts,
   validateQuery,
   sanitizeUntrustedNotes,
@@ -16,6 +17,7 @@ export {
   EDUCATIONAL_NOTICE,
   QUERY_MAX_CHARS,
   NOTES_MAX_CHARS,
+  type AnalystStreamChunk,
 } from './service';
 
 export {
@@ -81,7 +83,15 @@ export {
   RATE_LIMIT_RETRIES,
   createProvider,
   resolveProvider,
+  supportsStreaming,
 } from './provider';
+
+export {
+  parseAnalystSse,
+  readSseFrame,
+  splitSseFrames,
+  type AnalystStreamEvent,
+} from './stream';
 
 export {
   readAnalystConfig,

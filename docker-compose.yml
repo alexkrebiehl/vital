@@ -110,6 +110,10 @@ services:
       ANALYST_TEMPERATURE: "${ANALYST_TEMPERATURE:-0.2}"
       ANALYST_TIMEOUT_MS: "${ANALYST_TIMEOUT_MS:-60000}"
       ANALYST_JSON_MODE: "${ANALYST_JSON_MODE:-auto}"
+      # Bounded reasoning effort for a reasoning model, or empty to send none.
+      # One of max|xhigh|high|medium|low|minimal|none. An unbounded reasoning
+      # model can spend the whole completion budget reasoning and emit no answer.
+      ANALYST_REASONING_EFFORT: "${ANALYST_REASONING_EFFORT:-}"
       # ── Today's briefing (server-side only) ────────────────────────────────
       # The optional local seam: a model server on this machine, reachable as
       # host.docker.internal (mapped below). It is probed with a bounded GET

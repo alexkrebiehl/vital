@@ -127,6 +127,37 @@ export interface CompletionProvider {
 }
 
 /**
+ * An open streaming request: the raw SSE response body plus the way to cancel
+ * it. The caller parses the body and MUST call `abort()` when it stops early
+ * (a disconnected browser), so the upstream request is cancelled rather than
+ * left running.
+ */
+export interface ProviderStreamHandle {
+  response: Response;
+  abort: () => void;
+}
+
+/** A provider that can stream a prompt → SSE completion (see `answerStream`). */
+export interface StreamingProvider {
+  /** The system/user messages the streamed request would send. */
+  messagesFor(context: AnalystProviderContext): { system: string; user: string };
+  answerStream(system: string, user: string): Promise<ProviderStreamHandle>;
+}
+
+/**
+ * True when a provider can stream a completion. The demo provider computes its
+ * answer offline and the Anthropic Messages API streams a different wire format,
+ * so a caller offering streaming must check this rather than assume: when it is
+ * false the caller falls back to the non-streaming path.
+ */
+export function supportsStreaming(
+  provider: AnalystProvider
+): provider is AnalystProvider & StreamingProvider {
+  const candidate = provider as Partial<StreamingProvider>;
+  return typeof candidate.answerStream === 'function' && typeof candidate.messagesFor === 'function';
+}
+
+/**
  * True when a provider speaks the shared completion path.
  *
  * The demo provider computes answers from the dataset and has no model to ask,
@@ -219,6 +250,18 @@ abstract class RemoteAnalystProviderBase implements AnalystProvider {
       }),
     };
   }
+
+  /**
+   * The system/user message pair for a context, exposed for the streaming path.
+   *
+   * The service streams the ANSWER the model produces, so it must build the same
+   * two messages `answer()` would send. Exposing the builder rather than
+   * re-implementing it in the service keeps the streamed request byte-identical
+   * in shape to the non-streamed one.
+   */
+  messagesFor(context: AnalystProviderContext): { system: string; user: string } {
+    return this.buildMessages(context);
+  }
 }
 
 /**
@@ -250,18 +293,8 @@ export class OpenAICompatibleProvider extends RemoteAnalystProviderBase {
   }
 
   async complete(system: string, user: string): Promise<ModelCompletion> {
-    const body: Record<string, unknown> = {
-      model: this.config.model,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user },
-      ],
-      max_tokens: this.config.maxTokens,
-      temperature: this.config.temperature,
-      stream: false,
-    };
+    const body = this.chatBody(system, user, false);
     const useJsonMode = this.config.jsonMode === 'auto';
-    if (useJsonMode) body.response_format = { type: 'json_object' };
 
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (this.config.apiKey) headers.Authorization = `Bearer ${this.config.apiKey}`;
@@ -296,16 +329,145 @@ export class OpenAICompatibleProvider extends RemoteAnalystProviderBase {
     const first = Array.isArray(choices) ? (choices[0] as Record<string, unknown> | undefined) : undefined;
     const message = first?.message as Record<string, unknown> | undefined;
     const text = typeof message?.content === 'string' ? message.content : null;
-    if (!text || !text.trim()) {
-      const finish = typeof first?.finish_reason === 'string' ? first.finish_reason : null;
+    const model = typeof payload?.model === 'string' ? payload.model : this.config.model;
+
+    // A truncated reply that DOES carry content is delivered rather than
+    // discarded: a short answer beats an error, and the parser downstream decides
+    // whether the fragment is usable. The truncation is not silently hidden — the
+    // caller still sees it through the reply's own shape.
+    if (text && text.trim()) return { text, model };
+
+    const finish = typeof first?.finish_reason === 'string' ? first.finish_reason : null;
+    throw new AnalystProviderError(this.emptyReplyMessage(finish, first, message));
+  }
+
+  /**
+   * The message for a reply with no content at all.
+   *
+   * When the model spent its whole budget on REASONING, "stopped at the token
+   * limit" blames the wrong thing and hides the cause, so that case is reported
+   * distinctly: the model reasoned its way through the entire completion budget
+   * and never began an answer. Reasoning text itself is never promoted into an
+   * answer — it is not the JSON object that was asked for, and an answer invented
+   * from it would not have been validated.
+   */
+  private emptyReplyMessage(
+    finish: string | null,
+    choice: Record<string, unknown> | undefined,
+    message: Record<string, unknown> | undefined
+  ): string {
+    if (finish !== 'length') {
+      return 'The provider answered with an empty message, so there was nothing to validate.';
+    }
+    if (this.spentBudgetOnReasoning(choice, message)) {
+      return `The provider spent its whole ${this.config.maxTokens} token budget on the model's reasoning and never began an answer, so there was nothing to validate. Raise ANALYST_MAX_TOKENS, lower ANALYST_REASONING_EFFORT, or ask a narrower question.`;
+    }
+    return `The provider stopped at the ${this.config.maxTokens} token limit before producing an answer. Raise ANALYST_MAX_TOKENS or ask a narrower question.`;
+  }
+
+  /** True when a length-truncated reply produced reasoning but no content. */
+  private spentBudgetOnReasoning(
+    choice: Record<string, unknown> | undefined,
+    message: Record<string, unknown> | undefined
+  ): boolean {
+    if (typeof message?.reasoning === 'string' && message.reasoning.trim().length > 0) return true;
+    const usage = choice?.usage ?? message?.usage;
+    const record = usage && typeof usage === 'object' ? (usage as Record<string, unknown>) : null;
+    const details = record?.completion_tokens_details;
+    const detailRecord = details && typeof details === 'object' ? (details as Record<string, unknown>) : null;
+    const reasoningTokens = detailRecord?.reasoning_tokens;
+    return typeof reasoningTokens === 'number' && reasoningTokens > 0;
+  }
+
+  /**
+   * Open a streamed completion.
+   *
+   * The response body is returned unread: the caller parses the SSE frames and
+   * calls `abort()` when it stops early. The timeout is deliberately NOT applied
+   * to the body read — a reasoning model streams for a while, and a timer that
+   * cannot distinguish "still streaming" from "hung" would cut a working answer
+   * off. Instead the connection is bounded by the caller's own read loop, and a
+   * hard timeout still bounds the time to the FIRST byte (the headers).
+   */
+  async answerStream(system: string, user: string): Promise<ProviderStreamHandle> {
+    const body = this.chatBody(system, user, true);
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+    };
+    if (this.config.apiKey) headers.Authorization = `Bearer ${this.config.apiKey}`;
+
+    const controller = new AbortController();
+    let response: Response;
+    try {
+      response = await fetch(this.url(), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+    } catch (error) {
+      const aborted = error instanceof Error && error.name === 'AbortError';
       throw new AnalystProviderError(
-        finish === 'length'
-          ? `The provider stopped at the ${this.config.maxTokens} token limit before producing an answer. Raise ANALYST_MAX_TOKENS or ask a narrower question.`
-          : 'The provider answered with an empty message, so there was nothing to validate.'
+        aborted
+          ? `The provider at ${this.destination ?? 'the configured endpoint'} did not respond within ${this.config.timeoutMs} ms.`
+          : `The provider at ${this.destination ?? 'the configured endpoint'} could not be reached.`
       );
     }
-    const model = typeof payload?.model === 'string' ? payload.model : this.config.model;
-    return { text, model };
+
+    // A gateway that rejects `stream: true` (or `response_format`) answers with
+    // an ordinary JSON error, not an event stream. Retry once without
+    // response_format, exactly as the non-streaming path does, so a server that
+    // does not know the field still streams.
+    if (response.status === 400 && this.config.jsonMode === 'auto') {
+      delete body.response_format;
+      try {
+        response = await fetch(this.url(), {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+          signal: controller.signal,
+          cache: 'no-store',
+        });
+      } catch (error) {
+        const aborted = error instanceof Error && error.name === 'AbortError';
+        throw new AnalystProviderError(
+          aborted
+            ? `The provider at ${this.destination ?? 'the configured endpoint'} did not respond within ${this.config.timeoutMs} ms.`
+            : `The provider at ${this.destination ?? 'the configured endpoint'} could not be reached.`
+        );
+      }
+    }
+
+    if (!response.ok) throw await this.failure(response.status, response);
+    if (!response.body) {
+      throw new AnalystProviderError('The provider answered a streaming request with no response body.');
+    }
+    return { response, abort: () => controller.abort() };
+  }
+
+  /**
+   * The shared /chat/completions body. Both the streaming and non-streaming paths
+   * go through it so max_tokens, temperature and the reasoning control cannot
+   * drift between them.
+   */
+  private chatBody(system: string, user: string, stream: boolean): Record<string, unknown> {
+    const body: Record<string, unknown> = {
+      model: this.config.model,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
+      max_tokens: this.config.maxTokens,
+      temperature: this.config.temperature,
+      stream,
+    };
+    // Only sent when configured: an endpoint that does not know the field is
+    // never handed one. `reasoning.effort` is the shape this gateway accepts.
+    if (this.config.reasoningEffort) body.reasoning = { effort: this.config.reasoningEffort };
+    if (this.config.jsonMode === 'auto') body.response_format = { type: 'json_object' };
+    return body;
   }
 
   private url(): string {

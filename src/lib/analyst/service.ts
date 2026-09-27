@@ -30,13 +30,15 @@ import {
   retrieveGeneral,
 } from './retrieval';
 import { loadLabSnapshot, type LabLoader } from './labContext';
-import { AnalystProviderError, createProvider, DEMO_LABEL } from './provider';
+import { AnalystProviderError, createProvider, DEMO_LABEL, supportsStreaming } from './provider';
+import { parseAnalystSse } from './stream';
 import { readAnalystConfig, type AnalystConfig } from './config';
 import { checkGrounding, parseAnalystReply } from './validate';
-import { boundedHistory } from './memory';
+import { boundedHistory, type ChatTurn } from './memory';
 import type {
   AnalystAnswer,
   AnalystGrounding,
+  AnalystProviderContext,
   AnalystRequest,
   AnalystResponse,
   AnalystStatus,
@@ -163,20 +165,39 @@ function retrievalSummary(bundle: RetrievalBundle | null): AnalystResponse['retr
   };
 }
 
+export type AnalystStreamChunk =
+  | { kind: 'reasoning'; text: string }
+  | { kind: 'answer'; text: string }
+  | { kind: 'result'; response: AnalystResponse };
+
+interface Prepared {
+  ok: true;
+  config: AnalystConfig;
+  query: string;
+  notes: SanitizedNotes;
+  notesEcho: AnalystResponse['untrustedNotes'];
+  bundle: RetrievalBundle;
+  handlerId: string;
+  system: UnitSystem;
+  history: ChatTurn[];
+}
+
+type Preparation = Prepared | { ok: false; response: AnalystResponse };
+
 /**
- * Ask the analyst a question.
+ * Everything both the non-streaming and the streaming path need before a
+ * provider is contacted: validation, routing, retrieval, the bounded lab block,
+ * the resolved provider configuration, the unit system and the bounded history.
  *
- * With no provider configured this is deterministic, offline and read-only. With
- * a provider configured the same request goes to that provider — a configured
- * provider is used directly — and the reply is validated before it is returned.
- *
- * `deps.env` exists so the provider configuration can be injected in tests; in
- * production it defaults to the server process environment.
+ * Kept in one place so the two paths cannot drift — a question the service
+ * refuses is refused identically whether it was asked over SSE or not. A refusal
+ * or a misconfiguration comes back as `ok: false` with the finished response,
+ * and no provider was created.
  */
-export async function askAnalyst(
+async function prepareAnalyst(
   request: AnalystRequest,
-  deps: { env?: NodeJS.ProcessEnv; labLoader?: LabLoader } = {}
-): Promise<AnalystResponse> {
+  deps: { env?: NodeJS.ProcessEnv; labLoader?: LabLoader }
+): Promise<Preparation> {
   const config = readAnalystConfig(deps.env ?? process.env);
   const validated = validateQuery(request?.query);
   const notes = sanitizeUntrustedNotes(request?.notes);
@@ -184,57 +205,39 @@ export async function askAnalyst(
   const base = (status: AnalystStatus, fields: Partial<AnalystResponse> = {}) =>
     baseResponse(config, status, { untrustedNotes: notesEcho, ...fields });
 
-  if (!validated.ok) {
-    return base('error', { message: validated.reason });
-  }
+  if (!validated.ok) return { ok: false, response: base('error', { message: validated.reason }) };
 
   // A provider is named but cannot be used: state why, compute nothing, send nothing.
   if (config.misconfiguredReason) {
-    return base('misconfigured', {
-      message: `${config.misconfiguredReason} No request was sent and no answer was computed.`,
-    });
+    return {
+      ok: false,
+      response: base('misconfigured', {
+        message: `${config.misconfiguredReason} No request was sent and no answer was computed.`,
+      }),
+    };
   }
 
   const isDemo = config.provider === 'demo';
-  // Routing differs by path on purpose.
-  //
-  // The demo analyst answers its supported questions by pattern matching, and a
-  // bare mention of sleep still routes to the shortest sleep window: there, the
-  // patterns *are* the supported list.
-  //
-  // A configured provider answers the question the user actually asked, so a
-  // handler bundle is used only when the question genuinely matches that
-  // handler's canonical question. Otherwise the bounded general selection is
-  // used and the model answers from it — the alternative is a multi-topic
-  // question ("caffeine…, and how does it relate to my sleep?") being answered
-  // from one metric, with the other half unanswerable.
   const matched = isDemo ? selectHandler(validated.query) : selectHandlerStrict(validated.query);
 
-  // The demo analyst still answers only its supported questions, unchanged.
   if (isDemo && !matched) {
-    return base('unsupported', {
-      message: `The demo analyst matches questions by pattern, so it cannot route "${validated.query}". Nothing was computed or sent. Try one of the supported questions below.`,
-    });
+    return {
+      ok: false,
+      response: base('unsupported', {
+        message: `The demo analyst matches questions by pattern, so it cannot route "${validated.query}". Nothing was computed or sent. Try one of the supported questions below.`,
+      }),
+    };
   }
 
-  // Retrieval selects only what this question needs. A free-form question to a
-  // real provider gets the bounded general selection instead of a refusal.
   let bundle: RetrievalBundle;
   try {
     bundle = matched ? retrieve(matched.id, REFERENCE_KEY) : retrieveGeneral(REFERENCE_KEY);
   } catch (error) {
-    if (error instanceof AnalysisNotAvailable) {
-      return base('error', { message: error.message });
-    }
+    if (error instanceof AnalysisNotAvailable) return { ok: false, response: base('error', { message: error.message }) };
     throw error;
   }
   const handlerId = matched?.id ?? GENERAL_HANDLER_ID;
 
-  // The bounded lab block. Its data lives in Postgres, not in the metric
-  // dataset, so it is loaded here — after retrieval, before the provider — and
-  // attached to EVERY analyst context. A lab read failure never fails the
-  // question: it becomes an unavailable block whose reason the answer states,
-  // and the lab rows actually read are counted in `recordsRead`.
   const labSpec = labSpecOf(handlerId) ?? DEFAULT_LAB_SPEC;
   let lab: LabContextSnapshot | null = null;
   try {
@@ -251,6 +254,50 @@ export async function askAnalyst(
     };
   }
 
+  const system: UnitSystem = request?.system === 'imperial' ? 'imperial' : 'metric';
+  const history = boundedHistory(request?.history);
+
+  return { ok: true, config, query: validated.query, notes, notesEcho, bundle, handlerId, system, history };
+}
+
+/** Build the provider request context from a prepared analyst question. */
+function providerContext(prep: Prepared): AnalystProviderContext {
+  return {
+    refKey: REFERENCE_KEY,
+    system: prep.system,
+    bundle: prep.bundle,
+    question: prep.query,
+    prompt: prep.config.systemPrompt,
+    notes: prep.notes.text.length > 0 ? prep.notes.text : undefined,
+    history: prep.history,
+  };
+}
+
+/**
+ * Ask the analyst a question.
+ *
+ * With no provider configured this is deterministic, offline and read-only. With
+ * a provider configured the same request goes to that provider — a configured
+ * provider is used directly — and the reply is validated before it is returned.
+ *
+ * `deps.env` exists so the provider configuration can be injected in tests; in
+ * production it defaults to the server process environment.
+ */
+export async function askAnalyst(
+  request: AnalystRequest,
+  deps: { env?: NodeJS.ProcessEnv; labLoader?: LabLoader } = {}
+): Promise<AnalystResponse> {
+  const prep = await prepareAnalyst(request, deps);
+  if (!prep.ok) return prep.response;
+
+  const { config, bundle, handlerId, notesEcho } = prep;
+  const base = (status: AnalystStatus, fields: Partial<AnalystResponse> = {}) =>
+    baseResponse(config, status, { untrustedNotes: notesEcho, ...fields });
+  const withContext = {
+    handlerId,
+    retrieval: retrievalSummary(bundle),
+  };
+
   let provider;
   try {
     provider = createProvider(config);
@@ -261,28 +308,11 @@ export async function askAnalyst(
     });
   }
 
-  const system: UnitSystem = request?.system === 'imperial' ? 'imperial' : 'metric';
-  // Conversation memory: the earlier turns of THIS conversation, bounded here so
-  // no caller can send an unbounded history. Empty for a new conversation.
-  const history = boundedHistory(request?.history);
-  const withContext = {
-    handlerId,
-    retrieval: retrievalSummary(bundle),
-  };
-
   let answer: AnalystAnswer | null = null;
   let grounding: AnalystGrounding = NO_GROUNDING;
 
   try {
-    const result = await provider.answer({
-      refKey: REFERENCE_KEY,
-      system,
-      bundle,
-      question: validated.query,
-      prompt: config.systemPrompt,
-      notes: notes.text.length > 0 ? notes.text : undefined,
-      history,
-    });
+    const result = await provider.answer(providerContext(prep));
 
     if (!result) {
       return base('unsupported', {
@@ -304,7 +334,7 @@ export async function askAnalyst(
         });
       }
       answer = parsed.answer;
-      grounding = checkGrounding(answer, bundle, system);
+      grounding = checkGrounding(answer, bundle, prep.system);
     }
   } catch (error) {
     if (error instanceof AnalystProviderError) {
@@ -320,6 +350,159 @@ export async function askAnalyst(
     message: null,
     grounding,
   });
+}
+
+/**
+ * Ask the analyst and stream the reply as it is produced.
+ *
+ * Yields reasoning and answer fragments separately, then exactly one `result`
+ * chunk carrying the finished `AnalystResponse` — the same shape `askAnalyst`
+ * returns, built by the same validation. The assembled ANSWER text (never the
+ * reasoning) is what is parsed, guarded and presented; reasoning is streamed for
+ * display only and is never promoted into an answer.
+ *
+ * When the provider cannot stream (the demo provider, or an endpoint that does
+ * not speak this wire format), the non-streaming answer is computed and a single
+ * `result` chunk is yielded — the caller re-emits it, so the stream route still
+ * works everywhere.
+ *
+ * The caller owns the upstream connection: it must call the returned `abort` when
+ * it stops early. `abort` is a no-op once the stream has finished.
+ */
+export function streamAnalyst(
+  request: AnalystRequest,
+  deps: { env?: NodeJS.ProcessEnv; labLoader?: LabLoader } = {}
+): { chunks: AsyncGenerator<AnalystStreamChunk>; abort: () => void } {
+  let abortUpstream: (() => void) | null = null;
+
+  async function* run(): AsyncGenerator<AnalystStreamChunk> {
+    const prep = await prepareAnalyst(request, deps);
+    if (!prep.ok) {
+      yield { kind: 'result', response: prep.response };
+      return;
+    }
+
+    const { config, bundle, handlerId, notesEcho } = prep;
+    const base = (status: AnalystStatus, fields: Partial<AnalystResponse> = {}) =>
+      baseResponse(config, status, { untrustedNotes: notesEcho, ...fields });
+    const withContext = { handlerId, retrieval: retrievalSummary(bundle) };
+
+    let provider;
+    try {
+      provider = createProvider(config);
+    } catch (error) {
+      yield {
+        kind: 'result',
+        response: base('misconfigured', {
+          handlerId,
+          message: error instanceof Error ? error.message : 'The configured provider could not be created.',
+        }),
+      };
+      return;
+    }
+
+    // A provider that cannot stream still gets an answer; it just arrives in one
+    // chunk. Nothing is faked about it.
+    if (!supportsStreaming(provider)) {
+      const response = await askAnalyst(request, deps);
+      yield { kind: 'result', response };
+      return;
+    }
+
+    const context = providerContext(prep);
+    const { system, user } = provider.messagesFor(context);
+    let handle;
+    try {
+      handle = await provider.answerStream(system, user);
+    } catch (error) {
+      if (error instanceof AnalystProviderError) {
+        yield { kind: 'result', response: base('error', { ...withContext, message: error.message }) };
+        return;
+      }
+      throw error;
+    }
+    abortUpstream = handle.abort;
+
+    let assembled = '';
+    let model: string | null = null;
+    let finishReason: string | null = null;
+    let reasoningTokens: number | null = null;
+
+    try {
+      for await (const event of parseAnalystSse(handle.response.body as ReadableStream<Uint8Array>)) {
+        if (event.kind === 'reasoning') {
+          yield { kind: 'reasoning', text: event.text };
+        } else if (event.kind === 'answer') {
+          assembled += event.text;
+          yield { kind: 'answer', text: event.text };
+        } else {
+          if (event.model) model = event.model;
+          finishReason = event.finishReason;
+          reasoningTokens = event.reasoningTokens;
+        }
+      }
+    } catch (error) {
+      // A stream that broke mid-flight is reported, not silently truncated. The
+      // client falls back to the non-streaming endpoint from here.
+      handle.abort();
+      const detail =
+        error instanceof AnalystProviderError
+          ? error.message
+          : `The provider at ${config.endpointHost ?? 'the configured endpoint'} ended the stream early.`;
+      yield { kind: 'result', response: base('error', { ...withContext, message: detail }) };
+      return;
+    } finally {
+      abortUpstream = null;
+    }
+
+    // The assembled answer text runs through exactly the same guard as a
+    // non-streamed reply: the numeric audit and the JSON/shape validation fail
+    // closed, and reasoning text was never part of `assembled`.
+    const trimmed = assembled.trim();
+    if (!trimmed) {
+      yield {
+        kind: 'result',
+        response: base('error', {
+          ...withContext,
+          message:
+            finishReason === 'length' && (reasoningTokens ?? 0) > 0
+              ? `The provider spent its whole ${config.maxTokens} token budget on the model's reasoning and never began an answer, so there was nothing to validate. Raise ANALYST_MAX_TOKENS, lower ANALYST_REASONING_EFFORT, or ask a narrower question.`
+              : `The provider streamed no answer text${finishReason === 'length' ? ` and stopped at the ${config.maxTokens} token limit` : ''}, so there was nothing to validate.`,
+        }),
+      };
+      return;
+    }
+
+    const parsed = parseAnalystReply(trimmed, { bundle });
+    if (!parsed.ok || !parsed.answer) {
+      yield {
+        kind: 'result',
+        response: base('error', {
+          ...withContext,
+          message: parsed.reason ?? "The model's reply could not be read as an answer.",
+        }),
+      };
+      return;
+    }
+
+    yield {
+      kind: 'result',
+      response: base('ok', {
+        ...withContext,
+        answer: parsed.answer,
+        message: null,
+        grounding: checkGrounding(parsed.answer, bundle, prep.system),
+        // The streaming path reports the model the provider named, so the
+        // attribution line matches what the answer view shows.
+        model: model ?? config.model,
+      }),
+    };
+  }
+
+  return {
+    chunks: run(),
+    abort: () => abortUpstream?.(),
+  };
 }
 
 /** The prompt list a caller may offer, generated from the handler registry. */
