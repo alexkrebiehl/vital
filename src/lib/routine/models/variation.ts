@@ -16,7 +16,8 @@
 
 import { doseText, rangeText, weightText } from '../format';
 import type { PerformanceRecord } from '../records';
-import type { Dose } from '../types';
+import type { UnitSystem } from '../../prefs';
+import type { Dose, PlanRules, Stage } from '../types';
 import {
   effortText,
   fallingStreak,
@@ -204,3 +205,39 @@ export const variationModel: ProgressionModel = {
     return { rows: mergeRows(rows), light, reasons, readiness, nextAction, target, facts };
   },
 };
+
+/**
+ * Rows for sessions of a stage the model is not judging — work the reader
+ * keeps doing alongside the current stage (negatives next to assisted pull-ups)
+ * or tries ahead of it. Each row is judged against its own stage's marker, and
+ * `note` says how the stage relates to the current one.
+ */
+export function stageRows(
+  stage: Stage,
+  records: PerformanceRecord[],
+  rules: PlanRules,
+  system: UnitSystem,
+  note: (record: PerformanceRecord) => string
+): ProgressRow[] {
+  const target = stage.advanceWhen ?? stage.prescription;
+  const q = quantityFor(target, records);
+  const ceiling = rpeCeiling(target, rules);
+  let best = 0;
+  return records.map((record, i) => {
+    const j = judge(record, target, q, ceiling);
+    const signal = j.qualifies
+      ? 'Meets its marker'
+      : trendSignal(j.total, i ? judge(records[i - 1], target, q, ceiling).total : null, best);
+    best = Math.max(best, j.total);
+    return {
+      dates: [record.date],
+      sessionIds: [record.sessionId],
+      stageId: stage.id,
+      work: `${stage.name} ${valuesText(j.values, q, system)}${loadSuffix(record, system)}`,
+      headline: headlineOf(j.values, q, system),
+      effort: effortText(record),
+      signal: `${note(record)} · ${signal.charAt(0).toLowerCase()}${signal.slice(1)}`,
+      ...(record.notes ? { notes: record.notes } : {}),
+    };
+  });
+}

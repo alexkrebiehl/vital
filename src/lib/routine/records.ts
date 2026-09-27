@@ -54,7 +54,8 @@ export function nameKey(name: string): string {
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
     .split(' ')
-    .map(w => (w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w))
+    // "Ups" → "up" too: Hevy names many movements "… Pull Ups" / "… Push Ups".
+    .map(w => (w.length > 2 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w))
     .join(' ');
 }
 

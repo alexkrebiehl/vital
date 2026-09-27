@@ -9,7 +9,7 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, CheckCircle2, Circle, CircleDot, MessageSquare, PauseCircle } from 'lucide-react';
 import type { PathProgress, RoutineOverview } from '@/lib/routine/progress';
 import type { RecoveryIndicator } from '@/lib/routine/recovery';
@@ -119,6 +119,8 @@ export function RoutinePathPage() {
         <StageGuidance path={path} routine={routine} />
       </div>
 
+      <AreaSiblings routine={routine} path={path} />
+
       <Recovery indicators={routine.recovery.indicators} summary={routine.recovery.text} deload={routine.deload.text} />
     </div>
   );
@@ -150,6 +152,7 @@ function Assessment({ path, narrative }: { path: PathProgress; narrative?: Narra
 }
 
 function SessionTable({ path }: { path: PathProgress }) {
+  const [all, setAll] = useState(false);
   if (path.rows.length === 0) {
     return (
       <Card className="p-5">
@@ -160,7 +163,8 @@ function SessionTable({ path }: { path: PathProgress }) {
       </Card>
     );
   }
-  const rows = path.rows.slice(-10);
+  const rows = all ? path.rows : path.rows.slice(-12);
+  const otherStages = new Set(path.rows.filter(r => r.stageId !== path.stage.id).map(r => r.stageId)).size;
   return (
     <Card className="p-5 overflow-x-auto" as="section" aria-label="Recent sessions">
       <table className="w-full text-sm">
@@ -175,7 +179,7 @@ function SessionTable({ path }: { path: PathProgress }) {
         </thead>
         <tbody>
           {rows.map(r => (
-            <tr key={r.sessionIds.join(',') || r.dates.join(',')} className={`border-b border-border last:border-b-0 align-top ${r.stageId !== path.stage.id ? 'text-text-secondary' : ''}`}>
+            <tr key={`${r.stageId}:${r.sessionIds.join(',') || r.dates.join(',')}`} className={`border-b border-border last:border-b-0 align-top ${r.stageId !== path.stage.id ? 'text-text-secondary' : ''}`}>
               <td className="py-2 pr-4 whitespace-nowrap tnum">{r.dates.map(formatDayKeyShort).join(' / ')}</td>
               <td className="py-2 pr-4">
                 {r.work}
@@ -188,7 +192,17 @@ function SessionTable({ path }: { path: PathProgress }) {
           ))}
         </tbody>
       </table>
-      {path.rows.length > rows.length && <p className="text-[11px] text-text-secondary mt-2">Showing the latest {rows.length} of {path.rows.length} rows.</p>}
+      <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
+        <p className="text-[11px] text-text-secondary">
+          Every stage of this path{otherStages > 0 ? ' — other stages are shown in grey, each judged against its own marker' : ''}.
+          {' '}The light and next action are about {path.stage.name.toLowerCase()}.
+        </p>
+        {path.rows.length > 12 && (
+          <Button variant="ghost" size="sm" onClick={() => setAll(a => !a)}>
+            {all ? 'Show recent' : `Show all ${path.rows.length} rows`}
+          </Button>
+        )}
+      </div>
     </Card>
   );
 }
@@ -273,6 +287,33 @@ function Recovery({ indicators, summary, deload }: { indicators: RecoveryIndicat
           </div>
         ))}
       </div>
+    </Card>
+  );
+}
+
+/** The other paths of the same focus area, so the page covers the whole domain. */
+function AreaSiblings({ routine, path }: { routine: RoutineOverview; path: PathProgress }) {
+  const siblings = routine.paths.filter(p => p.areaId === path.areaId && p.pathId !== path.pathId);
+  if (siblings.length === 0) return null;
+  return (
+    <Card className="p-5" as="section" aria-label={`Also in ${path.areaName}`}>
+      <h2 className="text-sm font-semibold text-text-primary mb-3">Also in {path.areaName}</h2>
+      <ul className="grid grid-cols-1 md:grid-cols-2 gap-3 list-none p-0 m-0">
+        {siblings.map(p => (
+          <li key={p.pathId}>
+            <Link href={`/workouts/routine/${p.pathId}`} className="block rounded-control bg-surface-muted p-3 hover:bg-accent-tint/40 transition-colors">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-text-secondary">{p.pathName}</span>
+                <LightLabel light={p.light} />
+              </div>
+              <p className="text-sm font-medium text-text-primary">{p.stage.name}</p>
+              <p className="text-[11px] text-text-secondary mt-0.5">
+                {p.lastSession ? `Last: ${p.lastSession.work} (${formatDayKeyShort(p.lastSession.date)})` : 'Nothing logged yet'}
+              </p>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </Card>
   );
 }

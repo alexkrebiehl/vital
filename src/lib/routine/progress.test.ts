@@ -474,6 +474,28 @@ describe('plan position and deloads', () => {
 });
 
 describe('exercise matching', () => {
+  it('treats "Pull Ups" and "Pull Up" as the same exercise', async () => {
+    const { nameKey } = await import('./records');
+    expect(nameKey('Scapular Pull Ups')).toBe(nameKey('Scapular Pull Up'));
+    expect(nameKey('Push Ups')).toBe(nameKey('push-up'));
+    expect(nameKey('Press')).toBe('press');
+  });
+
+  it('shows every stage of the path, labelling work done alongside the current stage', () => {
+    const p = pushPlan();
+    const both = [...EXAMPLE, session('2026-09-22', [
+      { name: 'Decline Push Up', sets: reps([12, 12, 11], [8, 9, 9]) },
+      { name: 'Push Up', sets: reps([15, 15, 12], [7, 7.5, 8]) },
+    ])];
+    const path = run(p, both, '2026-09-22').paths[0];
+    const last = path.rows.slice(-2);
+    expect(last.map(r => r.work)).toEqual(['Floor push-up 15/15/12', 'Decline push-up 12/12/11']);
+    expect(last[0].signal).toMatch(/^Alongside the current stage · /);
+    // The light still judges only the current stage.
+    expect(path.stage.name).toBe('Decline push-up');
+    expect(path.lastSession?.work).toBe('Decline push-up 12/12/11');
+  });
+
   it('ignores a "(Bodyweight)" qualifier but keeps other equipment distinct', () => {
     const p = pushPlan({}, { currentStageId: 'decline', history: [] });
     const logged = (name: string) => [session('2026-09-10', [{ name, sets: reps([10, 10, 10]) }])];

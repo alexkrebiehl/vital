@@ -24,6 +24,7 @@ import type { TrainingSession } from '../workout-sources/types';
 import { doseText } from './format';
 import { MODEL_PARAM_SPECS } from './model-params';
 import { PROGRESSION_MODELS, type Light, type ModelEvaluation, type ProgressRow, type Readiness } from './models';
+import { stageRows } from './models/variation';
 import { LIGHT_ORDER } from './models/types';
 import { currentBlocks, deloadStatus, phaseViews, planPosition, planWeek, type BlockView, type DeloadStatus, type PathState, type PhaseView } from './position';
 import { recordsForStage, type PerformanceRecord } from './records';
@@ -189,6 +190,25 @@ export function evaluatePath(
   const stepIndex = path.currentStepIndex;
   const lastRow = records.length ? evaluation.rows[evaluation.rows.length - 1] : null;
 
+  // The whole path, not just the stage being judged: sessions on other stages
+  // (kept in rotation, or tried ahead) sit in the same table, each judged against
+  // its own stage. Weekly volume rows stay on their own.
+  const shown = new Set(evaluation.rows.flatMap(r => r.sessionIds.map(id => `${r.stageId}:${id}`)));
+  const others: ProgressRow[] =
+    path.model === 'volume'
+      ? []
+      : path.stages.flatMap((s, i) => {
+          if (i === index) return [];
+          const extra = (byStage.get(s.id) ?? []).filter(r => !shown.has(`${s.id}:${r.sessionId}`));
+          if (extra.length === 0) return [];
+          const note = (r: PerformanceRecord) =>
+            i > index ? 'Ahead of the current stage' : startedOn && r.date >= startedOn ? 'Alongside the current stage' : 'Earlier stage';
+          return stageRows(s, extra, plan.rules, inputs.system, note);
+        });
+  const rows = [...evaluation.rows, ...others].sort(
+    (a, b) => a.dates[0].localeCompare(b.dates[0]) || (a.stageId === stage.id ? 1 : 0) - (b.stageId === stage.id ? 1 : 0)
+  );
+
   return {
     areaId,
     areaName,
@@ -210,7 +230,7 @@ export function evaluatePath(
     cues: stage.cues,
     checks: stage.checks,
     hold: path.hold ?? null,
-    rows: evaluation.rows,
+    rows,
     lastSession: lastRow ? { date: lastRow.dates[lastRow.dates.length - 1], work: lastRow.work } : null,
     facts: evaluation.facts,
   };
