@@ -11,6 +11,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { formatDayKeyShort } from '@/lib/analytics/windows';
 import { Archive, CalendarDays, ChevronDown, ChevronRight, MessageSquare, PauseCircle, Sparkles } from 'lucide-react';
 import type { PathProgress, RoutineOverview } from '@/lib/routine/progress';
 import type { ScheduledDayView } from '@/lib/routine/schedule';
@@ -195,10 +196,55 @@ function RoutineBody({ data, routine, onChange }: { data: RoutineApiResponse; ro
         </div>
       ))}
 
+      <UntrackedNote routine={routine} />
       <Phases routine={routine} />
       <CalendarBlocks routine={routine} />
       <SourceNote data={data} />
     </div>
+  );
+}
+
+/** Exercises the reader logs that no stage recognises: they count toward nothing until added. */
+function UntrackedNote({ routine }: { routine: RoutineOverview }) {
+  const [all, setAll] = useState(false);
+  const list = routine.untracked;
+  if (list.length === 0) return null;
+  const shown = all ? list : list.slice(0, 3);
+  return (
+    <Card className="p-4" as="section" aria-label="Exercises not in the plan">
+      <p className="text-sm font-medium text-text-primary">
+        {list.length === 1 ? 'One exercise you log is' : `${list.length} exercises you log are`} not in the plan
+      </p>
+      <p className="text-xs text-text-secondary mt-0.5">
+        No path recognises {list.length === 1 ? 'it' : 'them'}, so {list.length === 1 ? 'it counts' : 'they count'} toward no progress or phase. Last 90 days.
+      </p>
+      <ul className="mt-3 divide-y divide-border">
+        {shown.map(u => (
+          <li key={u.templateId ?? u.name} className="py-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+            <span className="text-sm text-text-primary min-w-0">
+              {u.name}
+              <span className="text-xs text-text-secondary">
+                {' '}
+                · {u.sessions} session{u.sessions === 1 ? '' : 's'}, last {formatDayKeyShort(u.lastDate)}
+              </span>
+            </span>
+            <Link
+              href={analystHref(
+                `I log "${u.name}" in my workouts (${u.sessions} session${u.sessions === 1 ? '' : 's'} in the last 90 days, most recently ${u.lastDate}) but no path in my plan tracks it. Add it to the plan where it belongs.`
+              )}
+              className="text-xs font-medium text-primary hover:underline underline-offset-2 shrink-0"
+            >
+              Add to plan with analyst
+            </Link>
+          </li>
+        ))}
+      </ul>
+      {list.length > 3 && (
+        <Button variant="ghost" size="sm" className="mt-1" onClick={() => setAll(a => !a)}>
+          {all ? 'Show fewer' : `Show all ${list.length}`}
+        </Button>
+      )}
+    </Card>
   );
 }
 

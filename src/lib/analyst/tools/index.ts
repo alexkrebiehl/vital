@@ -122,6 +122,8 @@ function overviewSummary(r: RoutineOverview, detailPathId?: string) {
     deload: r.deload.text,
     recovery: { status: r.recovery.status, summary: r.recovery.text, indicators: r.recovery.indicators.map(i => ({ signal: i.signal, status: i.status, text: i.text })) },
     paths: r.paths.map(p => (detailPathId === p.pathId ? pathSummary(p, 12) : pathSummary(p))),
+    // Logged in the last 90 days but matched by no stage, so counted toward nothing.
+    untrackedExercises: r.untracked.map(u => ({ name: u.name, templateId: u.templateId, sessions: u.sessions, lastDate: u.lastDate })),
   };
 }
 

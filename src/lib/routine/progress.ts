@@ -31,6 +31,7 @@ import { recordsForStage, type PerformanceRecord } from './records';
 import { recoveryIndicators, recoverySummary, type DayValue, type RecoveryIndicator } from './recovery';
 import { adherence, completedSessions, nextSession, type Adherence, type NextSessionView } from './schedule';
 import type { Path, PathHold, StoredPlan, TrainingPlan } from './types';
+import { untrackedExercises, type UntrackedExercise } from './untracked';
 import { workoutViews, type WorkoutView } from './workout-view';
 
 export interface StageView {
@@ -95,6 +96,8 @@ export interface RoutineOverview {
   paths: PathProgress[];
   /** Each session template as a day of training (the "Workout A" pages). */
   workouts: WorkoutView[];
+  /** Recently logged exercises no stage recognises (so they count toward nothing). */
+  untracked: UntrackedExercise[];
 }
 
 export interface RoutineInputs {
@@ -349,6 +352,7 @@ export function buildRoutine(inputs: RoutineInputs): RoutineOverview {
     doNotProgressIf: plan.rules.doNotProgressIf,
     paths,
     workouts: workoutViews(plan, paths, completed, next, deload, system),
+    untracked: untrackedExercises(plan, inputs.sessions, inputs.dayOf, today),
   };
 }
 
