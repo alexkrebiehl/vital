@@ -15,7 +15,7 @@ import type { WorkoutSourceStatus } from '@/lib/workout-sources/types';
 import { Badge, Button, Card, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { LightLabel, ReadinessBar, useRoutineFetch } from './shared';
-import { analystHref } from './RoutineSection';
+import { analystHref, planHref } from './RoutineSection';
 import { formatDayKeyShort } from '@/lib/analytics/windows';
 
 interface WorkoutDetailResponse {
@@ -66,7 +66,11 @@ export function RoutineWorkoutPage() {
       <BackLink />
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-xs text-text-secondary">{routine.title}</p>
+          <p className="text-xs text-text-secondary">
+            <Link href={planHref} className="hover:text-text-primary hover:underline underline-offset-2">
+              {routine.title}
+            </Link>
+          </p>
           <h1 className="text-[24px] md:text-[30px] font-semibold tracking-tight text-text-primary leading-tight mt-1">{workout.name}</h1>
           <div className="flex flex-wrap items-center gap-2 mt-2">
             {workout.when && <Badge variant="accent">{workout.when}</Badge>}

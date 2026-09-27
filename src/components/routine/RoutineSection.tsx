@@ -12,7 +12,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { formatDayKeyShort } from '@/lib/analytics/windows';
-import { Archive, CalendarDays, ChevronDown, ChevronRight, MessageSquare, PauseCircle, Sparkles } from 'lucide-react';
+import { Archive, CalendarDays, CalendarRange, ChevronRight, MessageSquare, PauseCircle, Sparkles } from 'lucide-react';
 import type { PathProgress, RoutineOverview } from '@/lib/routine/progress';
 import type { ScheduledDayView } from '@/lib/routine/schedule';
 import { Badge, Button, Card, DataStateNote, EmptyState, ErrorState, Skeleton } from '@/components/ui/primitives';
@@ -148,18 +148,26 @@ function RoutineBody({ data, routine, onChange }: { data: RoutineApiResponse; ro
       <Card className="p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="text-base font-semibold text-text-primary">{routine.title}</h3>
+            <h3 className="text-base font-semibold text-text-primary">
+              <Link href={planHref} className="hover:underline underline-offset-2">
+                {routine.title}
+              </Link>
+            </h3>
             <p className="text-xs text-text-secondary mt-0.5 max-w-2xl">{routine.goal}</p>
             <div className="flex flex-wrap items-center gap-2 mt-2">
               {routine.currentPhase ? (
-                <Badge
-                  variant="accent"
-                  title={`${routine.currentPhase.progress.met} of ${routine.currentPhase.progress.total} milestones reached — worked out from your sessions`}
-                >
-                  Phase {routine.currentPhase.index + 1} of {routine.currentPhase.count}: {routine.currentPhase.name}
-                </Badge>
+                <Link href={`${planHref}#phases`}>
+                  <Badge
+                    variant="accent"
+                    title={`${routine.currentPhase.progress.met} of ${routine.currentPhase.progress.total} milestones reached — worked out from your sessions`}
+                  >
+                    Phase {routine.currentPhase.index + 1} of {routine.currentPhase.count}: {routine.currentPhase.name}
+                  </Badge>
+                </Link>
               ) : routine.phases.length > 0 ? (
-                <Badge variant="success">All phases complete</Badge>
+                <Link href={`${planHref}#phases`}>
+                  <Badge variant="success">All phases complete</Badge>
+                </Link>
               ) : null}
               <Badge>{routine.started ? `Week ${routine.week}` : `Starts ${routine.startDate}`}</Badge>
               {routine.currentBlocks.map(b => (
@@ -173,6 +181,12 @@ function RoutineBody({ data, routine, onChange }: { data: RoutineApiResponse; ro
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Link href={planHref}>
+              <Button size="sm">
+                <CalendarRange size={14} className="mr-1.5" aria-hidden="true" />
+                Plan details
+              </Button>
+            </Link>
             <Link href={analystHref(`Review my training plan "${routine.title}" and my recent progress.`)}>
               <Button size="sm">
                 <MessageSquare size={14} className="mr-1.5" aria-hidden="true" />
@@ -197,8 +211,6 @@ function RoutineBody({ data, routine, onChange }: { data: RoutineApiResponse; ro
       ))}
 
       <UntrackedNote routine={routine} />
-      <Phases routine={routine} />
-      <CalendarBlocks routine={routine} />
       <SourceNote data={data} />
     </div>
   );
@@ -356,6 +368,7 @@ function NextSession({ routine }: { routine: RoutineOverview }) {
   );
 }
 
+export const planHref = '/workouts/routine';
 export const workoutHref = (templateId: string) => `/workouts/routine/workouts/${encodeURIComponent(templateId)}`;
 
 /** A schedule day's label with each workout in it linking to its page ("Wed: Workout B"). */
@@ -410,104 +423,5 @@ function PathCard({ path }: { path: PathProgress }) {
         </p>
       </Card>
     </Link>
-  );
-}
-
-function Phases({ routine }: { routine: RoutineOverview }) {
-  const [open, setOpen] = useState(false);
-  if (routine.phases.length === 0) return null;
-  const current = routine.currentPhase;
-  return (
-    <Card className="p-4">
-      <button type="button" className="w-full flex items-center justify-between gap-3 text-left" onClick={() => setOpen(o => !o)} aria-expanded={open}>
-        <span className="min-w-0">
-          <span className="block text-sm font-semibold text-text-primary">Phases</span>
-          <span className="block text-[11px] text-text-secondary">
-            {current
-              ? `Phase ${current.index + 1}: ${current.name} — ${current.progress.met} of ${current.progress.total} milestones reached${current.since ? `, since ${current.since}` : ''}. Phases follow your progress, not the calendar.`
-              : 'Every phase is complete.'}
-          </span>
-        </span>
-        <ChevronDown size={16} className={`text-text-secondary shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
-      </button>
-      {open && (
-        <ol className="mt-3 space-y-3 list-none p-0">
-          {routine.phases.map(p => (
-            <li key={p.id} className={`rounded-control p-3 ${p.status === 'current' ? 'bg-accent-tint/40' : 'bg-surface-muted'}`}>
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <p className={`text-sm ${p.status === 'upcoming' ? 'text-text-secondary' : 'text-text-primary'} font-medium`}>
-                  {p.index + 1}. {p.name}
-                </p>
-                <span className="text-[11px] text-text-secondary">
-                  {p.status === 'complete'
-                    ? `Complete${p.completedOn ? ` · ${p.completedOn}` : ''}`
-                    : p.status === 'current'
-                      ? `Current · ${p.progress.met} of ${p.progress.total}`
-                      : `Upcoming${p.expectedWeeks ? ` · typically ${p.expectedWeeks[0]}–${p.expectedWeeks[1]} weeks` : ''}`}
-                </span>
-              </div>
-              {p.goals.length > 0 && <p className="text-[11px] text-text-secondary mt-0.5">{p.goals.join(' · ')}</p>}
-              <ul className="mt-1.5 space-y-0.5">
-                {p.targets.map(t => (
-                  <li key={t.label} className="text-xs text-text-secondary">
-                    <span aria-hidden="true">{t.met === true ? '✓ ' : t.met === false ? '○ ' : '· '}</span>
-                    <span className={t.met ? 'text-text-primary' : ''}>{t.label}</span>
-                    {t.optional ? ' (optional)' : ''}
-                    {t.met && t.metOn ? <span className="tnum"> · {t.metOn}</span> : null}
-                  </li>
-                ))}
-              </ul>
-            </li>
-          ))}
-        </ol>
-      )}
-    </Card>
-  );
-}
-
-function CalendarBlocks({ routine }: { routine: RoutineOverview }) {
-  const [open, setOpen] = useState(false);
-  if (routine.blocks.length === 0) return null;
-  const statusLabel = { past: 'Done', current: 'This week', future: 'Upcoming' } as const;
-  return (
-    <Card className="p-4">
-      <button type="button" className="w-full flex items-center justify-between text-left" onClick={() => setOpen(o => !o)} aria-expanded={open}>
-        <span className="text-sm font-semibold text-text-primary">Calendar blocks</span>
-        <ChevronDown size={16} className={`text-text-secondary transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
-      </button>
-      {open && (
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-left text-text-secondary border-b border-border">
-                <th className="py-1.5 pr-3 font-medium">Block</th>
-                <th className="py-1.5 pr-3 font-medium">Weeks</th>
-                <th className="py-1.5 pr-3 font-medium">Goals</th>
-                <th className="py-1.5 pr-3 font-medium">Targets</th>
-                <th className="py-1.5 font-medium">When</th>
-              </tr>
-            </thead>
-            <tbody>
-              {routine.blocks.map(b => (
-                <tr key={b.id} className={`border-b border-border last:border-b-0 align-top ${b.status === 'current' ? 'bg-accent-tint/40' : ''}`}>
-                  <td className="py-2 pr-3 text-text-primary font-medium">{b.name}</td>
-                  <td className="py-2 pr-3 text-text-secondary tnum whitespace-nowrap">{b.weeks[0] === b.weeks[1] ? b.weeks[0] : `${b.weeks[0]}–${b.weeks[1]}`}</td>
-                  <td className="py-2 pr-3 text-text-secondary">{b.goals.join('; ')}</td>
-                  <td className="py-2 pr-3 text-text-secondary">
-                    {b.targets.map(t => (
-                      <span key={t.label} className="block">
-                        {t.met === true ? '✓ ' : ''}
-                        {t.label}
-                      </span>
-                    ))}
-                  </td>
-                  <td className="py-2 text-text-primary whitespace-nowrap">{statusLabel[b.status]}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </Card>
   );
 }

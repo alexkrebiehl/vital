@@ -29,6 +29,7 @@ import { LIGHT_ORDER } from './models/types';
 import { currentBlocks, deloadStatus, phaseViews, planPosition, planWeek, type BlockView, type DeloadStatus, type PathState, type PhaseView } from './position';
 import { recordsForStage, type PerformanceRecord } from './records';
 import { recoveryIndicators, recoverySummary, type DayValue, type RecoveryIndicator } from './recovery';
+import { cadenceView, type CadenceView } from './cadence';
 import { adherence, completedSessions, nextSession, type Adherence, type NextSessionView } from './schedule';
 import type { Path, PathHold, StoredPlan, TrainingPlan } from './types';
 import { untrackedExercises, type UntrackedExercise } from './untracked';
@@ -94,6 +95,8 @@ export interface RoutineOverview {
   lights: TrainingPlan['rules']['lights'];
   doNotProgressIf: string[];
   paths: PathProgress[];
+  /** The rhythm of training and rest days: the repeating pattern and this week. */
+  cadence: CadenceView;
   /** Each session template as a day of training (the "Workout A" pages). */
   workouts: WorkoutView[];
   /** Recently logged exercises no stage recognises (so they count toward nothing). */
@@ -351,6 +354,7 @@ export function buildRoutine(inputs: RoutineInputs): RoutineOverview {
     lights: plan.rules.lights,
     doNotProgressIf: plan.rules.doNotProgressIf,
     paths,
+    cadence: cadenceView(plan, completed, next, today, week),
     workouts: workoutViews(plan, paths, completed, next, deload, system),
     untracked: untrackedExercises(plan, inputs.sessions, inputs.dayOf, today),
   };

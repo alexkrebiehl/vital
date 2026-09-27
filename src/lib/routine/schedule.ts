@@ -152,7 +152,7 @@ function dayView(plan: TrainingPlan, day: ScheduleDay, completed: CompletedSessi
   return { kind: 'train', label: templates.map(t => t.name).join(' + ') || 'Training', templates, ...(day.note ? { note: day.note } : {}) };
 }
 
-function isTraining(day: ScheduleDay): day is { templateIds: string[]; note?: string } {
+export function isTraining(day: ScheduleDay): day is { templateIds: string[]; note?: string } {
   return !('rest' in day);
 }
 
@@ -162,12 +162,54 @@ export function activeSchedule(plan: TrainingPlan, week: number): Schedule {
   return override?.scheduleOverride ?? plan.schedule;
 }
 
-function weekdayOf(key: string): (typeof WEEKDAYS)[number] {
+export function weekdayOf(key: string): (typeof WEEKDAYS)[number] {
   return WEEKDAYS[(dayKeyToDate(key).getUTCDay() + 6) % 7];
 }
 
-function mondayOf(key: string): string {
+export function mondayOf(key: string): string {
   return addDays(key, -((dayKeyToDate(key).getUTCDay() + 6) % 7));
+}
+
+/** The anchor a calendar-advancing cycle counts from. */
+export function cycleAnchor(plan: TrainingPlan, schedule: Extract<Schedule, { kind: 'cycle' }>): string {
+  return schedule.anchorDate ?? plan.startDate;
+}
+
+/**
+ * Which day of a cycle is due today. On completion, the logged sessions are
+ * walked through the cycle and rest days are used up by the calendar days that
+ * have passed since the last one; by calendar, it is counted from the anchor.
+ */
+export function cyclePosition(
+  plan: TrainingPlan,
+  schedule: Extract<Schedule, { kind: 'cycle' }>,
+  completed: CompletedSession[],
+  today: string
+): number {
+  const days = schedule.days;
+  const n = days.length;
+  if (schedule.advance === 'calendar') return ((diffDays(cycleAnchor(plan, schedule), today) % n) + n) % n;
+  let pos = -1;
+  for (const c of completed) {
+    for (let k = 1; k <= n; k++) {
+      const j = (pos + k) % n;
+      const d = days[j];
+      if (isTraining(d) && d.templateIds.includes(c.templateId)) {
+        pos = j;
+        break;
+      }
+    }
+  }
+  let idx = (pos + 1) % n;
+  const last = completed[completed.length - 1];
+  if (last && last.date !== today) {
+    let cursor = addDays(last.date, 1);
+    while (!isTraining(days[idx]) && cursor < today) {
+      idx = (idx + 1) % n;
+      cursor = addDays(cursor, 1);
+    }
+  }
+  return idx;
 }
 
 export function nextSession(
@@ -185,41 +227,19 @@ export function nextSession(
   if (schedule.kind === 'cycle') {
     const days = schedule.days;
     const n = days.length;
+    const idx = cyclePosition(plan, schedule, completed, today);
+    const upcoming = [1, 2, 3].map(k => view(days[(idx + k) % n]));
     if (schedule.advance === 'calendar') {
-      const anchor = schedule.anchorDate ?? plan.startDate;
-      const idx = ((diffDays(anchor, today) % n) + n) % n;
-      return {
-        scheduleKind: 'cycle',
-        due: view(days[idx]),
-        doneToday,
-        why: `Day ${idx + 1} of the ${n}-day cycle (counted from ${anchor}).`,
-        upcoming: [1, 2, 3].map(k => view(days[(idx + k) % n])),
-      };
+      const why = `Day ${idx + 1} of the ${n}-day cycle (counted from ${cycleAnchor(plan, schedule)}).`;
+      return { scheduleKind: 'cycle', due: view(days[idx]), doneToday, why, upcoming };
     }
-    // On completion: walk the logged sessions through the cycle.
-    let pos = -1;
-    for (const c of completed) {
-      for (let k = 1; k <= n; k++) {
-        const j = (pos + k) % n;
-        const d = days[j];
-        if (isTraining(d) && d.templateIds.includes(c.templateId)) {
-          pos = j;
-          break;
-        }
-      }
-    }
-    let idx = (pos + 1) % n;
-    let why = last ? `Follows ${plan.templates.find(t => t.id === last.templateId)?.name ?? 'the last session'} on ${last.date}.` : 'Start of the cycle.';
-    if (last && !doneToday) {
-      // Rest days are used up by the calendar days that have passed since.
-      let cursor = addDays(last.date, 1);
-      while (!isTraining(days[idx]) && cursor < today) {
-        idx = (idx + 1) % n;
-        cursor = addDays(cursor, 1);
-      }
-    }
-    if (doneToday) why = `Already trained today; next up after ${plan.templates.find(t => t.id === last!.templateId)?.name ?? 'it'}.`;
-    return { scheduleKind: 'cycle', due: view(days[idx]), doneToday, why, upcoming: [1, 2, 3].map(k => view(days[(idx + k) % n])) };
+    const lastName = last ? (plan.templates.find(t => t.id === last.templateId)?.name ?? null) : null;
+    const why = !last
+      ? 'Start of the cycle.'
+      : doneToday
+        ? `Already trained today; next up after ${lastName ?? 'it'}.`
+        : `Follows ${lastName ?? 'the last session'} on ${last.date}.`;
+    return { scheduleKind: 'cycle', due: view(days[idx]), doneToday, why, upcoming };
   }
 
   if (schedule.kind === 'weekdays') {

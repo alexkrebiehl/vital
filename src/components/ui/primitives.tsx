@@ -50,6 +50,7 @@ interface CardProps {
   className?: string;
   variant?: 'default' | 'hero' | 'accent' | 'muted';
   as?: 'div' | 'section' | 'article';
+  id?: string;
   onClick?: () => void;
   role?: string;
   tabIndex?: number;
