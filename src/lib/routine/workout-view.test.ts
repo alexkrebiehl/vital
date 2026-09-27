@@ -234,7 +234,7 @@ describe('workoutWhen', () => {
     expect(workoutWhen(nextView(A, [B, rest, A]), 'a')).toBe('Due today');
     expect(workoutWhen(nextView(A, [B, rest, A], { doneToday: true }), 'a')).toBe('Next up');
     expect(workoutWhen(nextView(rest, [A, B, rest]), 'a')).toBe("Next, after today's rest");
-    expect(workoutWhen(nextView(rest, [A, B, rest]), 'b')).toBe("After today's rest and Workout A");
+    expect(workoutWhen(nextView(rest, [A, B, rest]), 'b')).toBe('After Workout A');
     expect(workoutWhen(nextView(A, [B, rest, A]), 'b')).toBe('After Workout A');
     expect(workoutWhen(nextView(B, [rest, A, B], { doneToday: true }), 'a')).toBe('After a rest day');
   });

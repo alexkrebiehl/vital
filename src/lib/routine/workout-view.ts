@@ -59,33 +59,24 @@ export interface WorkoutView {
   name: string;
   minutes?: number;
   warmup: string[];
-  /** "Due today", "Next up", "After Workout B and a rest day", "Next on Wed" — null when not coming up soon. */
+  /** "Due today", "Next up", "After Workout B", "After a rest day", "Next on Wed" — null when not coming up soon. */
   when: string | null;
   lastDone: string | null;
   timesDone: number;
   domains: WorkoutDomainView[];
 }
 
-function joinWords(items: string[]): string {
-  if (items.length <= 1) return items.join('');
-  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
-}
-
 const hasTemplate = (day: ScheduledDayView, id: string) => day.kind === 'train' && day.templates.some(t => t.id === id);
 
-/** When this template comes up, in the schedule's own terms. */
+/** When this template comes up, named by the day just before it in the schedule. */
 export function workoutWhen(next: NextSessionView, templateId: string): string | null {
   if (hasTemplate(next.due, templateId)) return next.doneToday ? 'Next up' : 'Due today';
   const i = next.upcoming.findIndex(d => hasTemplate(d, templateId));
   if (i < 0) return null;
   if (next.scheduleKind === 'weekdays') return `Next on ${next.upcoming[i].label.split(':')[0]}`;
-  const before = [next.due, ...next.upcoming.slice(0, i)];
-  // Today's slot is already behind us once a session is logged today.
-  const pending = next.doneToday && next.due.kind === 'train' ? before.slice(1) : before;
-  if (pending.length === 0) return 'Next up';
-  if (pending.length === 1 && pending[0] === next.due && next.due.kind === 'rest') return "Next, after today's rest";
-  const labels = pending.map((d, k) => (d.kind === 'rest' ? (k === 0 && d === next.due ? "today's rest" : 'a rest day') : d.label));
-  return `After ${joinWords(labels)}`;
+  const before = i === 0 ? next.due : next.upcoming[i - 1];
+  if (before.kind === 'train') return `After ${before.label}`;
+  return before === next.due ? "Next, after today's rest" : 'After a rest day';
 }
 
 /** What comes after the path's current position: its next step, else its next stage. */
