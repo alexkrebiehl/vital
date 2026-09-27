@@ -315,6 +315,63 @@ abstract class RemoteAnalystProviderBase implements AnalystProvider {
  * A transient rate-limit answer is retried a bounded number of times before it
  * is reported.
  */
+// ── Request parameters an endpoint refuses ──────────────
+//
+// OpenAI's newer models reject `max_tokens` (they take `max_completion_tokens`),
+// some accept only the default `temperature`, and some refuse function tools on
+// /chat/completions unless reasoning is off (`reasoning_effort: "none"`, applied
+// to tool requests only); older local servers know only `max_tokens`. The official endpoint gets `max_completion_tokens` up front; any
+// endpoint that answers HTTP 400 naming one of these parameters has the request
+// adapted and retried, and the adaptation is remembered for that endpoint and
+// model for the life of the process.
+
+export type ParamQuirk = 'max_completion_tokens' | 'no_temperature' | 'tools_without_reasoning';
+
+const QUIRKS_KEY = Symbol.for('vital.analyst.paramQuirks');
+function quirkStore(): Map<string, Set<ParamQuirk>> {
+  const g = globalThis as unknown as Record<symbol, Map<string, Set<ParamQuirk>> | undefined>;
+  return (g[QUIRKS_KEY] ??= new Map());
+}
+
+/** Test seam: forget what endpoints have refused. */
+export function resetParamQuirks(): void {
+  quirkStore().clear();
+}
+
+function isOfficialOpenAI(endpoint: string | null): boolean {
+  try {
+    return endpoint !== null && new URL(endpoint).hostname === 'api.openai.com';
+  } catch {
+    return false;
+  }
+}
+
+/** Which adaptation, if any, an HTTP 400 body asks for. */
+export function quirkFromRejection(text: string): ParamQuirk | null {
+  let error: Record<string, unknown> | null = null;
+  try {
+    const parsed = JSON.parse(text) as { error?: unknown };
+    error = parsed.error && typeof parsed.error === 'object' ? (parsed.error as Record<string, unknown>) : null;
+  } catch {
+    error = null;
+  }
+  const param = typeof error?.param === 'string' ? error.param : '';
+  const message = typeof error?.message === 'string' ? error.message : text;
+  if (param === 'max_tokens' || /\bmax_completion_tokens\b/.test(message)) return 'max_completion_tokens';
+  if (param === 'reasoning_effort' || /\breasoning_effort\b/.test(message)) return 'tools_without_reasoning';
+  if (param === 'temperature' || /\btemperature\b/i.test(message)) return 'no_temperature';
+  return null;
+}
+
+function applyQuirks(body: Record<string, unknown>, quirks: Set<ParamQuirk>): void {
+  if (quirks.has('max_completion_tokens') && 'max_tokens' in body) {
+    body.max_completion_tokens = body.max_tokens;
+    delete body.max_tokens;
+  }
+  if (quirks.has('no_temperature')) delete body.temperature;
+  if (quirks.has('tools_without_reasoning') && Array.isArray(body.tools) && body.tools.length) body.reasoning_effort = 'none';
+}
+
 export class OpenAICompatibleProvider extends RemoteAnalystProviderBase {
   readonly id = 'openai' as const;
   readonly label = OPENAI_LABEL;
@@ -425,11 +482,27 @@ export class OpenAICompatibleProvider extends RemoteAnalystProviderBase {
     useJsonMode: boolean
   ): Promise<Record<string, unknown> | null> {
     let payload: Record<string, unknown> | null = null;
+    const key = `${this.url()} ${this.config.model ?? ''}`;
+    const store = quirkStore();
+    const quirks = store.get(key) ?? new Set<ParamQuirk>(isOfficialOpenAI(this.url()) ? ['max_completion_tokens'] : []);
+    applyQuirks(body, quirks);
     for (let attempt = 0; attempt <= RATE_LIMIT_RETRIES; attempt++) {
       let response = await this.post(this.url(), headers, body);
-      if (response.status === 400 && useJsonMode && attempt === 0) {
-        // Retry once without response_format: the endpoint may not support it.
-        delete body.response_format;
+      // A 400 naming a parameter: adapt and retry, each adaptation at most once.
+      for (let tries = 0; response.status === 400 && tries < 3; tries++) {
+        const text = await response.clone().text().catch(() => '');
+        const quirk = quirkFromRejection(text);
+        const applies = quirk !== 'tools_without_reasoning' || (Array.isArray(body.tools) && body.tools.length > 0);
+        if (quirk && applies && !quirks.has(quirk)) {
+          quirks.add(quirk);
+          store.set(key, quirks);
+          applyQuirks(body, quirks);
+        } else if (useJsonMode && 'response_format' in body && attempt === 0) {
+          // Retry once without response_format: the endpoint may not support it.
+          delete body.response_format;
+        } else {
+          break;
+        }
         response = await this.post(this.url(), headers, body);
       }
       if (!response.ok) throw await this.failure(response.status, response);
