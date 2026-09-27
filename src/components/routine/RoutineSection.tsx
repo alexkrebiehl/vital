@@ -17,7 +17,7 @@ import type { ScheduledDayView } from '@/lib/routine/schedule';
 import { Badge, Button, Card, DataStateNote, EmptyState, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { SectionTitle } from '@/components/domain/DomainShared';
-import { LightLabel, PlanChangeCard, useRoutineFetch, type RoutineApiResponse } from './shared';
+import { LightLabel, PlanChangeCard, ReadinessBar, useRoutineFetch, type RoutineApiResponse } from './shared';
 import type { PlanChange } from '@/lib/routine/types';
 
 const CREATE_PROMPT = 'Create a training plan for me. Ask me about my goal, schedule and equipment first.';
@@ -250,7 +250,9 @@ function DayTemplates({ day }: { day: ScheduledDayView }) {
       {day.templates.map(t => (
         <div key={t.id}>
           <p className="text-sm font-medium text-text-primary">
-            {t.name}
+            <Link href={workoutHref(t.id)} className="hover:underline underline-offset-2">
+              {t.name}
+            </Link>
             {t.minutes ? <span className="text-text-secondary font-normal"> · ~{t.minutes} min</span> : null}
           </p>
           <ul className="mt-1 space-y-0.5">
@@ -287,18 +289,50 @@ function NextSession({ routine }: { routine: RoutineOverview }) {
           <p className="font-semibold uppercase tracking-wide text-[11px] mb-1">Then</p>
           <ol className="space-y-0.5">
             {next.upcoming.map((d, i) => (
-              <li key={i}>{d.label}</li>
+              <li key={i}>
+                <DayLabel day={d} />
+              </li>
             ))}
           </ol>
         </div>
+      )}
+      {routine.workouts.length > 0 && (
+        <p className="lg:col-span-2 text-[11px] text-text-secondary border-t border-border pt-3 flex flex-wrap gap-x-3 gap-y-1">
+          <span className="font-semibold uppercase tracking-wide">Workouts</span>
+          {routine.workouts.map(w => (
+            <Link key={w.id} href={workoutHref(w.id)} className="text-text-primary hover:underline underline-offset-2">
+              {w.name}
+            </Link>
+          ))}
+        </p>
       )}
     </div>
   );
 }
 
+export const workoutHref = (templateId: string) => `/workouts/routine/workouts/${encodeURIComponent(templateId)}`;
+
+/** A schedule day's label with each workout in it linking to its page ("Wed: Workout B"). */
+function DayLabel({ day }: { day: ScheduledDayView }) {
+  const names = day.templates.map(t => t.name).join(' + ');
+  if (day.kind === 'rest' || !names || !day.label.endsWith(names)) return <>{day.label}</>;
+  return (
+    <>
+      {day.label.slice(0, day.label.length - names.length)}
+      {day.templates.map((t, i) => (
+        <span key={t.id}>
+          {i > 0 && ' + '}
+          <Link href={workoutHref(t.id)} className="text-text-primary hover:underline underline-offset-2">
+            {t.name}
+          </Link>
+        </span>
+      ))}
+    </>
+  );
+}
+
 function PathCard({ path }: { path: PathProgress }) {
   const readiness = path.readiness;
-  const pct = readiness ? Math.min(100, Math.round((readiness.qualifying / Math.max(1, readiness.needed)) * 100)) : 0;
   return (
     <Link href={`/workouts/routine/${path.pathId}`} className="block group">
       <Card className="p-4 h-full group-hover:shadow-sm transition-shadow">
@@ -322,18 +356,7 @@ function PathCard({ path }: { path: PathProgress }) {
           )}
         </div>
         {readiness && (
-          <div className="mt-3">
-            <div className="flex justify-between text-[11px] text-text-secondary mb-1">
-              <span>
-                {path.stage.name}
-                {path.nextStage ? ` → ${path.nextStage.name}` : ''}
-              </span>
-              <span className="tnum">{readiness.label}</span>
-            </div>
-            <div className="h-1.5 rounded-full bg-surface-muted overflow-hidden" role="progressbar" aria-valuemin={0} aria-valuemax={readiness.needed} aria-valuenow={readiness.qualifying} aria-label={`Progress toward ${path.nextStage?.name ?? 'the marker'}`}>
-              <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
-            </div>
-          </div>
+          <ReadinessBar readiness={readiness} from={path.stage.name} to={path.nextStage?.name ?? null} className="mt-3" />
         )}
         <p className="text-xs text-text-secondary mt-3 line-clamp-2">
           {path.lastSession ? <>Last: <span className="text-text-primary">{path.lastSession.work}</span> ({path.lastSession.date}). </> : null}

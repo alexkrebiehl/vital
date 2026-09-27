@@ -14,6 +14,7 @@ import { loadTrainingData, type TrainingData } from '../workout-sources/store';
 import { buildRoutine, type PathProgress, type RoutineOverview } from './progress';
 import { planRepository, revertPlan, PlanConflictError, PlanNotFoundError, type PlanRepository } from './store';
 import type { PlanChange, StoredPlan } from './types';
+import type { WorkoutView } from './workout-view';
 
 export interface RoutineContext {
   stored: StoredPlan | null;
@@ -78,6 +79,16 @@ export interface PathDetail {
 export function pathDetailFrom(routine: RoutineOverview, pathId: string): PathDetail | null {
   const path = routine.paths.find(p => p.pathId === pathId);
   return path ? { routine, path } : null;
+}
+
+export interface WorkoutDetail {
+  routine: RoutineOverview;
+  workout: WorkoutView;
+}
+
+export function workoutDetailFrom(routine: RoutineOverview, templateId: string): WorkoutDetail | null {
+  const workout = routine.workouts.find(w => w.id === templateId);
+  return workout ? { routine, workout } : null;
 }
 
 // ── Undo ────────────────────────────────────────────────

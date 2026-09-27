@@ -63,6 +63,8 @@ type Obj = Record<string, unknown>;
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const ID_RE = /^[a-z0-9][a-z0-9-]{0,47}$/;
+/** Path ids that would collide with the routine's own routes (/workouts/routine/workouts/…, /api/routine/undo). */
+const RESERVED_PATH_IDS = ['undo', 'workouts'];
 
 class Reader {
   errors: string[] = [];
@@ -305,7 +307,12 @@ function readPath(r: Reader, value: unknown, where: string): Path | null {
   const o = r.obj(value, where);
   if (!o) return null;
   const name = r.str(o.name, `${where}.name`, { required: true, max: PLAN_LIMITS.title });
-  const id = r.id(o.id, name, `${where}.id`, 'path');
+  const given = typeof o.id === 'string' && o.id.trim() ? o.id.trim().toLowerCase() : undefined;
+  if (given && RESERVED_PATH_IDS.includes(given)) {
+    r.fail(`${where}.id`, `"${given}" is reserved for the routine's own pages; use another id, e.g. "${given}-path".`);
+  }
+  const derived = slugify(name);
+  const id = r.id(given ?? (RESERVED_PATH_IDS.includes(derived) ? `${derived}-path` : o.id), name, `${where}.id`, 'path');
   const model = r.enumOf<ProgressionModelId>(o.model, `${where}.model`, PROGRESSION_MODEL_IDS, 'variation')!;
   for (const e of validateModelParams(model, o.params, where)) r.errors.push(e);
 

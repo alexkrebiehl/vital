@@ -31,6 +31,7 @@ import { recordsForStage, type PerformanceRecord } from './records';
 import { recoveryIndicators, recoverySummary, type DayValue, type RecoveryIndicator } from './recovery';
 import { adherence, completedSessions, nextSession, type Adherence, type NextSessionView } from './schedule';
 import type { Path, PathHold, StoredPlan, TrainingPlan } from './types';
+import { workoutViews, type WorkoutView } from './workout-view';
 
 export interface StageView {
   id: string;
@@ -92,6 +93,8 @@ export interface RoutineOverview {
   lights: TrainingPlan['rules']['lights'];
   doNotProgressIf: string[];
   paths: PathProgress[];
+  /** Each session template as a day of training (the "Workout A" pages). */
+  workouts: WorkoutView[];
 }
 
 export interface RoutineInputs {
@@ -320,6 +323,7 @@ export function buildRoutine(inputs: RoutineInputs): RoutineOverview {
   }
   const phases = phaseViews(plan, states, system);
   const current = phases.find(p => p.status === 'current') ?? null;
+  const next = nextSession(plan, completed, today, week, system);
 
   return {
     planId: stored.id,
@@ -337,13 +341,14 @@ export function buildRoutine(inputs: RoutineInputs): RoutineOverview {
     currentPhase: current
       ? { index: current.index, count: phases.length, name: current.name, since: current.since, progress: current.progress }
       : null,
-    next: nextSession(plan, completed, today, week, system),
+    next,
     adherence: adherence(plan, completed, today, week),
     deload,
     recovery: { ...summary, indicators },
     lights: plan.rules.lights,
     doNotProgressIf: plan.rules.doNotProgressIf,
     paths,
+    workouts: workoutViews(plan, paths, completed, next, deload, system),
   };
 }
 

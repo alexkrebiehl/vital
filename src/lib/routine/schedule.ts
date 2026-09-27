@@ -16,7 +16,7 @@ import type { UnitSystem } from '../prefs';
 import { doseText } from './format';
 import { stageMatchesExercise } from './records';
 import { currentStage, findPath } from './validate';
-import { WEEKDAYS, type Schedule, type ScheduleDay, type SessionTemplate, type TrainingPlan } from './types';
+import { WEEKDAYS, type Schedule, type ScheduleDay, type SessionTemplate, type TemplateSlot, type TrainingPlan } from './types';
 import type { WorkoutRecord } from '../metrics/types';
 import type { TrainingSession } from '../workout-sources/types';
 
@@ -115,8 +115,14 @@ export function completedSessions(
 
 // ── Views ───────────────────────────────────────────────
 
-function rotationIndex(completed: CompletedSession[], templateId: string): number {
+export function rotationIndex(completed: CompletedSession[], templateId: string): number {
   return completed.filter(c => c.templateId === templateId).length;
+}
+
+/** The path a slot trains next: a rotating slot moves on with each logged session of its template. */
+export function slotPath(slot: TemplateSlot, timesDone: number): { pathId: string; others: string[] } {
+  const pathId = slot.rotate ? slot.pathIds[timesDone % slot.pathIds.length] : slot.pathIds[0];
+  return { pathId, others: slot.rotate ? slot.pathIds.filter(p => p !== pathId) : slot.pathIds.slice(1) };
 }
 
 function dayView(plan: TrainingPlan, day: ScheduleDay, completed: CompletedSession[], system: UnitSystem): ScheduledDayView {
@@ -127,7 +133,7 @@ function dayView(plan: TrainingPlan, day: ScheduleDay, completed: CompletedSessi
     .map(t => {
       const done = rotationIndex(completed, t.id);
       const slots: SlotView[] = t.slots.flatMap(slot => {
-        const pathId = slot.rotate ? slot.pathIds[done % slot.pathIds.length] : slot.pathIds[0];
+        const { pathId, others } = slotPath(slot, done);
         const hit = findPath(plan, pathId);
         if (!hit) return [];
         const stage = currentStage(hit.path);
@@ -137,7 +143,7 @@ function dayView(plan: TrainingPlan, day: ScheduleDay, completed: CompletedSessi
           stageName: stage.name,
           dose: doseText(slot.dose ?? stage.prescription ?? stage.advanceWhen, system),
           optional: Boolean(slot.optional),
-          rotatesWith: slot.rotate ? slot.pathIds.filter(p => p !== pathId) : slot.pathIds.slice(1),
+          rotatesWith: others,
           ...(slot.note ? { note: slot.note } : {}),
         }];
       });

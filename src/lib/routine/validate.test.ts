@@ -124,6 +124,20 @@ describe('validatePlan', () => {
     expect(errors.some(e => e.includes('"nope" is not a path id'))).toBe(true);
   });
 
+  it('keeps path ids clear of the routine\'s own routes', () => {
+    const withPath = (path: Record<string, unknown>) =>
+      minimal({
+        focusAreas: [{ name: 'Upper', paths: [{ stages: [{ name: 'Floor push-up' }], ...path }] }],
+        templates: [{ id: 'full', name: 'Full body', slots: [{ pathIds: ['workouts-path'] }] }],
+        schedule: { kind: 'cycle', days: ['full', 'rest'] },
+      });
+    expect(errorsOf(withPath({ id: 'workouts', name: 'Push' })).join('\n')).toMatch(/focusAreas\[0\]\.paths\[0\]\.id.*"workouts" is reserved.*"workouts-path"/);
+    expect(errorsOf(withPath({ id: 'Undo', name: 'Push' })).join('\n')).toMatch(/"undo" is reserved/);
+    // A name that slugs to a reserved id gets a safe one instead of an error.
+    const v = validatePlan(withPath({ name: 'Workouts' }));
+    expect(v.ok && v.plan.focusAreas[0].paths[0].id).toBe('workouts-path');
+  });
+
   it('requires the essentials', () => {
     const errors = errorsOf({});
     for (const field of ['plan.title', 'plan.goal', 'plan.startDate', 'plan.durationWeeks', 'plan.focusAreas', 'plan.templates', 'plan.schedule']) {
