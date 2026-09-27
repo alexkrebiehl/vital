@@ -83,6 +83,8 @@ export interface AnalystConfig {
   temperature: number;
   timeoutMs: number;
   jsonMode: JsonMode;
+  /** Whether a remote model may call the training-plan tools (ANALYST_TOOLS=off for servers without tool calling). */
+  tools: 'auto' | 'off';
   sendingCategories: string[];
   /** Human explanation of why this configuration cannot be used, or null when it is usable. */
   misconfiguredReason: string | null;
@@ -243,6 +245,7 @@ function demoConfig(env: NodeJS.ProcessEnv, prompt: SystemPromptResolution): Ana
     temperature: numberOr(env, 'ANALYST_TEMPERATURE', DEFAULT_TEMPERATURE, 0, 2),
     timeoutMs: numberOr(env, 'ANALYST_TIMEOUT_MS', DEFAULT_TIMEOUT_MS, 100, 600000),
     jsonMode: env.ANALYST_JSON_MODE?.trim().toLowerCase() === 'off' ? 'off' : 'auto',
+    tools: env.ANALYST_TOOLS?.trim().toLowerCase() === 'off' ? 'off' : 'auto',
     sendingCategories: [],
     misconfiguredReason: null,
   };
@@ -281,6 +284,7 @@ export function readAnalystConfig(env: NodeJS.ProcessEnv = process.env): Analyst
     temperature: numberOr(env, 'ANALYST_TEMPERATURE', DEFAULT_TEMPERATURE, 0, 2),
     timeoutMs: numberOr(env, 'ANALYST_TIMEOUT_MS', DEFAULT_TIMEOUT_MS, 100, 600000),
     jsonMode: env.ANALYST_JSON_MODE?.trim().toLowerCase() === 'off' ? 'off' : 'auto',
+    tools: env.ANALYST_TOOLS?.trim().toLowerCase() === 'off' ? 'off' : 'auto',
     sendingCategories: REMOTE_SENDING_CATEGORIES,
     misconfiguredReason: null,
   };

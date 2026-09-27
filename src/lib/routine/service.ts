@@ -11,7 +11,7 @@ import { installDataset } from '../adapters/runtime';
 import { dayKey } from '../analytics/windows';
 import type { UnitSystem } from '../prefs';
 import { loadTrainingData, type TrainingData } from '../workout-sources/store';
-import { buildRoutine, evaluatePath, type PathProgress, type RoutineOverview } from './progress';
+import { buildRoutine, type PathProgress, type RoutineOverview } from './progress';
 import { planRepository, revertPlan, PlanConflictError, PlanNotFoundError, type PlanRepository } from './store';
 import type { PlanChange, StoredPlan } from './types';
 
@@ -79,9 +79,6 @@ export function pathDetailFrom(routine: RoutineOverview, pathId: string): PathDe
   const path = routine.paths.find(p => p.pathId === pathId);
   return path ? { routine, path } : null;
 }
-
-// Re-exported for the tools, which evaluate a single path after a change.
-export { evaluatePath };
 
 // ── Undo ────────────────────────────────────────────────
 

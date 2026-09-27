@@ -16,6 +16,7 @@ import { ConversationSelector } from './ConversationSelector';
 import { exchangesFromMessages, type ConversationExchange } from './conversation-view';
 import { useConversations } from './useConversations';
 import { providerBadge, useAnalystConfig } from './useAnalystConfig';
+import { PlanChangeCard } from '@/components/routine/shared';
 
 /** The ask endpoint's response: the answer plus what happened to the turn. */
 interface AskResponse extends AnalystResponse {
@@ -400,6 +401,11 @@ function AnswerView({ response, onFollowUp }: { response: AnalystResponse; onFol
             </Badge>
           </div>
           <p className="text-sm text-text-primary mb-3">{response.message}</p>
+          {response.planChange && (
+            <div className="mb-3">
+              <PlanChangeCard change={response.planChange} />
+            </div>
+          )}
           <p className="text-[11px] text-text-secondary mb-2">Supported questions:</p>
           <div className="flex flex-wrap gap-2">
             {response.suggested.map(q => (
@@ -441,6 +447,13 @@ function AnswerView({ response, onFollowUp }: { response: AnalystResponse; onFol
         </div>
 
         <h2 className="text-base font-semibold text-text-primary">{answer.title}</h2>
+
+        {response.planChange && <PlanChangeCard change={response.planChange} />}
+        {response.toolsUsed && response.toolsUsed.length > 0 && (
+          <p className="text-[11px] text-text-secondary">
+            Tools used: {[...new Set(response.toolsUsed)].map(t => t.replace(/_/g, ' ')).join(', ')}
+          </p>
+        )}
 
         {ANSWER_SECTIONS.map(section => {
           const lines = section.pick(answer);

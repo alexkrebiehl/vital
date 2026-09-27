@@ -22,7 +22,12 @@ import { getMetric } from '../metrics/registry';
 import { selectHandler, selectHandlerStrict } from './handlers';
 import { SUPPORTED_PROMPTS } from './prompts';
 import { AnalysisNotAvailable, GENERAL_HANDLER_ID, retrieve, retrieveGeneral } from './retrieval';
-import { AnalystProviderError, createProvider, DEMO_LABEL } from './provider';
+import { AnalystProviderError, createProvider, DEMO_LABEL, supportsTools } from './provider';
+import { buildAnalystUserMessage, TRAINING_TOOLS_PROMPT } from './systemPrompt';
+import { runToolLoop } from './tool-loop';
+import { combineChanges, type ToolContext } from './tools';
+import { demoPlanAnswer, PLAN_PROMPTS } from './demo-plan';
+import type { RoutineDeps } from '../routine/service';
 import { readAnalystConfig, type AnalystConfig } from './config';
 import { checkGrounding, parseAnalystReply } from './validate';
 import { boundedHistory } from './memory';
@@ -122,7 +127,7 @@ function baseResponse(config: AnalystConfig, status: AnalystStatus, fields: Part
     handlerId: 'none',
     answer: null,
     message: null,
-    suggested: SUPPORTED_PROMPTS,
+    suggested: [...SUPPORTED_PROMPTS, ...PLAN_PROMPTS],
     notice: config.provider === 'demo' ? DEMO_NOTICE : EDUCATIONAL_NOTICE,
     retrieval: { recordsRead: 0, note: 'No dataset context was selected.', metrics: [] },
     grounding: NO_GROUNDING,
@@ -156,7 +161,7 @@ function retrievalSummary(bundle: RetrievalBundle | null): AnalystResponse['retr
  */
 export async function askAnalyst(
   request: AnalystRequest,
-  deps: { env?: NodeJS.ProcessEnv } = {}
+  deps: { env?: NodeJS.ProcessEnv; routine?: RoutineDeps } = {}
 ): Promise<AnalystResponse> {
   const config = readAnalystConfig(deps.env ?? process.env);
   const validated = validateQuery(request?.query);
@@ -177,6 +182,21 @@ export async function askAnalyst(
   }
 
   const isDemo = config.provider === 'demo';
+  const system: UnitSystem = request?.system === 'imperial' ? 'imperial' : 'metric';
+  const routineDeps: RoutineDeps = deps.routine ?? { env: deps.env };
+
+  // The demo analyst handles training-plan requests by pattern (demo-plan.ts),
+  // through the same plan actions a model's tools use.
+  if (isDemo) {
+    try {
+      const planned = await demoPlanAnswer(validated.query, system, routineDeps);
+      if (planned) {
+        return base('ok', { handlerId: planned.handlerId, answer: planned.answer, planChange: planned.planChange });
+      }
+    } catch (error) {
+      return base('error', { message: `The training plan could not be read or changed: ${error instanceof Error ? error.message : String(error)}` });
+    }
+  }
   // Routing differs by path on purpose.
   //
   // The demo analyst answers its supported questions by pattern matching, and a
@@ -221,7 +241,6 @@ export async function askAnalyst(
     });
   }
 
-  const system: UnitSystem = request?.system === 'imperial' ? 'imperial' : 'metric';
   // Conversation memory: the earlier turns of THIS conversation, bounded here so
   // no caller can send an unbounded history. Empty for a new conversation.
   const history = boundedHistory(request?.history);
@@ -232,6 +251,50 @@ export async function askAnalyst(
 
   let answer: AnalystAnswer | null = null;
   let grounding: AnalystGrounding = NO_GROUNDING;
+
+  // A configured model may use the training-plan tools (ANALYST_TOOLS=off disables them).
+  if (config.tools === 'auto' && supportsTools(provider)) {
+    const toolCtx: ToolContext = { system, deps: routineDeps, changes: [] };
+    const user = buildAnalystUserMessage({
+      question: validated.query,
+      bundle,
+      system,
+      notes: notes.text.length > 0 ? notes.text : undefined,
+      history,
+    });
+    try {
+      const looped = await runToolLoop(provider, `${config.systemPrompt}${TRAINING_TOOLS_PROMPT}`, user, toolCtx);
+      const planChange = combineChanges(toolCtx.changes);
+      const parsed = parseAnalystReply(looped.text, { bundle });
+      if (!parsed.ok || !parsed.answer) {
+        return base('error', {
+          ...withContext,
+          planChange,
+          toolsUsed: looped.toolsUsed,
+          message: `${parsed.reason ?? "The model's reply could not be read as an answer."}${planChange ? ' The plan change it made was saved and can be undone below.' : ''}`,
+        });
+      }
+      return base('ok', {
+        ...withContext,
+        model: looped.model ?? config.model,
+        answer: parsed.answer,
+        grounding: checkGrounding(parsed.answer, bundle, system, looped.toolOutputs),
+        planChange,
+        toolsUsed: looped.toolsUsed,
+      });
+    } catch (error) {
+      const planChange = combineChanges(toolCtx.changes);
+      // A server that rejects tool definitions (HTTP 400 before any tool ran)
+      // is answered the ordinary way below; anything else is reported.
+      const rejectedTools = error instanceof AnalystProviderError && error.statusCode === 400 && !planChange;
+      if (!rejectedTools) {
+        if (error instanceof AnalystProviderError) {
+          return base('error', { ...withContext, planChange, message: error.message });
+        }
+        throw error;
+      }
+    }
+  }
 
   try {
     const result = await provider.answer({

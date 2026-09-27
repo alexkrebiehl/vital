@@ -95,6 +95,9 @@ function openaiEnv(baseUrl: string, overrides: Record<string, string> = {}): Nod
     ANALYST_API_URL: baseUrl,
     ANALYST_MODEL: 'mock-analyst-1',
     ANALYST_API_KEY: KEY,
+    // These tests cover the single-request path (JSON mode, retries); the
+    // tool-calling path has its own tests in tool-loop.test.ts.
+    ANALYST_TOOLS: 'off',
     ...overrides,
   } as unknown as NodeJS.ProcessEnv;
 }

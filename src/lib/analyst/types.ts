@@ -9,6 +9,7 @@
 import type { UnitSystem } from '../prefs';
 import type { ComparisonResult } from '../analytics/stats';
 import type { DayWindow } from '../analytics/windows';
+import type { PlanChange } from '../routine/types';
 
 // ── Answers ────────────────────────────────────────────
 
@@ -218,4 +219,8 @@ export interface AnalystResponse {
   grounding: AnalystGrounding;
   /** Untrusted notes received with the request (echoed, never obeyed). */
   untrustedNotes: { received: boolean; characters: number; note: string };
+  /** The training-plan change this answer made, if any (undoable from the UI). */
+  planChange?: PlanChange | null;
+  /** Names of the tools the model called, in order (never their data). */
+  toolsUsed?: string[];
 }

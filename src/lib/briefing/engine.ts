@@ -188,6 +188,7 @@ function localConfig(env: NodeJS.ProcessEnv, baseUrl: string, model: string): An
     temperature: numberOr(env, 'BRIEFING_TEMPERATURE', DEFAULT_BRIEFING_TEMPERATURE, 0, 2),
     timeoutMs: numberOr(env, 'BRIEFING_TIMEOUT_MS', DEFAULT_BRIEFING_TIMEOUT_MS, 100, 600_000),
     jsonMode: 'auto',
+    tools: 'off',
     sendingCategories: REMOTE_SENDING_CATEGORIES,
     misconfiguredReason: null,
   };
@@ -327,6 +328,7 @@ export function resolveBriefingFallback(deps: EngineDeps = {}): BriefingEngine {
       temperature: numberOr(env, 'BRIEFING_TEMPERATURE', DEFAULT_BRIEFING_TEMPERATURE, 0, 2),
       timeoutMs: numberOr(env, 'BRIEFING_TIMEOUT_MS', DEFAULT_BRIEFING_TIMEOUT_MS, 100, 600_000),
       jsonMode: 'auto',
+      tools: 'off',
       sendingCategories: REMOTE_SENDING_CATEGORIES,
       misconfiguredReason: null,
     },

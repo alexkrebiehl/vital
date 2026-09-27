@@ -424,11 +424,14 @@ export function normalizeCitation(text: string): string {
 export function checkGrounding(
   answer: AnalystAnswer,
   bundle: RetrievalBundle,
-  system: UnitSystem = 'metric'
+  system: UnitSystem = 'metric',
+  /** Tool results the model saw (JSON text): their numbers and strings are grounded too. */
+  extra: string[] = []
 ): AnalystGrounding {
-  const displays = collectDisplayStrings(bundle, system).map(normalizeCitation).filter(d => d.length > 0);
+  const displays = [...collectDisplayStrings(bundle, system), ...extra].map(normalizeCitation).filter(d => d.length > 0);
   const allowed = [
     ...collectBundleNumbers(bundle),
+    ...extra.flatMap(text => (text.match(/\d+(?:\.\d+)?/g) ?? []).map(Number)),
     // Numbers the display strings themselves state. Nothing is scaled: an
     // invented unit conversion must not become a match, so no ×1000 for "1.7K".
     ...displays.flatMap(display => extractNumericTokens(display).map(token => token.value)),

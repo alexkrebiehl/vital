@@ -9,6 +9,7 @@
 // bounded evidence payload and the provenance that produced it.
 
 import type { AnalystAnswer, AnalystEvidence, AnalystStatus } from './types';
+import type { PlanChange } from '../routine/types';
 
 export type ConversationRole = 'user' | 'assistant';
 
@@ -74,6 +75,9 @@ export interface StoredAssistantPayload {
   grounding: StoredGrounding;
   untrustedNotes: StoredUntrustedNotes;
   notice: string;
+  /** The plan change the answer made (configuration only), so a reloaded turn can still undo it. */
+  planChange?: PlanChange | null;
+  toolsUsed?: string[];
   /** True when the stored payload was cut to fit the size cap. */
   truncated?: boolean;
 }

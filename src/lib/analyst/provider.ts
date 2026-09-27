@@ -136,6 +136,72 @@ export interface CompletionProvider {
   complete(system: string, user: string): Promise<ModelCompletion>;
 }
 
+// ── Tool calling (multi-turn) ───────────────────────────
+//
+// `converse` is the tool-calling path the analyst's routine tools use. It keeps
+// the same guarantees as `complete` — one request per call, hard timeout,
+// rate-limit retries, scrubbed errors — but carries a whole exchange in a
+// protocol-neutral shape and returns either text or tool calls. Each protocol
+// maps the neutral shape to its own wire format; nothing above this module sees
+// `tool_calls` or `tool_use`.
+
+export interface ToolSpec {
+  name: string;
+  description: string;
+  /** JSON Schema of the arguments object. */
+  parameters: Record<string, unknown>;
+}
+
+export interface ToolCall {
+  id: string;
+  name: string;
+  /** Parsed arguments; `{ __unparseable: raw }` when the model sent invalid JSON. */
+  args: Record<string, unknown>;
+}
+
+export interface ToolResultMessage {
+  callId: string;
+  name: string;
+  /** JSON text handed back to the model. */
+  content: string;
+  isError: boolean;
+}
+
+export type LoopMessage =
+  | { role: 'user'; content: string }
+  | { role: 'assistant'; text: string | null; toolCalls: ToolCall[] }
+  | { role: 'tool'; results: ToolResultMessage[] };
+
+export interface ModelTurn {
+  text: string | null;
+  toolCalls: ToolCall[];
+  model: string | null;
+}
+
+/** A provider that can hold a multi-turn, tool-calling exchange. */
+export interface ToolCallingProvider {
+  converse(system: string, messages: LoopMessage[], tools: ToolSpec[], toolChoice?: 'auto' | 'none'): Promise<ModelTurn>;
+}
+
+export function supportsTools(provider: AnalystProvider): provider is AnalystProvider & ToolCallingProvider {
+  return typeof (provider as Partial<ToolCallingProvider>).converse === 'function';
+}
+
+function parseArgs(raw: unknown): Record<string, unknown> {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) return raw as Record<string, unknown>;
+  if (typeof raw === 'string') {
+    if (!raw.trim()) return {};
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed as Record<string, unknown>;
+    } catch {
+      // fall through
+    }
+    return { __unparseable: raw.slice(0, 500) };
+  }
+  return {};
+}
+
 /**
  * True when a provider speaks the shared completion path.
  *
@@ -298,6 +364,60 @@ export class OpenAICompatibleProvider extends RemoteAnalystProviderBase {
     return { text, model };
   }
 
+  async converse(system: string, messages: LoopMessage[], tools: ToolSpec[], toolChoice: 'auto' | 'none' = 'auto'): Promise<ModelTurn> {
+    const wire: Record<string, unknown>[] = [{ role: 'system', content: system }];
+    for (const m of messages) {
+      if (m.role === 'user') wire.push({ role: 'user', content: m.content });
+      else if (m.role === 'assistant') {
+        const msg: Record<string, unknown> = { role: 'assistant', content: m.text ?? '' };
+        if (m.toolCalls.length) {
+          msg.tool_calls = m.toolCalls.map(c => ({ id: c.id, type: 'function', function: { name: c.name, arguments: JSON.stringify(c.args) } }));
+        }
+        wire.push(msg);
+      } else {
+        for (const r of m.results) wire.push({ role: 'tool', tool_call_id: r.callId, content: r.content });
+      }
+    }
+    const body: Record<string, unknown> = {
+      model: this.config.model,
+      messages: wire,
+      max_tokens: this.config.maxTokens,
+      temperature: this.config.temperature,
+      stream: false,
+    };
+    if (tools.length) {
+      // response_format is never combined with tools: several servers reject the pair.
+      body.tools = tools.map(t => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
+      body.tool_choice = toolChoice;
+    }
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (this.config.apiKey) headers.Authorization = `Bearer ${this.config.apiKey}`;
+
+    const payload = await this.request(headers, body, false);
+    const choices = payload?.choices;
+    const first = Array.isArray(choices) ? (choices[0] as Record<string, unknown> | undefined) : undefined;
+    const message = (first?.message ?? {}) as Record<string, unknown>;
+    const rawCalls = Array.isArray(message.tool_calls) ? (message.tool_calls as Record<string, unknown>[]) : [];
+    const toolCalls: ToolCall[] = rawCalls
+      .map((c, i) => {
+        const fn = (c.function ?? {}) as Record<string, unknown>;
+        return typeof fn.name === 'string'
+          ? { id: typeof c.id === 'string' && c.id ? c.id : `call_${i}`, name: fn.name, args: parseArgs(fn.arguments) }
+          : null;
+      })
+      .filter((c): c is ToolCall => c !== null);
+    const text = typeof message.content === 'string' && message.content.trim() ? message.content : null;
+    if (!text && toolCalls.length === 0) {
+      throw new AnalystProviderError(
+        first?.finish_reason === 'length'
+          ? `The provider stopped at the ${this.config.maxTokens} token limit before producing an answer. Raise ANALYST_MAX_TOKENS or ask a narrower question.`
+          : 'The provider answered with an empty message, so there was nothing to validate.'
+      );
+    }
+    const model = typeof payload?.model === 'string' ? payload.model : this.config.model;
+    return { text, toolCalls, model };
+  }
+
   /** POST the body, handling the HTTP 400 JSON-mode retry, in-body errors and rate limits. */
   private async request(
     headers: Record<string, string>,
@@ -350,6 +470,68 @@ export class OpenAICompatibleProvider extends RemoteAnalystProviderBase {
 export class AnthropicProvider extends RemoteAnalystProviderBase {
   readonly id = 'anthropic' as const;
   readonly label = ANTHROPIC_LABEL;
+
+  async converse(system: string, messages: LoopMessage[], tools: ToolSpec[], toolChoice: 'auto' | 'none' = 'auto'): Promise<ModelTurn> {
+  const wire: Record<string, unknown>[] = messages.map(m => {
+    if (m.role === 'user') return { role: 'user', content: m.content };
+    if (m.role === 'assistant') {
+      const content: Record<string, unknown>[] = [];
+      if (m.text) content.push({ type: 'text', text: m.text });
+      for (const c of m.toolCalls) content.push({ type: 'tool_use', id: c.id, name: c.name, input: c.args });
+      return { role: 'assistant', content };
+    }
+    return {
+      role: 'user',
+      content: m.results.map(r => ({ type: 'tool_result', tool_use_id: r.callId, content: r.content, ...(r.isError ? { is_error: true } : {}) })),
+    };
+  });
+  const body: Record<string, unknown> = {
+    model: this.config.model,
+    max_tokens: this.config.maxTokens,
+    temperature: this.config.temperature,
+    system,
+    messages: wire,
+  };
+  if (tools.length) {
+    body.tools = tools.map(t => ({ name: t.name, description: t.description, input_schema: t.parameters }));
+    body.tool_choice = { type: toolChoice };
+  }
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', 'anthropic-version': ANTHROPIC_VERSION };
+  if (this.config.apiKey) headers['x-api-key'] = this.config.apiKey;
+
+  const response = await this.postJson(this.config.endpoint as string, headers, body);
+  const blocks = Array.isArray(response.content) ? (response.content as Record<string, unknown>[]) : [];
+  const text = blocks.filter(b => b?.type === 'text' && typeof b.text === 'string').map(b => b.text as string).join('\n');
+  const toolCalls: ToolCall[] = blocks
+    .filter(b => b?.type === 'tool_use' && typeof b.name === 'string')
+    .map((b, i) => ({ id: typeof b.id === 'string' ? b.id : `toolu_${i}`, name: b.name as string, args: parseArgs(b.input) }));
+  if (!text.trim() && toolCalls.length === 0) {
+    throw new AnalystProviderError(
+      response.stop_reason === 'max_tokens'
+        ? `The provider stopped at the ${this.config.maxTokens} token limit before producing an answer. Raise ANALYST_MAX_TOKENS or ask a narrower question.`
+        : 'The provider returned no text content, so there was nothing to validate.'
+    );
+  }
+  const model = typeof response.model === 'string' ? response.model : this.config.model;
+  return { text: text.trim() ? text : null, toolCalls, model };
+}
+
+  /** POST and read JSON, retrying a transient rate limit (HTTP 429) a bounded number of times. */
+  private async postJson(url: string, headers: Record<string, string>, body: unknown): Promise<Record<string, unknown>> {
+    for (let attempt = 0; ; attempt++) {
+      const response = await this.post(url, headers, body);
+      if (response.status === 429 && attempt < RATE_LIMIT_RETRIES) {
+        await delay(RATE_LIMIT_BACKOFF_MS * (attempt + 1));
+        continue;
+      }
+      if (!response.ok) throw await this.failure(response.status, response);
+      try {
+        return (await response.json()) as Record<string, unknown>;
+      } catch {
+        throw new AnalystProviderError('The provider answered with a body that is not JSON.');
+      }
+    }
+  }
 
   async answer(context: AnalystProviderContext): Promise<AnalystProviderResult> {
     const { system, user } = this.buildMessages(context);

@@ -62,6 +62,22 @@ Field rules:
 - "followUps": one to three short follow-up questions (never none, never more than three) that the same context could answer. Each must be a single self-contained question of roughly twelve words or fewer, naming a metric that appears in the context, so it can be asked next without further explanation.
 Return at least one line in each of "observed", "interpretation" and "uncertainty". Keep every line to one sentence or two, and use plain, specific language rather than marketing tone.`;
 
+// ── Training-plan tools ─────────────────────────────────
+//
+// Appended to the system prompt when the model may call the routine tools. The
+// answer shape does not change: the model still ends with the JSON object, and
+// what it did with the tools is described in it.
+
+export const TRAINING_TOOLS_PROMPT = `
+
+Training plans — you also have tools for the person's training plan and logged workouts:
+- Use the tools for anything about training, workouts, exercises, a plan, a routine, progression or recovery for training. Never invent sessions, sets, reps, loads or stages: read them with get_routine_progress, get_training_sessions or get_training_plan.
+- Plans may be for any discipline (strength, bodyweight skills, hypertrophy, running, cycling, mobility, mixed) and any schedule (a cycle of any length, fixed weekdays, or a number of sessions a week). Fit a plan to the person's stated goal, experience, equipment, time and schedule. If something that matters is missing, ask for it in the answer instead of guessing; never assume a cadence. Reference plans are examples of the shape, not defaults.
+- Pick the progression model that suits each path, and match stages to exercise names exactly as the workout source logs them (search_exercise_templates helps).
+- Progress conservatively: respect the plan's effort targets, recovery gates and deloads. When the person reports pain or discomfort, use set_path_hold rather than progressing; suggest a professional for pain that is sharp or persists. Do not give medical treatment advice.
+- Change the plan only when the person asks for a change, or clearly agrees to one. Every change is saved as a new revision and the person can undo it.
+- After using tools, answer with the same single JSON object: "observed" states what the tools returned (quote their numbers and dates as given), "interpretation" gives the assessment and next steps, "uncertainty" names what the data cannot show (form, pain, anything not logged). If you changed the plan, say exactly what changed in "interpretation". "evidence" may be empty when no health metric from the context was cited.`;
+
 // ── Retrieval bundle → model context ────────────────────
 
 /**
