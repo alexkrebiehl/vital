@@ -334,7 +334,7 @@ function Phases({ routine }: { routine: RoutineOverview }) {
       </h2>
       <p className="text-[11px] text-text-secondary mt-0.5">
         {current
-          ? `Phase ${current.index + 1}: ${current.name} — ${current.progress.met} of ${current.progress.total} milestones reached${current.since ? `, since ${current.since}` : ''}. Phases follow your progress, not the calendar.`
+          ? `Phase ${current.index + 1}: ${current.name} — ${current.progress.met} of ${current.progress.total} required milestones reached${current.since ? `, since ${current.since}` : ''}. Phases follow your progress, not the calendar.`
           : 'Every phase is complete.'}
       </p>
       <ol className="mt-3 space-y-3 list-none p-0">
@@ -348,7 +348,7 @@ function Phases({ routine }: { routine: RoutineOverview }) {
                 {p.status === 'complete'
                   ? `Complete${p.completedOn ? ` · ${p.completedOn}` : ''}`
                   : p.status === 'current'
-                    ? `Current · ${p.progress.met} of ${p.progress.total}`
+                    ? `Current · ${p.progress.met} of ${p.progress.total} required`
                     : `Upcoming${p.expectedWeeks ? ` · typically ${p.expectedWeeks[0]}–${p.expectedWeeks[1]} weeks` : ''}`}
               </span>
             </div>

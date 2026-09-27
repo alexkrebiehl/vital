@@ -113,7 +113,7 @@ function overviewSummary(r: RoutineOverview, detailPathId?: string) {
     goal: r.goal,
     week: r.started ? r.week : `starts ${r.startDate}`,
     currentPhase: r.currentPhase
-      ? { phase: `${r.currentPhase.index + 1} of ${r.currentPhase.count}`, name: r.currentPhase.name, since: r.currentPhase.since, milestones: `${r.currentPhase.progress.met} of ${r.currentPhase.progress.total}` }
+      ? { phase: `${r.currentPhase.index + 1} of ${r.currentPhase.count}`, name: r.currentPhase.name, since: r.currentPhase.since, milestones: `${r.currentPhase.progress.met} of ${r.currentPhase.progress.total} required` }
       : r.phases.length ? 'all phases complete' : null,
     phases: r.phases.map(p => ({ name: p.name, status: p.status, targets: p.targets.map(t => `${t.met === true ? 'met' : t.met === false ? 'not yet' : 'unchecked'}: ${t.label}${t.optional ? ' (optional)' : ''}`) })),
     calendarBlocksThisWeek: r.currentBlocks,

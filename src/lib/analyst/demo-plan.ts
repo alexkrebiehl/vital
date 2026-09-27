@@ -144,7 +144,7 @@ export async function demoPlanAnswer(question: string, system: UnitSystem, deps:
         paths.map(p => `${p.pathName}: ${p.stage.name.toLowerCase()} — ${p.light}${p.lastSession ? `; last ${p.lastSession.work} on ${p.lastSession.date}` : ''}${p.readiness ? ` (${p.readiness.label})` : ''}.`),
         paths.map(p => `${p.pathName}: ${p.nextAction}`),
         [
-          ...(routine.currentPhase ? [`Phase ${routine.currentPhase.index + 1} of ${routine.currentPhase.count} is worked out from your sessions: ${routine.currentPhase.progress.met} of ${routine.currentPhase.progress.total} of its milestones are reached.`] : []),
+          ...(routine.currentPhase ? [`Phase ${routine.currentPhase.index + 1} of ${routine.currentPhase.count} is worked out from your sessions: ${routine.currentPhase.progress.met} of ${routine.currentPhase.progress.total} of its required milestones are reached.`] : []),
           routine.recovery.text,
           routine.deload.text,
           routine.adherence.text,

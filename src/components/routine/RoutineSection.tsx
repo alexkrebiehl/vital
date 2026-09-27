@@ -159,7 +159,7 @@ function RoutineBody({ data, routine, onChange }: { data: RoutineApiResponse; ro
                 <Link href={`${planHref}#phases`}>
                   <Badge
                     variant="accent"
-                    title={`${routine.currentPhase.progress.met} of ${routine.currentPhase.progress.total} milestones reached — worked out from your sessions`}
+                    title={`${routine.currentPhase.progress.met} of ${routine.currentPhase.progress.total} required milestones reached — worked out from your sessions`}
                   >
                     Phase {routine.currentPhase.index + 1} of {routine.currentPhase.count}: {routine.currentPhase.name}
                   </Badge>
