@@ -11,18 +11,33 @@
 //
 // Tool results are returned so the grounding check can accept numbers the model
 // quotes from them.
+//
+// Tool calling rules out JSON mode, so a model may finish in prose. That reply
+// gets one repair turn (tools off) asking for the same answer as the JSON object.
+// When the repair is not JSON either, the prose draft is returned too, so the
+// caller can show it as written rather than fail. (A JSON-mode completion is no
+// better a repair: some local servers answer it with nothing, and reasoning
+// models can spend the whole token budget before writing.)
 
 import { AnalystProviderError, type LoopMessage, type ToolCallingProvider, type ToolResultMessage } from './provider';
 import { runTool, toolSpecs, type ToolContext } from './tools';
+import { extractJsonObject } from './validate';
 
 export const MAX_TOOL_ROUNDS = 6;
 export const MAX_TOOL_CALLS = 12;
+
+export const REPAIR_INSTRUCTION =
+  'Your last reply was not the JSON object the instructions require, so it cannot be shown. Reply again with the same answer as one JSON object in the required shape ("title", "observed", "interpretation", "uncertainty", "evidence", "followUps") and nothing outside it. Do not call tools.';
 
 export interface ToolLoopResult {
   text: string;
   model: string | null;
   toolsUsed: string[];
   toolOutputs: string[];
+  /** True when the answer came from the repair turn. */
+  repaired: boolean;
+  /** The prose reply that prompted a repair, kept in case the repair fails too. */
+  draft?: string;
 }
 
 export async function runToolLoop(
@@ -38,13 +53,23 @@ export async function runToolLoop(
   let calls = 0;
   let model: string | null = null;
 
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const final = round === MAX_TOOL_ROUNDS - 1 || calls >= MAX_TOOL_CALLS;
+  let repairing = false;
+  let draft: string | undefined;
+
+  for (let round = 0; round < MAX_TOOL_ROUNDS + 1; round++) {
+    const final = repairing || round >= MAX_TOOL_ROUNDS - 1 || calls >= MAX_TOOL_CALLS;
     const turn = await provider.converse(system, messages, specs, final ? 'none' : 'auto');
     model = turn.model ?? model;
     if (turn.toolCalls.length === 0 || final) {
-      if (turn.text) return { text: turn.text, model, toolsUsed, toolOutputs };
-      throw new AnalystProviderError('The model kept calling tools and never answered.');
+      if (!turn.text) throw new AnalystProviderError('The model kept calling tools and never answered.');
+      if (extractJsonObject(turn.text)) return { text: turn.text, model, toolsUsed, toolOutputs, repaired: repairing, ...(draft ? { draft } : {}) };
+      if (repairing) return { text: turn.text, model, toolsUsed, toolOutputs, repaired: true, draft: draft ?? turn.text };
+      // Prose instead of the JSON object: ask once for the same answer in the required shape.
+      draft = turn.text;
+      messages.push({ role: 'assistant', text: turn.text, toolCalls: [] });
+      messages.push({ role: 'user', content: REPAIR_INSTRUCTION });
+      repairing = true;
+      continue;
     }
     messages.push({ role: 'assistant', text: turn.text, toolCalls: turn.toolCalls });
     const results: ToolResultMessage[] = [];

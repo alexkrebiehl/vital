@@ -29,7 +29,7 @@ import { combineChanges, type ToolContext } from './tools';
 import { demoPlanAnswer, PLAN_PROMPTS } from './demo-plan';
 import type { RoutineDeps } from '../routine/service';
 import { readAnalystConfig, type AnalystConfig } from './config';
-import { checkGrounding, parseAnalystReply } from './validate';
+import { checkGrounding, parseAnalystReply, proseAnswerText } from './validate';
 import { boundedHistory } from './memory';
 import type {
   AnalystAnswer,
@@ -265,7 +265,12 @@ export async function askAnalyst(
     try {
       const looped = await runToolLoop(provider, `${config.systemPrompt}${TRAINING_TOOLS_PROMPT}`, user, toolCtx);
       const planChange = combineChanges(toolCtx.changes);
-      const parsed = parseAnalystReply(looped.text, { bundle });
+      let parsed = parseAnalystReply(looped.text, { bundle });
+      if ((!parsed.ok || !parsed.answer) && looped.draft) {
+        // Prose even after the repair turn: show the draft as written rather than fail.
+        const shaped = proseAnswerText(looped.draft);
+        if (shaped) parsed = parseAnalystReply(shaped, { bundle });
+      }
       if (!parsed.ok || !parsed.answer) {
         return base('error', {
           ...withContext,

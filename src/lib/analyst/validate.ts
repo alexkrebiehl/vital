@@ -202,6 +202,29 @@ function chartsFor(evidence: AnalystEvidence[], bundle: RetrievalBundle): Analys
   return charts;
 }
 
+/**
+ * A free-text reply the model would not restate as JSON, shaped into an answer:
+ * the prose (reasoning and pseudo tool-call blocks removed) becomes the
+ * interpretation, and the uncertainty says it is shown as written. Returns null
+ * when nothing readable is left. Its numbers still go through the grounding check.
+ */
+export function proseAnswerText(prose: string): string | null {
+  const cleaned = prose
+    .replace(/<think>[\s\S]*?<\/think>/gi, ' ')
+    .replace(/<tool_call>[\s\S]*?(<\/tool_call>|$)/gi, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  if (cleaned.length < 2) return null;
+  const paragraphs = cleaned.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean).slice(0, 8);
+  return JSON.stringify({
+    observed: [],
+    interpretation: paragraphs,
+    uncertainty: ['The model answered in free text instead of the structured format, so this reply is shown as written and is not split into observations and interpretation.'],
+    evidence: [],
+    followUps: [],
+  });
+}
+
 export interface ReplyContext {
   bundle: RetrievalBundle;
 }

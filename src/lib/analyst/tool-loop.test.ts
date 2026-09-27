@@ -93,6 +93,27 @@ describe('tool calling over the OpenAI-compatible protocol', () => {
     expect(JSON.stringify(model.bodies)).not.toContain(KEY);
   });
 
+  it('repairs a prose reply, and shows prose as written when the repair is prose too', async () => {
+    const prose = "Your decline push-ups are close to the top of the range.\n\nKeep the same sets until effort drops.";
+    const model = await mockModel((body, n) => {
+      if (n === 0) return { body: { model: 'm', choices: [{ finish_reason: 'tool_calls', message: { role: 'assistant', content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'get_routine_progress', arguments: '{}' } }] } }] } };
+      if (n === 1) return { body: { model: 'm', choices: [{ message: { role: 'assistant', content: prose } }] } };
+      // The repair turn: tools off, the prose and the instruction in the history.
+      expect(body.tool_choice).toBe('none');
+      const msgs = body.messages as { role: string; content: string }[];
+      expect(msgs[msgs.length - 1].content).toMatch(/^Your last reply was not the JSON object/);
+      return { body: { model: 'm', choices: [{ message: { role: 'assistant', content: '<tool_call>{"name":"get_training_plan"}</tool_call>' } }] } };
+    });
+    const response = await askAnalyst(
+      { query: 'How is my push-up progression going?' },
+      { env: { ANALYST_PROVIDER: 'openai', ANALYST_API_URL: model.url, ANALYST_MODEL: 'm', ANALYST_API_KEY: KEY } as unknown as NodeJS.ProcessEnv, routine: routineDeps() }
+    );
+    expect(model.bodies).toHaveLength(3);
+    expect(response.status).toBe('ok');
+    expect(response.answer!.interpretation).toEqual(['Your decline push-ups are close to the top of the range.', 'Keep the same sets until effort drops.']);
+    expect(response.answer!.uncertainty[0]).toMatch(/answered in free text/);
+  });
+
   it('answers without tools when the server rejects tool definitions', async () => {
     const model = await mockModel(body =>
       body.tools
@@ -162,6 +183,35 @@ describe('runToolLoop limits', () => {
     expect(result.text).toBe(FINAL);
     expect(model.seen).toHaveLength(MAX_TOOL_ROUNDS);
     expect(model.seen[MAX_TOOL_ROUNDS - 1].choice).toBe('none');
+  });
+
+  it('asks once for the JSON object when the model answers in prose', async () => {
+    const model = new ScriptedModel(n =>
+      n === 0
+        ? { text: null, toolCalls: [{ id: 'a', name: 'get_training_plan', args: {} }], model: 'x' }
+        : n === 1
+          ? { text: "I can't read your plan right now. To add it, I need to know:", toolCalls: [], model: 'x' }
+          : { text: FINAL, toolCalls: [], model: 'x' }
+    );
+    const result = await runToolLoop(model, 'sys', 'q', ctx());
+    expect(result).toMatchObject({ text: FINAL, repaired: true, toolsUsed: ['get_training_plan'], draft: "I can't read your plan right now. To add it, I need to know:" });
+    // The repair turn sees the prose and the instruction, with tools switched off.
+    expect(model.seen.map(s => s.choice)).toEqual(['auto', 'auto', 'none']);
+    expect(model.seen[2].messages).toBe(model.seen[1].messages + 2);
+  });
+
+  it('repairs at most once, leaving a second prose reply to the caller', async () => {
+    const model = new ScriptedModel(() => ({ text: 'Still prose.', toolCalls: [], model: 'x' }));
+    const result = await runToolLoop(model, 'sys', 'q', ctx());
+    expect(result).toMatchObject({ text: 'Still prose.', repaired: true, draft: 'Still prose.' });
+    expect(model.seen).toHaveLength(2);
+  });
+
+  it('does not repair a reply that already contains the JSON object', async () => {
+    const model = new ScriptedModel(() => ({ text: `Here you go:\n${FINAL}`, toolCalls: [], model: 'x' }));
+    const result = await runToolLoop(model, 'sys', 'q', ctx());
+    expect(result.repaired).toBe(false);
+    expect(model.seen).toHaveLength(1);
   });
 
   it('reports a model that never answers', async () => {
