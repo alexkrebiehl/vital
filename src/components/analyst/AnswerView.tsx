@@ -12,6 +12,7 @@ import { Badge, Card, Skeleton } from '@/components/ui/primitives';
 import { TrendFigure } from '@/components/charts';
 import { PlanChangeCard } from '@/components/routine/shared';
 import type { AnalystAnswer, AnalystResponse } from '@/lib/analyst/types';
+import { partialAnswer } from '@/lib/analyst/partial-answer';
 
 // ── Pending state ──────────────────────────────────────
 
@@ -71,6 +72,56 @@ export function ReasoningBlock({ reasoning }: { reasoning: string }) {
 /** A plan tool as a status line: "get_routine_progress" → "Using the plan tool: get routine progress…". */
 export function toolStatus(tool: string): string {
   return `Using the plan tool: ${tool.replace(/_/g, ' ')}…`;
+}
+
+/**
+ * The answer while it streams, laid out like the finished answer: the title
+ * and each section's lines appear as they arrive instead of the raw JSON.
+ * Display only — the validated answer replaces it when the result comes.
+ */
+export function StreamingAnswer({ text }: { text: string }) {
+  const partial = partialAnswer(text);
+  const body = partial ? (
+    <>
+      {partial.title ? (
+        <h2 className="text-base font-semibold text-text-primary">{partial.title}</h2>
+      ) : (
+        <Skeleton height={14} width="40%" />
+      )}
+      {ANSWER_SECTIONS.map(section => {
+        const lines = section.pick(partial);
+        if (lines.length === 0) return null;
+        return (
+          <section key={section.heading}>
+            <h3 className="text-[10px] uppercase tracking-wider text-text-secondary mb-1.5">{section.heading}</h3>
+            <ul className="list-disc pl-5 space-y-1.5">
+              {lines.map((line, i) => (
+                <li key={i} className="text-sm text-text-primary leading-relaxed break-words">{line}</li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
+    </>
+  ) : text.trimStart().startsWith('`') ? (
+    // An opening code fence: the JSON has not started yet.
+    <Skeleton height={14} width="40%" />
+  ) : (
+    // Not the JSON answer (yet): a preamble before a tool call, or prose the
+    // server will ask for again in the required shape.
+    <p className="text-sm text-text-primary whitespace-pre-wrap break-words leading-relaxed">{text}</p>
+  );
+  return (
+    <div className="flex gap-3">
+      <div className="w-8 h-8 rounded-full bg-accent-tint text-primary flex items-center justify-center shrink-0">
+        <Bot size={15} aria-hidden="true" />
+      </div>
+      <Card className="flex-1 min-w-0 p-4 space-y-4" as="article">
+        <StatusHint text="Writing the answer…" />
+        {body}
+      </Card>
+    </div>
+  );
 }
 
 // ── Answer ─────────────────────────────────────────────
@@ -261,7 +312,7 @@ const STATUS_LABEL: Record<string, string> = {
   ok: 'Answer',
 };
 
-const ANSWER_SECTIONS: { heading: string; pick: (a: AnalystAnswer) => string[] }[] = [
+const ANSWER_SECTIONS: { heading: string; pick: (a: Pick<AnalystAnswer, 'observed' | 'interpretation' | 'uncertainty'>) => string[] }[] = [
   { heading: '1 · Observed measurements', pick: a => a.observed },
   { heading: '2 · Possible interpretation', pick: a => a.interpretation },
   { heading: '3 · Missing context and uncertainty', pick: a => a.uncertainty },

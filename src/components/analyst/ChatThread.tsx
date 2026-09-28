@@ -8,7 +8,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Sparkles, User } from 'lucide-react';
 import { Card, ErrorState } from '@/components/ui/primitives';
-import { AnswerPending, AnswerView, ReasoningBlock, StatusHint, toolStatus } from './AnswerView';
+import { AnswerPending, AnswerView, ReasoningBlock, StatusHint, StreamingAnswer, toolStatus } from './AnswerView';
 import type { ChatExchange } from './useAnalystChat';
 
 export function ChatThread({
@@ -51,12 +51,7 @@ export function ChatThread({
             <>
               {ex.reasoning ? <ReasoningBlock reasoning={ex.reasoning} /> : !ex.streamingText && <AnswerPending />}
               {ex.tool && !ex.streamingText && <StatusHint text={toolStatus(ex.tool)} />}
-              {ex.streamingText ? (
-                <Card className="p-4 space-y-3" variant="muted">
-                  <StatusHint text="Streaming the answer…" />
-                  <p className="text-sm text-text-primary whitespace-pre-wrap break-words leading-relaxed">{ex.streamingText}</p>
-                </Card>
-              ) : null}
+              {ex.streamingText ? <StreamingAnswer text={ex.streamingText} /> : null}
             </>
           )}
 
