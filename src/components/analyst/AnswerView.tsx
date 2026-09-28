@@ -16,19 +16,33 @@ import { partialAnswer } from '@/lib/analyst/partial-answer';
 
 // ── Pending state ──────────────────────────────────────
 
-export function AnswerPending() {
+/**
+ * Waiting for the first bytes of the answer: three dots that swell in turn,
+ * with what is happening beside them when there is something to say (a plan
+ * tool running). Under reduced motion the dots hold still.
+ */
+export function AnswerPending({ label }: { label?: string }) {
   return (
     <div className="flex gap-3" role="status" aria-live="polite">
       <div className="w-8 h-8 rounded-full bg-accent-tint text-primary flex items-center justify-center shrink-0">
         <Bot size={15} aria-hidden="true" />
       </div>
-      <Card className="flex-1 p-4 space-y-3" variant="muted">
-        <span className="sr-only">Waiting for the analyst answer</span>
-        <Skeleton height={14} width="40%" />
-        <Skeleton height={12} width="90%" />
-        <Skeleton height={12} width="80%" />
-        <Skeleton height={56} />
-      </Card>
+      <div className="flex min-w-0 items-center gap-3 rounded-card border border-border bg-surface px-4 py-3">
+        <span className="flex items-center gap-1" aria-hidden="true">
+          {[0, 160, 320].map(delay => (
+            <span
+              key={delay}
+              className="h-2 w-2 rounded-full bg-text-secondary animate-typing-dot"
+              style={{ animationDelay: `${delay}ms` }}
+            />
+          ))}
+        </span>
+        {label ? (
+          <span className="text-[11px] text-text-secondary break-words">{label}</span>
+        ) : (
+          <span className="sr-only">Waiting for the analyst answer</span>
+        )}
+      </div>
     </div>
   );
 }
