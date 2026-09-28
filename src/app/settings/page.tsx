@@ -25,10 +25,10 @@ import { REFERENCE_KEY, unavailableReasonFor } from '@/lib/adapters/dataset';
 import {
   applyTheme, clearPreferences, getPreferencesState, loadPreferences,
   savePreferencesResult, subscribePreferences, syncPreferences,
-  type ThemeMode, type UnitSystem, type VitalPreferences,
+  type UnitSystem, type VitalPreferences,
 } from '@/lib/prefs';
 import {
-  Badge, Button, Card, DataStateNote, ErrorState, Select, Skeleton, Tabs,
+  Badge, Button, Card, ChoiceButton, DataStateNote, ErrorState, Select, Skeleton, Tabs,
 } from '@/components/ui/primitives';
 import type { PipelineStatusReport, StageStatus } from '@/lib/pipeline/types';
 import { STAGE_STATUS_LABEL } from '@/lib/pipeline/types';
@@ -130,7 +130,6 @@ function SettingsView() {
     <K extends keyof VitalPreferences>(key: K, value: VitalPreferences[K]) => {
       const current = loadPreferences();
       const next = { ...current, [key]: value };
-      if (key === 'theme') applyTheme(value as ThemeMode);
       void send(next);
     },
     [send]
@@ -234,19 +233,13 @@ function SettingsView() {
           {/* ── Theme ──────────────────────────────── */}
           <Card className="p-6">
             <SectionHead icon={<Palette size={18} className="text-text-secondary" />} title="Theme" />
-            <div className="flex flex-wrap gap-2">
-              {(['light', 'dark', 'system'] as const).map(theme => (
-                <ChoiceButton
-                  key={theme}
-                  active={prefs.theme === theme}
-                  onClick={() => update('theme', theme)}
-                  label={theme === 'light' ? 'Light' : theme === 'dark' ? 'Dark' : 'System'}
-                />
-              ))}
-            </div>
-            <DataStateNote>
-              The theme is applied before first paint from a stored value, so there is no flash of the wrong theme.
-            </DataStateNote>
+            <p className="text-sm text-text-secondary">
+              Choose light and dark themes on the{' '}
+              <Link href="/themes" className="text-primary hover:underline">
+                Themes page
+              </Link>
+              .
+            </p>
           </Card>
 
           {/* ── Notifications ──────────────────────── */}
@@ -285,7 +278,7 @@ function SettingsView() {
               onClick={() => {
                 clearPreferences();
                 const fresh = loadPreferences();
-                applyTheme(fresh.theme);
+                applyTheme(fresh);
                 setPrefs(fresh);
               }}
             >
@@ -922,23 +915,6 @@ function SectionHead({ icon, title }: { icon: React.ReactNode; title: string }) 
       {icon}
       <h2 className="text-base font-semibold text-text-primary">{title}</h2>
     </div>
-  );
-}
-
-function ChoiceButton({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`px-4 py-2 text-sm rounded-control border transition-colors min-h-[44px] ${
-        active
-          ? 'bg-primary text-primary-text border-primary'
-          : 'bg-surface text-text-secondary border-border hover:text-text-primary'
-      }`}
-    >
-      {label}
-    </button>
   );
 }
 

@@ -1,15 +1,15 @@
 // ── /api/preferences (SPEC §7, §11) ─────────────────────
 //
-// The single server-side owner of the display preferences: theme, units and the
-// notification flags. One person's settings follow them between browsers and
+// The single server-side owner of the display preferences: the theme mode and
+// the light/dark theme picks, units and the notification flags. One person's settings follow them between browsers and
 // devices instead of being trapped in one browser's localStorage.
 //
 // The record lives in Postgres — `@/lib/prefs/store` decides how it is served,
 // and this route does not care.
 //
 // The response body IS the record and nothing else — no path, no environment
-// echo, no secret. The record has no secret field: it holds a theme, a unit
-// system, three booleans, and the server's own revision and timestamp.
+// echo, no secret. The record has no secret field: it holds a theme mode, two
+// theme ids, a unit system, three booleans, and the server's own revision and timestamp.
 //
 //   GET  → the stored record, or the documented defaults at revision 0 when
 //          nothing is stored. A revision of 0 means "nothing has been written

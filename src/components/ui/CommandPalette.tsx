@@ -27,6 +27,7 @@ const NAV_ITEMS: SearchItem[] = [
   { id: 'all-workouts', label: 'All workouts', description: 'Workout history', href: '/workouts/all', type: 'page' },
   { id: 'insights', label: 'Insights', description: 'Discovered patterns', href: '/insights', type: 'page' },
   { id: 'analyst', label: 'AI Analyst', description: 'Ask about your health', href: '/analyst', type: 'page' },
+  { id: 'themes', label: 'Themes', description: 'Light and dark colour themes', href: '/themes', type: 'page' },
   { id: 'settings', label: 'Settings', description: 'Preferences and configuration', href: '/settings', type: 'page' },
 ];
 
