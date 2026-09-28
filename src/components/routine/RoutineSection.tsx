@@ -206,16 +206,21 @@ function RoutineBody({ data, routine, onChange }: { data: RoutineApiResponse; ro
         <NextSession routine={routine} />
       </Card>
 
-      {areas.map(area => (
-        <div key={area.id}>
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-text-secondary mb-2">{area.name}</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {area.paths.map(p => (
-              <PathCard key={p.pathId} path={p} />
-            ))}
-          </div>
-        </div>
-      ))}
+      {areas.length > 0 && (
+        <section className="space-y-4">
+          <h3 className="text-sm font-semibold text-text-primary">Paths</h3>
+          {areas.map(area => (
+            <div key={area.id}>
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-text-secondary mb-2">{area.name}</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {area.paths.map(p => (
+                  <PathCard key={p.pathId} path={p} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
 
       <UntrackedNote routine={routine} onChange={onChange} />
       <SourceNote data={data} />
