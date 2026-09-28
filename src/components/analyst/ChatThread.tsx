@@ -8,8 +8,8 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Sparkles, User } from 'lucide-react';
 import { Card, ErrorState } from '@/components/ui/primitives';
-import { AnswerPending, AnswerView } from './AnswerView';
-import type { ConversationExchange } from './conversation-view';
+import { AnswerPending, AnswerView, ReasoningBlock, StatusHint, toolStatus } from './AnswerView';
+import type { ChatExchange } from './useAnalystChat';
 
 export function ChatThread({
   exchanges,
@@ -19,7 +19,7 @@ export function ChatThread({
   empty,
   className,
 }: {
-  exchanges: ConversationExchange[];
+  exchanges: ChatExchange[];
   pending: boolean;
   onAsk: (question: string) => void;
   onPlanUndone?: () => void;
@@ -47,9 +47,20 @@ export function ChatThread({
             </div>
           </div>
 
-          {ex.pending && <AnswerPending />}
+          {ex.pending && (
+            <>
+              {ex.reasoning ? <ReasoningBlock reasoning={ex.reasoning} /> : !ex.streamingText && <AnswerPending />}
+              {ex.tool && !ex.streamingText && <StatusHint text={toolStatus(ex.tool)} />}
+              {ex.streamingText ? (
+                <Card className="p-4 space-y-3" variant="muted">
+                  <StatusHint text="Streaming the answer…" />
+                  <p className="text-sm text-text-primary whitespace-pre-wrap break-words leading-relaxed">{ex.streamingText}</p>
+                </Card>
+              ) : null}
+            </>
+          )}
 
-          {ex.failed && (
+          {!ex.pending && ex.failed && (
             <Card className="p-4">
               <ErrorState
                 title="The question could not be answered"
@@ -58,6 +69,8 @@ export function ChatThread({
               />
             </Card>
           )}
+
+          {!ex.pending && ex.reasoning && <ReasoningBlock reasoning={ex.reasoning} />}
 
           {ex.response && <AnswerView response={ex.response} onFollowUp={onAsk} onPlanUndone={onPlanUndone} />}
         </div>

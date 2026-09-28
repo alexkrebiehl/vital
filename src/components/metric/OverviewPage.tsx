@@ -52,6 +52,7 @@ import { useAnalystConfig } from '@/components/analyst/useAnalystConfig';
 import { useBriefing } from '@/components/analyst/useBriefing';
 import { COMPUTED_ATTRIBUTION, BRIEFING_BOUNDARY_NOTE } from '@/lib/briefing/attribution';
 import { briefingSchedule, briefingTimeLabel } from '@/lib/briefing/schedule';
+import { OverviewMedications } from './OverviewMedications';
 import { useProfile } from '@/components/profile/ProfileProvider';
 import { greetingLine } from '@/lib/profile/types';
 import { useDatasetMeta } from '@/components/data/DatasetProvider';
@@ -425,6 +426,12 @@ export function OverviewPage({ initialGreeting }: { initialGreeting: string }) {
           </div>
         </Card>
       </div>
+
+      {/* ── B2. Medications (app-rendered, independent of the briefing) ─── */}
+      {/* The model's briefing context holds no medications, so this block is
+          NOT derived from briefing text: it reads its own data over the network
+          and renders regardless of the hero's state. */}
+      <OverviewMedications />
 
       {/* ── C. Core health signals ─────────────────── */}
       {/* Owner request 2: a signal with no observation in the 30-day window is

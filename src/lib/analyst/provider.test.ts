@@ -362,6 +362,69 @@ describe('OpenAI-compatible provider over a mock endpoint (SPEC §8)', () => {
     expect(response.answer).toBeNull();
     expect(harness.recorded).toHaveLength(1);
   });
+
+  it('reports the reasoning-starved case DISTINCTLY, not as a generic token limit', async () => {
+    // The model spent the whole budget reasoning: finish_reason is 'length',
+    // content is empty, and there is reasoning text / reasoning_tokens. Blaming
+    // "the token limit" hides the cause; the message must say the budget was
+    // spent reasoning.
+    const harness = await startServer((_req, res) => {
+      json(res, 200, {
+        model: 'mock-analyst-1',
+        choices: [
+          {
+            finish_reason: 'length',
+            message: { content: '', reasoning: 'We need to consider the trend carefully…' },
+            usage: { completion_tokens_details: { reasoning_tokens: 8000 } },
+          },
+        ],
+      });
+    });
+    const response = await askAnalyst(
+      { query: 'How is my resting heart rate trending?' },
+      { env: openaiEnv(harness.baseUrl, { ANALYST_MAX_TOKENS: '8000' }) }
+    );
+    expect(response.status).toBe('error');
+    expect(response.answer).toBeNull();
+    expect(response.message).toMatch(/reasoning/);
+    expect(response.message).toContain('8000 token budget');
+    // The generic copy must NOT be what was reported.
+    expect(response.message).not.toContain('stopped at the 8000 token limit before producing an answer');
+    // Reasoning text is never promoted into an answer.
+    expect(JSON.stringify(response)).not.toContain('consider the trend carefully');
+  });
+
+  it('delivers a truncated reply that still carries content instead of discarding it', async () => {
+    // finish_reason is 'length' but a usable partial object arrived: the user
+    // would rather have the short answer than an error.
+    const harness = await startServer((_req, res) => {
+      json(res, 200, {
+        model: 'mock-analyst-1',
+        choices: [{ finish_reason: 'length', message: { content: analystReplyText() } }],
+      });
+    });
+    const response = await askAnalyst({ query: 'What changed this week?' }, { env: openaiEnv(harness.baseUrl) });
+    expect(response.status).toBe('ok');
+    expect(response.answer).not.toBeNull();
+    expect(response.answer!.observed.length).toBeGreaterThan(0);
+  });
+
+  it('sends the configured reasoning effort, and does not send one when unset', async () => {
+    const harness = await startServer((_req, res) => {
+      json(res, 200, { model: 'mock-analyst-1', choices: [{ message: { content: analystReplyText() } }] });
+    });
+
+    await askAnalyst({ query: 'What changed this week?' }, { env: openaiEnv(harness.baseUrl, { ANALYST_REASONING_EFFORT: 'low' }) });
+    expect(harness.recorded[0].body.reasoning).toEqual({ effort: 'low' });
+
+    // An unset value sends no reasoning field at all.
+    await askAnalyst({ query: 'What changed this week?' }, { env: openaiEnv(harness.baseUrl) });
+    expect(harness.recorded[1].body.reasoning).toBeUndefined();
+
+    // An unrecognised value is ignored rather than forwarded (it would be a 400).
+    await askAnalyst({ query: 'What changed this week?' }, { env: openaiEnv(harness.baseUrl, { ANALYST_REASONING_EFFORT: 'bogus' }) });
+    expect(harness.recorded[2].body.reasoning).toBeUndefined();
+  });
 });
 
 describe('parameters an OpenAI-compatible endpoint refuses', () => {

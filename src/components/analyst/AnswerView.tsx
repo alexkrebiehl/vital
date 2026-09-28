@@ -7,7 +7,7 @@
 // Shared by the AI Analyst page and the "Discuss with analyst" dialog.
 
 import Link from 'next/link';
-import { Bot, ShieldCheck, Wrench } from 'lucide-react';
+import { Bot, ChevronRight, Loader2, ShieldCheck, Wrench } from 'lucide-react';
 import { Badge, Card, Skeleton } from '@/components/ui/primitives';
 import { TrendFigure } from '@/components/charts';
 import { PlanChangeCard } from '@/components/routine/shared';
@@ -30,6 +30,47 @@ export function AnswerPending() {
       </Card>
     </div>
   );
+}
+
+/** A small status line: a spinner plus a plain-language state. */
+export function StatusHint({ text }: { text: string }) {
+  return (
+    <p className="flex items-center gap-1.5 text-[11px] text-text-secondary" role="status" aria-live="polite">
+      <Loader2 size={12} className="animate-spin" aria-hidden="true" />
+      {text}
+    </p>
+  );
+}
+
+/**
+ * The model's streamed reasoning, in a COLLAPSED-BY-DEFAULT block.
+ *
+ * It is labelled plainly as "Reasoning" and is deliberately NOT the answer: the
+ * answer arrives separately and is the only thing that is validated. `<details>`
+ * gives collapse for free, so it works without JavaScript state and is reachable
+ * by keyboard.
+ */
+export function ReasoningBlock({ reasoning }: { reasoning: string }) {
+  if (!reasoning.trim()) return null;
+  return (
+    <div className="flex gap-3">
+      <div className="w-8 h-8 rounded-full bg-surface-muted text-text-secondary flex items-center justify-center shrink-0">
+        <Bot size={15} aria-hidden="true" />
+      </div>
+      <details className="flex-1 min-w-0 rounded-card border border-border bg-surface-muted/40 group">
+        <summary className="flex cursor-pointer items-center gap-1.5 px-3 py-2 text-[11px] text-text-secondary select-none">
+          <ChevronRight size={12} className="transition-transform group-open:rotate-90" aria-hidden="true" />
+          Reasoning <span className="text-text-secondary/70">(the model&apos;s own working, not the answer)</span>
+        </summary>
+        <p className="px-3 pb-3 text-xs text-text-secondary whitespace-pre-wrap break-words leading-relaxed">{reasoning}</p>
+      </details>
+    </div>
+  );
+}
+
+/** A plan tool as a status line: "get_routine_progress" → "Using the plan tool: get routine progress…". */
+export function toolStatus(tool: string): string {
+  return `Using the plan tool: ${tool.replace(/_/g, ' ')}…`;
 }
 
 // ── Answer ─────────────────────────────────────────────

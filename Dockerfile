@@ -39,6 +39,12 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
+# pdfjs-dist is a server-external package (it must not be bundled). Next's file
+# tracer only reliably carries it once `outputFileTracingIncludes` names it, so
+# copy the package explicitly as a second guarantee: without it the lab PDF
+# parser throws MODULE_NOT_FOUND at runtime, on the first upload.
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/pdfjs-dist ./node_modules/pdfjs-dist
+
 # ── migration step ───────────────────────────────────────────────────────────
 # The container applies pending SQL migrations BEFORE it serves, so the image
 # needs the migration CLI, the SQL it applies, and the two small modules it
@@ -54,11 +60,15 @@ USER nextjs
 
 EXPOSE 3000
 
-# Real probe against the app's own overview route (busybox wget ships with alpine).
+# Liveness probe: a trivial JSON route that touches no briefing, no model, no
+# dataset and no database (busybox wget ships with alpine). Pointing this at `/`
+# server-rendered the Overview every 30 seconds and, before this change, could
+# start a briefing generation; /api/health cannot.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:3000/ >/dev/null || exit 1
+  CMD wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1
 
-# Migrate, then serve. With no database configured the migration step is a no-op
-# and the app runs on its JSON files exactly as before.
+# Migrate, then serve. With no database configured the migration step prints the
+# reason and exits non-zero, so the container refuses to start: this deployment
+# stores its settings in Postgres and has no file fallback.
 ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
 CMD ["node", "server.js"]

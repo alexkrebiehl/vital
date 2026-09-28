@@ -33,6 +33,7 @@ import {
 import { HANDLERS } from './handlers';
 import { buildAnalystUserMessage } from './systemPrompt';
 import { hostOf, safeExcerpt, scrubText } from './scrub';
+import { parseAnalystSse } from './stream';
 import type {
   AnalystAnswer,
   AnalystProvider,
@@ -88,14 +89,22 @@ export function inBodyError(payload: unknown): { message: string; code: number |
   return { message, code };
 }
 
-/** The first choice's non-blank content (or null) and its finish_reason. */
-function firstChoice(payload: Record<string, unknown> | null): { text: string | null; finish: string | null } {
+interface FirstChoice {
+  /** Non-blank content, or null. A length-truncated reply that has content keeps it. */
+  text: string | null;
+  finish: string | null;
+  choice: Record<string, unknown> | undefined;
+  message: Record<string, unknown> | undefined;
+}
+
+/** The first choice of a /chat/completions payload. */
+function firstChoice(payload: Record<string, unknown> | null): FirstChoice {
   const choices = payload?.choices;
-  const first = Array.isArray(choices) ? (choices[0] as Record<string, unknown> | undefined) : undefined;
-  const message = first?.message as Record<string, unknown> | undefined;
+  const choice = Array.isArray(choices) ? (choices[0] as Record<string, unknown> | undefined) : undefined;
+  const message = choice?.message as Record<string, unknown> | undefined;
   const content = typeof message?.content === 'string' ? message.content : null;
-  const finish = typeof first?.finish_reason === 'string' ? first.finish_reason : null;
-  return { text: content && content.trim() ? content : null, finish };
+  const finish = typeof choice?.finish_reason === 'string' ? choice.finish_reason : null;
+  return { text: content && content.trim() ? content : null, finish, choice, message };
 }
 
 export function isRateLimit(code: number | null): boolean {
@@ -178,9 +187,27 @@ export interface ModelTurn {
   model: string | null;
 }
 
+/** Callbacks for a streamed tool-calling turn (`converseStreamed`). */
+export interface TurnStreamHooks {
+  /** Reasoning text as it arrives: display only, never part of the turn. */
+  onReasoning?: (text: string) => void;
+  /** Reply text as it arrives. The turn may still end in tool calls. */
+  onAnswer?: (text: string) => void;
+  /** The upstream request is open; call `abort` to cancel it. */
+  onOpen?: (abort: () => void) => void;
+}
+
 /** A provider that can hold a multi-turn, tool-calling exchange. */
 export interface ToolCallingProvider {
   converse(system: string, messages: LoopMessage[], tools: ToolSpec[], toolChoice?: 'auto' | 'none'): Promise<ModelTurn>;
+  /** The same turn, streamed. Providers without it are driven through `converse`. */
+  converseStreamed?(
+    system: string,
+    messages: LoopMessage[],
+    tools: ToolSpec[],
+    toolChoice: 'auto' | 'none',
+    hooks: TurnStreamHooks
+  ): Promise<ModelTurn>;
 }
 
 export function supportsTools(provider: AnalystProvider): provider is AnalystProvider & ToolCallingProvider {
@@ -200,6 +227,37 @@ function parseArgs(raw: unknown): Record<string, unknown> {
     return { __unparseable: raw.slice(0, 500) };
   }
   return {};
+}
+
+/**
+ * An open streaming request: the raw SSE response body plus the way to cancel
+ * it. The caller parses the body and MUST call `abort()` when it stops early
+ * (a disconnected browser), so the upstream request is cancelled rather than
+ * left running.
+ */
+export interface ProviderStreamHandle {
+  response: Response;
+  abort: () => void;
+}
+
+/** A provider that can stream a prompt → SSE completion (see `answerStream`). */
+export interface StreamingProvider {
+  /** The system/user messages the streamed request would send. */
+  messagesFor(context: AnalystProviderContext): { system: string; user: string };
+  answerStream(system: string, user: string): Promise<ProviderStreamHandle>;
+}
+
+/**
+ * True when a provider can stream a completion. The demo provider computes its
+ * answer offline and the Anthropic Messages API streams a different wire format,
+ * so a caller offering streaming must check this rather than assume: when it is
+ * false the caller falls back to the non-streaming path.
+ */
+export function supportsStreaming(
+  provider: AnalystProvider
+): provider is AnalystProvider & StreamingProvider {
+  const candidate = provider as Partial<StreamingProvider>;
+  return typeof candidate.answerStream === 'function' && typeof candidate.messagesFor === 'function';
 }
 
 /**
@@ -296,6 +354,18 @@ abstract class RemoteAnalystProviderBase implements AnalystProvider {
       }),
     };
   }
+
+  /**
+   * The system/user message pair for a context, exposed for the streaming path.
+   *
+   * The service streams the ANSWER the model produces, so it must build the same
+   * two messages `answer()` would send. Exposing the builder rather than
+   * re-implementing it in the service keeps the streamed request byte-identical
+   * in shape to the non-streamed one.
+   */
+  messagesFor(context: AnalystProviderContext): { system: string; user: string } {
+    return this.buildMessages(context);
+  }
 }
 
 /**
@@ -370,7 +440,10 @@ function applyQuirks(body: Record<string, unknown>, quirks: Set<ParamQuirk>): vo
     delete body.max_tokens;
   }
   if (quirks.has('no_temperature')) delete body.temperature;
-  if (quirks.has('tools_without_reasoning') && Array.isArray(body.tools) && body.tools.length) body.reasoning_effort = 'none';
+  if (quirks.has('tools_without_reasoning') && Array.isArray(body.tools) && body.tools.length) {
+    body.reasoning_effort = 'none';
+    delete body.reasoning;
+  }
 }
 
 export class OpenAICompatibleProvider extends RemoteAnalystProviderBase {
@@ -384,22 +457,10 @@ export class OpenAICompatibleProvider extends RemoteAnalystProviderBase {
   }
 
   async complete(system: string, user: string): Promise<ModelCompletion> {
-    const body: Record<string, unknown> = {
-      model: this.config.model,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user },
-      ],
-      max_tokens: this.config.maxTokens,
-      temperature: this.config.temperature,
-      stream: false,
-    };
+    const body = this.chatBody(system, user, false);
     const useJsonMode = this.config.jsonMode === 'auto';
-    if (useJsonMode) body.response_format = { type: 'json_object' };
 
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (this.config.apiKey) headers.Authorization = `Bearer ${this.config.apiKey}`;
-
+    const headers = this.headers();
     let payload = await this.request(headers, body, useJsonMode);
     let first = firstChoice(payload);
     if (useJsonMode && body.response_format && !first.text && first.finish !== 'length') {
@@ -410,19 +471,106 @@ export class OpenAICompatibleProvider extends RemoteAnalystProviderBase {
       first = firstChoice(payload);
     }
 
-    const { text, finish } = first;
-    if (!text) {
-      throw new AnalystProviderError(
-        finish === 'length'
-          ? `The provider stopped at the ${this.config.maxTokens} token limit before producing an answer. Raise ANALYST_MAX_TOKENS or ask a narrower question.`
-          : 'The provider answered with an empty message, so there was nothing to validate.'
-      );
-    }
+    // A truncated reply that DOES carry content is delivered rather than
+    // discarded: a short answer beats an error, and the parser downstream decides
+    // whether the fragment is usable.
     const model = typeof payload?.model === 'string' ? payload.model : this.config.model;
-    return { text, model };
+    if (first.text) return { text: first.text, model };
+    throw new AnalystProviderError(this.emptyReplyMessage(first.finish, first.choice, first.message));
   }
 
   async converse(system: string, messages: LoopMessage[], tools: ToolSpec[], toolChoice: 'auto' | 'none' = 'auto'): Promise<ModelTurn> {
+    const body = this.converseBody(system, messages, tools, toolChoice, false);
+    const payload = await this.request(this.headers(), body, false);
+    const first = firstChoice(payload);
+    const rawCalls = Array.isArray(first.message?.tool_calls) ? (first.message.tool_calls as Record<string, unknown>[]) : [];
+    const toolCalls: ToolCall[] = rawCalls
+      .map((c, i) => {
+        const fn = (c.function ?? {}) as Record<string, unknown>;
+        return typeof fn.name === 'string'
+          ? { id: typeof c.id === 'string' && c.id ? c.id : `call_${i}`, name: fn.name, args: parseArgs(fn.arguments) }
+          : null;
+      })
+      .filter((c): c is ToolCall => c !== null);
+    if (!first.text && toolCalls.length === 0) {
+      throw new AnalystProviderError(this.emptyReplyMessage(first.finish, first.choice, first.message));
+    }
+    const model = typeof payload?.model === 'string' ? payload.model : this.config.model;
+    return { text: first.text, toolCalls, model };
+  }
+
+  /**
+   * One tool-calling turn over a streamed completion: reasoning and reply text
+   * are handed to the hooks as they arrive, tool-call fragments are assembled by
+   * index, and the finished turn is returned exactly as `converse` would.
+   */
+  async converseStreamed(
+    system: string,
+    messages: LoopMessage[],
+    tools: ToolSpec[],
+    toolChoice: 'auto' | 'none',
+    hooks: TurnStreamHooks
+  ): Promise<ModelTurn> {
+    const handle = await this.openStream(this.converseBody(system, messages, tools, toolChoice, true));
+    hooks.onOpen?.(handle.abort);
+    let text = '';
+    let reasoned = false;
+    let model: string | null = null;
+    let finish: string | null = null;
+    let reasoningTokens: number | null = null;
+    const calls = new Map<number, { id: string | null; name: string; args: string }>();
+    try {
+      for await (const event of parseAnalystSse(handle.response.body as ReadableStream<Uint8Array>)) {
+        if (event.kind === 'reasoning') {
+          reasoned = true;
+          hooks.onReasoning?.(event.text);
+        } else if (event.kind === 'answer') {
+          text += event.text;
+          hooks.onAnswer?.(event.text);
+        } else if (event.kind === 'tool_call') {
+          const call = calls.get(event.index) ?? { id: null, name: '', args: '' };
+          call.id = call.id ?? event.id;
+          if (event.name) call.name = call.name || event.name;
+          call.args += event.arguments;
+          calls.set(event.index, call);
+        } else {
+          model = event.model;
+          finish = event.finishReason;
+          reasoningTokens = event.reasoningTokens;
+        }
+      }
+    } catch (error) {
+      handle.abort();
+      if (error instanceof AnalystProviderError) throw error;
+      throw new AnalystProviderError(`The provider at ${this.destination ?? 'the configured endpoint'} ended the stream early.`);
+    }
+    const toolCalls: ToolCall[] = [...calls.entries()]
+      .sort(([a], [b]) => a - b)
+      .filter(([, c]) => c.name)
+      .map(([i, c]) => ({ id: c.id ?? `call_${i}`, name: c.name, args: parseArgs(c.args) }));
+    const reply = text.trim() ? text : null;
+    if (!reply && toolCalls.length === 0) {
+      const usage = reasoningTokens ? { completion_tokens_details: { reasoning_tokens: reasoningTokens } } : undefined;
+      throw new AnalystProviderError(this.emptyReplyMessage(finish, { usage }, reasoned ? { reasoning: 'streamed' } : undefined));
+    }
+    return { text: reply, toolCalls, model: model ?? this.config.model };
+  }
+
+  private headers(stream = false): Record<string, string> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (stream) headers.Accept = 'text/event-stream';
+    if (this.config.apiKey) headers.Authorization = `Bearer ${this.config.apiKey}`;
+    return headers;
+  }
+
+  /** The /chat/completions body for a tool-calling turn. */
+  private converseBody(
+    system: string,
+    messages: LoopMessage[],
+    tools: ToolSpec[],
+    toolChoice: 'auto' | 'none',
+    stream: boolean
+  ): Record<string, unknown> {
     const wire: Record<string, unknown>[] = [{ role: 'system', content: system }];
     for (const m of messages) {
       if (m.role === 'user') wire.push({ role: 'user', content: m.content });
@@ -441,39 +589,15 @@ export class OpenAICompatibleProvider extends RemoteAnalystProviderBase {
       messages: wire,
       max_tokens: this.config.maxTokens,
       temperature: this.config.temperature,
-      stream: false,
+      stream,
     };
+    if (this.config.reasoningEffort) body.reasoning = { effort: this.config.reasoningEffort };
     if (tools.length) {
       // response_format is never combined with tools: several servers reject the pair.
       body.tools = tools.map(t => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }));
       body.tool_choice = toolChoice;
     }
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (this.config.apiKey) headers.Authorization = `Bearer ${this.config.apiKey}`;
-
-    const payload = await this.request(headers, body, false);
-    const choices = payload?.choices;
-    const first = Array.isArray(choices) ? (choices[0] as Record<string, unknown> | undefined) : undefined;
-    const message = (first?.message ?? {}) as Record<string, unknown>;
-    const rawCalls = Array.isArray(message.tool_calls) ? (message.tool_calls as Record<string, unknown>[]) : [];
-    const toolCalls: ToolCall[] = rawCalls
-      .map((c, i) => {
-        const fn = (c.function ?? {}) as Record<string, unknown>;
-        return typeof fn.name === 'string'
-          ? { id: typeof c.id === 'string' && c.id ? c.id : `call_${i}`, name: fn.name, args: parseArgs(fn.arguments) }
-          : null;
-      })
-      .filter((c): c is ToolCall => c !== null);
-    const text = typeof message.content === 'string' && message.content.trim() ? message.content : null;
-    if (!text && toolCalls.length === 0) {
-      throw new AnalystProviderError(
-        first?.finish_reason === 'length'
-          ? `The provider stopped at the ${this.config.maxTokens} token limit before producing an answer. Raise ANALYST_MAX_TOKENS or ask a narrower question.`
-          : 'The provider answered with an empty message, so there was nothing to validate.'
-      );
-    }
-    const model = typeof payload?.model === 'string' ? payload.model : this.config.model;
-    return { text, toolCalls, model };
+    return body;
   }
 
   /** POST the body, handling the HTTP 400 JSON-mode retry, in-body errors and rate limits. */
@@ -524,6 +648,139 @@ export class OpenAICompatibleProvider extends RemoteAnalystProviderBase {
       );
     }
     return payload;
+  }
+
+  /**
+   * The message for a reply with no content at all.
+   *
+   * When the model spent its whole budget on REASONING, "stopped at the token
+   * limit" blames the wrong thing and hides the cause, so that case is reported
+   * distinctly: the model reasoned its way through the entire completion budget
+   * and never began an answer. Reasoning text itself is never promoted into an
+   * answer — it is not the JSON object that was asked for, and an answer invented
+   * from it would not have been validated.
+   */
+  private emptyReplyMessage(
+    finish: string | null,
+    choice: Record<string, unknown> | undefined,
+    message: Record<string, unknown> | undefined
+  ): string {
+    if (finish !== 'length') {
+      return 'The provider answered with an empty message, so there was nothing to validate.';
+    }
+    if (this.spentBudgetOnReasoning(choice, message)) {
+      return `The provider spent its whole ${this.config.maxTokens} token budget on the model's reasoning and never began an answer, so there was nothing to validate. Raise ANALYST_MAX_TOKENS, lower ANALYST_REASONING_EFFORT, or ask a narrower question.`;
+    }
+    return `The provider stopped at the ${this.config.maxTokens} token limit before producing an answer. Raise ANALYST_MAX_TOKENS or ask a narrower question.`;
+  }
+
+  /** True when a length-truncated reply produced reasoning but no content. */
+  private spentBudgetOnReasoning(
+    choice: Record<string, unknown> | undefined,
+    message: Record<string, unknown> | undefined
+  ): boolean {
+    if (typeof message?.reasoning === 'string' && message.reasoning.trim().length > 0) return true;
+    const usage = choice?.usage ?? message?.usage;
+    const record = usage && typeof usage === 'object' ? (usage as Record<string, unknown>) : null;
+    const details = record?.completion_tokens_details;
+    const detailRecord = details && typeof details === 'object' ? (details as Record<string, unknown>) : null;
+    const reasoningTokens = detailRecord?.reasoning_tokens;
+    return typeof reasoningTokens === 'number' && reasoningTokens > 0;
+  }
+
+  /**
+   * Open a streamed completion.
+   *
+   * The response body is returned unread: the caller parses the SSE frames and
+   * calls `abort()` when it stops early. The timeout is deliberately NOT applied
+   * to the body read — a reasoning model streams for a while, and a timer that
+   * cannot distinguish "still streaming" from "hung" would cut a working answer
+   * off. Instead the connection is bounded by the caller's own read loop, and a
+   * hard timeout still bounds the time to the FIRST byte (the headers).
+   */
+  async answerStream(system: string, user: string): Promise<ProviderStreamHandle> {
+    return this.openStream(this.chatBody(system, user, true));
+  }
+
+  /**
+   * POST a `stream: true` body and return the unread event stream. A 400 is
+   * handled as on the non-streaming path: a named parameter quirk is learned and
+   * applied, or response_format is dropped once, then the request is retried.
+   */
+  private async openStream(body: Record<string, unknown>): Promise<ProviderStreamHandle> {
+    const headers = this.headers(true);
+    const key = `${this.url()} ${this.config.model ?? ''}`;
+    const store = quirkStore();
+    const quirks = store.get(key) ?? new Set<ParamQuirk>(isOfficialOpenAI(this.url()) ? ['max_completion_tokens'] : []);
+    applyQuirks(body, quirks);
+
+    const controller = new AbortController();
+    const send = async (): Promise<Response> => {
+      try {
+        return await fetch(this.url(), {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+          signal: controller.signal,
+          cache: 'no-store',
+        });
+      } catch (error) {
+        const aborted = error instanceof Error && error.name === 'AbortError';
+        throw new AnalystProviderError(
+          aborted
+            ? `The provider at ${this.destination ?? 'the configured endpoint'} did not respond within ${this.config.timeoutMs} ms.`
+            : `The provider at ${this.destination ?? 'the configured endpoint'} could not be reached.`
+        );
+      }
+    };
+
+    // A gateway that rejects `stream: true` (or `response_format`) answers with
+    // an ordinary JSON error, not an event stream.
+    let response = await send();
+    for (let tries = 0; response.status === 400 && tries < 3; tries++) {
+      const text = await response.clone().text().catch(() => '');
+      const quirk = quirkFromRejection(text);
+      const applies = quirk !== 'tools_without_reasoning' || (Array.isArray(body.tools) && body.tools.length > 0);
+      if (quirk && applies && !quirks.has(quirk)) {
+        quirks.add(quirk);
+        store.set(key, quirks);
+        applyQuirks(body, quirks);
+      } else if (this.config.jsonMode === 'auto' && 'response_format' in body) {
+        delete body.response_format;
+      } else {
+        break;
+      }
+      response = await send();
+    }
+
+    if (!response.ok) throw await this.failure(response.status, response);
+    if (!response.body) {
+      throw new AnalystProviderError('The provider answered a streaming request with no response body.');
+    }
+    return { response, abort: () => controller.abort() };
+  }
+
+  /**
+   * The shared /chat/completions body. Both the streaming and non-streaming paths
+   * go through it so max_tokens, temperature and the reasoning control cannot
+   * drift between them.
+   */
+  private chatBody(system: string, user: string, stream: boolean): Record<string, unknown> {
+    const body: Record<string, unknown> = {
+      model: this.config.model,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
+      max_tokens: this.config.maxTokens,
+      temperature: this.config.temperature,
+      stream,
+    };
+    // Only sent when configured: an endpoint that does not know the field is
+    // never handed one. `reasoning.effort` is the shape this gateway accepts.
+    if (this.config.reasoningEffort) body.reasoning = { effort: this.config.reasoningEffort };
+    if (this.config.jsonMode === 'auto') body.response_format = { type: 'json_object' };
+    return body;
   }
 
   private url(): string {

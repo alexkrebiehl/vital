@@ -2,9 +2,14 @@
 
 // ── Analyst chat hook (SPEC §8) ─────────────────────────
 //
-// One thread of questions and answers against /api/analyst. The AI Analyst page
+// One thread of questions and answers against the analyst. The AI Analyst page
 // and the "Discuss with analyst" dialog both use it, so they ask the same
 // endpoint with the same tools and save to the same conversation store.
+//
+// Answers stream from /api/analyst/stream: reasoning and answer text arrive as
+// they are produced, and a step marks each plan tool the model runs. A stream
+// that fails falls back to POST /api/analyst — except after a tool ran, when
+// asking again could repeat a plan change (stream-client.ts).
 //
 // A null conversation means "a new one": the server creates it on the first
 // question and titles it from that question. The hook adopts it and reports it
@@ -17,6 +22,7 @@ import type { ConversationAvailability, ConversationSummary } from '@/lib/analys
 import type { PageContextRef } from '@/lib/analyst/page-context-types';
 import type { PlanChange } from '@/lib/routine/types';
 import type { ConversationExchange } from './conversation-view';
+import { askAnalystStreaming, askWithStreamingFallback } from './stream-client';
 
 /** The ask endpoint's response: the answer plus what happened to the turn. */
 interface AskResponse extends AnalystResponse {
@@ -24,6 +30,16 @@ interface AskResponse extends AnalystResponse {
   persistence?: ConversationAvailability;
   conversation?: ConversationSummary | null;
 }
+
+/** A thread entry, plus what has streamed in for it so far. */
+export type ChatExchange = ConversationExchange & {
+  /** Reasoning streamed so far for this turn; display only, never the answer. */
+  reasoning?: string;
+  /** Answer text streamed so far, before validation. Cleared on the final result. */
+  streamingText?: string;
+  /** The plan tool the model is running now, while the answer is pending. */
+  tool?: string | null;
+};
 
 export interface AnalystChatOptions {
   /** The page the questions are asked from, resolved into page state on the server. */
@@ -35,7 +51,7 @@ export interface AnalystChatOptions {
 }
 
 export interface AnalystChat {
-  exchanges: ConversationExchange[];
+  exchanges: ChatExchange[];
   pending: boolean;
   activeId: number | null;
   ask: (question: string) => Promise<void>;
@@ -47,10 +63,13 @@ export interface AnalystChat {
 
 export function useAnalystChat({ context, onConversation, onPlanChange }: AnalystChatOptions = {}): AnalystChat {
   const { units } = useUnits();
-  const [exchanges, setExchanges] = useState<ConversationExchange[]>([]);
+  const [exchanges, setExchanges] = useState<ChatExchange[]>([]);
   const [pending, setPending] = useState(false);
   const [activeId, setActiveId] = useState<number | null>(null);
   const nextId = useRef(1);
+  /** Aborts the in-flight streamed ask when the thread unmounts. */
+  const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   // Callbacks change identity every render; the latest one is always called.
   const callbacks = useRef({ onConversation, onPlanChange });
@@ -61,32 +80,57 @@ export function useAnalystChat({ context, onConversation, onPlanChange }: Analys
   const ask = useCallback(
     async (question: string) => {
       const id = nextId.current++;
-      setExchanges(prev => [...prev, { id, question, response: null, pending: true, failed: null }]);
-      setPending(true);
-      try {
-        const res = await fetch('/api/analyst', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: question, system: units, conversationId: activeId, context: context ?? null }),
-        });
-        if (!res.ok) throw new Error(`The analyst endpoint answered HTTP ${res.status}.`);
-        const data = (await res.json()) as AskResponse;
-        setExchanges(prev => prev.map(e => (e.id === id ? { ...e, response: data, pending: false } : e)));
+      const update = (fn: (e: ChatExchange) => ChatExchange) => setExchanges(prev => prev.map(e => (e.id === id ? fn(e) : e)));
+      const finish = (data: AskResponse) => {
+        update(e => ({ ...e, response: data, pending: false, streamingText: '', tool: null }));
         if (data.planChange) callbacks.current.onPlanChange?.(data.planChange);
         // The turn belongs to a conversation now: adopt it.
         if (data.conversation) {
           setActiveId(data.conversation.id);
           callbacks.current.onConversation?.(data.conversation);
         }
-      } catch (error) {
-        setExchanges(prev =>
-          prev.map(e =>
-            e.id === id
-              ? { ...e, pending: false, failed: error instanceof Error ? error.message : 'The question could not be sent.' }
-              : e
-          )
+      };
+      const request = { query: question, system: units, conversationId: activeId, context: context ?? null };
+      const controller = new AbortController();
+      abortRef.current = controller;
+      setExchanges(prev => [...prev, { id, question, response: null, pending: true, failed: null, reasoning: '', streamingText: '' }]);
+      setPending(true);
+      try {
+        await askWithStreamingFallback(
+          () =>
+            askAnalystStreaming(
+              request,
+              {
+                onReasoning: text => update(e => ({ ...e, reasoning: (e.reasoning ?? '') + text })),
+                onAnswer: text => update(e => ({ ...e, streamingText: (e.streamingText ?? '') + text })),
+                // The text so far was a preamble to a tool call (or prose being repaired), not the answer.
+                onStep: step => update(e => ({ ...e, streamingText: '', tool: step.tool })),
+                onResult: response => finish(response as AskResponse),
+              },
+              controller.signal
+            ),
+          async () => {
+            update(e => ({ ...e, reasoning: '', streamingText: '', tool: null }));
+            const res = await fetch('/api/analyst', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(request),
+            });
+            if (!res.ok) throw new Error(`The analyst endpoint answered HTTP ${res.status}.`);
+            finish((await res.json()) as AskResponse);
+          }
         );
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        update(e => ({
+          ...e,
+          pending: false,
+          streamingText: '',
+          tool: null,
+          failed: error instanceof Error ? error.message : 'The question could not be sent.',
+        }));
       } finally {
+        if (abortRef.current === controller) abortRef.current = null;
         setPending(false);
       }
     },

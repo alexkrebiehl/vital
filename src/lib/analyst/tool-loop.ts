@@ -18,8 +18,21 @@
 // caller can show it as written rather than fail. (A JSON-mode completion is no
 // better a repair: some local servers answer it with nothing, and reasoning
 // models can spend the whole token budget before writing.)
+//
+// With hooks (the streaming route), each turn is streamed when the provider can
+// stream one, and the caller hears about every step: reasoning and reply text as
+// they arrive, and a step whenever the text so far turned out not to be the
+// answer (a tool is about to run, or the reply is being repaired).
 
-import { AnalystProviderError, type LoopMessage, type ToolCallingProvider, type ToolResultMessage } from './provider';
+import {
+  AnalystProviderError,
+  type LoopMessage,
+  type ModelTurn,
+  type ToolCallingProvider,
+  type ToolResultMessage,
+  type ToolSpec,
+  type TurnStreamHooks,
+} from './provider';
 import { runTool, toolSpecs, type ToolContext } from './tools';
 import { extractJsonObject } from './validate';
 
@@ -40,11 +53,36 @@ export interface ToolLoopResult {
   draft?: string;
 }
 
+export interface ToolLoopHooks extends TurnStreamHooks {
+  /**
+   * The text streamed so far was not the answer: `tool` is about to run, or
+   * (tool null) the reply is being asked for again as the JSON object.
+   */
+  onStep?: (step: { tool: string | null }) => void;
+  /** Checked between turns and tool calls: once aborted, the loop stops. */
+  signal?: AbortSignal;
+}
+
+function takeTurn(
+  provider: ToolCallingProvider,
+  system: string,
+  messages: LoopMessage[],
+  specs: ToolSpec[],
+  choice: 'auto' | 'none',
+  hooks: ToolLoopHooks | undefined
+): Promise<ModelTurn> {
+  if (hooks?.signal?.aborted) throw new AnalystProviderError('The question was cancelled.');
+  return hooks && provider.converseStreamed
+    ? provider.converseStreamed(system, messages, specs, choice, hooks)
+    : provider.converse(system, messages, specs, choice);
+}
+
 export async function runToolLoop(
   provider: ToolCallingProvider,
   system: string,
   user: string,
-  ctx: ToolContext
+  ctx: ToolContext,
+  hooks?: ToolLoopHooks
 ): Promise<ToolLoopResult> {
   const specs = toolSpecs();
   const messages: LoopMessage[] = [{ role: 'user', content: user }];
@@ -58,7 +96,7 @@ export async function runToolLoop(
 
   for (let round = 0; round < MAX_TOOL_ROUNDS + 1; round++) {
     const final = repairing || round >= MAX_TOOL_ROUNDS - 1 || calls >= MAX_TOOL_CALLS;
-    const turn = await provider.converse(system, messages, specs, final ? 'none' : 'auto');
+    const turn = await takeTurn(provider, system, messages, specs, final ? 'none' : 'auto', hooks);
     model = turn.model ?? model;
     if (turn.toolCalls.length === 0 || final) {
       if (!turn.text) throw new AnalystProviderError('The model kept calling tools and never answered.');
@@ -69,6 +107,7 @@ export async function runToolLoop(
       messages.push({ role: 'assistant', text: turn.text, toolCalls: [] });
       messages.push({ role: 'user', content: REPAIR_INSTRUCTION });
       repairing = true;
+      hooks?.onStep?.({ tool: null });
       continue;
     }
     messages.push({ role: 'assistant', text: turn.text, toolCalls: turn.toolCalls });
@@ -78,8 +117,10 @@ export async function runToolLoop(
         results.push({ callId: call.id, name: call.name, content: JSON.stringify({ error: 'Tool limit reached; answer now.' }), isError: true });
         continue;
       }
+      if (hooks?.signal?.aborted) throw new AnalystProviderError('The question was cancelled.');
       calls++;
       toolsUsed.push(call.name);
+      hooks?.onStep?.({ tool: call.name });
       const out = await runTool(call.name, call.args, ctx);
       toolOutputs.push(out.content);
       results.push({ callId: call.id, name: call.name, content: out.content, isError: out.isError });

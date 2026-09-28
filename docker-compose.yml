@@ -91,11 +91,9 @@ services:
       # Timezone overnight sleep is assigned in and days are cut on.
       VITAL_TIMEZONE: "${VITAL_TIMEZONE:-UTC}"
       # ── Profile (server-side only) ──────────────────────────────────────────
-      # The profile is NOT an environment variable: it is a JSON file the server
-      # owns on a writable volume (./data → /app/data, mounted below), written by
-      # Settings → Account. VITAL_PROFILE_PATH only overrides where that file
-      # lives; the default is /app/data/profile.json.
-      VITAL_PROFILE_PATH: "${VITAL_PROFILE_PATH:-}"
+      # The profile is NOT an environment variable: it is the `profile` row in
+      # the Postgres database above (id = 1), written by Settings → Account.
+      # There is no file-backed profile.
       # ── AI analyst (server-side only; five configurable things) ─────────────
       # provider · model · endpoint · credential · system prompt
       # `demo` (the default) needs no provider and sends nothing anywhere.
@@ -112,6 +110,10 @@ services:
       ANALYST_TEMPERATURE: "${ANALYST_TEMPERATURE:-0.2}"
       ANALYST_TIMEOUT_MS: "${ANALYST_TIMEOUT_MS:-60000}"
       ANALYST_JSON_MODE: "${ANALYST_JSON_MODE:-auto}"
+      # Bounded reasoning effort for a reasoning model, or empty to send none.
+      # One of max|xhigh|high|medium|low|minimal|none. An unbounded reasoning
+      # model can spend the whole completion budget reasoning and emit no answer.
+      ANALYST_REASONING_EFFORT: "${ANALYST_REASONING_EFFORT:-}"
       # ── Today's briefing (server-side only) ────────────────────────────────
       # The optional local seam: a model server on this machine, reachable as
       # host.docker.internal (mapped below). It is probed with a bounded GET
@@ -137,6 +139,14 @@ services:
       BRIEFING_MAX_TOKENS: "${BRIEFING_MAX_TOKENS:-4000}"
       BRIEFING_TEMPERATURE: "${BRIEFING_TEMPERATURE:-0.3}"
       BRIEFING_TIMEOUT_MS: "${BRIEFING_TIMEOUT_MS:-60000}"
+      # ── Uploaded lab reports (server-side only) ────────────────────────────
+      # Uploaded PDFs are stored content-addressed under this directory, which
+      # lives inside the writable ./data mount. VITAL_LAB_MAX_BYTES caps an
+      # upload; VITAL_LAB_MODEL_ASSIST (`auto`|`on`|`off`) controls the OPTIONAL
+      # second extraction pass — `off` guarantees no network call.
+      VITAL_LAB_DIR: "${VITAL_LAB_DIR:-/app/data/lab}"
+      VITAL_LAB_MAX_BYTES: "${VITAL_LAB_MAX_BYTES:-15728640}"
+      VITAL_LAB_MODEL_ASSIST: "${VITAL_LAB_MODEL_ASSIST:-auto}"
     # A model server running on the host (LM Studio, llama.cpp, Ollama, vLLM,
     # together.ai proxy, …) is reachable as host.docker.internal. Without this the
     # name does not resolve from inside the bridge. A loopback endpoint needs no
@@ -149,13 +159,11 @@ services:
       # ANALYST_SYSTEM_PROMPT_FILE at /app/config/analyst-prompt.md. Read-only, so
       # the container can never rewrite your prompt.
       - ./config:/app/config:ro
-      # The profile: the ONE writable mount. The server writes ./data/profile.json
-      # here when you save Settings → Account, and reads it on every request for
-      # the greeting and the briefing. It must be writable by uid 1001 (the
-      # container's user), so make the host directory writable by it:
+      # Uploaded lab PDFs: the ONE writable mount. The content-addressed
+      # documents a person uploaded under Settings → Data live in ./data/lab.
+      # The directory must be writable by uid 1001 (the container's user), so
+      # make the host directory writable by it too:
       #   mkdir -p data && chmod 777 data
-      # If it cannot be written, nothing crashes: the defaults are served and the
-      # Account tab reports the failure.
       - ./data:/app/data
     # Networking note: the configured Health Auto Export host resolves to this
     # machine's LAN address and the container reaches it directly
@@ -163,8 +171,10 @@ services:
     # override is needed. If the name ever stops resolving from inside the bridge,
     # add:  extra_hosts: ["your-export-host:host-gateway"]
     healthcheck:
-      # Probes the app's own overview route, not just process liveness.
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/ >/dev/null || exit 1"]
+      # Liveness only: /api/health is a trivial JSON route that touches no
+      # briefing, model, dataset or database, so a 30-second probe generates no
+      # model traffic and a database blip does not mark the container unhealthy.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
