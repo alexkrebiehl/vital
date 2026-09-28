@@ -429,7 +429,7 @@ assessment, the stage map, cues and checks, and recovery indicators.
 - **Computed, then explained.** Lights, readiness and next actions are computed from your sessions.
   A configured model may rewrite the path note in plain language; it is shown only when every
   number in it traces to the computed figures.
-- **Stored as configuration.** Plans (never sessions) are saved in Postgres (migration 0004) or
+- **Stored as configuration.** Plans (never sessions) are saved in Postgres (migration 0007) or
   `./data/training-plans.json`, with a revision per change.
 - `ANALYST_TOOLS=off` keeps a configured model from calling tools (for servers without tool calling);
   a server that rejects tool definitions is answered without them automatically.

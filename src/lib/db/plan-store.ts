@@ -4,7 +4,7 @@
 // the file half and the backend choice). Every function takes its client, so the
 // SQL and row mapping run against an injected stand-in in the offline tests.
 //
-// CONFIGURATION ONLY (db/migrations/0004): a plan holds targets and stage
+// CONFIGURATION ONLY (db/migrations/0007): a plan holds targets and stage
 // choices, never a measured set. Plans are re-validated on the way out, so a
 // hand-edited row cannot put an unknown shape in front of the engine.
 //
