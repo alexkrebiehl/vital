@@ -50,6 +50,7 @@ interface CardProps {
   className?: string;
   variant?: 'default' | 'hero' | 'accent' | 'muted';
   as?: 'div' | 'section' | 'article';
+  id?: string;
   onClick?: () => void;
   role?: string;
   tabIndex?: number;
@@ -88,9 +89,11 @@ interface BadgeProps {
   children: ReactNode;
   variant?: 'default' | 'accent' | 'success' | 'warning' | 'info' | 'hero';
   className?: string;
+  /** Tooltip. Set here rather than on a wrapper, which would shift the badge off the row's alignment. */
+  title?: string;
 }
 
-export function Badge({ children, variant = 'default', className = '' }: BadgeProps) {
+export function Badge({ children, variant = 'default', className = '', title }: BadgeProps) {
   const variants: Record<string, string> = {
     default: 'bg-surface-muted text-text-secondary',
     accent: 'bg-accent-tint text-primary',
@@ -100,7 +103,7 @@ export function Badge({ children, variant = 'default', className = '' }: BadgePr
     info: 'bg-blue-50 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200',
   };
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${variants[variant]} ${className}`}>
+    <span title={title} className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${variants[variant]} ${className}`}>
       {children}
     </span>
   );
@@ -443,9 +446,11 @@ interface DialogProps {
   onClose: () => void;
   title: string;
   children: ReactNode;
+  /** 'lg' is a tall panel whose body fills it (full screen on phones), for chat-like content. */
+  size?: 'md' | 'lg';
 }
 
-export function Dialog({ open, onClose, title, children }: DialogProps) {
+export function Dialog({ open, onClose, title, children, size = 'md' }: DialogProps) {
   const ref = useRef<HTMLDivElement>(null);
   const prevFocusRef = useRef<HTMLElement | null>(null);
 
@@ -503,9 +508,13 @@ export function Dialog({ open, onClose, title, children }: DialogProps) {
       <div
         ref={ref}
         tabIndex={-1}
-        className="relative bg-surface border border-border rounded-card p-6 max-w-lg w-full mx-4 shadow-xl focus:outline-none max-h-[85vh] overflow-y-auto"
+        className={
+          size === 'lg'
+            ? 'relative bg-surface shadow-xl focus:outline-none flex flex-col w-full h-full p-4 sm:p-6 sm:h-[85vh] sm:max-w-3xl sm:mx-4 sm:border sm:border-border sm:rounded-card'
+            : 'relative bg-surface border border-border rounded-card p-6 max-w-lg w-full mx-4 shadow-xl focus:outline-none max-h-[85vh] overflow-y-auto'
+        }
       >
-        <div className="flex items-center justify-between mb-4 gap-3">
+        <div className={`flex items-center justify-between gap-3 ${size === 'lg' ? 'mb-3 shrink-0' : 'mb-4'}`}>
           <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
           <button
             onClick={onClose}

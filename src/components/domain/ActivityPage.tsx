@@ -177,7 +177,7 @@ export function ActivityPage() {
                 ))}
               </ul>
               <div className="mt-3">
-                <Link href="/workouts" className="text-sm text-primary hover:underline">
+                <Link href="/workouts/all" className="text-sm text-primary hover:underline">
                   All workouts
                 </Link>
               </div>

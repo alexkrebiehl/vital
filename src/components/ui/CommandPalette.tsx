@@ -3,6 +3,7 @@
 import { createContext, useContext, useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { X, Search, Command } from 'lucide-react';
 import { searchMetrics, getMetric } from '@/lib/metrics';
+import { searchLabAnalytes } from '@/lib/lab/search';
 import type { MetricDefinition } from '@/lib/metrics/types';
 
 interface SearchItem {
@@ -10,18 +11,20 @@ interface SearchItem {
   label: string;
   description: string;
   href: string;
-  type: 'metric' | 'page' | 'query';
+  type: 'metric' | 'page' | 'query' | 'lab';
 }
 
 const NAV_ITEMS: SearchItem[] = [
   { id: 'overview', label: 'Overview', description: 'Daily health briefing', href: '/', type: 'page' },
   { id: 'trends', label: 'Trends', description: 'What changed over time', href: '/trends', type: 'page' },
   { id: 'health', label: 'Health', description: 'Cardiovascular summary', href: '/health', type: 'page' },
+  { id: 'lab', label: 'Lab', description: 'Lab results imported from PDFs', href: '/lab', type: 'page' },
   { id: 'activity', label: 'Activity', description: 'Steps, exercise, calories', href: '/activity', type: 'page' },
   { id: 'sleep', label: 'Sleep', description: 'Sleep analysis', href: '/sleep', type: 'page' },
   { id: 'body', label: 'Body', description: 'Weight and body metrics', href: '/body', type: 'page' },
   { id: 'nutrition', label: 'Nutrition', description: 'Dietary intake', href: '/nutrition', type: 'page' },
-  { id: 'workouts', label: 'Workouts', description: 'Workout history', href: '/workouts', type: 'page' },
+  { id: 'workouts', label: 'Workouts', description: 'Current routine and progress', href: '/workouts', type: 'page' },
+  { id: 'all-workouts', label: 'All workouts', description: 'Workout history', href: '/workouts/all', type: 'page' },
   { id: 'insights', label: 'Insights', description: 'Discovered patterns', href: '/insights', type: 'page' },
   { id: 'analyst', label: 'AI Analyst', description: 'Ask about your health', href: '/analyst', type: 'page' },
   { id: 'settings', label: 'Settings', description: 'Preferences and configuration', href: '/settings', type: 'page' },
@@ -110,6 +113,12 @@ function CommandPaletteModal({ onClose }: { onClose: () => void }) {
         href: `/metric/${m.id}`,
         type: 'metric',
       });
+    }
+
+    // Search the lab analyte registry, so a name the Lab page renders is never
+    // reported as missing here.
+    for (const destination of searchLabAnalytes(q)) {
+      matches.push(destination);
     }
 
     // Search nav pages
@@ -214,6 +223,7 @@ function CommandPaletteModal({ onClose }: { onClose: () => void }) {
                 <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded ${
                   item.type === 'metric' ? 'bg-surface-muted' :
                   item.type === 'query' ? 'bg-accent-tint text-primary' :
+                  item.type === 'lab' ? 'bg-accent-tint text-primary' :
                   'bg-surface-muted'
                 }`}>
                   {item.type}

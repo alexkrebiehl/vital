@@ -56,6 +56,17 @@ describe('workout filtering (SPEC §7)', () => {
     expect(thirty.totals.sessions).toBe(thirty.views.length);
   });
 
+  it('counts activity types within the window, whatever type is selected', () => {
+    const all = workoutViews();
+    const thirty = filterWorkouts({ type: 'all', days: 30, sort: 'date-desc' }, all);
+    expect(thirty.types.reduce((a, t) => a + t.count, 0)).toBe(thirty.inWindowCount);
+    for (const t of thirty.types) {
+      expect(t.count).toBe(thirty.views.filter(v => v.workout_type === t.type).length);
+    }
+    const running = filterWorkouts({ type: 'Running', days: 30, sort: 'date-desc' }, all);
+    expect(running.types).toEqual(thirty.types);
+  });
+
   it('lists activity types with their counts, computed from the records', () => {
     const types = workoutTypes();
     expect(types.map(t => t.type)).toEqual(['Cycling', 'Running', 'Strength', 'Swimming', 'Walking', 'Yoga']);

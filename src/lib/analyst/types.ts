@@ -9,6 +9,10 @@
 import type { UnitSystem } from '../prefs';
 import type { ComparisonResult } from '../analytics/stats';
 import type { DayWindow } from '../analytics/windows';
+import type { PlanChange } from '../routine/types';
+import type { PageContextRef } from './page-context-types';
+import type { ResolvedInterval, ResultStatus, StatusTone } from '../lab/status';
+import type { PanelSpecimen } from '../lab/panel';
 
 // ── Answers ────────────────────────────────────────────
 
@@ -112,10 +116,184 @@ export interface RetrievalBundle {
   summaries: RetrievedSummary[];
   pairs: RetrievedPair[];
   workouts: RetrievedWorkouts | null;
+  /**
+   * The bounded lab snapshot (see labSnapshot.ts). Present on every analyst
+   * context — the owner's lab observations were invisible to the model before
+   * this gate — and `null`/`available: false` when there is no lab data or no
+   * database, which the block states rather than omitting silently.
+   *
+   * Optional so a bundle assembled by hand (a test double, an older caller)
+   * stays valid; nothing here is ever read by a handler that does not check it.
+   */
+  lab?: LabContextSnapshot | null;
+  /**
+   * The bounded medications block. Present on every analyst context so a
+   * question about medications is answerable from the recorded data; `null` or
+   * `available: false` when there is no API or no records, which the block
+   * states rather than omitting silently.
+   *
+   * Optional so a hand-assembled bundle (a test double) stays valid.
+   */
+  medications?: MedicationContextSnapshot | null;
   /** How many records were read out of the dataset for this question. */
   recordsRead: number;
   /** Human sentence describing what was selected. */
   note: string;
+}
+
+// ── Lab context ────────────────────────────────────────
+
+/**
+ * One lab observation as the context block states it. Every figure carries its
+ * unit and its own observation date; nothing is derived except the interval and
+ * the verdict, which come from the same status engine the Lab page renders.
+ */
+export interface LabSnapshotReading {
+  /** ISO date the observation belongs to. */
+  on: string;
+  value: number | null;
+  valueText: string | null;
+  unit: string | null;
+  /** The reference cell exactly as the document printed it, or null. */
+  printedRefText: string | null;
+  /** The interval the value was scored against, as shown (e.g. "<200 mg/dL"). */
+  intervalText: string | null;
+  /** Where that interval came from, in the words the Lab page uses. */
+  intervalBasis: string;
+  status: ResultStatus;
+  statusLabel: string;
+  tone: StatusTone;
+  /** Resolved interval, kept for the grounding audit and for callers. */
+  interval: ResolvedInterval;
+}
+
+/** One lab series (analyte + specimen) as the context block states it. */
+export interface LabSnapshotSeries {
+  /** The series id the Lab page links with (`<key>` or `<key>~urine`). */
+  seriesKey: string;
+  /** The series' display name, qualified (blood)/(urine) only where both exist. */
+  displayName: string;
+  specimen: PanelSpecimen;
+  registered: boolean;
+  unit: string | null;
+  /** Observations stored for this series, before the block's own bound. */
+  observations: number;
+  /** Observations actually placed in the block (latest/previous or the history). */
+  shownPoints: number;
+  /** True when the series holds more observations than the block carries. */
+  truncated: boolean;
+  latest: LabSnapshotReading | null;
+  previous: LabSnapshotReading | null;
+  /** Bounded history — filled only when the question named this analyte. */
+  history: LabSnapshotReading[];
+  /** The strings the model is told to quote verbatim, and the audit accepts. */
+  display: Record<string, string>;
+}
+
+/**
+ * The bounded lab block. It states its own totals and its own bound, so the
+ * model can be honest about coverage: which series are shown, how many exist,
+ * how many documents and observations were read.
+ */
+export interface LabContextSnapshot {
+  available: boolean;
+  /** Why no lab data is in the context. Null when available. */
+  reason: string | null;
+  documents: number;
+  totalObservations: number;
+  totalSeries: number;
+  collisions: number;
+  selection: 'overview' | 'analyte';
+  /** The analyte key the question named, when it named one. */
+  requestedAnalyte: string | null;
+  /** The analyte name the question used, as displayed. */
+  requestedName: string | null;
+  /** True when a named analyte exists in the data; false means "say it is absent". */
+  found: boolean;
+  /** How many series the block actually carries, out of `totalSeries`. */
+  shownSeries: number;
+  /** True when series exist that this block does NOT carry (selected < exists). */
+  capped: boolean;
+  /**
+   * The display names of every stored series the block did NOT include.
+   *
+   * This is what lets an answer distinguish "not recorded" from "not included in
+   * this selection": a name in this list EXISTS in the stored documents, so
+   * saying the data does not hold it is forbidden. Empty when the block carries
+   * every series. Names only — no values, no dates.
+   */
+  notIncludedSeries: string[];
+  /** The block's stated bound, in words. Never silent truncation. */
+  note: string;
+  series: LabSnapshotSeries[];
+}
+
+// ── Medications context ─────────────────────────────────
+//
+// The owner's medication records, read from the Health Auto Export API rather
+// than from the metric dataset, so the analyst can answer a question about them
+// from data instead of from the free-text profile note.
+//
+// A record of what was logged — never advice, never a treatment plan, and never
+// presented as a complete list (Apple Health holds only what was entered).
+
+/** One medication, summarised. No dose or strength is ever derived. */
+export interface MedicationSummary {
+  /** Leading-name grouping key from the adapter; the display value is below. */
+  groupingKey: string;
+  /** The full original free-text label, exactly as the source holds it. */
+  displayText: string;
+  /** Dose records for this medication in the window. */
+  records: number;
+  /** Distinct calendar days it was recorded on, within the window. */
+  daysRecorded: number;
+  /** The most recent day recorded, or null when every record is undated. */
+  lastDay: string | null;
+  taken: number;
+  skipped: number;
+  unknown: number;
+  /**
+   * Records carrying no `scheduledDate`: attributable to no day. Counted here so
+   * they are neither dropped nor guessed into a day.
+   */
+  undated: number;
+}
+
+/**
+ * The bounded medications block carried on an analyst context.
+ *
+ * `available: false` carries the reason — an unreachable API or an unconfigured
+ * one is STATED, never turned into "there are no medication records".
+ */
+export interface MedicationContextSnapshot {
+  available: boolean;
+  /** Why no medication data is in the context. Null when available. */
+  reason: string | null;
+  /** The app's reference day the adherence is stated against. */
+  referenceDay: string | null;
+  /** The lookback the read covered, in days. */
+  lookbackDays: number | null;
+  windowFrom: string | null;
+  windowTo: string | null;
+  /** ISO instant the read happened — this block's freshness. */
+  readAt: string | null;
+  totalRecords: number;
+  totalMedications: number;
+  undatedRecords: number;
+  skippedRecords: number;
+  medications: MedicationSummary[];
+  /** The block's stated bound, in words. Never silent truncation. */
+  note: string;
+  /**
+   * The standing caveat: the list is what was entered, and is not known to be
+   * complete. Null when the block is unavailable.
+   */
+  completeness: string | null;
+  /**
+   * What this block is: a `record` of what was logged. Present so the model is
+   * told what it has rather than left to infer a treatment plan from it.
+   */
+  kind: 'record';
 }
 
 // ── Requests and responses ─────────────────────────────
@@ -132,6 +310,8 @@ export interface AnalystRequest {
    * first. A new conversation passes none.
    */
   history?: { role: 'user' | 'assistant'; content: string }[];
+  /** The page the question was asked from, resolved on the server (page-context.ts). */
+  context?: PageContextRef | null;
 }
 
 export type AnalystStatus =
@@ -155,6 +335,8 @@ export interface AnalystProviderContext {
    * first. Empty for a new conversation. Carried as untrusted DATA too.
    */
   history?: { role: 'user' | 'assistant'; content: string }[];
+  /** The page the reader is looking at, already resolved and bounded. Untrusted DATA. */
+  pageContext?: { label: string; json: string };
 }
 
 /**
@@ -218,4 +400,13 @@ export interface AnalystResponse {
   grounding: AnalystGrounding;
   /** Untrusted notes received with the request (echoed, never obeyed). */
   untrustedNotes: { received: boolean; characters: number; note: string };
+  /** The training-plan change this answer made, if any (undoable from the UI). */
+  planChange?: PlanChange | null;
+  /** Names of the tools the model called, in order (never their data). */
+  toolsUsed?: string[];
+  /**
+   * Set when the provider refused the training-plan tools and the answer was
+   * made without them: why, in the provider's (scrubbed) words.
+   */
+  toolsUnavailable?: string | null;
 }

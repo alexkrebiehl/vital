@@ -105,6 +105,8 @@ export interface FilteredWorkouts {
   totals: WorkoutTotals;
   /** Sessions in the window before the type filter was applied. */
   inWindowCount: number;
+  /** Activity types in the window, with their counts, before the type filter was applied. */
+  types: { type: string; count: number }[];
 }
 
 export function filterWorkouts(
@@ -121,6 +123,7 @@ export function filterWorkouts(
     views: sorted,
     totals: workoutTotals(typed),
     inWindowCount: inWindow.length,
+    types: workoutTypes(inWindow),
   };
 }
 

@@ -15,9 +15,86 @@ security* below.
 
 ---
 
+## Architecture
+
+Vital is a **layered monolith**: one Next.js application serves both the UI and the HTTP API from a
+single Node process. There is no separate backend service and no separate frontend build — one repo,
+one build, one deployable.
+
+```text
+browser ──── HTTP ────┐
+                      │   one container, one process (`next-server`)
+  ┌───────────────────▼──────────────────────────────────────────┐
+  │ src/app          12 page routes       7 API route handlers    │
+  ├───────────────────────────────────────────────────────────────┤
+  │ src/components   28 client components (charts, chat, forms)   │
+  ├───────────────────────────────────────────────────────────────┤
+  │ src/lib          adapters · analytics · metrics · briefing    │
+  │                  analyst · db · prefs · profile · pipeline    │
+  └───────────────────────────────────────────────────────────────┘
+        │                    │                      │
+   metrics API          PostgreSQL 16         model endpoints
+   (pulled, cached      (config, profile,     (briefing: local-first;
+    in the process)      preferences,          analyst: configured
+                         conversations)        provider)
+```
+
+### The three surfaces
+
+| Surface | Lives in | What it is |
+|---|---|---|
+| UI | `src/app/*/page.tsx` | 12 routes. Each page is a thin server file (metadata + a mounted component); interactivity lives in client components. |
+| API | `src/app/api/**/route.ts` | 14 route handlers / 23 methods: analyst chat and its saved conversations, the daily briefing, lab reports, pipeline status, preferences, profile, and a trivial `/api/health` liveness probe (no briefing, model, dataset or database). |
+| Domain | `src/lib/**` | Every rule: source normalization, source de-duplication, day aggregation, the metric registry and its formatters, briefing generation, the analyst, persistence. |
+
+Both surfaces call `src/lib` directly, in-process. Server-rendered pages do not make HTTP requests to
+their own API, and the API is a thin surface over the same modules the pages use — so there is one
+implementation of each rule rather than one per consumer. The API exists for the browser's
+interactive work (sending a question, saving preferences, refreshing the briefing) and for anything
+else that wants a machine-readable view of what the app shows.
+
+### What runs inside the process
+
+- **The health-data pipeline.** Health records are pulled from the metrics API server, normalized and
+  de-duplicated, then aggregated per day and cached in the running process. The health API token never
+  reaches the browser; the browser never calls the health API.
+- **The daily briefing scheduler and its cache.** The briefing for a day is written once, at the
+  configured hour, by the scheduler, and cached in the process. The request path only reads: it may
+  fill a day the scheduler has not yet attempted (after a restart past the hour, say), but at most
+  one automatic attempt is made per day — a failed attempt makes the day terminal too, and only the
+  explicit `Regenerate` control writes again.
+- **All model calls.** The briefing and the analyst both run server-side, which is why their keys are
+  configuration the client never sees.
+
+PostgreSQL holds configuration, profile, preferences and AI conversations. It deliberately holds **no
+health data**.
+
+### What this shape costs
+
+- The API cannot be scaled, versioned or released independently of the UI: they ship as one image.
+- Heavy work runs in the same process that serves pages. A briefing write can occupy a model call for
+  a minute or more, and simultaneously occupies the web process.
+- State that lives in the process — the health cache, the briefing cache, the scheduler timer — is
+  per-process and per-container. Running two replicas without a shared store would give each replica its
+  own copy and its own schedule.
+- A crash or an out-of-memory event takes down the UI and the API together, because they are one
+  process.
+
+### If it ever needs to split
+
+The seams are already the right shape for it: the API surface is separated from the domain modules, and
+the domain modules are free of transport concerns. A split would mean a web/BFF process for the
+rendered UI and the API, a worker process for asynchronous work (briefing writes, ingestion,
+long-running model calls) driven by a durable queue, and a dedicated ingest endpoint — noting that
+today the app only *pulls* from a metrics API and exposes no inbound write endpoint at all. That work
+is only worth doing for multi-tenancy or for scaling ingest and model work independently of page
+traffic; it is not a prerequisite for having an API, which this app already has.
+
+---
+
 ## Data sources
 
-**Vital supports exactly one data source today: Apple Health, via the Health Auto Export app for
+**Vital supports exactly one health-data source today: Apple Health, via the Health Auto Export app for
 iPhone, paired with a self-hosted metrics API server —
 [HealthyApps/health-auto-export-server](https://github.com/HealthyApps/health-auto-export-server).**
 
@@ -44,6 +121,30 @@ What that means in practice:
   *Integrations*): a module that knows the wire protocol, a mapping into the internal dataset
   shape, and a unit mapping. Nothing else in the app changes, because both modes produce the same
   dataset.
+
+### Workout sources (detailed training data)
+
+Apple Health knows a strength session only as "Strength Training" with a duration and calories.
+A **workout source** reads a training app's own API for what was actually done — exercises,
+sets, reps, load, duration, distance and RPE — which the training routine on `/workouts` needs.
+Sources are plugins under `src/lib/workout-sources/<id>/`, registered in `registry.ts`; each
+normalizes into the shared `TrainingSession` model, so nothing downstream knows which app a
+session came from.
+
+**Hevy** is the first source (Hevy Pro; create a key at hevy.com/settings?developer):
+
+```bash
+# .env
+HEVY_API_KEY=your-hevy-api-key
+# HEVY_CACHE_TTL_SECONDS=300       # how long synced sessions are served before a refresh
+# WORKOUT_SOURCE_LOOKBACK_DAYS=400 # how far back the first sync reads
+```
+
+The first sync pages `GET /v1/workouts` back to the lookback window and reads the exercise
+catalogue once; later syncs read only Hevy's change feed (`GET /v1/workouts/events?since=`).
+Like the Health Auto Export history, sessions live in server memory and are **never written to
+the database**; demo mode serves committed demo sessions (`src/data/training-fixtures.json`)
+and calls nothing. Settings → Connections shows each source's status.
 
 ---
 
@@ -137,9 +238,10 @@ hour, notes) and the display preferences (theme, units, notifications). **No hea
 observations, metric series or workouts are ever written to it; health history stays with the
 Health Auto Export source and is read server-side. See `db/migrations/0001-init.sql`.
 
-With **no** database configured the app still runs, storing that configuration in `./data` on the
-server instead. Settings follow you between browsers and devices either way, because the server
-owns them — the browser keeps only a cache used to avoid a theme flash before first paint.
+With **no** database configured the app does **not** run: the container entrypoint refuses to
+start and prints the reason, because this deployment stores its settings in Postgres and has no
+file fallback. Settings follow you between browsers and devices, because the server owns them —
+the browser keeps only a cache used to avoid a theme flash before first paint.
 
 ```bash
 npm run db:migrate                    # apply migrations from the host (no-op when up to date)
@@ -273,14 +375,13 @@ and audits its numbers, but only the prompt can tell a model not to diagnose.
 
 ### The profile (Settings → Account)
 
-Vital keeps one small record about the person, owned by the **server** and stored as JSON on a
-writable volume:
+Vital keeps one small record about the person, owned by the **server** and stored in the
+`profile` row of the Postgres database (`id = 1`), in the same database as the rest of the
+configuration:
 
 | | |
 |---|---|
-| On the host | `./data/profile.json` |
-| In the container | `/app/data/profile.json` (`docker-compose.yml` mounts `./data`) |
-| Shape reference | `data/profile.example.json` |
+| Storage | The `profile` row (`id = 1`) in Postgres |
 | Route | `GET` / `PUT /api/profile` |
 
 - **Fields, and only fields that are used.** `name` (the greeting and the briefing prose),
@@ -289,10 +390,10 @@ writable volume:
   `briefingHour`. There is no dead field and no secret field.
 - **Validated and bounded server-side.** Unknown fields are rejected rather than dropped; every
   type is checked; `name` is capped at 80 characters and `notes` at 500; `timezone` must be a real
-  IANA zone and `briefingHour` a whole hour 0–23. A rejected body changes nothing on disk. The
+  IANA zone and `briefingHour` a whole hour 0–23. A rejected body changes nothing. The
   response body *is* the profile and nothing else.
-- **First-run behaviour is explicit.** No file at all means the documented defaults and nothing
-  crashes. A corrupt or hand-edited file also falls back to the defaults and reports why, rather
+- **First-run behaviour is explicit.** No row yet means the documented defaults and nothing
+  crashes. A corrupt or hand-edited row also falls back to the defaults and reports why, rather
   than 500-ing the app.
 - **One timezone.** `timezone` used to be a `localStorage` preference as well, which meant the
   browser and the server could disagree about what day it was. That duplicate has been removed:
@@ -301,8 +402,37 @@ writable volume:
 - **Notes are data, never instructions.** The briefing prompt states it where every other rule
   lives, and the user message repeats it: a note that reads like a command is not followed.
 - **Nothing else is stored locally.** Theme, units and the notification flags stay in
-  `localStorage`; no API key, token or health record does — and the timezone no longer does either.
-  The live profile file is gitignored and excluded from the Docker build context.
+  `localStorage` as a cache; no API key, token or health record does — and the timezone no longer
+  does either.
+
+### The training routine on `/workouts`
+
+The Workouts page opens with the active **training plan**: the current phase, the next
+session, recovery and deload status, and a card per progression path with its light (green,
+yellow-green, yellow, red), progress toward the next stage and the next action. Each card opens
+`/workouts/routine/[pathId]` with the session table and what each session signals, the
+assessment, the stage map, cues and checks, and recovery indicators.
+
+- **Any discipline, any schedule.** A plan is focus areas → paths → stages, each path judged by a
+  progression model (`variation`, `load`, `percentage`, `volume`, `maintain`), with a schedule that
+  can be a cycle of any length (A/B/rest, on/off, every day), fixed weekdays, or N sessions a week.
+- **Created and changed through the analyst.** Ask "Create a 6-month calisthenics plan", "build me
+  a 12-week 10k plan, 4 runs a week" or "my low back is sore after reverse crunches". With a
+  configured provider the model uses tools to read your sessions and write the plan; the demo
+  analyst handles these requests by pattern from example plans. Every change is shown in the answer
+  with an **Undo** button. With no plan, the Workouts page also offers the examples directly.
+- **Phases follow progress, not the calendar.** A plan's milestones are phases with checkable
+  targets (a stage started or mastered, a dose reached). The current phase is the first one whose
+  required targets are not met, worked out from your sessions — so nobody is ever shown as behind.
+  Durations are guides ("typically 4–6 weeks"). Calendar blocks are kept only for true calendar
+  periods such as deload weeks, peaks and tapers.
+- **Computed, then explained.** Lights, readiness and next actions are computed from your sessions.
+  A configured model may rewrite the path note in plain language; it is shown only when every
+  number in it traces to the computed figures.
+- **Stored as configuration.** Plans (never sessions) are saved in Postgres (migration 0004) or
+  `./data/training-plans.json`, with a revision per change.
+- `ANALYST_TOOLS=off` keeps a configured model from calling tools (for servers without tool calling);
+  a server that rejects tool definitions is answered without them automatically.
 
 ### The daily briefing on `/`
 
@@ -323,17 +453,21 @@ records, and the request is bounded.
   day: it describes the last seven days against the seven before them and the previous month, none
   of which changes within a day. There is no cache TTL to tune any more, because the day key is the
   authority (the TTL knob was removed rather than left doing nothing).
-- **The briefing hour is configurable.** A new day's briefing is written lazily, by the first request
-  at or after the profile's `briefingHour` (Settings → Account, default 06:00) — there is no
-  scheduler and no background job; a lazy read-through fill is not a job. The boot warm-up primes
-  only when that hour has already passed and the day is not yet cached.
+- **The briefing hour is configurable.** The briefing is written by a scheduler that arms a timer for
+  the profile's `briefingHour` (Settings → Account, default 06:00), so it is written at the hour with
+  nobody visiting. If the process was down at the hour, the first request afterwards fills that day
+  once (a catch-up attempt) and the hero labels the late write.
+- **At most one automatic model connection per day.** A day is attempted at most once: after an
+  attempt — successful *or* failed — the day is terminal, and a page view, a refresh, the container
+  healthcheck and the browser's follow-up reads all serve the cached (or computed) briefing without
+  opening another model connection. There is no failure cooldown to tune; the day-terminal record is
+  the brake. The one thing that writes again is the explicit `Regenerate` control.
 - **Before the hour, the previous day stays on screen.** The hero is labelled with the day it covers
   (`Briefing for Sep 17`) and the generation time, so it is never blank and never claims to be a day
   it is not.
 - **`Regenerate` is the one explicit control.** It replaces the current day's briefing once, from the
   hero, so a failed or unwanted day is not stuck until tomorrow. It says what it does and never
-  loops. If the model cannot be reached the computed briefing stays, with the reason, and no
-  per-request model calls are made (one generation is suppressed for 15 minutes after a failure).
+  loops. If the model cannot be reached the computed briefing stays, with the reason.
 - **The page never waits on the model.** The hero renders the computed briefing in the SSR HTML and
   swaps in the written one when the background read returns it.
 - **The profile feeds the prompt.** Name, an age derived from the date of birth, and the free-text
@@ -342,7 +476,9 @@ records, and the request is bounded.
 - **Preferring a local model for the briefing only.** When `VITAL_LLM_BASE_URL` is set *and*
   reachable, the briefing uses it instead of the analyst provider; if it is unset or unreachable the
   briefing falls back to the `ANALYST_*` provider. `VITAL_LLM_MODEL=auto` resolves to the first model
-  id the local server advertises. A local server on the host is reachable as `host.docker.internal`
+  id the local server advertises. The local server is resolved once per day (the `GET /v1/models`
+  response is memoized in the process for the day), so a retry does not re-probe it; the explicit
+  `Regenerate` re-probes. A local server on the host is reachable as `host.docker.internal`
   (`extra_hosts` is already set in `docker-compose.yml`); `VITAL_LLM_API_KEY` is optional for a
   loopback/LAN server. This switch affects the briefing only — the analyst keeps using `ANALYST_*`.
 
@@ -399,7 +535,8 @@ Only the host side moves; the container port stays 3000.
 | `/sleep` | Sleep analysis |
 | `/body` | Body metrics |
 | `/nutrition` | Dietary intake |
-| `/workouts` | Workout history |
+| `/workouts` | Training routine and workout history |
+| `/workouts/routine/[pathId]` | One progression path of the training plan |
 | `/insights` | Discovered patterns |
 | `/analyst` | Question console (demo analyst or configured provider) |
 | `/settings` | Preferences, the profile (Account tab), coverage and connections |
@@ -408,6 +545,10 @@ Only the host side moves; the container port stays 3000.
 | `/api/analyst` | Analyst provider state and questions (server-side) |
 | `/api/profile` | The profile: `GET`, and `PUT` to replace it (validated, server-side) |
 | `/api/briefing` | Today's briefing: `GET` reads it, `POST` regenerates the current day's once |
+| `/api/routine` | The active plan evaluated against your sessions (`GET`); start from an example or archive (`POST`) |
+| `/api/routine/[pathId]` | One path in detail, with its note |
+| `/api/routine/undo` | Undo a plan change (`POST`) |
+| `/api/workout-sources/match` | The workout-source session matching an Apple Health workout |
 
 ---
 
@@ -451,11 +592,16 @@ What is still demo or unwired in this build, exhaustively:
 - **The live dataset is cached in process memory.** One read-only cache fill warms it at
   process start, and stale-while-revalidate refreshes it in the background after the TTL
   lapses; a request only waits for upstream on a genuinely cold process. There is still no
-  background ingestion job, no scheduler and no persisted copy of the dataset on disk.
+  background ingestion job and no persisted copy of the dataset on disk; the only timer is the
+  daily briefing's (it writes the briefing at the profile's briefing hour).
 
 ## Integrations
 
-**Health Auto Export — implemented (server-side), and the only source.** Apple Health records are
+**Hevy — implemented (server-side), as a workout source** (see *Workout sources*): `GET
+/v1/workouts`, `/v1/workouts/events`, `/v1/exercise_templates` and `/v1/user/info` (probe) with an
+`api-key` header, in `src/lib/workout-sources/hevy/`.
+
+**Health Auto Export — implemented (server-side), and the only health-data source.** Apple Health records are
 exported by the iOS app and received by a
 [`health-auto-export-server`](https://github.com/HealthyApps/health-auto-export-server) instance —
 the metrics API server this app requires — and Vital reads them from that server over these
@@ -484,7 +630,7 @@ The implementation lives in `src/lib/adapters/`:
 The `ANALYST_*` variables are live configuration: with `ANALYST_PROVIDER=openai` or
 `anthropic` a request *is* sent to the endpoint you configure (see *AI Analyst
 configuration*); with `demo` nothing leaves the machine. The profile is not configuration at
-all: it is a JSON file the server owns (`./data/profile.json`, see *The profile*) rather than an
+all: it is the `profile` row in Postgres (`id = 1`, see *The profile*) rather than an
 environment variable, and it holds no secret.
 
 ## Privacy and security

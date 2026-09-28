@@ -111,6 +111,12 @@ describe('stored payload', () => {
     expect(payload.truncated).toBeUndefined();
   });
 
+  it('keeps the note that plan tools were unavailable, bounded, and only when set', () => {
+    const note = `Plan tools were unavailable, so this answer was made from the health summary alone. ${'x'.repeat(900)}`;
+    expect(buildStoredPayload(baseResponse({ toolsUnavailable: note })).toolsUnavailable).toBe(note.slice(0, 600));
+    expect('toolsUnavailable' in buildStoredPayload(baseResponse())).toBe(false);
+  });
+
   it('bounds an oversized payload rather than storing it whole', () => {
     const huge = baseResponse();
     huge.answer = {

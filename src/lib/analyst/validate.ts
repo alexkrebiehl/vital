@@ -139,7 +139,14 @@ export function citableMetricIds(bundle: RetrievalBundle): Set<string> {
     ids.add(p.xMetricId);
     ids.add(p.yMetricId);
   }
+  // A lab series is cited by its series id (the key the Lab page links with),
+  // so a lab figure the model states can carry an evidence card too.
+  if (bundle.lab?.available) for (const series of bundle.lab.series) ids.add(series.seriesKey);
   return ids;
+}
+
+function labSeriesIn(bundle: RetrievalBundle, seriesKey: string) {
+  return bundle.lab?.available ? bundle.lab.series.find(series => series.seriesKey === seriesKey) ?? null : null;
 }
 
 function coerceEvidence(raw: unknown, bundle: RetrievalBundle): AnalystEvidence[] {
@@ -152,9 +159,12 @@ function coerceEvidence(raw: unknown, bundle: RetrievalBundle): AnalystEvidence[
     const entry = item as Record<string, unknown>;
     const metricId = coerceText(entry.metricId, 80);
     if (!metricId) continue;
-    // Must be a real registry metric AND must have been in the selected context.
+    // Must have been in the selected context. For a lab series that means its
+    // series id; for a metric it means a real registry metric that was selected.
     const meta = getMetric(metricId);
-    if (!meta || !allowed.has(metricId)) continue;
+    const labSeries = labSeriesIn(bundle, metricId);
+    if (!labSeries && (!meta || !allowed.has(metricId))) continue;
+    if (labSeries && !allowed.has(metricId)) continue;
     if (seen.has(metricId)) continue;
     seen.add(metricId);
 
@@ -164,22 +174,26 @@ function coerceEvidence(raw: unknown, bundle: RetrievalBundle): AnalystEvidence[
       ? `${windowRangeLabel(summary.window)} (${summary.lengthLabel})`
       : pair
         ? windowRangeLabel(pair.window)
-        : 'Selected window';
+        : labSeries
+          ? `latest observation ${labSeries.latest?.on ?? 'date not stated'}`
+          : 'Selected window';
     const fallbackCount = summary
       ? `${summary.counts.evaluated} observations evaluated, ${summary.counts.baseline} in the baseline`
       : pair
         ? `${pair.pairedCount} paired days`
-        : 'Sample counts not stated';
-    const fallbackAggregation = summary?.aggregation ?? 'daily value, paired by calendar day';
+        : labSeries
+          ? `${labSeries.observations} observations; ${labSeries.shownPoints} in this context`
+          : 'Sample counts not stated';
+    const fallbackAggregation = summary?.aggregation ?? (labSeries ? 'latest observation' : 'daily value, paired by calendar day');
 
     out.push({
       metricId,
-      metricName: meta.displayName,
+      metricName: meta?.displayName ?? labSeries?.displayName ?? metricId,
       windowLabel: coerceText(entry.windowLabel, MAX_LINE_CHARS) ?? fallbackWindow,
       aggregation: coerceText(entry.aggregation, MAX_LINE_CHARS) ?? fallbackAggregation,
       sampleCount: coerceText(entry.sampleCount, MAX_LINE_CHARS) ?? fallbackCount,
       // The link is ours, never the model's: it must point at a route that exists.
-      href: `/metric/${metricId}?range=${meta.defaultRange}`,
+      href: meta ? `/metric/${metricId}?range=${meta.defaultRange}` : `/lab/${metricId}`,
     });
     if (out.length >= MAX_EVIDENCE) break;
   }
@@ -200,6 +214,29 @@ function chartsFor(evidence: AnalystEvidence[], bundle: RetrievalBundle): Analys
     if (charts.length >= 2) break;
   }
   return charts;
+}
+
+/**
+ * A free-text reply the model would not restate as JSON, shaped into an answer:
+ * the prose (reasoning and pseudo tool-call blocks removed) becomes the
+ * interpretation, and the uncertainty says it is shown as written. Returns null
+ * when nothing readable is left. Its numbers still go through the grounding check.
+ */
+export function proseAnswerText(prose: string): string | null {
+  const cleaned = prose
+    .replace(/<think>[\s\S]*?<\/think>/gi, ' ')
+    .replace(/<tool_call>[\s\S]*?(<\/tool_call>|$)/gi, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  if (cleaned.length < 2) return null;
+  const paragraphs = cleaned.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean).slice(0, 8);
+  return JSON.stringify({
+    observed: [],
+    interpretation: paragraphs,
+    uncertainty: ['The model answered in free text instead of the structured format, so this reply is shown as written and is not split into observations and interpretation.'],
+    evidence: [],
+    followUps: [],
+  });
 }
 
 export interface ReplyContext {
@@ -315,7 +352,7 @@ interface NumericToken {
  * exactly as the analyst's grounding audit does — two audits that disagreed
  * about what one token is would be worse than one.
  */
-export const DURATION_RE = /(\d+(?:\.\d+)?)\s*h(?:ours?|rs?)?\s*(?:(\d+(?:\.\d+)?)\s*m(?:in(?:utes?)?)?)?/gi;
+export const DURATION_RE = /(\d+(?:\.\d+)?)\s*h(?:ours?|rs?)?\b\s*(?:(\d+(?:\.\d+)?)\s*m(?:in(?:utes?)?)?\b)?/gi;
 
 /**
  * Extract numeric tokens from a line of prose.
@@ -424,11 +461,14 @@ export function normalizeCitation(text: string): string {
 export function checkGrounding(
   answer: AnalystAnswer,
   bundle: RetrievalBundle,
-  system: UnitSystem = 'metric'
+  system: UnitSystem = 'metric',
+  /** Tool results the model saw (JSON text): their numbers and strings are grounded too. */
+  extra: string[] = []
 ): AnalystGrounding {
-  const displays = collectDisplayStrings(bundle, system).map(normalizeCitation).filter(d => d.length > 0);
+  const displays = [...collectDisplayStrings(bundle, system), ...extra].map(normalizeCitation).filter(d => d.length > 0);
   const allowed = [
     ...collectBundleNumbers(bundle),
+    ...extra.flatMap(text => (text.match(/\d+(?:\.\d+)?/g) ?? []).map(Number)),
     // Numbers the display strings themselves state. Nothing is scaled: an
     // invented unit conversion must not become a match, so no ×1000 for "1.7K".
     ...displays.flatMap(display => extractNumericTokens(display).map(token => token.value)),

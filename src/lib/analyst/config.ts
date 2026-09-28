@@ -21,6 +21,16 @@ import { DEFAULT_ANALYST_SYSTEM_PROMPT } from './systemPrompt';
 export type AnalystProviderId = 'demo' | 'openai' | 'anthropic';
 export type SystemPromptSource = 'built-in' | 'custom';
 export type JsonMode = 'auto' | 'off';
+/**
+ * Bounded reasoning effort, as the gateway's `reasoning.effort` field accepts
+ * it. Sent only when `ANALYST_REASONING_EFFORT` is set to one of these values:
+ * a reasoning model spends its completion budget on reasoning before it writes
+ * an answer, and an unbounded effort can consume the whole budget with no
+ * answer produced. Never sent when unset, so an endpoint that does not know the
+ * field is never handed one.
+ */
+export const REASONING_EFFORTS = ['max', 'xhigh', 'high', 'medium', 'low', 'minimal', 'none'] as const;
+export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
 
 /** Provider default request path, appended when the configured URL omits it. */
 export const PROVIDER_DEFAULT_PATHS: Record<Exclude<AnalystProviderId, 'demo'>, string> = {
@@ -57,6 +67,7 @@ export const DEFAULT_TIMEOUT_MS = 60000;
 export const REMOTE_SENDING_CATEGORIES = [
   'Metric summaries (averages, medians, totals, comparison deltas and observation counts)',
   'Bounded record windows (at most 90 points per metric)',
+  'Lab results from your uploaded documents (per analyte: the latest value with its unit and observation date, the reference interval the report printed and where it came from, the previous observation, and a bounded series of earlier observations)',
   'Date windows, coverage statements and the text of your question',
 ];
 
@@ -83,6 +94,10 @@ export interface AnalystConfig {
   temperature: number;
   timeoutMs: number;
   jsonMode: JsonMode;
+  /** Whether a remote model may call the training-plan tools (ANALYST_TOOLS=off for servers without tool calling). */
+  tools: 'auto' | 'off';
+  /** Reasoning effort to request, or null when the endpoint is not told one. */
+  reasoningEffort: ReasoningEffort | null;
   sendingCategories: string[];
   /** Human explanation of why this configuration cannot be used, or null when it is usable. */
   misconfiguredReason: string | null;
@@ -223,6 +238,17 @@ function numberOr(env: NodeJS.ProcessEnv, key: string, fallback: number, min: nu
   return value;
 }
 
+/**
+ * A bounded reasoning effort, or null. An unrecognised value is ignored rather
+ * than guessed at: sending `reasoning.effort` with a value the endpoint does not
+ * accept is a 400, so only the exact set the field documents is passed through.
+ */
+function reasoningEffortOr(env: NodeJS.ProcessEnv): ReasoningEffort | null {
+  const raw = env.ANALYST_REASONING_EFFORT?.trim().toLowerCase();
+  if (!raw) return null;
+  return (REASONING_EFFORTS as readonly string[]).includes(raw) ? (raw as ReasoningEffort) : null;
+}
+
 // ── Main resolver ───────────────────────────────────────
 
 function demoConfig(env: NodeJS.ProcessEnv, prompt: SystemPromptResolution): AnalystConfig {
@@ -243,6 +269,8 @@ function demoConfig(env: NodeJS.ProcessEnv, prompt: SystemPromptResolution): Ana
     temperature: numberOr(env, 'ANALYST_TEMPERATURE', DEFAULT_TEMPERATURE, 0, 2),
     timeoutMs: numberOr(env, 'ANALYST_TIMEOUT_MS', DEFAULT_TIMEOUT_MS, 100, 600000),
     jsonMode: env.ANALYST_JSON_MODE?.trim().toLowerCase() === 'off' ? 'off' : 'auto',
+    tools: env.ANALYST_TOOLS?.trim().toLowerCase() === 'off' ? 'off' : 'auto',
+    reasoningEffort: reasoningEffortOr(env),
     sendingCategories: [],
     misconfiguredReason: null,
   };
@@ -281,6 +309,8 @@ export function readAnalystConfig(env: NodeJS.ProcessEnv = process.env): Analyst
     temperature: numberOr(env, 'ANALYST_TEMPERATURE', DEFAULT_TEMPERATURE, 0, 2),
     timeoutMs: numberOr(env, 'ANALYST_TIMEOUT_MS', DEFAULT_TIMEOUT_MS, 100, 600000),
     jsonMode: env.ANALYST_JSON_MODE?.trim().toLowerCase() === 'off' ? 'off' : 'auto',
+    tools: env.ANALYST_TOOLS?.trim().toLowerCase() === 'off' ? 'off' : 'auto',
+    reasoningEffort: reasoningEffortOr(env),
     sendingCategories: REMOTE_SENDING_CATEGORIES,
     misconfiguredReason: null,
   };
@@ -324,6 +354,8 @@ export interface AnalystConfigState {
   destination: string | null;
   hasKey: boolean;
   endpointIsLoopback: boolean;
+  /** Reasoning effort requested of the model, or null when none is sent. */
+  reasoningEffort: ReasoningEffort | null;
   sendingCategories: string[];
   systemPromptSource: SystemPromptSource;
   systemPromptWarning: string | null;
@@ -342,6 +374,7 @@ export function publicConfigState(config: AnalystConfig): AnalystConfigState {
     destination: config.endpointHost,
     hasKey: config.hasKey,
     endpointIsLoopback: config.endpointLoopback,
+    reasoningEffort: config.reasoningEffort,
     sendingCategories: config.provider === 'demo' ? [] : config.sendingCategories,
     systemPromptSource: configured ? config.systemPromptSource : 'built-in',
     systemPromptWarning: config.systemPromptWarning,

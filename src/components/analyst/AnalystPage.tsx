@@ -1,35 +1,25 @@
 'use client';
 
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  AlertCircle, Bot, Loader2, Send, ShieldCheck, Sparkles, User,
-} from 'lucide-react';
-import { Badge, Button, Card, ErrorState, Skeleton } from '@/components/ui/primitives';
-import { TrendFigure } from '@/components/charts';
-import { useUnits } from '@/components/ui/UnitsProvider';
+import { useCallback, useEffect, useRef } from 'react';
+import { AlertCircle, Bot } from 'lucide-react';
+import { Badge, Card } from '@/components/ui/primitives';
 import { SUPPORTED_PROMPTS } from '@/lib/analyst/prompts';
-import type { AnalystAnswer, AnalystResponse } from '@/lib/analyst/types';
-import type { ConversationAvailability, ConversationSummary } from '@/lib/analyst/conversation-types';
+import type { ConversationSummary } from '@/lib/analyst/conversation-types';
 import { ConversationSelector } from './ConversationSelector';
-import { exchangesFromMessages, type ConversationExchange } from './conversation-view';
+import { ChatComposer } from './ChatComposer';
+import { ChatThread, PromptChip } from './ChatThread';
+import { exchangesFromMessages } from './conversation-view';
+import { useAnalystChat } from './useAnalystChat';
 import { useConversations } from './useConversations';
 import { providerBadge, useAnalystConfig } from './useAnalystConfig';
-
-/** The ask endpoint's response: the answer plus what happened to the turn. */
-interface AskResponse extends AnalystResponse {
-  persisted?: boolean;
-  persistence?: ConversationAvailability;
-  conversation?: ConversationSummary | null;
-}
-
-type Exchange = ConversationExchange;
+import { parseConversationId } from '@/lib/analyst/conversation-rules';
 
 export function AnalystPage() {
-  const { units } = useUnits();
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q') ?? '';
+  // ?c=<id> reopens a stored conversation, so a refresh lands back on it.
+  const initialConversation = parseConversationId(searchParams.get('c'));
   const { state: configState, error: configError } = useAnalystConfig();
 
   // Whether a provider is actually configured decides the copy and the controls.
@@ -38,11 +28,6 @@ export function AnalystPage() {
   const misconfigured = configState?.misconfigured === true;
   const demoMode = configState ? !providerReady && !misconfigured : false;
 
-  const [exchanges, setExchanges] = useState<Exchange[]>([]);
-  const [input, setInput] = useState(initialQuery);
-  const [pending, setPending] = useState(false);
-  const nextId = useRef(1);
-  const conversationRef = useRef<HTMLDivElement>(null);
   const started = useRef(false);
 
   // ── Conversations ───────────────────────────────────────
@@ -58,57 +43,24 @@ export function AnalystPage() {
     rename: renameConversation,
     remove: deleteConversation,
   } = useConversations();
-  const [activeId, setActiveId] = useState<number | null>(null);
 
-  const ask = useCallback(
-    async (question: string) => {
-      const id = nextId.current++;
-      setExchanges(prev => [...prev, { id, question, response: null, pending: true, failed: null }]);
-      setPending(true);
-      try {
-        const res = await fetch('/api/analyst', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          // A null conversation means "a new one": the server creates it and
-          // titles it from this question.
-          body: JSON.stringify({ query: question, system: units, conversationId: activeId }),
-        });
-        if (!res.ok) throw new Error(`The analyst endpoint answered HTTP ${res.status}.`);
-        const data = (await res.json()) as AskResponse;
-        setExchanges(prev =>
-          prev.map(e => (e.id === id ? { ...e, response: data, pending: false } : e))
-        );
-        // The turn belongs to a conversation now: adopt it and refresh the list
-        // so the selector shows it without a reload.
-        if (data.conversation) {
-          setActiveId(data.conversation.id);
-          void refreshConversations();
-        }
-      } catch (error) {
-        setExchanges(prev =>
-          prev.map(e =>
-            e.id === id
-              ? {
-                  ...e,
-                  pending: false,
-                  failed: error instanceof Error ? error.message : 'The question could not be sent.',
-                }
-              : e
-          )
-        );
-      } finally {
-        setPending(false);
-      }
+  // The turn belongs to a conversation now: point the address at it and refresh
+  // the list so the selector shows it without a reload.
+  const handleConversation = useCallback(
+    (conversation: ConversationSummary) => {
+      syncAddress(conversation.id);
+      void refreshConversations();
     },
-    [units, activeId, refreshConversations]
+    [refreshConversations]
   );
+  const { exchanges, pending, activeId, ask, replace, reset } = useAnalystChat({ onConversation: handleConversation });
 
   /** Start fresh: an empty view. The server creates the conversation on the
    *  first question, so it is named after that question rather than "New". */
   const startNewConversation = useCallback(() => {
-    setActiveId(null);
-    setExchanges([]);
-  }, []);
+    reset();
+    syncAddress(null);
+  }, [reset]);
 
   /** Load a stored conversation and rebuild what was shown for each turn. */
   const openConversation = useCallback(
@@ -118,11 +70,15 @@ export function AnalystPage() {
         return;
       }
       const detail = await loadConversation(id);
-      if (!detail) return;
-      setActiveId(detail.id);
-      setExchanges(exchangesFromMessages(detail.messages));
+      if (!detail) {
+        // Gone (deleted, or another database): do not keep pointing at it.
+        syncAddress(null);
+        return;
+      }
+      replace(detail.id, exchangesFromMessages(detail.messages));
+      syncAddress(detail.id);
     },
-    [loadConversation, startNewConversation]
+    [loadConversation, startNewConversation, replace]
   );
 
   const handleRename = useCallback(
@@ -136,36 +92,28 @@ export function AnalystPage() {
     async (id: number) => {
       const removed = await deleteConversation(id);
       if (removed && id === activeId) {
-        setActiveId(null);
-        setExchanges([]);
+        reset();
+        syncAddress(null);
       }
     },
-    [deleteConversation, activeId]
+    [deleteConversation, activeId, reset]
   );
 
-  // /analyst?q=… prefills and runs the question.
+  // /analyst?q=… runs the question once: q leaves the address as it is sent,
+  // and ?c=<id> takes its place when the server has stored the turn, so a
+  // refresh reopens the conversation instead of asking again.
+  // /analyst?c=<id> (no q) reopens that conversation.
   useEffect(() => {
-    if (started.current || !initialQuery.trim()) return;
-    started.current = true;
-    void ask(initialQuery.trim());
-  }, [initialQuery, ask]);
-
-  useEffect(() => {
-    // Announce-ready region: keep the newest exchange in view.
-    conversationRef.current?.scrollTo({ top: conversationRef.current.scrollHeight, behavior: 'smooth' });
-  }, [exchanges]);
-
-  const handleSend = () => {
-    const question = input.trim();
-    if (!question || pending) return;
-    setInput('');
-    void ask(question);
-  };
-
-  const lastResponse = useMemo(
-    () => [...exchanges].reverse().find(e => e.response)?.response ?? null,
-    [exchanges]
-  );
+    if (started.current) return;
+    if (initialQuery.trim()) {
+      started.current = true;
+      syncAddress(null);
+      void ask(initialQuery.trim());
+    } else if (initialConversation !== null) {
+      started.current = true;
+      void openConversation(initialConversation);
+    }
+  }, [initialQuery, initialConversation, ask, openConversation]);
 
   return (
     <div className="space-y-6">
@@ -245,14 +193,12 @@ export function AnalystPage() {
 
         {/* ── Conversation ─────────────────────────── */}
         <div className="lg:col-span-3 space-y-4">
-          <div
-            ref={conversationRef}
+          <ChatThread
+            exchanges={exchanges}
+            pending={pending}
+            onAsk={q => void ask(q)}
             className="space-y-5 max-h-[56vh] lg:max-h-[58vh] overflow-y-auto pr-2"
-            aria-live="polite"
-            aria-busy={pending}
-            aria-label="Conversation"
-          >
-            {exchanges.length === 0 && !pending && (
+            empty={
               <Card className="p-6 text-center">
                 <Bot size={32} className="mx-auto text-text-secondary mb-3" aria-hidden="true" />
                 <p className="text-sm text-text-primary font-medium mb-1">Ask a question about your health data</p>
@@ -263,92 +209,15 @@ export function AnalystPage() {
                 </p>
                 <div className="flex flex-wrap justify-center gap-2">
                   {SUPPORTED_PROMPTS.map(q => (
-                    <button
-                      key={q}
-                      type="button"
-                      onClick={() => void ask(q)}
-                      className="flex items-center gap-1.5 px-3 py-2 text-xs bg-surface-muted text-text-secondary hover:text-text-primary rounded-full transition-colors min-h-[44px]"
-                    >
-                      <Sparkles size={12} aria-hidden="true" />
-                      {q}
-                    </button>
+                    <PromptChip key={q} prompt={q} onAsk={q => void ask(q)} />
                   ))}
                 </div>
               </Card>
-            )}
-
-            {exchanges.map(ex => (
-              <div key={ex.id} className="space-y-3">
-                <div className="flex justify-end gap-3">
-                  <div className="max-w-[85%] px-4 py-3 rounded-card bg-primary text-primary-text text-sm">
-                    {ex.question}
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-surface-muted text-text-secondary flex items-center justify-center shrink-0">
-                    <User size={15} aria-hidden="true" />
-                  </div>
-                </div>
-
-                {ex.pending && <AnswerPending />}
-
-                {ex.failed && (
-                  <Card className="p-4">
-                    <ErrorState
-                      title="The question could not be answered"
-                      message={`${ex.failed} Nothing was computed and no health data left this machine.`}
-                      onRetry={() => void ask(ex.question)}
-                    />
-                  </Card>
-                )}
-
-                {ex.response && <AnswerView response={ex.response} onFollowUp={q => void ask(q)} />}
-              </div>
-            ))}
-          </div>
+            }
+          />
 
           {/* ── Composer ─────────────────────────────── */}
-          <div className="flex items-end gap-2 p-2 bg-surface border border-border rounded-control">
-            <label className="flex-1">
-              <span className="sr-only">Ask a question about your health data</span>
-              <input
-                type="text"
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend();
-                  }
-                }}
-                placeholder={
-                  providerReady
-                    ? 'Ask anything about your sleep, recovery, activity…'
-                    : 'Ask about your sleep, recovery, activity…'
-                }
-                className="w-full bg-transparent border-none outline-none px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary"
-                maxLength={400}
-                aria-describedby="composer-state"
-              />
-            </label>
-            <Button
-              variant="primary"
-              size="md"
-              onClick={handleSend}
-              disabled={!input.trim() || pending}
-              aria-label={pending ? 'Sending your question' : 'Send your question'}
-            >
-              {pending ? <Loader2 size={15} className="animate-spin" aria-hidden="true" /> : <Send size={15} aria-hidden="true" />}
-              <span className="ml-1.5">{pending ? 'Working' : 'Send'}</span>
-            </Button>
-          </div>
-          <p id="composer-state" className="text-[11px] text-text-secondary">
-            {pending
-              ? providerReady
-                ? 'Waiting for the configured provider to answer…'
-                : 'Answering from your dataset…'
-              : input.trim()
-                ? 'Press Send or Enter to ask.'
-                : 'Enter a question to enable Send. Questions are limited to 400 characters.'}
-          </p>
+          <ChatComposer onSend={q => void ask(q)} pending={pending} providerReady={providerReady} />
         </div>
 
       </div>
@@ -363,187 +232,16 @@ export function AnalystPage() {
   );
 }
 
-// ── Pending state ──────────────────────────────────────
-
-function AnswerPending() {
-  return (
-    <div className="flex gap-3" role="status" aria-live="polite">
-      <div className="w-8 h-8 rounded-full bg-accent-tint text-primary flex items-center justify-center shrink-0">
-        <Bot size={15} aria-hidden="true" />
-      </div>
-      <Card className="flex-1 p-4 space-y-3" variant="muted">
-        <span className="sr-only">Waiting for the analyst answer</span>
-        <Skeleton height={14} width="40%" />
-        <Skeleton height={12} width="90%" />
-        <Skeleton height={12} width="80%" />
-        <Skeleton height={56} />
-      </Card>
-    </div>
-  );
-}
-
-// ── Answer ─────────────────────────────────────────────
-
-function AnswerView({ response, onFollowUp }: { response: AnalystResponse; onFollowUp: (q: string) => void }) {
-  const answer = response.answer;
-
-  if (!answer) {
-    return (
-      <div className="flex gap-3">
-        <div className="w-8 h-8 rounded-full bg-surface-muted text-text-secondary flex items-center justify-center shrink-0">
-          <Bot size={15} aria-hidden="true" />
-        </div>
-        <Card className="flex-1 p-4" variant="muted">
-          <div className="flex items-center gap-2 mb-2">
-            <Badge variant="warning" className="text-[10px]">
-              {STATUS_LABEL[response.status] ?? 'No answer'}
-            </Badge>
-          </div>
-          <p className="text-sm text-text-primary mb-3">{response.message}</p>
-          <p className="text-[11px] text-text-secondary mb-2">Supported questions:</p>
-          <div className="flex flex-wrap gap-2">
-            {response.suggested.map(q => (
-              <button
-                key={q}
-                type="button"
-                onClick={() => onFollowUp(q)}
-                className="px-3 py-2 text-xs rounded-full bg-surface text-text-secondary hover:text-text-primary transition-colors min-h-[44px]"
-              >
-                {q}
-              </button>
-            ))}
-          </div>
-        </Card>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex gap-3">
-      <div className="w-8 h-8 rounded-full bg-accent-tint text-primary flex items-center justify-center shrink-0">
-        <Bot size={15} aria-hidden="true" />
-      </div>
-      <Card className="flex-1 p-4 space-y-4" as="article">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="accent" className="text-[10px]">{response.label}</Badge>
-          <span className="text-[11px] text-text-secondary">
-            {response.providerConfigured ? (
-              <>
-                generated by <code>{response.model ?? 'the configured model'}</code> via {response.providerDisplayName},
-                validated against the selected context
-              </>
-            ) : (
-              <>
-                computed by handler <code>{response.handlerId}</code>
-              </>
-            )}
-          </span>
-        </div>
-
-        <h2 className="text-base font-semibold text-text-primary">{answer.title}</h2>
-
-        {ANSWER_SECTIONS.map(section => {
-          const lines = section.pick(answer);
-          if (lines.length === 0) return null;
-          return (
-            <section key={section.heading}>
-              <h3 className="text-[10px] uppercase tracking-wider text-text-secondary mb-1.5">{section.heading}</h3>
-              <ul className="list-disc pl-5 space-y-1.5">
-                {lines.map((line, i) => (
-                  <li key={i} className="text-sm text-text-primary leading-relaxed">{line}</li>
-                ))}
-              </ul>
-            </section>
-          );
-        })}
-
-        {answer.charts.length > 0 && (
-          <div className="space-y-3">
-            {answer.charts.slice(0, 2).map(chart => (
-              <TrendFigure
-                key={`${chart.metricId}-${chart.caption}`}
-                metricId={chart.metricId}
-                data={chart.points}
-                caption={chart.caption}
-                height={72}
-              />
-            ))}
-          </div>
-        )}
-
-        {answer.evidence.length > 0 && (
-          <div className="space-y-2">
-            <h3 className="text-[10px] uppercase tracking-wider text-text-secondary">Evidence</h3>
-            {answer.evidence.map((ev, i) => (
-              <div key={`${ev.metricId}-${i}`} className="border border-border rounded-control p-3">
-                <div className="flex flex-wrap items-baseline gap-2 mb-1">
-                  <Badge variant="default" className="text-[10px]">Metric</Badge>
-                  <span className="text-sm font-medium text-text-primary">{ev.metricName}</span>
-                </div>
-                <dl className="text-[11px] text-text-secondary space-y-0.5">
-                  <EvRow label="Window" value={ev.windowLabel} />
-                  <EvRow label="Aggregation" value={ev.aggregation} />
-                  <EvRow label="Sample count" value={ev.sampleCount} />
-                </dl>
-                <Link href={ev.href} className="inline-block mt-2 text-xs text-primary hover:underline">
-                  Open the underlying chart or records
-                </Link>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {response.grounding.unmatched.length > 0 && (
-          <div className="rounded-control border border-category-attention/40 p-3">
-            <p className="text-[11px] text-category-attention leading-relaxed">
-              These figures were not found in the selected context: {response.grounding.unmatched.join(', ')}. They are
-              shown as the model wrote them rather than removed, so you can see exactly which claims are unverified.
-            </p>
-          </div>
-        )}
-
-        <div className="flex items-start gap-2 pt-1">
-          <ShieldCheck size={13} className="mt-0.5 shrink-0 text-text-secondary" aria-hidden="true" />
-          <p className="text-[11px] text-text-secondary leading-relaxed">{answer.boundaryNote}</p>
-        </div>
-
-        {answer.followUps.length > 0 && (
-          <div className="flex flex-wrap gap-2 pt-1">
-            {answer.followUps.map(q => (
-              <button
-                key={q}
-                type="button"
-                onClick={() => onFollowUp(q)}
-                className="px-3 py-2 text-xs rounded-full bg-surface-muted text-text-secondary hover:text-text-primary transition-colors min-h-[44px]"
-              >
-                {q}
-              </button>
-            ))}
-          </div>
-        )}
-      </Card>
-    </div>
-  );
-}
-
-const STATUS_LABEL: Record<string, string> = {
-  unsupported: 'Not supported',
-  misconfigured: 'Provider misconfigured',
-  error: 'Provider error',
-  ok: 'Answer',
-};
-
-const ANSWER_SECTIONS: { heading: string; pick: (a: AnalystAnswer) => string[] }[] = [
-  { heading: '1 · Observed measurements', pick: a => a.observed },
-  { heading: '2 · Possible interpretation', pick: a => a.interpretation },
-  { heading: '3 · Missing context and uncertainty', pick: a => a.uncertainty },
-];
-
-function EvRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between gap-3">
-      <dt>{label}</dt>
-      <dd className="tnum text-text-primary text-right">{value}</dd>
-    </div>
-  );
+/**
+ * Keep the address in step with the view: drop a consumed ?q= and point ?c= at
+ * the open conversation (or remove it). replaceState integrates with the App
+ * Router's useSearchParams and adds no history entry.
+ */
+function syncAddress(conversationId: number | null) {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('q');
+  if (conversationId === null) url.searchParams.delete('c');
+  else url.searchParams.set('c', String(conversationId));
+  const next = `${url.pathname}${url.search}${url.hash}`;
+  if (next !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.replaceState(null, '', next);
 }

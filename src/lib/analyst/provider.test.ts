@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { AddressInfo } from 'node:net';
 import { askAnalyst } from '@/lib/analyst/service';
@@ -6,6 +6,8 @@ import { checkGrounding, parseAnalystReply } from '@/lib/analyst/validate';
 import { retrieveGeneral } from '@/lib/analyst/retrieval';
 import { GENERAL_HANDLER_ID, RATE_LIMIT_RETRIES } from '@/lib/analyst';
 import { DEFAULT_ANALYST_SYSTEM_PROMPT } from '@/lib/analyst/systemPrompt';
+import { createProvider, quirkFromRejection, resetParamQuirks, type CompletionProvider, type ToolCallingProvider } from '@/lib/analyst/provider';
+import { readAnalystConfig } from '@/lib/analyst/config';
 
 const KEY = 'sk-test-key-that-must-never-leak';
 
@@ -95,6 +97,9 @@ function openaiEnv(baseUrl: string, overrides: Record<string, string> = {}): Nod
     ANALYST_API_URL: baseUrl,
     ANALYST_MODEL: 'mock-analyst-1',
     ANALYST_API_KEY: KEY,
+    // These tests cover the single-request path (JSON mode, retries); the
+    // tool-calling path has its own tests in tool-loop.test.ts.
+    ANALYST_TOOLS: 'off',
     ...overrides,
   } as unknown as NodeJS.ProcessEnv;
 }
@@ -160,6 +165,22 @@ describe('OpenAI-compatible provider over a mock endpoint (SPEC §8)', () => {
       if (index === 0) {
         expect(body.response_format).toEqual({ type: 'json_object' });
         json(res, 400, { error: { message: 'Unsupported parameter: response_format' } });
+        return;
+      }
+      expect(body.response_format).toBeUndefined();
+      json(res, 200, { model: 'mock-analyst-1', choices: [{ message: { content: analystReplyText() } }] });
+    });
+
+    const response = await askAnalyst({ query: 'How is my HRV trending?' }, { env: openaiEnv(harness.baseUrl) });
+    expect(response.status).toBe('ok');
+    expect(harness.recorded).toHaveLength(2);
+  });
+
+  it('retries once without response_format when json mode yields an empty reply', async () => {
+    const harness = await startServer((_req, res, body, index) => {
+      if (index === 0) {
+        expect(body.response_format).toEqual({ type: 'json_object' });
+        json(res, 200, { model: 'mock-analyst-1', choices: [{ finish_reason: 'stop', message: { content: '' } }] });
         return;
       }
       expect(body.response_format).toBeUndefined();
@@ -340,6 +361,164 @@ describe('OpenAI-compatible provider over a mock endpoint (SPEC §8)', () => {
     expect(response.message).toContain('700 token limit');
     expect(response.answer).toBeNull();
     expect(harness.recorded).toHaveLength(1);
+  });
+
+  it('reports the reasoning-starved case DISTINCTLY, not as a generic token limit', async () => {
+    // The model spent the whole budget reasoning: finish_reason is 'length',
+    // content is empty, and there is reasoning text / reasoning_tokens. Blaming
+    // "the token limit" hides the cause; the message must say the budget was
+    // spent reasoning.
+    const harness = await startServer((_req, res) => {
+      json(res, 200, {
+        model: 'mock-analyst-1',
+        choices: [
+          {
+            finish_reason: 'length',
+            message: { content: '', reasoning: 'We need to consider the trend carefully…' },
+            usage: { completion_tokens_details: { reasoning_tokens: 8000 } },
+          },
+        ],
+      });
+    });
+    const response = await askAnalyst(
+      { query: 'How is my resting heart rate trending?' },
+      { env: openaiEnv(harness.baseUrl, { ANALYST_MAX_TOKENS: '8000' }) }
+    );
+    expect(response.status).toBe('error');
+    expect(response.answer).toBeNull();
+    expect(response.message).toMatch(/reasoning/);
+    expect(response.message).toContain('8000 token budget');
+    // The generic copy must NOT be what was reported.
+    expect(response.message).not.toContain('stopped at the 8000 token limit before producing an answer');
+    // Reasoning text is never promoted into an answer.
+    expect(JSON.stringify(response)).not.toContain('consider the trend carefully');
+  });
+
+  it('delivers a truncated reply that still carries content instead of discarding it', async () => {
+    // finish_reason is 'length' but a usable partial object arrived: the user
+    // would rather have the short answer than an error.
+    const harness = await startServer((_req, res) => {
+      json(res, 200, {
+        model: 'mock-analyst-1',
+        choices: [{ finish_reason: 'length', message: { content: analystReplyText() } }],
+      });
+    });
+    const response = await askAnalyst({ query: 'What changed this week?' }, { env: openaiEnv(harness.baseUrl) });
+    expect(response.status).toBe('ok');
+    expect(response.answer).not.toBeNull();
+    expect(response.answer!.observed.length).toBeGreaterThan(0);
+  });
+
+  it('sends the configured reasoning effort, and does not send one when unset', async () => {
+    const harness = await startServer((_req, res) => {
+      json(res, 200, { model: 'mock-analyst-1', choices: [{ message: { content: analystReplyText() } }] });
+    });
+
+    await askAnalyst({ query: 'What changed this week?' }, { env: openaiEnv(harness.baseUrl, { ANALYST_REASONING_EFFORT: 'low' }) });
+    expect(harness.recorded[0].body.reasoning).toEqual({ effort: 'low' });
+
+    // An unset value sends no reasoning field at all.
+    await askAnalyst({ query: 'What changed this week?' }, { env: openaiEnv(harness.baseUrl) });
+    expect(harness.recorded[1].body.reasoning).toBeUndefined();
+
+    // An unrecognised value is ignored rather than forwarded (it would be a 400).
+    await askAnalyst({ query: 'What changed this week?' }, { env: openaiEnv(harness.baseUrl, { ANALYST_REASONING_EFFORT: 'bogus' }) });
+    expect(harness.recorded[2].body.reasoning).toBeUndefined();
+  });
+});
+
+describe('parameters an OpenAI-compatible endpoint refuses', () => {
+  afterEach(() => {
+    resetParamQuirks();
+    vi.restoreAllMocks();
+  });
+
+  it('switches to max_completion_tokens when max_tokens is refused, and remembers it', async () => {
+    const harness = await startServer((_req, res, body) => {
+      if ('max_tokens' in body) {
+        json(res, 400, {
+          error: {
+            message: "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.",
+            type: 'invalid_request_error',
+            param: 'max_tokens',
+            code: 'unsupported_parameter',
+          },
+        });
+        return;
+      }
+      json(res, 200, { model: 'mock-analyst-1', choices: [{ message: { content: analystReplyText() } }] });
+    });
+    const first = await askAnalyst({ query: 'How is my HRV trending?' }, { env: openaiEnv(harness.baseUrl) });
+    expect(first.status).toBe('ok');
+    expect(harness.recorded).toHaveLength(2);
+    expect(harness.recorded[1].body.max_completion_tokens).toBe(harness.recorded[0].body.max_tokens);
+    // JSON mode survives the adaptation.
+    expect(harness.recorded[1].body.response_format).toEqual({ type: 'json_object' });
+
+    await askAnalyst({ query: 'How is my sleep?' }, { env: openaiEnv(harness.baseUrl) });
+    expect(harness.recorded).toHaveLength(3);
+    expect('max_tokens' in harness.recorded[2].body).toBe(false);
+  });
+
+  it('drops a temperature the model does not support', async () => {
+    const harness = await startServer((_req, res, body) => {
+      if ('temperature' in body) {
+        json(res, 400, { error: { message: "Unsupported value: 'temperature' does not support 0.2 with this model. Only the default (1) value is supported.", param: 'temperature', code: 'unsupported_value' } });
+        return;
+      }
+      json(res, 200, { model: 'mock-analyst-1', choices: [{ message: { content: analystReplyText() } }] });
+    });
+    const response = await askAnalyst({ query: 'How is my HRV trending?' }, { env: openaiEnv(harness.baseUrl) });
+    expect(response.status).toBe('ok');
+    expect(harness.recorded).toHaveLength(2);
+  });
+
+  it('reports a 400 it cannot adapt to', async () => {
+    const harness = await startServer((_req, res) => json(res, 400, { error: { message: 'Bad model name', param: 'model' } }));
+    const response = await askAnalyst({ query: 'How is my HRV trending?' }, { env: openaiEnv(harness.baseUrl) });
+    expect(response.status).toBe('error');
+    expect(response.message).toMatch(/answered HTTP 400.*Bad model name/);
+    // One try, plus the existing retry without JSON mode.
+    expect(harness.recorded).toHaveLength(2);
+  });
+
+  it('sends max_completion_tokens up front to the official OpenAI endpoint', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return new Response(JSON.stringify({ model: 'gpt-x', choices: [{ message: { content: analystReplyText() } }] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    });
+    const response = await askAnalyst({ query: 'How is my HRV trending?' }, { env: openaiEnv('https://api.openai.com/v1', { ANALYST_MODEL: 'gpt-x' }) });
+    expect(response.status).toBe('ok');
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0].max_completion_tokens).toBeGreaterThan(0);
+    expect('max_tokens' in bodies[0]).toBe(false);
+  });
+
+  it('turns reasoning off for tool requests when the model refuses tools with reasoning', async () => {
+    const harness = await startServer((_req, res, body) => {
+      if (body.tools && body.reasoning_effort !== 'none') {
+        json(res, 400, { error: { message: "Function tools with reasoning_effort are not supported for gpt-x in /v1/chat/completions. To use function tools, use /v1/responses or set reasoning_effort to 'none'.", param: 'reasoning_effort', code: null } });
+        return;
+      }
+      if (!body.tools) return json(res, 200, { model: 'gpt-x', choices: [{ message: { content: 'plain' } }] });
+      json(res, 200, { model: 'gpt-x', choices: [{ finish_reason: 'tool_calls', message: { role: 'assistant', content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'get_training_plan', arguments: '{}' } }] } }] });
+    });
+    const provider = createProvider(readAnalystConfig(openaiEnv(harness.baseUrl, { ANALYST_TOOLS: 'auto' }))) as unknown as ToolCallingProvider & CompletionProvider;
+    const spec = { name: 'get_training_plan', description: 'Read the plan', parameters: { type: 'object', properties: {} } };
+    const turn = await provider.converse('sys', [{ role: 'user', content: 'q' }], [spec]);
+    expect(turn.toolCalls.map(c => c.name)).toEqual(['get_training_plan']);
+    expect(harness.recorded).toHaveLength(2);
+    expect(harness.recorded[1].body.reasoning_effort).toBe('none');
+    // A plain completion to the same endpoint keeps the model's default reasoning.
+    await provider.complete('sys', 'q');
+    expect('reasoning_effort' in harness.recorded[2].body).toBe(false);
+  });
+
+  it('reads which parameter a rejection names', () => {
+    expect(quirkFromRejection(JSON.stringify({ error: { param: 'max_tokens', message: 'x' } }))).toBe('max_completion_tokens');
+    expect(quirkFromRejection(JSON.stringify({ error: { message: 'Unsupported parameter: response_format' } }))).toBeNull();
+    expect(quirkFromRejection('not json')).toBeNull();
   });
 });
 

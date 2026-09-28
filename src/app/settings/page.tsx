@@ -12,10 +12,10 @@
 // pre-paint theme. No API key, token or health record is ever stored in the browser.
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  Bell, Clock, Database, Info, Palette, Ruler, Save, Shield, Trash2, TriangleAlert, UserRound,
+  Bell, Clock, Database, Dumbbell, Info, Palette, Ruler, Save, Shield, Trash2, TriangleAlert, UserRound,
 } from 'lucide-react';
 import { getAllMetrics, getMetric } from '@/lib/metrics';
 import { convertValue, displayUnit, formatMetricWithUnit, hasConversion } from '@/lib/metrics/format';
@@ -23,9 +23,9 @@ import { coverageFact, coverageSentence } from '@/lib/analytics/coverage';
 import { formatDayKeyLong } from '@/lib/analytics/windows';
 import { REFERENCE_KEY, unavailableReasonFor } from '@/lib/adapters/dataset';
 import {
-  applyTheme, clearPreferences, describeStoredPreferences, getPreferencesState, loadPreferences,
+  applyTheme, clearPreferences, getPreferencesState, loadPreferences,
   savePreferencesResult, subscribePreferences, syncPreferences,
-  STORAGE_KEY_NAME, type ThemeMode, type UnitSystem, type VitalPreferences,
+  type ThemeMode, type UnitSystem, type VitalPreferences,
 } from '@/lib/prefs';
 import {
   Badge, Button, Card, DataStateNote, ErrorState, Select, Skeleton, Tabs,
@@ -34,10 +34,8 @@ import type { PipelineStatusReport, StageStatus } from '@/lib/pipeline/types';
 import { STAGE_STATUS_LABEL } from '@/lib/pipeline/types';
 import { FreshnessIndicator } from '@/components/shell/FreshnessIndicator';
 import { useProfile } from '@/components/profile/ProfileProvider';
+import { LabUpload } from '@/components/settings/LabUpload';
 import {
-  DEFAULT_PROFILE_TIMEZONE,
-  PROFILE_CONTAINER_PATH,
-  PROFILE_HOST_PATH,
   PROFILE_NAME_MAX,
   PROFILE_NOTES_MAX,
   type VitalProfile,
@@ -62,10 +60,38 @@ const TIMEZONES = [
   'Australia/Sydney',
 ];
 
+/**
+ * A deep link such as `/settings?tab=data` opens that tab, which is what the Lab
+ * page's empty state and the sex-specific-interval notice link to. `useSearchParams`
+ * needs a Suspense boundary, so the view sits inside one.
+ */
 export default function SettingsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="max-w-4xl mx-auto space-y-6">
+          <h1 className="text-2xl md:text-3xl font-semibold text-text-primary">Settings</h1>
+          <div role="status" aria-live="polite" className="space-y-3">
+            <span className="sr-only">Loading settings</span>
+            <Skeleton height={120} />
+            <Skeleton height={200} />
+          </div>
+        </div>
+      }
+    >
+      <SettingsView />
+    </Suspense>
+  );
+}
+
+function SettingsView() {
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get('tab');
   const [prefs, setPrefs] = useState<VitalPreferences | null>(null);
   const [notice, setNotice] = useState<{ tone: 'ok' | 'warn' | 'error'; text: string } | null>(null);
-  const [tab, setTab] = useState('account');
+  const [tab, setTab] = useState(
+    requestedTab && TABS.some(candidate => candidate.id === requestedTab) ? requestedTab : 'account'
+  );
 
   // Read the cached value for the first paint, then let the engine's server read
   // replace it. These settings belong to the account, not to this browser.
@@ -253,56 +279,20 @@ export default function SettingsPage() {
           </Card>
 
           {/* ── Where the settings live ──────────────── */}
-          <Card className="p-6">
-            <SectionHead icon={<Database size={18} className="text-text-secondary" />} title="Where these settings are stored" />
-            <p className="text-xs text-text-secondary mb-3">
-              Theme, units and notification switches are stored <span className="text-text-primary">on the server</span> —
-              in the Vital Postgres database when one is configured — so they follow you to any other browser or device
-              instead of being trapped in one browser. Saving happens against the server: if the settings were changed
-              somewhere else first, the change is refused and you are told rather than one device overwriting another.
-            </p>
-            <p className="text-xs text-text-secondary mb-3">
-              This browser keeps one small <span className="text-text-primary">cache</span> of the last values it read at{' '}
-              <code>{STORAGE_KEY_NAME}</code>. Its only job is to apply the right theme before the first paint (so the page
-              does not flash the wrong one) and to keep the page working if the server is briefly unreachable. It is never
-              the source of truth: the server&rsquo;s record always wins, and nothing is sent anywhere else. No API key,
-              token or health record is stored in the browser, and the timezone is not here either — it belongs to the
-              server-owned profile on the Account tab, so the browser and the server cannot disagree about the day.
-            </p>
-            <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Cached preference values">
-              <table className="w-full text-sm text-left">
-                <caption className="sr-only">The cache entry this browser keeps, and its value</caption>
-                <thead>
-                  <tr className="border-b border-border text-xs text-text-secondary">
-                    <th scope="col" className="py-2 pr-4 font-medium">Key</th>
-                    <th scope="col" className="py-2 font-medium">Value</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {describeStoredPreferences(prefs).map(row => (
-                    <tr key={row.key} className="border-b border-border/50">
-                      <td className="py-2 pr-4 text-text-secondary"><code>{row.key}</code></td>
-                      <td className="py-2 tnum text-text-primary">{row.value}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="mt-3">
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  clearPreferences();
-                  const fresh = loadPreferences();
-                  applyTheme(fresh.theme);
-                  setPrefs(fresh);
-                }}
-              >
-                <Trash2 size={14} aria-hidden="true" />
-                <span className="ml-1.5">Clear stored preferences</span>
-              </Button>
-            </div>
-          </Card>
+          <div>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                clearPreferences();
+                const fresh = loadPreferences();
+                applyTheme(fresh.theme);
+                setPrefs(fresh);
+              }}
+            >
+              <Trash2 size={14} aria-hidden="true" />
+              <span className="ml-1.5">Clear stored preferences</span>
+            </Button>
+          </div>
         </div>
       )}
 
@@ -379,19 +369,33 @@ function AccountTab() {
             />
           </Field>
 
-          {/* ── Date of birth ────────────────────── */}
-          <Field
-            label="Date of birth"
-            hint="Optional. Only the resulting age is used, as context for the briefing; the date itself is not sent anywhere."
-          >
-            <input
-              type="date"
-              value={draft.dateOfBirth ?? ''}
-              onChange={e => setDraft({ ...draft, dateOfBirth: e.target.value })}
-              aria-label="Date of birth"
-              className="bg-surface border border-border rounded-control px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-accent min-h-[44px] tnum"
-            />
-          </Field>
+          {/* ── Date of birth + Sex ──────────────── */}
+          <div className="grid sm:grid-cols-2 gap-5">
+            <Field
+              label="Date of birth"
+              hint="Optional. Only the resulting age is used, as context for the briefing; the date itself is not sent anywhere."
+            >
+              <input
+                type="date"
+                value={draft.dateOfBirth ?? ''}
+                onChange={e => setDraft({ ...draft, dateOfBirth: e.target.value })}
+                aria-label="Date of birth"
+                className="bg-surface border border-border rounded-control px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-accent min-h-[44px] tnum"
+              />
+            </Field>
+
+            <Field
+              label="Sex"
+              hint="Used only to pick sex-specific reference intervals for lab results, and never inferred from an uploaded document."
+            >
+              <Select
+                value={draft.sex ?? ''}
+                onChange={v => setDraft({ ...draft, sex: v === 'male' || v === 'female' ? v : null })}
+                options={SEX_OPTIONS}
+                aria-label="Sex"
+              />
+            </Field>
+          </div>
 
           {/* ── Notes ────────────────────────────── */}
           <Field
@@ -448,7 +452,7 @@ function AccountTab() {
           </Button>
           {savedAt && (
             <span role="status" className="text-xs text-text-secondary">
-              Saved to the profile file on the server.
+              Saved to your account on the server.
             </span>
           )}
           {dirty && !saving && (
@@ -465,26 +469,6 @@ function AccountTab() {
           </div>
         )}
       </Card>
-
-      <Card className="p-6">
-        <SectionHead icon={<Database size={18} className="text-text-secondary" />} title="Where this is stored" />
-        <div className="space-y-3 text-sm">
-          <StatusRow label="File on this host" value={PROFILE_HOST_PATH} tone="neutral" />
-          <StatusRow label="Inside the container" value={`${PROFILE_CONTAINER_PATH} (writable volume)`} tone="muted" />
-          <StatusRow
-            label="Default timezone when unset"
-            value={DEFAULT_PROFILE_TIMEZONE}
-            tone="muted"
-          />
-        </div>
-        <div className="mt-4">
-          <DataStateNote>
-            The profile is owned by the server and stored in the same database as the rest of your configuration, so
-            both the server-rendered greeting and the briefing read one record — the same for every browser and device.
-            It holds no credential and no health record, and nothing here is written to this browser.
-          </DataStateNote>
-        </div>
-      </Card>
     </div>
   );
 }
@@ -493,6 +477,17 @@ const BRIEFING_HOUR_OPTIONS = Array.from({ length: 24 }, (_, hour) => ({
   value: String(hour),
   label: `${String(hour).padStart(2, '0')}:00`,
 }));
+
+/**
+ * The Sex select's options. `''` is "not set", which the change handler maps to
+ * `null` — the only representation of an unset sex, so nothing can default to
+ * one of the two values by accident.
+ */
+const SEX_OPTIONS = [
+  { value: '', label: 'Not set' },
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
+];
 
 function Field({ label, hint, children }: { label: string; hint: string; children: React.ReactNode }) {
   return (
@@ -512,6 +507,9 @@ function DataTab() {
 
   return (
     <div className="space-y-5">
+      {/* ── Lab report upload ─────────────────────── */}
+      <LabUpload />
+
       <Card className="p-6">
         <SectionHead icon={<Database size={18} className="text-text-secondary" />} title="Data coverage" />
         <p className="text-sm text-text-secondary mb-4">
@@ -703,42 +701,38 @@ function ConnectionsTab() {
       </Card>
 
       <Card className="p-6">
-        <SectionHead icon={<Shield size={18} className="text-text-secondary" />} title="Connection configuration and status" />
+        <SectionHead icon={<Dumbbell size={18} className="text-text-secondary" />} title="Workout sources" />
+        <p className="text-xs text-text-secondary leading-relaxed mb-3">
+          Apple Health records a workout&apos;s type, time and calories only. A workout source adds what was actually
+          done — exercises, sets, reps, load and effort — which the routine on the Workouts page needs.
+        </p>
         <div className="space-y-3 text-sm">
-          <StatusRow
-            label="Health Auto Export server"
-            value={
-              report?.config.healthApiConfigured
-                ? `Configured (${report.config.healthApiHost ?? 'host unknown'})`
-                : 'Not configured'
-            }
-            tone={report?.config.healthApiConfigured ? 'neutral' : 'muted'}
-          />
-          <StatusRow
-            label="Read token"
-            value={report?.config.healthApiConfigured ? 'Present on the server (never exposed)' : 'Not set'}
-            tone="muted"
-          />
-          <StatusRow
-            label="Live health adapter"
-            value={
-              report?.mode === 'live'
-                ? 'Active — reads Health Auto Export server-side'
-                : 'Not active (demo mode reads the committed fixtures)'
-            }
-            tone={report?.mode === 'live' ? 'neutral' : 'muted'}
-          />
-          <StatusRow
-            label="Data source"
-            value={report?.mode === 'live' ? 'Live Health Auto Export history' : 'Committed demo fixtures'}
-            tone="neutral"
-          />
+          {(report?.workoutSources ?? []).map(source => (
+            <StatusRow
+              key={source.id}
+              label={source.displayName}
+              value={
+                source.origin === 'demo'
+                  ? `Demo sessions (${source.sessions})`
+                  : !source.configured
+                    ? `Not configured (set ${source.envVars[0]})`
+                    : source.lastError
+                      ? `Error: ${source.lastError}`
+                      : `Connected (${source.host ?? 'host unknown'}) · ${source.sessions} session${source.sessions === 1 ? '' : 's'}${
+                          source.lastSyncAt ? ` · synced ${source.lastSyncAt.slice(0, 16).replace('T', ' ')} UTC` : ''
+                        }`
+              }
+              tone={source.lastError ? 'warning' : source.configured || source.origin === 'demo' ? 'neutral' : 'muted'}
+            />
+          ))}
+          {report && report.workoutSources.length === 0 && (
+            <p className="text-xs text-text-secondary">No workout source was checked.</p>
+          )}
         </div>
         <div className="mt-4">
           <DataStateNote>
-            Credentials are read from the server environment only and are never returned to the browser. Every health
-            read happens in server code: the browser never calls the export API and never receives the token. When live
-            mode is selected and the source cannot be read, the app shows a connection error rather than demo data.
+            Source API keys are read from the server environment only. Synced sessions stay in the server&apos;s memory
+            and are never written to the database.
           </DataStateNote>
         </div>
       </Card>
