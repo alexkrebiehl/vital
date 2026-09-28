@@ -234,41 +234,44 @@ function UntrackedNote({ routine, onChange }: { routine: RoutineOverview; onChan
   const list = routine.untracked;
   if (list.length === 0) return null;
   const shown = all ? list : list.slice(0, 3);
+  // Its own heading, level with "Paths", so it doesn't read as part of the last area above it.
   return (
-    <Card className="p-4" as="section" aria-label="Exercises not in the plan">
-      <p className="text-sm font-medium text-text-primary">
+    <section className="space-y-4 pt-2" aria-labelledby="untracked-title">
+      <h3 id="untracked-title" className="text-sm font-semibold text-text-primary">
         {list.length === 1 ? 'One exercise you log is' : `${list.length} exercises you log are`} not in the plan
-      </p>
-      <p className="text-xs text-text-secondary mt-0.5">
-        No path recognises {list.length === 1 ? 'it' : 'them'}, so {list.length === 1 ? 'it counts' : 'they count'} toward no progress or phase. Last 90 days.
-      </p>
-      <ul className="mt-3 divide-y divide-border">
-        {shown.map(u => (
-          <li key={u.templateId ?? u.name} className="py-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-            <span className="text-sm text-text-primary min-w-0">
-              {u.name}
-              <span className="text-xs text-text-secondary">
-                {' '}
-                · {u.sessions} session{u.sessions === 1 ? '' : 's'}, last {formatDayKeyShort(u.lastDate)}
+      </h3>
+      <Card className="p-4">
+        <p className="text-xs text-text-secondary">
+          No path recognises {list.length === 1 ? 'it' : 'them'}, so {list.length === 1 ? 'it counts' : 'they count'} toward no progress or phase. Last 90 days.
+        </p>
+        <ul className="mt-3 divide-y divide-border">
+          {shown.map(u => (
+            <li key={u.templateId ?? u.name} className="py-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+              <span className="text-sm text-text-primary min-w-0">
+                {u.name}
+                <span className="text-xs text-text-secondary">
+                  {' '}
+                  · {u.sessions} session{u.sessions === 1 ? '' : 's'}, last {formatDayKeyShort(u.lastDate)}
+                </span>
               </span>
-            </span>
-            <DiscussButton
-              appearance="link"
-              label="Add to plan with analyst"
-              context={{ kind: 'routine-untracked', name: u.name }}
-              subject={u.name}
-              suggestions={untrackedSuggestions(u)}
-              onPlanChange={onChange}
-            />
-          </li>
-        ))}
-      </ul>
-      {list.length > 3 && (
-        <Button variant="ghost" size="sm" className="mt-1" onClick={() => setAll(a => !a)}>
-          {all ? 'Show fewer' : `Show all ${list.length}`}
-        </Button>
-      )}
-    </Card>
+              <DiscussButton
+                appearance="link"
+                label="Add to plan with analyst"
+                context={{ kind: 'routine-untracked', name: u.name }}
+                subject={u.name}
+                suggestions={untrackedSuggestions(u)}
+                onPlanChange={onChange}
+              />
+            </li>
+          ))}
+        </ul>
+        {list.length > 3 && (
+          <Button variant="ghost" size="sm" className="mt-1" onClick={() => setAll(a => !a)}>
+            {all ? 'Show fewer' : `Show all ${list.length}`}
+          </Button>
+        )}
+      </Card>
+    </section>
   );
 }
 
