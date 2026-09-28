@@ -9,7 +9,7 @@ import { inferCurrentStages } from './progress';
 import { loadRoutineContext, type RoutineDeps } from './service';
 import { planRepository, type ChangeMeta } from './store';
 import { workoutList } from '../adapters/dataset';
-import { allPaths, validatePlan } from './validate';
+import { allPaths, uncheckableTargetProblems, validatePlan } from './validate';
 import type { PlanChange, StoredPlan, TrainingPlan } from './types';
 
 export class PlanInputError extends Error {
@@ -70,6 +70,8 @@ export interface CreateOptions {
 export async function createPlan(input: unknown, options: CreateOptions, deps: RoutineDeps = {}): Promise<{ stored: StoredPlan; change: PlanChange; inferred: string[] }> {
   const v = validatePlan(input);
   if (!v.ok) throw new PlanInputError(v.errors);
+  const uncheckable = uncheckableTargetProblems(v.plan);
+  if (uncheckable.length) throw new PlanInputError(uncheckable);
   let plan = v.plan;
   let inferred: string[] = [];
   const ctx = await loadRoutineContext(deps);
@@ -110,6 +112,8 @@ export async function updateActivePlan(
   const next = mutate(structuredClone(current.plan));
   const v = validatePlan(next);
   if (!v.ok) throw new PlanInputError(v.errors);
+  const uncheckable = uncheckableTargetProblems(v.plan, current.plan);
+  if (uncheckable.length) throw new PlanInputError(uncheckable);
   const stored = await repo.update(current.id, v.plan, expectedRevision ?? current.revision, meta);
   return {
     stored,

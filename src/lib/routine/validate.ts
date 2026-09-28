@@ -710,6 +710,33 @@ export function validatePlan(input: unknown): PlanValidation {
   return r.errors.length ? { ok: false, errors: r.errors } : { ok: true, plan };
 }
 
+/**
+ * Problems with phase targets that logged sessions can never check: no path, or
+ * a path with neither a stage nor a dose. Such a target shows as unchecked and
+ * never counts toward its phase, so a plan write must not add one. Targets that
+ * already appear, unchanged, in `previous` are left alone: a stored plan that
+ * has one stays loadable and editable in every other respect.
+ *
+ * Kept out of `validatePlan`, which also reads stored plans.
+ */
+export function uncheckableTargetProblems(plan: TrainingPlan, previous: TrainingPlan | null = null): string[] {
+  const existing = new Set(previous?.phases.flatMap(p => p.targets.map(t => JSON.stringify(t))) ?? []);
+  const problems: string[] = [];
+  for (const phase of plan.phases) {
+    for (const t of phase.targets) {
+      if ((t.pathId && (t.stageId || t.dose)) || existing.has(JSON.stringify(t))) continue;
+      const where = `Phase "${phase.name}" target "${t.label}"`;
+      const path = t.pathId ? findPath(plan, t.pathId)?.path : undefined;
+      problems.push(
+        path
+          ? `${where} cannot be checked against sessions: give it a stageId on path "${path.id}" (${path.stages.map(s => s.id).join(', ')}) with reach "started" or "mastered", or a dose. Put an aim no session can show in the phase's goals instead.`
+          : `${where} cannot be checked against sessions: give it a pathId (${allPaths(plan).map(p => p.id).join(', ')}) and a stageId or dose. Put an aim no session can show in the phase's goals instead.`
+      );
+    }
+  }
+  return problems;
+}
+
 // ── Lookups shared by the engine, the tools and the UI ──
 
 export function allPaths(plan: TrainingPlan): Path[] {

@@ -60,6 +60,48 @@ describe('plan actions', () => {
     await expect(undoPlanChange(change, deps)).rejects.toThrow(/cannot be undone/);
   });
 
+  it('refuses a new phase target that sessions cannot check, naming the stages to use', async () => {
+    await startFromReference('calisthenics', meta, deps);
+    const addTarget = (target: Record<string, unknown>) =>
+      updateActivePlan(
+        plan => {
+          plan.phases[3].targets.push(target as never);
+          return plan;
+        },
+        meta,
+        deps
+      );
+
+    const refused = await addTarget({ label: 'Archer push-up started', pathId: 'horizontal-push' }).catch(e => e);
+    expect(refused).toBeInstanceOf(PlanInputError);
+    expect(refused.errors[0]).toMatch(/target "Archer push-up started" cannot be checked/);
+    expect(refused.errors[0]).toContain('archer-push-up');
+    await expect(addTarget({ label: 'Stay consistent' })).rejects.toThrow(/give it a pathId/);
+
+    const { stored } = await addTarget({ label: 'Archer push-up started', pathId: 'horizontal-push', stageId: 'archer-push-up', reach: 'started' });
+    const routine = (await loadRoutine('metric', deps)).routine!;
+    expect(routine.phases[3].targets.find(t => t.label === 'Archer push-up started')?.met).toBe(false);
+    expect(stored.revision).toBe(2);
+  });
+
+  it('keeps a plan that already has an unchecked target editable', async () => {
+    const { stored } = await startFromReference('calisthenics', meta, deps);
+    const plan = structuredClone(stored.plan);
+    plan.phases[3].targets.push({ label: 'Planche lean started', pathId: 'horizontal-push' });
+    await deps.repo.update(stored.id, plan, stored.revision, meta);
+
+    const { change } = await updateActivePlan(
+      p => {
+        p.focusAreas[3].paths[0].hold = { kind: 'hold', reason: 'sore', since: '2026-09-17' };
+        return p;
+      },
+      meta,
+      deps
+    );
+    expect(change.toRevision).toBe(3);
+    await expect(createPlan(plan, { meta }, deps)).rejects.toThrow(/"Planche lean started" cannot be checked/);
+  });
+
   it('undoing a new plan restores the one it replaced', async () => {
     const first = await startFromReference('calisthenics', meta, deps);
     const second = await startFromReference('strength', meta, deps);

@@ -367,10 +367,15 @@ function Phases({ routine }: { routine: RoutineOverview }) {
             {p.goals.length > 0 && <p className="text-[11px] text-text-secondary mt-0.5">{p.goals.join(' · ')}</p>}
             <ul className="mt-1.5 space-y-0.5">
               {p.targets.map(t => (
-                <li key={t.label} className="text-xs text-text-secondary">
-                  <span aria-hidden="true">{t.met === true ? '✓ ' : t.met === false ? '○ ' : '· '}</span>
+                <li
+                  key={t.label}
+                  className="text-xs text-text-secondary"
+                  title={t.met === null ? 'Not checked: this milestone names no stage or dose, so logged sessions cannot show it. It never holds the phase back.' : undefined}
+                >
+                  <span aria-hidden="true">{t.met === true ? '✓ ' : t.met === false ? '○ ' : '? '}</span>
                   <TargetLabel label={t.label} pathId={t.pathId} className={t.met ? 'text-text-primary' : ''} />
                   {t.optional ? ' (optional)' : ''}
+                  {t.met === null ? ' (not checked)' : ''}
                   {t.met && t.metOn ? <span className="tnum"> · {t.metOn}</span> : null}
                 </li>
               ))}
