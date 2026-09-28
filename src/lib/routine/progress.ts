@@ -27,7 +27,7 @@ import { PROGRESSION_MODELS, type Light, type ModelEvaluation, type ProgressRow,
 import { stageRows } from './models/variation';
 import { LIGHT_ORDER } from './models/types';
 import { currentBlocks, deloadStatus, phaseViews, planPosition, planWeek, type BlockView, type DeloadStatus, type PathState, type PhaseView } from './position';
-import { recordsForStage, type PerformanceRecord } from './records';
+import { recordsForStage, stageNeedsExerciseData, type PerformanceRecord } from './records';
 import { recoveryIndicators, recoverySummary, type DayValue, type RecoveryIndicator } from './recovery';
 import { cadenceView, type CadenceView } from './cadence';
 import { adherence, completedSessions, nextSession, type Adherence, type NextSessionView } from './schedule';
@@ -59,6 +59,12 @@ export interface PathProgress {
   nextStage: { id: string; name: string } | null;
   stages: StageView[];
   light: Light;
+  /**
+   * False when the current stage can only be seen through a workout source and
+   * none is connected: its light is 'none' because nothing *can* be read, not
+   * because nothing was done.
+   */
+  tracked: boolean;
   reasons: string[];
   readiness: Readiness | null;
   nextAction: string;
@@ -101,6 +107,8 @@ export interface RoutineOverview {
   workouts: WorkoutView[];
   /** Recently logged exercises no stage recognises (so they count toward nothing). */
   untracked: UntrackedExercise[];
+  /** Whether exercise-level sessions can be read at all (see `RoutineInputs.exerciseData`). */
+  exerciseData: boolean;
 }
 
 export interface RoutineInputs {
@@ -111,7 +119,17 @@ export interface RoutineInputs {
   today: string;
   dayOf: (iso: string) => string;
   system: UnitSystem;
+  /**
+   * Whether exercise-level sessions (sets, reps, load) can be read: a workout
+   * source is connected, or demo data is served. Without them only stages
+   * matched by Apple Health workout type can be judged. Defaults to true.
+   */
+  exerciseData?: boolean;
 }
+
+/** Why a path shows no light when no workout source is connected. */
+export const NOT_TRACKED_REASON =
+  'Not tracked: this stage is recognised by its exercises, and no workout source (such as Hevy) is connected, so its sessions cannot be seen. Apple Health records only a workout\'s type and duration.';
 
 function capLight(light: Light, cap: Light): Light {
   if (light === 'none') return light;
@@ -210,9 +228,19 @@ export function evaluatePath(
   });
 
   let light = evaluation.light;
-  const reasons = [...evaluation.reasons];
+  let reasons = [...evaluation.reasons];
   let nextAction = evaluation.nextAction;
+  let readiness = evaluation.readiness;
+  const tracked = inputs.exerciseData !== false || !stageNeedsExerciseData(stage);
 
+  if (!tracked) {
+    light = 'none';
+    reasons = [NOT_TRACKED_REASON];
+    readiness = null;
+    // Not "Start …": the stage may well be under way; it just can't be seen.
+    const dose = doseText(evaluation.target, inputs.system);
+    nextAction = `Train ${stage.name.toLowerCase()}${dose ? ` at ${dose}` : ''}.`;
+  }
   if (path.hold) {
     light = path.hold.kind === 'regress' ? 'red' : capLight(light, 'yellow');
     reasons.unshift(`${path.hold.kind === 'regress' ? 'Regress' : 'On hold'} since ${path.hold.since}: ${path.hold.reason}`);
@@ -273,8 +301,9 @@ export function evaluatePath(
     nextStage: nextStageDef ? { id: nextStageDef.id, name: nextStageDef.name } : null,
     stages,
     light,
+    tracked,
     reasons,
-    readiness: evaluation.readiness,
+    readiness,
     nextAction,
     target: doseText(evaluation.target, inputs.system),
     prescription: doseText(stage.prescription, inputs.system),
@@ -348,7 +377,7 @@ export function buildRoutine(inputs: RoutineInputs): RoutineOverview {
       ? { index: current.index, count: phases.length, name: current.name, since: current.since, progress: current.progress }
       : null,
     next,
-    adherence: adherence(plan, completed, today, week),
+    adherence: countableAdherence(plan, adherence(plan, completed, today, week), inputs.exerciseData !== false),
     deload,
     recovery: { ...summary, indicators },
     lights: plan.rules.lights,
@@ -357,6 +386,32 @@ export function buildRoutine(inputs: RoutineInputs): RoutineOverview {
     cadence: cadenceView(plan, completed, next, today, week, trainingDays),
     workouts: workoutViews(plan, paths, completed, next, deload, system),
     untracked: untrackedExercises(plan, inputs.sessions, inputs.dayOf, today),
+    exerciseData: inputs.exerciseData !== false,
+  };
+}
+
+/**
+ * Without a workout source, sessions of a workout whose paths are matched by
+ * exercise can't be seen, so a low count would say the reader is behind when
+ * nothing can be read. Adherence is then unknown rather than counted.
+ */
+function countableAdherence(plan: TrainingPlan, counted: Adherence, exerciseData: boolean): Adherence {
+  if (exerciseData) return counted;
+  const unseen = plan.templates.some(t =>
+    t.slots.every(slot =>
+      slot.pathIds.every(id => {
+        const path = plan.focusAreas.flatMap(a => a.paths).find(p => p.id === id);
+        return !path || path.stages.every(stageNeedsExerciseData);
+      })
+    )
+  );
+  if (!unseen) return counted;
+  return {
+    ...counted,
+    completed: 0,
+    ratio: null,
+    status: 'unknown',
+    text: 'Sessions are not counted: no workout source is connected, so logged workouts cannot be matched to this plan.',
   };
 }
 

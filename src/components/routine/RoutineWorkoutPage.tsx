@@ -15,7 +15,7 @@ import type { WorkoutSourceStatus } from '@/lib/workout-sources/types';
 import { Badge, Card, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { DiscussButton } from '@/components/analyst/DiscussDialog';
 import { useUnits } from '@/components/ui/UnitsProvider';
-import { LightLabel, ReadinessBar, useRoutineFetch } from './shared';
+import { ExerciseDataNotice, LightLabel, ReadinessBar, useRoutineFetch } from './shared';
 import { pathHref, planHref } from './RoutineSection';
 import { workoutSuggestions } from './discuss-suggestions';
 import { formatDayKeyShort } from '@/lib/analytics/windows';
@@ -62,6 +62,7 @@ export function RoutineWorkoutPage() {
   const slots = workout.domains.flatMap(d => d.slots);
   const ready = slots.filter(s => s.suggestion?.status === 'ready').length;
   const nearly = slots.filter(s => s.suggestion?.status === 'nearly').length;
+  const untracked = slots.some(s => !s.tracked);
 
   return (
     <div className="space-y-6">
@@ -86,7 +87,9 @@ export function RoutineWorkoutPage() {
           <p className="text-xs text-text-secondary mt-2">
             {workout.lastDone
               ? `Last done ${formatDayKeyShort(workout.lastDone)} · ${workout.timesDone} time${workout.timesDone === 1 ? '' : 's'} since the plan began`
-              : 'Not logged yet in this plan'}
+              : untracked
+                ? 'Sessions of this workout can’t be seen without a workout source'
+                : 'Not logged yet in this plan'}
           </p>
         </div>
         <DiscussButton
@@ -96,6 +99,8 @@ export function RoutineWorkoutPage() {
           onPlanChange={reload}
         />
       </header>
+
+      {untracked && <ExerciseDataNotice routine={routine} />}
 
       {workout.warmup.length > 0 && (
         <section aria-label="Warm-up">
@@ -151,7 +156,7 @@ function SlotRow({ slot }: { slot: WorkoutSlotView }) {
       </Link>
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <LightLabel light={slot.light} />
+        <LightLabel light={slot.light} tracked={slot.tracked} />
         {slot.onHold && (
           <Badge variant="warning">
             <PauseCircle size={11} className="mr-1" aria-hidden="true" />

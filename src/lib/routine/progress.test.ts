@@ -537,3 +537,64 @@ describe('inferCurrentStages', () => {
     expect(changes).toEqual(['Horizontal push: Decline push-up (since 2026-09-08)']);
   });
 });
+
+// ── No workout source ───────────────────────────────────
+
+describe('without a workout source', () => {
+  const noSource = { exerciseData: false };
+
+  it('marks a path matched by exercise as not tracked, rather than as nothing logged', () => {
+    const r = run(pushPlan(), [], '2026-09-21', noSource);
+    const p = r.paths[0];
+    expect(r.exerciseData).toBe(false);
+    expect(p.tracked).toBe(false);
+    expect(p.light).toBe('none');
+    expect(p.readiness).toBeNull();
+    expect(p.reasons).toEqual([expect.stringMatching(/no workout source \(such as Hevy\) is connected/)]);
+    // The stage's own guidance is still given, without assuming it hasn't begun.
+    expect(p.nextAction).toBe('Train decline push-up at 3–4 × 8–12 RPE 7–9.');
+    expect(r.workouts[0].domains[0].slots[0]).toMatchObject({ tracked: false, suggestion: null });
+  });
+
+  it('does not count sessions it cannot see as missed', () => {
+    const counted = run(pushPlan(), [], '2026-09-21').adherence;
+    expect(counted.status).toBe('watch');
+    const unseen = run(pushPlan(), [], '2026-09-21', noSource).adherence;
+    expect(unseen).toMatchObject({ status: 'unknown', ratio: null, completed: 0 });
+    expect(unseen.text).toMatch(/not counted/);
+  });
+
+  it('keeps a hold the reader set', () => {
+    const hold = { kind: 'hold', since: '2026-09-15', reason: 'Sore wrist' };
+    const p = run(pushPlan({}, { hold }), [], '2026-09-21', noSource).paths[0];
+    expect(p.tracked).toBe(false);
+    expect(p.hold).toMatchObject({ reason: 'Sore wrist' });
+    expect(p.reasons[0]).toMatch(/Sore wrist/);
+    expect(p.reasons[1]).toMatch(/no workout source/);
+    expect(p.nextAction).toMatch(/Sore wrist/);
+  });
+
+  it('still judges and counts paths matched by Apple Health workout type', () => {
+    const runPlan = plan({
+      focusAreas: [{ name: 'Running', paths: [{ id: 'push', name: 'Weekly volume', model: 'volume', params: { metric: 'distanceM', maxWeeklyIncreasePct: 10 },
+        stages: [{ id: 'base', name: 'Base', match: { names: [], workoutTypes: ['Running'] }, prescription: { weeklyVolume: { metric: 'distanceM', range: [20000, 25000] } }, advanceWhen: { weeklyVolume: { metric: 'distanceM', range: [20000, 25000] } } }] }] }],
+      rules: { qualifyingSessions: [2, 2] },
+      startDate: '2026-08-03',
+    });
+    const workouts: WorkoutRecord[] = ['2026-09-08', '2026-09-10', '2026-09-12'].map((date, i) => ({
+      id: `r${i}`, workout_type: 'Running', start_time: `${date}T12:00:00.000Z`, end_time: `${date}T12:50:00.000Z`,
+      duration_minutes: 55, calories_burned: 400, source: 'Apple Watch', distance_km: 7,
+    }));
+    const r = run(runPlan, [], '2026-09-15', { ...noSource, workouts });
+    expect(r.paths[0].tracked).toBe(true);
+    expect(r.paths[0].light).not.toBe('none');
+    expect(r.adherence.status).not.toBe('unknown');
+    expect(r.adherence.completed).toBeGreaterThan(0);
+  });
+
+  it('tracks every path when a source is connected (the default)', () => {
+    const r = run(pushPlan(), EXAMPLE, '2026-09-21');
+    expect(r.exerciseData).toBe(true);
+    expect(r.paths.every(p => p.tracked)).toBe(true);
+  });
+});

@@ -18,7 +18,7 @@ import type { ScheduledDayView } from '@/lib/routine/schedule';
 import { Badge, Button, Card, DataStateNote, EmptyState, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { SectionTitle } from '@/components/domain/DomainShared';
-import { LightLabel, PlanChangeCard, ReadinessBar, useRoutineFetch, type RoutineApiResponse } from './shared';
+import { ExerciseDataNotice, LightLabel, PlanChangeCard, ReadinessBar, useRoutineFetch, type RoutineApiResponse } from './shared';
 import type { PlanChange } from '@/lib/routine/types';
 import { DiscussButton } from '@/components/analyst/DiscussDialog';
 import { CREATE_PROMPT, routineSuggestions, untrackedSuggestions } from './discuss-suggestions';
@@ -69,12 +69,14 @@ export function RoutineSection() {
   );
 }
 
-function SourceNote({ data }: { data: RoutineApiResponse }) {
+/** Where training sessions come from. `noticeShown`: ExerciseDataNotice already explains a missing source. */
+function SourceNote({ data, noticeShown = false }: { data: RoutineApiResponse; noticeShown?: boolean }) {
   const configured = data.sources.filter(s => s.configured || s.origin === 'demo');
   if (data.origin === 'demo') {
     return <DataStateNote>Demo mode: sessions come from committed demo training data shaped like a Hevy export.</DataStateNote>;
   }
   if (configured.length === 0) {
+    if (noticeShown) return null;
     return (
       <DataStateNote tone="attention">
         No workout source is connected, so sets, reps, load and effort are unknown. Apple Health workouts still count for
@@ -152,6 +154,7 @@ function RoutineBody({ data, routine, onChange }: { data: RoutineApiResponse; ro
   }));
   return (
     <div className="space-y-4">
+      <ExerciseDataNotice routine={routine} />
       <Card className="p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
@@ -223,7 +226,7 @@ function RoutineBody({ data, routine, onChange }: { data: RoutineApiResponse; ro
       )}
 
       <UntrackedNote routine={routine} onChange={onChange} />
-      <SourceNote data={data} />
+      <SourceNote data={data} noticeShown={!routine.exerciseData && routine.paths.some(p => !p.tracked)} />
     </div>
   );
 }
@@ -422,7 +425,7 @@ function PathCard({ path }: { path: PathProgress }) {
           <ChevronRight size={16} className="text-text-secondary shrink-0 mt-1" aria-hidden="true" />
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <LightLabel light={path.light} />
+          <LightLabel light={path.light} tracked={path.tracked} />
           {path.hold && (
             <Badge variant="warning">
               <PauseCircle size={11} className="mr-1" aria-hidden="true" />

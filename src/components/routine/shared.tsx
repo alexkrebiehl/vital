@@ -7,12 +7,13 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { Undo2 } from 'lucide-react';
+import { ArrowRight, PlugZap, Undo2 } from 'lucide-react';
 import type { Light, Readiness } from '@/lib/routine/models/types';
+import type { RoutineOverview } from '@/lib/routine/progress';
 import type { RoutineResponse } from '@/lib/routine/service';
 import type { PlanChange } from '@/lib/routine/types';
 import type { UnitSystem } from '@/lib/prefs';
-import { Button } from '@/components/ui/primitives';
+import { Button, Card } from '@/components/ui/primitives';
 
 export const LIGHT_LABEL: Record<Light, string> = {
   green: 'Green',
@@ -48,13 +49,47 @@ export function LightDot({ light, size = 10 }: { light: Light; size?: number }) 
   );
 }
 
-export function LightLabel({ light }: { light: Light }) {
+/** A path's light; `tracked={false}` says nothing can be read, rather than nothing was logged. */
+export function LightLabel({ light, tracked = true }: { light: Light; tracked?: boolean }) {
   return (
     <span className="inline-flex items-center gap-1.5 text-xs font-medium text-text-primary">
-      <LightDot light={light} />
-      {LIGHT_LABEL[light]}
-      <span className="text-text-secondary font-normal">· {LIGHT_MEANING[light]}</span>
+      <LightDot light={tracked ? light : 'none'} />
+      {tracked ? LIGHT_LABEL[light] : 'Not tracked'}
+      <span className="text-text-secondary font-normal">· {tracked ? LIGHT_MEANING[light] : 'needs a workout source'}</span>
     </span>
+  );
+}
+
+/**
+ * Shown wherever the routine is, when no workout source is connected and some
+ * paths can only be judged from one. Nothing when every path can be followed
+ * through Apple Health workout types.
+ */
+export function ExerciseDataNotice({ routine }: { routine: RoutineOverview }) {
+  if (routine.exerciseData) return null;
+  const untracked = routine.paths.filter(p => !p.tracked).length;
+  if (untracked === 0) return null;
+  const all = untracked === routine.paths.length;
+  return (
+    <Card className="p-4" as="section" aria-labelledby="exercise-data-title">
+      <div className="flex items-start gap-3">
+        <PlugZap size={18} className="text-category-attention shrink-0 mt-0.5" aria-hidden="true" />
+        <div className="min-w-0 space-y-1">
+          <h3 id="exercise-data-title" className="text-sm font-semibold text-text-primary">
+            {all ? 'Progress can’t be tracked yet' : `Progress can’t be tracked for ${untracked} of ${routine.paths.length} paths`}
+          </h3>
+          <p className="text-xs text-text-secondary leading-relaxed max-w-2xl">
+            No workout source is connected. Apple Health records a workout&rsquo;s type and duration, but judging{' '}
+            {all ? 'these paths' : 'those paths'} needs the exercises, sets, reps and load a training app such as Hevy logs.
+            Until one is connected they show as not tracked, and sessions aren&rsquo;t counted as missed. The plan itself works as
+            usual.
+          </p>
+          <Link href="/settings?tab=connections" className="inline-flex items-center gap-1 text-xs text-primary hover:underline min-h-[24px]">
+            Connect a workout source <ArrowRight size={12} aria-hidden="true" />
+          </Link>
+        </div>
+      </div>
+    </Card>
   );
 }
 

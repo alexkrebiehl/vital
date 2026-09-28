@@ -37,6 +37,8 @@ export interface WorkoutSlotView {
   /** Names of the other paths a rotating (or pick-one) slot covers. */
   rotatesWith: string[];
   light: Light;
+  /** See `PathProgress.tracked`. */
+  tracked: boolean;
   readiness: Readiness | null;
   lastSession: { date: string; work: string } | null;
   cues: string[];
@@ -138,6 +140,7 @@ export function workoutViews(
         ...(slot.note ? { note: slot.note } : {}),
         rotatesWith: others.map(id => byId.get(id)?.pathName ?? id),
         light: progress.light,
+        tracked: progress.tracked,
         readiness: progress.readiness,
         lastSession: progress.lastSession,
         cues: progress.cues,

@@ -88,6 +88,8 @@ export function pathSummary(p: PathProgress, rows = 4) {
     stageStartedOn: p.stage.startedOn,
     nextStage: p.nextStage?.name ?? null,
     light: p.light,
+    // false: no workout source is connected, so this stage's sessions cannot be seen (not "not trained").
+    tracked: p.tracked,
     reasons: p.reasons,
     readiness: p.readiness?.label ?? null,
     marker: p.target,
@@ -111,6 +113,9 @@ export function overviewSummary(r: RoutineOverview, detailPathId?: string) {
     revision: r.revision,
     title: r.title,
     goal: r.goal,
+    ...(r.exerciseData
+      ? {}
+      : { exerciseData: 'No workout source (e.g. Hevy) is connected: paths with tracked=false cannot be judged, and their sessions are unknown rather than missed. Suggest connecting one in Settings → Connections.' }),
     week: r.started ? r.week : `starts ${r.startDate}`,
     currentPhase: r.currentPhase
       ? { phase: `${r.currentPhase.index + 1} of ${r.currentPhase.count}`, name: r.currentPhase.name, since: r.currentPhase.since, milestones: `${r.currentPhase.progress.met} of ${r.currentPhase.progress.total} required` }

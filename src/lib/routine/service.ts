@@ -38,6 +38,15 @@ export async function loadRoutineContext(deps: RoutineDeps = {}): Promise<Routin
   return { stored, training, today: REFERENCE_KEY, dayOf: (iso: string) => dayKey(iso, tz) };
 }
 
+/**
+ * Exercise-level sessions can be read: demo data is served, or a workout source
+ * is configured (one that is failing still reports its error, and keeps serving
+ * what it held).
+ */
+export function hasExerciseData(training: TrainingData): boolean {
+  return training.origin === 'demo' || training.statuses.some(s => s.configured);
+}
+
 export function routineFor(ctx: RoutineContext, stored: StoredPlan, system: UnitSystem): RoutineOverview {
   return buildRoutine({
     stored,
@@ -47,6 +56,7 @@ export function routineFor(ctx: RoutineContext, stored: StoredPlan, system: Unit
     today: ctx.today,
     dayOf: ctx.dayOf,
     system,
+    exerciseData: hasExerciseData(ctx.training),
   });
 }
 

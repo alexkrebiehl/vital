@@ -120,6 +120,14 @@ export function stageMatchesExercise(stage: Stage, templateId: string | null, na
   return stage.match.names.some(n => keys.has(nameKey(n)) || keys.has(nameKey(withoutBodyweight(n))));
 }
 
+/**
+ * True when only a workout source can show this stage's sessions: it is matched
+ * by exercise, and names no Apple Health workout type to fall back on.
+ */
+export function stageNeedsExerciseData(stage: Stage): boolean {
+  return !(stage.match.workoutTypes ?? []).length;
+}
+
 /** Every session in which `stage` was trained, oldest first. */
 export function recordsForStage(
   stage: Stage,

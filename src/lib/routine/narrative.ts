@@ -240,6 +240,7 @@ export function narrativeFor(
   if (hit) return hit.view;
   const failed = s.failedAt.get(key);
   if (failed && Date.now() - failed.at < NARRATIVE_FAILURE_COOLDOWN_MS) return computedNarrative(path, failed.note);
+  if (!path.tracked) return computedNarrative(path, 'No workout source is connected, so this stage cannot be tracked.');
   if (path.light === 'none') return computedNarrative(path, 'Nothing has been logged for this stage yet.');
   if (!s.inFlight.has(key)) {
     const job = generate(key, routine, path, deps).finally(() => s.inFlight.delete(key));

@@ -17,7 +17,7 @@ import type { WorkoutSourceStatus } from '@/lib/workout-sources/types';
 import { Badge, Button, Card, DataStateNote, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { DiscussButton } from '@/components/analyst/DiscussDialog';
 import { useUnits } from '@/components/ui/UnitsProvider';
-import { LightLabel, ReadinessBar, useRoutineFetch } from './shared';
+import { ExerciseDataNotice, LightLabel, ReadinessBar, useRoutineFetch } from './shared';
 import { pathHref } from './RoutineSection';
 import { pathSuggestions } from './discuss-suggestions';
 import { formatDayKeyShort } from '@/lib/analytics/windows';
@@ -116,6 +116,8 @@ export function RoutinePathPage() {
         </DataStateNote>
       )}
 
+      {!path.tracked && <ExerciseDataNotice routine={routine} />}
+
       <Assessment path={path} narrative={narrative} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -139,14 +141,15 @@ function Assessment({ path, narrative }: { path: PathProgress; narrative?: Narra
     <Card className="p-5 space-y-3">
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm font-semibold text-text-primary">Light:</span>
-        <LightLabel light={path.light} />
+        <LightLabel light={path.light} tracked={path.tracked} />
         {path.readiness && <span className="text-xs text-text-secondary tnum">{path.readiness.label}</span>}
       </div>
-      <p className="text-sm text-text-primary leading-relaxed">{text}</p>
+      {/* An untracked path's reason is the notice above it; saying it again here adds nothing. */}
+      {path.tracked && <p className="text-sm text-text-primary leading-relaxed">{text}</p>}
       <p className="text-sm text-text-primary leading-relaxed">
         <span className="font-semibold">Next action:</span> {next}
       </p>
-      {narrative && (
+      {narrative && path.tracked && (
         <p className="text-[11px] text-text-secondary">
           {narrative.source === 'model'
             ? `Written by ${narrative.model ?? 'the configured model'} from the computed figures; every number was checked against them.`
@@ -163,8 +166,9 @@ function SessionTable({ path }: { path: PathProgress }) {
     return (
       <Card className="p-5">
         <p className="text-sm text-text-secondary">
-          No sessions logged for {path.stage.name.toLowerCase()} yet. Sessions are matched by exercise name or template id from your workout
-          source (or by Apple Health workout type).
+          {path.tracked
+            ? `No sessions logged for ${path.stage.name.toLowerCase()} yet. Sessions are matched by exercise name or template id from your workout source (or by Apple Health workout type).`
+            : `Sessions of ${path.stage.name.toLowerCase()} come from a workout source, and none is connected, so none can be shown here.`}
         </p>
       </Card>
     );
@@ -321,11 +325,11 @@ function AreaSiblings({ routine, path }: { routine: RoutineOverview; path: PathP
             <Link href={pathHref(p.pathId)} className="block rounded-control bg-surface-muted p-3 hover:bg-accent-tint transition-colors">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs text-text-secondary">{p.pathName}</span>
-                <LightLabel light={p.light} />
+                <LightLabel light={p.light} tracked={p.tracked} />
               </div>
               <p className="text-sm font-medium text-text-primary">{p.stage.name}</p>
               <p className="text-[11px] text-text-secondary mt-0.5">
-                {p.lastSession ? `Last: ${p.lastSession.work} (${formatDayKeyShort(p.lastSession.date)})` : 'Nothing logged yet'}
+                {p.lastSession ? `Last: ${p.lastSession.work} (${formatDayKeyShort(p.lastSession.date)})` : p.tracked ? 'Nothing logged yet' : 'Needs a workout source'}
               </p>
             </Link>
           </li>

@@ -16,7 +16,7 @@ import type { PhaseView } from '@/lib/routine/position';
 import { formatDayKeyShort } from '@/lib/analytics/windows';
 import { Badge, Button, Card, EmptyState, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { useUnits } from '@/components/ui/UnitsProvider';
-import { useRoutineFetch, type RoutineApiResponse } from './shared';
+import { ExerciseDataNotice, useRoutineFetch, type RoutineApiResponse } from './shared';
 import { pathHref, workoutHref } from './RoutineSection';
 import { DiscussButton } from '@/components/analyst/DiscussDialog';
 import { routineSuggestions } from './discuss-suggestions';
@@ -78,6 +78,7 @@ export function RoutinePlanPage() {
     <div className="space-y-6">
       <BackLink />
       <PlanHeader routine={routine} onPlanChange={reload} />
+      <ExerciseDataNotice routine={routine} />
       <Cadence cadence={routine.cadence} adherence={routine.adherence.text} />
       <Workouts routine={routine} />
       <Phases routine={routine} />
