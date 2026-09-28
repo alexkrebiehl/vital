@@ -293,6 +293,26 @@ export function SegmentedControl({ options, value, onChange, className = '', ari
   );
 }
 
+// ── ChoiceButton ─────────────────────────────────────
+
+/** One of a small set of mutually exclusive choices, shown as a pressed button. */
+export function ChoiceButton({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`px-4 py-2 text-sm rounded-control border transition-colors min-h-[44px] ${
+        active
+          ? 'bg-primary text-primary-text border-primary'
+          : 'bg-surface text-text-secondary border-border hover:text-text-primary'
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
 // ── Tabs ─────────────────────────────────────────────
 
 interface Tab {

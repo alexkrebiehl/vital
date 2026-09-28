@@ -20,6 +20,7 @@ import { FALLBACK_CLIENT_META } from '@/components/data/fallback-meta';
 import { LiveDataUnavailableError, resolveDataset, type ResolvedDataset } from '@/lib/adapters/runtime';
 import { readProfile } from '@/lib/profile/store';
 import { LEGACY_STORAGE_KEY, preferencesCacheKey } from '@/lib/prefs/types';
+import { DEFAULT_THEME_ID, themesFor } from '@/lib/prefs/themes';
 import PrefsSync from '@/components/prefs/PrefsSync';
 
 export const metadata: Metadata = {
@@ -39,15 +40,30 @@ export const revalidate = 0;
  * theme before the first paint. The legacy `vital-prefs` key is read once as a
  * fallback, because a browser that has not synced since the upgrade still has
  * only that.
+ *
+ * It resolves the theme the way `resolveTheme` in `@/lib/prefs` does: the mode
+ * picks the side, that side's pick names the palette, and a pick this build
+ * does not know (or a cache from before picks existed) is the default theme.
+ * It sets `data-theme` for the palette and the `dark` class for Tailwind.
  */
+const KNOWN_THEMES = JSON.stringify({
+  light: themesFor('light').map(t => t.id),
+  dark: themesFor('dark').map(t => t.id),
+});
+
 const themeScript = `
   (function() {
     try {
       var raw = localStorage.getItem('${preferencesCacheKey()}') || localStorage.getItem('${LEGACY_STORAGE_KEY}');
-      var theme = (JSON.parse(raw || '{}') || {}).theme || 'system';
-      if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        document.documentElement.classList.add('dark');
-      }
+      var prefs = JSON.parse(raw || '{}') || {};
+      var theme = prefs.theme || 'system';
+      var scheme = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+      var known = ${KNOWN_THEMES};
+      var id = prefs[scheme + 'Theme'];
+      if (known[scheme].indexOf(id) < 0) id = '${DEFAULT_THEME_ID}';
+      var root = document.documentElement;
+      if (scheme === 'dark') root.classList.add('dark');
+      root.setAttribute('data-theme', scheme + '-' + id);
     } catch(e) {}
   })();
 `;

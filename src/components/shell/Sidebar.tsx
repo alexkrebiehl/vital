@@ -4,10 +4,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, TrendingUp, Heart, FlaskConical, Activity, Moon, Weight,
-  UtensilsCrossed, Dumbbell, Lightbulb, Bot, Settings, ChevronRight, Pill,
+  UtensilsCrossed, Dumbbell, Lightbulb, Bot, Settings, ChevronRight, Pill, Palette,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { ThemeToggle } from './ThemeToggle';
 
 interface NavItem {
   label: string;
@@ -73,7 +72,17 @@ export function Sidebar() {
 
       {/* Bottom */}
       <div className="px-2.5 pb-3 space-y-0.5 border-t border-border pt-2">
-        <ThemeToggle />
+        <Link
+          href="/themes"
+          className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors min-h-[40px] ${
+            pathname.startsWith('/themes')
+              ? 'bg-accent-tint text-primary font-medium'
+              : 'text-text-secondary hover:text-text-primary hover:bg-surface-muted'
+          }`}
+        >
+          <Palette size={17} />
+          <span>Themes</span>
+        </Link>
         <Link
           href="/settings"
           className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors min-h-[40px] ${

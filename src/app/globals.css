@@ -3,8 +3,49 @@
 @tailwind utilities;
 
 /* ── Design Tokens ─────────────────────────────────────── */
+/* Layout: shared by every theme. */
 :root {
-  /* Light theme (default) */
+  /* Layout */
+  --sidebar-width: 224px;
+  --content-max-width: 1360px;
+  --radius-card: 20px;
+  --radius-control: 12px;
+}
+
+/* Category accents: the defaults. A theme may set its own; they are re-applied
+   on every [data-theme] element so a Default preview card inside another theme
+   does not inherit that theme's accents. */
+:root,
+[data-theme] {
+  --color-category-activity: #4A8B8B;
+  --color-category-cardiovascular: #D4796A;
+  --color-category-sleep: #6A6D9E;
+  --color-category-body: #A6896A;
+  --color-category-nutrition: #7F9C7A;
+  --color-category-respiratory: #5FA8B3;
+  --color-category-recovery: #7B7EAD;
+  --color-category-attention: #C4913E;
+}
+
+/* ── Themes ────────────────────────────────────────────────
+   Each theme is one block of the colour tokens, selected by `data-theme` on
+   <html> ("<scheme>-<id>", set by the pre-paint script in layout.tsx and by
+   `applyTheme`). Because a palette is scoped to the attribute rather than to
+   <html>, any element can show another theme's real colours: the theme cards on
+   /themes wrap their previews in `data-theme="dark-default"` and so on.
+
+   Adding a theme: one `[data-theme="<scheme>-<id>"]` block here with every
+   colour token the Default blocks set (and, optionally, the category accents),
+   plus one entry in `src/lib/prefs/themes.ts`. The stored preferences need no
+   change. Keep text readable: body text at least 7:1 on page and surface,
+   secondary text and links (`primary`) at least 4.5:1, chart accents at least
+   3:1 on surface. Popular palettes are adapted where their literal colours fall
+   short (Solarized's blue on its cream background is 3.4:1, for example). The `dark` class stays on <html> for any dark theme, so
+   Tailwind's `dark:` variants keep working. */
+
+/* Light · Default. Also the fallback before a theme is applied. */
+:root,
+[data-theme="light-default"] {
   --color-page: #F6F5F1;
   --color-surface: #FFFFFF;
   --color-surface-muted: #EEEDE7;
@@ -36,25 +77,11 @@
      follow the theme without dragging tooltips with it. */
   --color-tooltip: #172B24;
   --color-tooltip-foreground: #F1F4EF;
-
-  /* Category accents */
-  --color-category-activity: #4A8B8B;
-  --color-category-cardiovascular: #D4796A;
-  --color-category-sleep: #6A6D9E;
-  --color-category-body: #A6896A;
-  --color-category-nutrition: #7F9C7A;
-  --color-category-respiratory: #5FA8B3;
-  --color-category-recovery: #7B7EAD;
-  --color-category-attention: #C4913E;
-
-  /* Layout */
-  --sidebar-width: 224px;
-  --content-max-width: 1360px;
-  --radius-card: 20px;
-  --radius-control: 12px;
 }
 
-.dark {
+/* Dark · Default. Also the fallback for a dark page with no theme applied. */
+html.dark:not([data-theme]),
+[data-theme="dark-default"] {
   --color-page: #101713;
   --color-surface: #19221D;
   --color-surface-muted: #1A2A20;
@@ -77,6 +104,384 @@
   /* Tooltips: dark in this theme as well; see the light block's note. */
   --color-tooltip: #0E1E18;
   --color-tooltip-foreground: #F1F4EF;
+}
+
+/* ── Popular themes ─────────────────────────────────────
+   Adapted from each project's published palette (all MIT-licensed except
+   Monokai, whose colours are widely reused): the backgrounds, text and accents
+   follow the original; a shade is darkened or lightened only where a contrast
+   rule above required it. */
+
+/* Light · Solarized */
+[data-theme="light-solarized"] {
+  --color-page: #EEE8D5;
+  --color-surface: #FDF6E3;
+  --color-surface-muted: #E8E1CB;
+  --color-surface-elevated: #FDF6E3;
+  --color-text-primary: #073642;
+  --color-text-secondary: #4E636A;
+  --color-border: #DDD6C1;
+  --color-accent: #1B6497;
+  --color-accent-tint: #E3E9E1;
+  --color-primary: #1B6497;
+  --color-primary-text: #FDF6E3;
+  --color-hero: #E3E9E1;
+  --color-hero-border: #CDD8D0;
+  --color-hero-foreground: #073642;
+  --color-hero-muted: #1B6497;
+  --color-hero-secondary: #4F646B;
+  --color-tooltip: #073642;
+  --color-tooltip-foreground: #EEE8D5;
+
+  --color-category-activity: #1F8A82;
+  --color-category-cardiovascular: #DC322F;
+  --color-category-sleep: #6C71C4;
+  --color-category-body: #9A7500;
+  --color-category-nutrition: #6F8000;
+  --color-category-respiratory: #268BD2;
+  --color-category-recovery: #D33682;
+  --color-category-attention: #CB4B16;
+}
+
+/* Light · GitHub */
+[data-theme="light-github"] {
+  --color-page: #F6F8FA;
+  --color-surface: #FFFFFF;
+  --color-surface-muted: #EFF2F5;
+  --color-surface-elevated: #FFFFFF;
+  --color-text-primary: #1F2328;
+  --color-text-secondary: #59636E;
+  --color-border: #D0D7DE;
+  --color-accent: #0969DA;
+  --color-accent-tint: #DDF4FF;
+  --color-primary: #0969DA;
+  --color-primary-text: #FFFFFF;
+  --color-hero: #DDF4FF;
+  --color-hero-border: #B6E3FF;
+  --color-hero-foreground: #0A3069;
+  --color-hero-muted: #0969DA;
+  --color-hero-secondary: #3B4A5A;
+  --color-tooltip: #25292E;
+  --color-tooltip-foreground: #FFFFFF;
+
+  --color-category-activity: #1B7C83;
+  --color-category-cardiovascular: #CF222E;
+  --color-category-sleep: #8250DF;
+  --color-category-body: #BC4C00;
+  --color-category-nutrition: #1A7F37;
+  --color-category-respiratory: #0969DA;
+  --color-category-recovery: #BF3989;
+  --color-category-attention: #9A6700;
+}
+
+/* Light · Gruvbox */
+[data-theme="light-gruvbox"] {
+  --color-page: #F2E5BC;
+  --color-surface: #FBF1C7;
+  --color-surface-muted: #EBDBB2;
+  --color-surface-elevated: #F9F5D7;
+  --color-text-primary: #3C3836;
+  --color-text-secondary: #665C54;
+  --color-border: #E0D0A6;
+  --color-accent: #076678;
+  --color-accent-tint: #DEE0BD;
+  --color-primary: #076678;
+  --color-primary-text: #FBF1C7;
+  --color-hero: #EBDBB2;
+  --color-hero-border: #D5C4A1;
+  --color-hero-foreground: #282828;
+  --color-hero-muted: #9D3A03;
+  --color-hero-secondary: #504945;
+  --color-tooltip: #3C3836;
+  --color-tooltip-foreground: #FBF1C7;
+
+  --color-category-activity: #427B58;
+  --color-category-cardiovascular: #9D0006;
+  --color-category-sleep: #8F3F71;
+  --color-category-body: #B57614;
+  --color-category-nutrition: #79740E;
+  --color-category-respiratory: #076678;
+  --color-category-recovery: #B16286;
+  --color-category-attention: #AF3A03;
+}
+
+/* Light · Catppuccin Latte */
+[data-theme="light-catppuccin"] {
+  --color-page: #E6E9EF;
+  --color-surface: #EFF1F5;
+  --color-surface-muted: #DCE0E8;
+  --color-surface-elevated: #F5F6F9;
+  --color-text-primary: #3F4259;
+  --color-text-secondary: #5C5F77;
+  --color-border: #CCD0DA;
+  --color-accent: #8839EF;
+  --color-accent-tint: #E3DBF4;
+  --color-primary: #7A2FE0;
+  --color-primary-text: #EFF1F5;
+  --color-hero: #E3DBF4;
+  --color-hero-border: #D3C6EF;
+  --color-hero-foreground: #383A52;
+  --color-hero-muted: #7A2FE0;
+  --color-hero-secondary: #5C5F77;
+  --color-tooltip: #4C4F69;
+  --color-tooltip-foreground: #EFF1F5;
+
+  --color-category-activity: #179299;
+  --color-category-cardiovascular: #D20F39;
+  --color-category-sleep: #5A6FE6;
+  --color-category-body: #C45A5A;
+  --color-category-nutrition: #378A25;
+  --color-category-respiratory: #0284BF;
+  --color-category-recovery: #C44FA3;
+  --color-category-attention: #B8720F;
+}
+
+/* Dark · Solarized */
+[data-theme="dark-solarized"] {
+  --color-page: #00212B;
+  --color-surface: #002B36;
+  --color-surface-muted: #073642;
+  --color-surface-elevated: #0A3A47;
+  --color-text-primary: #EEE8D5;
+  --color-text-secondary: #93A1A1;
+  --color-border: #11414D;
+  --color-accent: #58A6E0;
+  --color-accent-tint: #083848;
+  --color-primary: #58A6E0;
+  --color-primary-text: #002B36;
+  --color-hero: #073642;
+  --color-hero-border: #14495A;
+  --color-hero-foreground: #EEE8D5;
+  --color-hero-muted: #58A6E0;
+  --color-hero-secondary: #A7B3B3;
+  --color-tooltip: #00212B;
+  --color-tooltip-foreground: #EEE8D5;
+
+  --color-category-activity: #2AA198;
+  --color-category-cardiovascular: #DC322F;
+  --color-category-sleep: #6C71C4;
+  --color-category-body: #B58900;
+  --color-category-nutrition: #859900;
+  --color-category-respiratory: #268BD2;
+  --color-category-recovery: #D33682;
+  --color-category-attention: #CB4B16;
+}
+
+/* Dark · Monokai */
+[data-theme="dark-monokai"] {
+  --color-page: #1E1F1C;
+  --color-surface: #272822;
+  --color-surface-muted: #33342C;
+  --color-surface-elevated: #3E3D32;
+  --color-text-primary: #F8F8F2;
+  --color-text-secondary: #B3B0A0;
+  --color-border: #45463B;
+  --color-accent: #A6E22E;
+  --color-accent-tint: #3A4424;
+  --color-primary: #A6E22E;
+  --color-primary-text: #1E1F1C;
+  --color-hero: #2F3129;
+  --color-hero-border: #45463B;
+  --color-hero-foreground: #F8F8F2;
+  --color-hero-muted: #E6DB74;
+  --color-hero-secondary: #CFCFC2;
+  --color-tooltip: #1E1F1C;
+  --color-tooltip-foreground: #F8F8F2;
+
+  --color-category-activity: #A6E22E;
+  --color-category-cardiovascular: #F92672;
+  --color-category-sleep: #AE81FF;
+  --color-category-body: #D3A86B;
+  --color-category-nutrition: #E6DB74;
+  --color-category-respiratory: #66D9EF;
+  --color-category-recovery: #A1EFE4;
+  --color-category-attention: #FD971F;
+}
+
+/* Dark · Dracula */
+[data-theme="dark-dracula"] {
+  --color-page: #21222C;
+  --color-surface: #282A36;
+  --color-surface-muted: #343746;
+  --color-surface-elevated: #44475A;
+  --color-text-primary: #F8F8F2;
+  --color-text-secondary: #B6B9CC;
+  --color-border: #44475A;
+  --color-accent: #BD93F9;
+  --color-accent-tint: #3B374F;
+  --color-primary: #BD93F9;
+  --color-primary-text: #21222C;
+  --color-hero: #343746;
+  --color-hero-border: #44475A;
+  --color-hero-foreground: #F8F8F2;
+  --color-hero-muted: #FF79C6;
+  --color-hero-secondary: #D6D7E0;
+  --color-tooltip: #191A21;
+  --color-tooltip-foreground: #F8F8F2;
+
+  --color-category-activity: #50FA7B;
+  --color-category-cardiovascular: #FF5555;
+  --color-category-sleep: #BD93F9;
+  --color-category-body: #FFB86C;
+  --color-category-nutrition: #F1FA8C;
+  --color-category-respiratory: #8BE9FD;
+  --color-category-recovery: #FF79C6;
+  --color-category-attention: #FFB86C;
+}
+
+/* Dark · Nord */
+[data-theme="dark-nord"] {
+  --color-page: #272C36;
+  --color-surface: #2E3440;
+  --color-surface-muted: #3B4252;
+  --color-surface-elevated: #434C5E;
+  --color-text-primary: #ECEFF4;
+  --color-text-secondary: #AEB7C7;
+  --color-border: #434C5E;
+  --color-accent: #88C0D0;
+  --color-accent-tint: #3C4955;
+  --color-primary: #88C0D0;
+  --color-primary-text: #2E3440;
+  --color-hero: #3B4252;
+  --color-hero-border: #4C566A;
+  --color-hero-foreground: #ECEFF4;
+  --color-hero-muted: #88C0D0;
+  --color-hero-secondary: #D8DEE9;
+  --color-tooltip: #242933;
+  --color-tooltip-foreground: #ECEFF4;
+
+  --color-category-activity: #8FBCBB;
+  --color-category-cardiovascular: #BF616A;
+  --color-category-sleep: #B48EAD;
+  --color-category-body: #D08770;
+  --color-category-nutrition: #A3BE8C;
+  --color-category-respiratory: #88C0D0;
+  --color-category-recovery: #81A1C1;
+  --color-category-attention: #EBCB8B;
+}
+
+/* Dark · Gruvbox */
+[data-theme="dark-gruvbox"] {
+  --color-page: #1D2021;
+  --color-surface: #282828;
+  --color-surface-muted: #32302F;
+  --color-surface-elevated: #3C3836;
+  --color-text-primary: #EBDBB2;
+  --color-text-secondary: #BDAE93;
+  --color-border: #45403D;
+  --color-accent: #FABD2F;
+  --color-accent-tint: #483E29;
+  --color-primary: #FABD2F;
+  --color-primary-text: #282828;
+  --color-hero: #32302F;
+  --color-hero-border: #504945;
+  --color-hero-foreground: #FBF1C7;
+  --color-hero-muted: #FE8019;
+  --color-hero-secondary: #D5C4A1;
+  --color-tooltip: #1D2021;
+  --color-tooltip-foreground: #EBDBB2;
+
+  --color-category-activity: #8EC07C;
+  --color-category-cardiovascular: #FB4934;
+  --color-category-sleep: #D3869B;
+  --color-category-body: #FE8019;
+  --color-category-nutrition: #B8BB26;
+  --color-category-respiratory: #83A598;
+  --color-category-recovery: #B16286;
+  --color-category-attention: #FABD2F;
+}
+
+/* Dark · Catppuccin Mocha */
+[data-theme="dark-catppuccin"] {
+  --color-page: #181825;
+  --color-surface: #1E1E2E;
+  --color-surface-muted: #2A2B3D;
+  --color-surface-elevated: #313244;
+  --color-text-primary: #CDD6F4;
+  --color-text-secondary: #A6ADC8;
+  --color-border: #313244;
+  --color-accent: #CBA6F7;
+  --color-accent-tint: #38324C;
+  --color-primary: #CBA6F7;
+  --color-primary-text: #1E1E2E;
+  --color-hero: #181825;
+  --color-hero-border: #313244;
+  --color-hero-foreground: #CDD6F4;
+  --color-hero-muted: #CBA6F7;
+  --color-hero-secondary: #BAC2DE;
+  --color-tooltip: #11111B;
+  --color-tooltip-foreground: #CDD6F4;
+
+  --color-category-activity: #94E2D5;
+  --color-category-cardiovascular: #F38BA8;
+  --color-category-sleep: #B4BEFE;
+  --color-category-body: #FAB387;
+  --color-category-nutrition: #A6E3A1;
+  --color-category-respiratory: #89DCEB;
+  --color-category-recovery: #F5C2E7;
+  --color-category-attention: #F9E2AF;
+}
+
+/* Dark · Tokyo Night */
+[data-theme="dark-tokyo-night"] {
+  --color-page: #16161E;
+  --color-surface: #1A1B26;
+  --color-surface-muted: #1F2335;
+  --color-surface-elevated: #24283B;
+  --color-text-primary: #C0CAF5;
+  --color-text-secondary: #9AA5CE;
+  --color-border: #292E42;
+  --color-accent: #7AA2F7;
+  --color-accent-tint: #282F45;
+  --color-primary: #7AA2F7;
+  --color-primary-text: #1A1B26;
+  --color-hero: #1F2335;
+  --color-hero-border: #292E42;
+  --color-hero-foreground: #C0CAF5;
+  --color-hero-muted: #BB9AF7;
+  --color-hero-secondary: #A9B1D6;
+  --color-tooltip: #16161E;
+  --color-tooltip-foreground: #C0CAF5;
+
+  --color-category-activity: #73DACA;
+  --color-category-cardiovascular: #F7768E;
+  --color-category-sleep: #BB9AF7;
+  --color-category-body: #FF9E64;
+  --color-category-nutrition: #9ECE6A;
+  --color-category-respiratory: #7DCFFF;
+  --color-category-recovery: #7AA2F7;
+  --color-category-attention: #E0AF68;
+}
+
+/* Dark · One Dark */
+[data-theme="dark-one-dark"] {
+  --color-page: #21252B;
+  --color-surface: #282C34;
+  --color-surface-muted: #2C313A;
+  --color-surface-elevated: #333842;
+  --color-text-primary: #D7DAE0;
+  --color-text-secondary: #ABB2BF;
+  --color-border: #3A3F4B;
+  --color-accent: #61AFEF;
+  --color-accent-tint: #2F3D4D;
+  --color-primary: #61AFEF;
+  --color-primary-text: #21252B;
+  --color-hero: #2C313A;
+  --color-hero-border: #3A3F4B;
+  --color-hero-foreground: #D7DAE0;
+  --color-hero-muted: #CD85E2;
+  --color-hero-secondary: #ABB2BF;
+  --color-tooltip: #1B1E23;
+  --color-tooltip-foreground: #D7DAE0;
+
+  --color-category-activity: #56B6C2;
+  --color-category-cardiovascular: #E06C75;
+  --color-category-sleep: #C678DD;
+  --color-category-body: #D19A66;
+  --color-category-nutrition: #98C379;
+  --color-category-respiratory: #61AFEF;
+  --color-category-recovery: #8A9CEF;
+  --color-category-attention: #E5C07B;
 }
 
 /* ── Typography ────────────────────────────────────────── */

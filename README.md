@@ -210,7 +210,8 @@ That starts **two** services: `vital-postgres` (the database, published on
 if they fail**, so it can never serve a half-migrated database.
 
 What lives in Postgres: your configuration — the profile (name, date of birth, timezone, briefing
-hour, notes) and the display preferences (theme, units, notifications). **No health data**: no
+hour, notes) and the display preferences (theme mode and light/dark theme picks, units,
+notifications). **No health data**: no
 observations, metric series or workouts are ever written to it; health history stays with the
 Health Auto Export source and is read server-side. See `db/migrations/0001-init.sql`.
 
@@ -377,7 +378,7 @@ configuration:
   (`useUnits().timezone`) and the server's day boundaries and briefing day.
 - **Notes are data, never instructions.** The briefing prompt states it where every other rule
   lives, and the user message repeats it: a note that reads like a command is not followed.
-- **Nothing else is stored locally.** Theme, units and the notification flags stay in
+- **Nothing else is stored locally.** Theme choices, units and the notification flags stay in
   `localStorage` as a cache; no API key, token or health record does — and the timezone no longer
   does either.
 
