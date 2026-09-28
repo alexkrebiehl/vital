@@ -84,7 +84,7 @@ export function RoutinePathPage() {
             {routine.title} · {path.areaName}
           </p>
           <h1 className="text-[24px] md:text-[30px] font-semibold tracking-tight text-text-primary leading-tight mt-1">
-            {path.pathName} Progression
+            Path: {path.pathName}
           </h1>
           <p className="text-sm text-text-secondary mt-1">
             Current stage: {stageNumber > 1 || path.stages.length > 1 ? `Stage ${stageNumber} ` : ''}
