@@ -17,7 +17,7 @@ import type { WorkoutSourceStatus } from '@/lib/workout-sources/types';
 import { Badge, Button, Card, DataStateNote, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { DiscussButton } from '@/components/analyst/DiscussDialog';
 import { useUnits } from '@/components/ui/UnitsProvider';
-import { LightLabel, useRoutineFetch } from './shared';
+import { LightLabel, ReadinessBar, useRoutineFetch } from './shared';
 import { pathHref } from './RoutineSection';
 import { pathSuggestions } from './discuss-suggestions';
 import { formatDayKeyShort } from '@/lib/analytics/windows';
@@ -117,12 +117,13 @@ export function RoutinePathPage() {
       )}
 
       <Assessment path={path} narrative={narrative} />
-      <SessionTable path={path} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <StageMap path={path} />
         <StageGuidance path={path} routine={routine} />
       </div>
+
+      <SessionTable path={path} />
 
       <AreaSiblings routine={routine} path={path} />
 
@@ -260,11 +261,7 @@ function StageGuidance({ path, routine }: { path: PathProgress; routine: Routine
   return (
     <Card className="p-5 space-y-3">
       <h2 className="text-sm font-semibold text-text-primary">{path.stage.name}</h2>
-      {path.prescription && (
-        <p className="text-xs text-text-secondary">
-          <span className="text-text-primary font-medium">Prescription:</span> {path.prescription}
-        </p>
-      )}
+      {path.readiness && <ReadinessBar readiness={path.readiness} from={path.stage.name} to={path.nextStage?.name ?? null} />}
       {path.target && (
         <p className="text-xs text-text-secondary">
           <span className="text-text-primary font-medium">Progression marker:</span> {path.target}
