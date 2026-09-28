@@ -1,4 +1,4 @@
--- ── 0004 — training plans and their revisions ───────────────────────────────
+-- ── 0007 — training plans and their revisions ───────────────────────────────
 --
 -- The routine on the Workouts page follows a training plan: focus areas,
 -- progression paths and their stages, the rules for moving on, time blocks,
@@ -20,6 +20,14 @@
 --
 -- Immutable once shipped (see migrate-core.mjs): a later change arrives as a
 -- new file with the next version number.
+--
+-- Numbered 0007, not 0004: it was written as 0004 on a branch while upstream's
+-- lab migrations took 0004–0006, and the runner refuses two files with one
+-- version. A database that already applied it as 0004 relabels that row once:
+--   UPDATE schema_migrations SET version = '0007', checksum = '<sha256 of this file>'
+--    WHERE version = '0004' AND name = 'training-plans';
+-- after which 0004–0006 apply as usual. Every statement here is IF NOT EXISTS,
+-- so running it again on such a database changes nothing.
 
 CREATE TABLE IF NOT EXISTS training_plans (
   id             TEXT         PRIMARY KEY,

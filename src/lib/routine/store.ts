@@ -4,7 +4,7 @@
 // (src/lib/db/backend.ts):
 //
 //   * a Postgres database is configured → training_plans / training_plan_revisions
-//     (db/migrations/0004, src/lib/db/plan-store.ts);
+//     (db/migrations/0007, src/lib/db/plan-store.ts);
 //   * nothing configured                → one JSON file the server owns,
 //         ./data/training-plans.json   (VITAL_TRAINING_PLAN_PATH overrides)
 //
