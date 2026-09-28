@@ -168,7 +168,7 @@ Desktop:
   Workouts
   Insights
   AI Analyst
-- Settings and theme control anchored near the bottom.
+- Themes and Settings links anchored near the bottom. (The single light/dark toggle became a Themes page, Sep 28 2026: theme cards grouped under Light and Dark, one pick per side, with Light / Dark / Match system choosing between them.)
 - Give AI Analyst a subtle accent treatment.
 - Active navigation uses a tinted pill, not a loud solid block.
 
@@ -408,7 +408,7 @@ Insights:
 Settings:
 - Units
 - Timezone
-- Theme
+- Theme (a link to the Themes page)
 - Data coverage
 - Available metrics
 - Connection configuration/status
@@ -613,7 +613,7 @@ Required interactions:
 - Metric drill-down
 - Chart range changes
 - Chart tooltips
-- Theme switching with persistence
+- Theme switching with persistence (the Themes page: a mode plus a light and a dark theme pick, saved with the other preferences)
 - Unit switching with consistent conversions
 - Timezone preference
 - Search and keyboard command palette

@@ -127,6 +127,8 @@ export async function writePreferences(
   // written in a shape this build would later refuse to read.
   const validated = validatePreferencesRecord({
     theme: preferences.theme,
+    lightTheme: preferences.lightTheme,
+    darkTheme: preferences.darkTheme,
     units: preferences.units,
     notifications: { ...preferences.notifications },
     schemaVersion: PREFS_SCHEMA_VERSION,

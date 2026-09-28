@@ -14,6 +14,9 @@
 //   * a stale write is refused by the server (409); the conflict is surfaced,
 //     never silently swallowed.
 //   * an unreachable server is reported honestly, never faked as a save.
+//   * the tabs of one browser move together: a save the server accepted is
+//     posted to the other tabs, which adopt it when it is newer than what they
+//     show. Other devices converge on their next read (focus).
 //
 // Nothing here ever stores a health value, a token or a credential: the only
 // thing written to storage is the namespaced display cache.
@@ -72,6 +75,15 @@ export interface PrefsEngineDeps {
   onChange?: () => void;
   /** Register a callback for when the window regains focus. */
   onFocus?: (cb: () => void) => void;
+  /**
+   * The other tabs of this browser. A record the server accepted is posted;
+   * whatever another tab posts arrives through `listen`, unvalidated. Absent
+   * where there are no tabs (SSR, tests, no BroadcastChannel).
+   */
+  tabs?: {
+    post: (record: PreferencesRecord) => void;
+    listen: (cb: (payload: unknown) => void) => void;
+  };
 }
 
 export interface PrefsEngine {
@@ -210,6 +222,8 @@ export function createPrefsEngine(deps: PrefsEngineDeps): PrefsEngine {
   function stripRecord(record: PreferencesRecord): VitalPreferences {
     return {
       theme: record.theme,
+      lightTheme: record.lightTheme,
+      darkTheme: record.darkTheme,
       units: record.units,
       notifications: { ...record.notifications },
     };
@@ -302,6 +316,8 @@ export function createPrefsEngine(deps: PrefsEngineDeps): PrefsEngine {
   async function save(next: VitalPreferences): Promise<SaveOutcome> {
     const target: VitalPreferences = {
       theme: next.theme,
+      lightTheme: next.lightTheme,
+      darkTheme: next.darkTheme,
       units: next.units,
       notifications: { ...next.notifications },
     };
@@ -321,6 +337,7 @@ export function createPrefsEngine(deps: PrefsEngineDeps): PrefsEngine {
     const result = await put(target, state.revision);
     if (result.kind === 'ok') {
       adopt(result.record);
+      deps.tabs?.post(result.record);
       return { ok: true };
     }
     if (result.kind === 'conflict') {
@@ -358,6 +375,13 @@ export function createPrefsEngine(deps: PrefsEngineDeps): PrefsEngine {
     void sync();
     deps.onFocus?.(() => {
       void sync();
+    });
+    // Another tab saved: show its record when it is newer than ours. A record
+    // at or below our revision is an echo or out of date, and is ignored, so
+    // two tabs can never bounce a value between them.
+    deps.tabs?.listen(payload => {
+      const record = readRecord(payload);
+      if (record && record.revision > state.revision) adopt(record);
     });
   }
 
