@@ -19,6 +19,7 @@ import type { PerformanceRecord } from '../records';
 import type { UnitSystem } from '../../prefs';
 import type { Dose, PlanRules, Stage } from '../types';
 import {
+  effortFactor,
   effortText,
   fallingStreak,
   headlineOf,
@@ -26,9 +27,11 @@ import {
   mergeRows,
   quantityFor,
   readinessLabel,
+  readinessProgress,
   rpesOf,
   sumOf,
   targetRange,
+  topRpe,
   trendSignal,
   valuesOf,
   valuesText,
@@ -44,6 +47,10 @@ interface SessionJudgement {
   nearTop: boolean;
   effortHigh: boolean;
   qualifies: boolean;
+  /** 0–1 toward the marker's volume, or null when the dose has no range. */
+  performance: number | null;
+  /** 0–1: how well effort stayed inside the ceiling. */
+  effort: number;
 }
 
 function slack(range: [number, number]): number {
@@ -61,7 +68,12 @@ export function judge(record: PerformanceRecord, target: Dose | undefined, q: Qu
   const nearTop = Boolean(range) && inRange && sumOf(counted) >= counted.length * (range![1] - slack(range!));
   const rpes = rpesOf(record);
   const effortHigh = ceiling !== null && rpes.some(r => r > ceiling);
-  return { record, values, total, inRange, nearTop, effortHigh, qualifies: nearTop && !effortHigh };
+  // Each counted set earns up to the top of the range; the marker's total is full marks.
+  const sets = Math.max(minSets, 1);
+  const performance = range
+    ? Math.min(inRange ? 1 : 0.95, sumOf(values.slice(0, sets).map(v => Math.min(v, range[1]))) / (sets * (range[1] - slack(range))))
+    : null;
+  return { record, values, total, inRange, nearTop, effortHigh, qualifies: nearTop && !effortHigh, performance, effort: effortFactor(topRpe(record), ceiling) };
 }
 
 function rowFor(
@@ -138,6 +150,9 @@ export const variationModel: ProgressionModel = {
       qualifying: q2,
       needed: qualifying[0],
       met: q2 >= qualifying[0],
+      progress: range
+        ? Math.max(0, ...recent.map(j => readinessProgress(j.performance ?? 0, j.effort, q2, qualifying[0])))
+        : Math.min(1, q2 / Math.max(1, qualifying[0])),
       label: readinessLabel(q2, qualifying, 'sessions'),
       unit: 'sessions' as const,
     };

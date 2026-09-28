@@ -10,7 +10,7 @@ import { numberParam } from '../model-params';
 import { distanceText, doseText, durationText, paceText } from '../format';
 import type { PerformanceRecord } from '../records';
 import { addDays, dayKeyToDate, formatDayKeyShort } from '../../analytics/windows';
-import { readinessLabel } from './shared';
+import { readinessLabel, readinessProgress } from './shared';
 import { qualifyingRange, type EvaluationContext, type ModelEvaluation, type ProgressRow, type ProgressionModel } from './types';
 
 type VolumeMetric = 'distanceM' | 'durationS' | 'sets';
@@ -84,8 +84,12 @@ export const volumeModel: ProgressionModel = {
     const complete = weeks.filter(w => w.complete);
     const lastWeek = complete[complete.length - 1];
     const prevWeek = complete[complete.length - 2];
-    const q = marker ? complete.slice(-qualifying[1]).filter(w => w.total >= marker.range[0]).length : 0;
-    const readiness = { qualifying: q, needed: qualifying[0], met: q >= qualifying[0], label: readinessLabel(q, qualifying, 'weeks'), unit: 'weeks' as const };
+    const recent = complete.slice(-qualifying[1]);
+    const q = marker ? recent.filter(w => w.total >= marker.range[0]).length : 0;
+    const progress = marker && marker.range[0] > 0
+      ? Math.max(0, ...recent.map(w => readinessProgress(w.total / marker.range[0], null, q, qualifying[0])))
+      : 0;
+    const readiness = { qualifying: q, needed: qualifying[0], met: q >= qualifying[0], progress, label: readinessLabel(q, qualifying, 'weeks'), unit: 'weeks' as const };
     const facts: ModelEvaluation['facts'] = { stage: ctx.stage.name, target: doseText(dose, ctx.system) };
     const current = weeks[weeks.length - 1];
     facts.thisWeek = volumeText(current.total, metric, ctx);

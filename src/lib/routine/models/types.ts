@@ -37,6 +37,11 @@ export interface Readiness {
   qualifying: number;
   needed: number;
   met: boolean;
+  /**
+   * 0–1 toward the next stage: mostly how close the best recent session came to
+   * the marker, then effort inside the ceiling, then repeating it for `needed`.
+   */
+  progress: number;
   /** "2 of 3 qualifying sessions". */
   label: string;
   unit: 'sessions' | 'weeks';

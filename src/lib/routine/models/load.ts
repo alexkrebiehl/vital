@@ -9,7 +9,7 @@
 import { numberParam } from '../model-params';
 import { doseText, rangeText, weightText } from '../format';
 import type { PerformanceRecord } from '../records';
-import { effortText, mergeRows, readinessLabel, rpesOf, trendSignal } from './shared';
+import { effortFactor, effortText, mergeRows, readinessLabel, readinessProgress, rpesOf, topRpe, trendSignal } from './shared';
 import { qualifyingRange, rpeCeiling, type EvaluationContext, type ModelEvaluation, type ProgressRow, type ProgressionModel } from './types';
 
 interface LoadJudgement {
@@ -20,6 +20,9 @@ interface LoadJudgement {
   missed: boolean;
   effortHigh: boolean;
   e1rm: number | null;
+  /** 0–1: reps at this weight toward the top of the range across the prescribed sets. */
+  performance: number;
+  effort: number;
 }
 
 function round(kg: number, step: number): number {
@@ -55,6 +58,8 @@ export const loadModel: ProgressionModel = {
         missed: !enough || repsAtWeight.slice(0, minSets).some(r => r < bottom),
         effortHigh,
         e1rm: record.totals.e1rmKg,
+        performance: top > 0 ? repsAtWeight.slice(0, minSets).reduce((a, r) => a + Math.min(r, top), 0) / (minSets * top) : 0,
+        effort: effortFactor(topRpe(record), ceiling),
       };
     });
 
@@ -86,8 +91,10 @@ export const loadModel: ProgressionModel = {
     const last = judged[judged.length - 1];
     // Qualifying sessions count only at the current working weight.
     const atCurrent = last ? judged.filter(j => j.weight === last.weight) : [];
-    const q = atCurrent.slice(-qualifying[1]).filter(j => j.qualifies).length;
-    const readiness = { qualifying: q, needed: qualifying[0], met: q >= qualifying[0], label: readinessLabel(q, qualifying, 'sessions'), unit: 'sessions' as const };
+    const recent = atCurrent.slice(-qualifying[1]);
+    const q = recent.filter(j => j.qualifies).length;
+    const progress = Math.max(0, ...recent.map(j => readinessProgress(j.performance, j.effort, q, qualifying[0])));
+    const readiness = { qualifying: q, needed: qualifying[0], met: q >= qualifying[0], progress, label: readinessLabel(q, qualifying, 'sessions'), unit: 'sessions' as const };
     const facts: ModelEvaluation['facts'] = { stage: ctx.stage.name, target: doseText(target, ctx.system) };
 
     if (!last) {

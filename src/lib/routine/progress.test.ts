@@ -133,6 +133,18 @@ describe('variation model on the decline push-up example', () => {
     expect(push.readiness).toMatchObject({ qualifying: 0, needed: 2, met: false });
   });
 
+  it('fills the bar toward the marker, not just by qualifying sessions', () => {
+    // 12/12/10 reaches the marker's volume; RPE 9.5 is half a point past the ceiling.
+    expect(push.readiness!.progress).toBeCloseTo(0.875, 3);
+    const decline = (d: string, r: number[], rpe: number[]) => session(d, [{ name: 'Decline Push Up', sets: reps(r, rpe) }]);
+    const progress = (sessions: TrainingSession[]) => run(pushPlan(), sessions, '2026-09-18').paths[0].readiness!.progress;
+    const early = progress([decline('2026-09-08', [6, 6, 6], [7, 7, 7])]);
+    expect(early).toBeGreaterThan(0.3);
+    expect(early).toBeLessThan(0.5);
+    expect(progress([decline('2026-09-08', [12, 12, 11], [8, 8, 8.5])])).toBeCloseTo(0.95, 3);
+    expect(progress([decline('2026-09-08', [12, 12, 11], [8, 8, 8.5]), decline('2026-09-11', [12, 12, 12], [8, 8, 8])])).toBe(1);
+  });
+
   it('prescribes repeating the top of the range at lower effort', () => {
     expect(push.nextAction).toBe(
       'Repeat 3×10–12 with consistent form and lower perceived effort for 2–3 sessions. Do not move on while sets are near failure.'
@@ -230,11 +242,14 @@ describe('load model', () => {
   it('holds when reps are made but effort was too high, and backs off after two misses', () => {
     const hard = run(liftPlan('load', stage), [session('2026-09-10', [{ name: 'Bench Press (Barbell)', sets: reps([5, 5, 5], [8.5, 9, 9.5], 80) }])], '2026-09-11').paths[0];
     expect(hard.light).toBe('yellow-green');
+    expect(hard.readiness!.progress).toBeCloseTo(0.85, 3);
     const missed = run(liftPlan('load', stage), [
       session('2026-09-10', [{ name: 'Bench Press (Barbell)', sets: reps([5, 4, 3], [9, 10, 10], 85) }]),
       session('2026-09-13', [{ name: 'Bench Press (Barbell)', sets: reps([5, 3, 3], [9, 10, 10], 85) }]),
     ], '2026-09-14').paths[0];
     expect(missed.light).toBe('red');
+    // One-session window: 5/3/3 is 11 of 15 reps, and RPE 10 leaves a quarter of the effort share.
+    expect(missed.readiness!.progress).toBeCloseTo((11 / 15) * (0.8 + 0.1 * 0.25), 3);
     expect(missed.nextAction).toBe('Back off 10% to 77.5 kg for 3×5 and build up again.');
   });
 
@@ -274,6 +289,7 @@ describe('volume model', () => {
     const p = run(runPlan, [], '2026-09-15', { workouts }).paths[0];
     expect(p.light).toBe('yellow');
     expect(p.reasons[0]).toBe('Last week was 38% above the week before; the plan allows 10%.');
+    expect(p.readiness!.progress).toBeCloseTo(0.95, 3);
     expect(p.rows.map(r => r.work)).toEqual(['Week of Aug 31: 16 km', 'Week of Sep 7: 22 km', 'Week of Sep 14: 0 km']);
   });
 

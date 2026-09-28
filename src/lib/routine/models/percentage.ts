@@ -56,7 +56,8 @@ export const percentageModel: ProgressionModel = {
     }));
 
     const q = judged.slice(-qualifying[1]).filter(j => j.onTarget).length;
-    const readiness = { qualifying: q, needed: qualifying[0], met: q >= qualifying[0], label: readinessLabel(q, qualifying, 'sessions'), unit: 'sessions' as const };
+    // Periodized work has no build-up toward a marker: only sessions on target count.
+    const readiness = { qualifying: q, needed: qualifying[0], met: q >= qualifying[0], progress: Math.min(1, q / Math.max(1, qualifying[0])), label: readinessLabel(q, qualifying, 'sessions'), unit: 'sessions' as const };
     const prescription = `${doseText(dose, ctx.system)}${band ? ` (≈ ${weightRangeText(band, ctx.system)})` : ''}`;
     const facts: ModelEvaluation['facts'] = { stage: ctx.stage.name, prescription };
     if (oneRm > 0) facts.oneRepMax = weightText(oneRm, ctx.system);

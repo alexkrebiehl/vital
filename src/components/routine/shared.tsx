@@ -149,9 +149,9 @@ export function PlanChangeCard({ change, onUndone }: { change: PlanChange; onUnd
   );
 }
 
-/** Qualifying sessions so far toward the next step or stage. */
+/** Progress toward the next step or stage: the work toward the marker, effort, then qualifying sessions. */
 export function ReadinessBar({ readiness, from, to, className = '' }: { readiness: Readiness; from: string; to: string | null; className?: string }) {
-  const pct = Math.min(100, Math.round((readiness.qualifying / Math.max(1, readiness.needed)) * 100));
+  const pct = Math.min(100, Math.round(readiness.progress * 100));
   return (
     <div className={className}>
       <div className="flex justify-between gap-2 text-[11px] text-text-secondary mb-1">
@@ -161,7 +161,15 @@ export function ReadinessBar({ readiness, from, to, className = '' }: { readines
         </span>
         <span className="tnum shrink-0">{readiness.label}</span>
       </div>
-      <div className="h-1.5 rounded-full bg-surface-muted overflow-hidden" role="progressbar" aria-valuemin={0} aria-valuemax={readiness.needed} aria-valuenow={readiness.qualifying} aria-label={`Progress toward ${to ?? 'the marker'}`}>
+      <div
+        className="h-1.5 rounded-full bg-surface-muted overflow-hidden"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={pct}
+        aria-label={`Progress toward ${to ?? 'the marker'}`}
+        title={`${pct}% of the way to ${to ?? 'the marker'}`}
+      >
         <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
       </div>
     </div>

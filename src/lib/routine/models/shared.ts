@@ -42,6 +42,17 @@ export function rpesOf(record: PerformanceRecord): number[] {
   return record.sets.map(s => s.rpe).filter((v): v is number => v !== undefined);
 }
 
+export function topRpe(record: PerformanceRecord): number | null {
+  const rpes = rpesOf(record);
+  return rpes.length ? Math.max(...rpes) : null;
+}
+
+/** 1 inside the effort ceiling (or with no RPE logged), falling to 0 two RPE above it. */
+export function effortFactor(rpe: number | null, ceiling: number | null): number {
+  if (rpe === null || ceiling === null || rpe <= ceiling) return 1;
+  return Math.max(0, 1 - (rpe - ceiling) / 2);
+}
+
 export function effortText(record: PerformanceRecord): string | null {
   const rpes = rpesOf(record);
   if (rpes.length === 0) return null;
@@ -121,4 +132,22 @@ export function fallingStreak(totals: number[], n = 2, pct = 0.05): boolean {
 export function readinessLabel(q: number, range: Range, unit: 'sessions' | 'weeks'): string {
   const needed = range[0] === range[1] ? `${range[0]}` : `${range[0]}–${range[1]}`;
   return `${q} of ${needed} qualifying ${unit === 'weeks' ? 'weeks' : 'sessions'}`;
+}
+
+/**
+ * How far toward the next stage (0–1). `performance` (0–1) is how close the
+ * best recent session came to the marker; it earns 80%, effort inside the
+ * ceiling earns 10% alongside it, and repeating the marker the needed number
+ * of times earns the last 10%. With no effort signal, performance earns 90%.
+ */
+export function readinessProgress(
+  performance: number,
+  effort: number | null,
+  qualifying: number,
+  needed: number
+): number {
+  if (qualifying >= needed) return 1;
+  const p = Math.max(0, Math.min(1, performance));
+  const work = effort === null ? 0.9 * p : 0.8 * p + 0.1 * p * effort;
+  return work + 0.1 * Math.min(1, qualifying / Math.max(1, needed));
 }
