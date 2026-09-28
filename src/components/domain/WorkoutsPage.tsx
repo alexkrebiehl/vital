@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Dumbbell, Info, ArrowUpDown } from 'lucide-react';
 import { REFERENCE_KEY } from '@/lib/adapters/dataset';
 import { formatDurationHm, formatMetricWithUnit } from '@/lib/metrics/format';
@@ -26,6 +26,7 @@ import { DomainHeader, SectionTitle } from './DomainShared';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { RoutineSection } from '@/components/routine/RoutineSection';
 import { SessionExercises } from '@/components/routine/SessionExercises';
+import { matchSession } from '@/lib/workout-sources/match';
 
 const RANGE_OPTIONS = [
   { value: '30', label: 'Last 30 days' },
@@ -42,6 +43,34 @@ const SORT_OPTIONS: { value: WorkoutSort; label: string }[] = [
   { value: 'distance', label: 'Longest distance' },
 ];
 
+interface SourceSession {
+  startTime: string;
+  endTime: string;
+  sourceName: string;
+}
+
+/** When each workout-source session happened, so a workout can say a source (Hevy) also logged it. Empty until loaded, or if it fails. */
+function useSourceSessions(): SourceSession[] {
+  const [sessions, setSessions] = useState<SourceSession[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/workout-sources/sessions', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((body: { sessions: SourceSession[] }) => !cancelled && setSessions(body.sessions))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return sessions;
+}
+
+/** "Health Auto Export + Hevy" when a workout source logged the same session. */
+function sourceLabel(view: WorkoutView, alsoFrom: Map<string, string>): string {
+  const also = alsoFrom.get(view.id);
+  return also && also !== view.source ? `${view.source} + ${also}` : view.source;
+}
+
 export function WorkoutsPage() {
   const { units } = useUnits();
   const [type, setType] = useState('all');
@@ -50,6 +79,15 @@ export function WorkoutsPage() {
   const [selected, setSelected] = useState<WorkoutView | null>(null);
 
   const views = useMemo(() => workoutViews(), []);
+  const sourceSessions = useSourceSessions();
+  const alsoFrom = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const v of views) {
+      const hit = matchSession(v, sourceSessions);
+      if (hit) m.set(v.id, hit.sourceName);
+    }
+    return m;
+  }, [views, sourceSessions]);
   const types = useMemo(() => workoutTypes(views), [views]);
   const filtered = useMemo(
     () => filterWorkouts({ type, days: Number(days), sort }, views),
@@ -196,7 +234,7 @@ export function WorkoutsPage() {
                       <span className="text-[11px] text-text-secondary">no heart rate</span>
                     )}
                     <span className="flex-1" />
-                    <span className="text-[11px] text-text-secondary">{w.source}</span>
+                    <span className="text-[11px] text-text-secondary">{sourceLabel(w, alsoFrom)}</span>
                   </button>
                 </li>
               ))}
@@ -362,7 +400,7 @@ export function WorkoutsPage() {
 
       {/* ── Detail dialog ───────────────────────────── */}
       <Dialog open={selected !== null} onClose={() => setSelected(null)} title={selected ? `${selected.workout_type} detail` : 'Workout detail'}>
-        {selected && <WorkoutDetail view={selected} units={units} allViews={views} />}
+        {selected && <WorkoutDetail view={selected} units={units} allViews={views} source={sourceLabel(selected, alsoFrom)} />}
       </Dialog>
     </div>
   );
@@ -400,9 +438,11 @@ function TotalCard({ label, value, sub, title }: { label: string; value: string;
 }
 
 function WorkoutDetail({
-  view, units, allViews,
+  view, units, allViews, source,
 }: {
   view: WorkoutView;
+  /** The recording source, plus any workout source that logged the same session. */
+  source: string;
   units: 'metric' | 'imperial';
   allViews: WorkoutView[];
 }) {
@@ -411,7 +451,7 @@ function WorkoutDetail({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="default" className="text-[10px]">{view.source}</Badge>
+        <Badge variant="default" className="text-[10px]">{source}</Badge>
         <span className="text-xs text-text-secondary">{workoutWhenLabel(view)}</span>
       </div>
 
@@ -424,7 +464,7 @@ function WorkoutDetail({
         <DetailRow label="Average heart rate" value={view.hasHeartRate ? `${view.avg_heart_rate} bpm` : 'Not recorded for this session'} />
         <DetailRow label="Maximum heart rate" value={view.hasHeartRate ? `${view.max_heart_rate} bpm` : 'Not recorded for this session'} />
         <DetailRow label="Active calories" value={`${view.calories_burned} kcal`} />
-        <DetailRow label="Source" value={view.source} />
+        <DetailRow label="Source" value={source} />
         <DetailRow label="Record id" value={view.id} />
       </dl>
 
