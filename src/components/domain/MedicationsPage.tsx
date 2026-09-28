@@ -130,7 +130,7 @@ function MedicationsContent({
     <div className="space-y-8">
       <DomainHeader
         title="Medications"
-        subtitle={`Doses recorded in your Health Auto Export history over the last ${MEDICATIONS_LOOKBACK_DAYS} days — what was logged, and when. Nothing here is advice.`}
+        subtitle={`Doses recorded in your Health Auto Export history over the last ${MEDICATIONS_LOOKBACK_DAYS} days.`}
       >
         <Badge variant="default" className="text-[10px]">
           {records.length} record{records.length === 1 ? '' : 's'}
