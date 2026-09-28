@@ -12,7 +12,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { formatDayKeyShort } from '@/lib/analytics/windows';
-import { Archive, CalendarDays, CalendarRange, ChevronRight, MessageSquare, PauseCircle, Sparkles } from 'lucide-react';
+import { Archive, CalendarDays, CalendarRange, ChevronRight, PauseCircle, Sparkles } from 'lucide-react';
 import type { PathProgress, RoutineOverview } from '@/lib/routine/progress';
 import type { ScheduledDayView } from '@/lib/routine/schedule';
 import { Badge, Button, Card, DataStateNote, EmptyState, ErrorState, Skeleton } from '@/components/ui/primitives';
@@ -20,8 +20,8 @@ import { useUnits } from '@/components/ui/UnitsProvider';
 import { SectionTitle } from '@/components/domain/DomainShared';
 import { LightLabel, PlanChangeCard, ReadinessBar, useRoutineFetch, type RoutineApiResponse } from './shared';
 import type { PlanChange } from '@/lib/routine/types';
-
-const CREATE_PROMPT = 'Create a training plan for me. Ask me about my goal, schedule and equipment first.';
+import { DiscussButton } from '@/components/analyst/DiscussDialog';
+import { CREATE_PROMPT, routineSuggestions, untrackedSuggestions } from './discuss-suggestions';
 
 export function analystHref(question: string): string {
   return `/analyst?q=${encodeURIComponent(question)}`;
@@ -31,6 +31,11 @@ export function RoutineSection() {
   const { units } = useUnits();
   const { state, reload } = useRoutineFetch<RoutineApiResponse>('/api/routine', units);
   const [change, setChange] = useState<PlanChange | null>(null);
+  // A change made here or in the analyst dialog (null: the dialog's change was undone).
+  const planChanged = (c: PlanChange | null) => {
+    setChange(c);
+    reload();
+  };
 
   return (
     <section id="routine" aria-labelledby="routine-title">
@@ -54,9 +59,9 @@ export function RoutineSection() {
             </div>
           )}
           {state.data.routine ? (
-            <RoutineBody data={state.data} routine={state.data.routine} onChange={c => { setChange(c); reload(); }} />
+            <RoutineBody data={state.data} routine={state.data.routine} onChange={planChanged} />
           ) : (
-            <NoPlan data={state.data} onCreated={c => { setChange(c); reload(); }} />
+            <NoPlan data={state.data} onCreated={planChanged} />
           )}
         </>
       )}
@@ -84,7 +89,7 @@ function SourceNote({ data }: { data: RoutineApiResponse }) {
   return null;
 }
 
-function NoPlan({ data, onCreated }: { data: RoutineApiResponse; onCreated: (c: PlanChange) => void }) {
+function NoPlan({ data, onCreated }: { data: RoutineApiResponse; onCreated: (c: PlanChange | null) => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   return (
@@ -94,12 +99,14 @@ function NoPlan({ data, onCreated }: { data: RoutineApiResponse; onCreated: (c: 
         title="No training plan yet"
         description="Describe your goal to the analyst — any discipline, any schedule — and it will build a multi-month plan, then track each progression here against your logged sessions."
         action={
-          <Link href={analystHref(CREATE_PROMPT)}>
-            <Button variant="primary" size="sm">
-              <MessageSquare size={14} className="mr-1.5" aria-hidden="true" />
-              Create a plan with the analyst
-            </Button>
-          </Link>
+          <DiscussButton
+            label="Create a plan with the analyst"
+            variant="primary"
+            context={{ kind: 'routine' }}
+            subject="a new training plan"
+            suggestions={[CREATE_PROMPT, ...data.references.map(r => `Create a ${r.label.toLowerCase()} plan`)].slice(0, 4)}
+            onPlanChange={onCreated}
+          />
         }
       />
       <div className="border-t border-border pt-4">
@@ -137,7 +144,7 @@ function NoPlan({ data, onCreated }: { data: RoutineApiResponse; onCreated: (c: 
   );
 }
 
-function RoutineBody({ data, routine, onChange }: { data: RoutineApiResponse; routine: RoutineOverview; onChange: (c: PlanChange) => void }) {
+function RoutineBody({ data, routine, onChange }: { data: RoutineApiResponse; routine: RoutineOverview; onChange: (c: PlanChange | null) => void }) {
   const areas = [...new Set(routine.paths.map(p => p.areaId))].map(id => ({
     id,
     name: routine.paths.find(p => p.areaId === id)!.areaName,
@@ -187,12 +194,12 @@ function RoutineBody({ data, routine, onChange }: { data: RoutineApiResponse; ro
                 Plan details
               </Button>
             </Link>
-            <Link href={analystHref(`Review my training plan "${routine.title}" and my recent progress.`)}>
-              <Button size="sm">
-                <MessageSquare size={14} className="mr-1.5" aria-hidden="true" />
-                Discuss with analyst
-              </Button>
-            </Link>
+            <DiscussButton
+              context={{ kind: 'routine' }}
+              subject={`the plan "${routine.title}"`}
+              suggestions={routineSuggestions(routine)}
+              onPlanChange={onChange}
+            />
             <ArchiveButton onChange={onChange} />
           </div>
         </div>
@@ -210,14 +217,14 @@ function RoutineBody({ data, routine, onChange }: { data: RoutineApiResponse; ro
         </div>
       ))}
 
-      <UntrackedNote routine={routine} />
+      <UntrackedNote routine={routine} onChange={onChange} />
       <SourceNote data={data} />
     </div>
   );
 }
 
 /** Exercises the reader logs that no stage recognises: they count toward nothing until added. */
-function UntrackedNote({ routine }: { routine: RoutineOverview }) {
+function UntrackedNote({ routine, onChange }: { routine: RoutineOverview; onChange: (c: PlanChange | null) => void }) {
   const [all, setAll] = useState(false);
   const list = routine.untracked;
   if (list.length === 0) return null;
@@ -240,14 +247,14 @@ function UntrackedNote({ routine }: { routine: RoutineOverview }) {
                 · {u.sessions} session{u.sessions === 1 ? '' : 's'}, last {formatDayKeyShort(u.lastDate)}
               </span>
             </span>
-            <Link
-              href={analystHref(
-                `I log "${u.name}" in my workouts (${u.sessions} session${u.sessions === 1 ? '' : 's'} in the last 90 days, most recently ${u.lastDate}) but no path in my plan tracks it. Add it to the plan where it belongs.`
-              )}
-              className="text-xs font-medium text-primary hover:underline underline-offset-2 shrink-0"
-            >
-              Add to plan with analyst
-            </Link>
+            <DiscussButton
+              appearance="link"
+              label="Add to plan with analyst"
+              context={{ kind: 'routine-untracked', name: u.name }}
+              subject={u.name}
+              suggestions={untrackedSuggestions(u)}
+              onPlanChange={onChange}
+            />
           </li>
         ))}
       </ul>
@@ -271,7 +278,7 @@ function RecoveryChip({ routine }: { routine: RoutineOverview }) {
   );
 }
 
-function ArchiveButton({ onChange }: { onChange: (c: PlanChange) => void }) {
+function ArchiveButton({ onChange }: { onChange: (c: PlanChange | null) => void }) {
   const [confirming, setConfirming] = useState(false);
   if (!confirming) {
     return (
@@ -398,7 +405,7 @@ function PathCard({ path }: { path: PathProgress }) {
       <Card className="p-4 h-full group-hover:shadow-sm transition-shadow">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-[11px] text-text-secondary">{path.pathName}{path.priority === 'secondary' ? ' · secondary' : ''}</p>
+            <p className="text-[11px] text-text-secondary">{path.pathName} path{path.priority === 'secondary' ? ' · secondary' : ''}</p>
             <p className="text-sm font-semibold text-text-primary truncate">
               {path.stage.name}
               {path.step ? <span className="font-normal text-text-secondary"> · {path.step.name}</span> : null}

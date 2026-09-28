@@ -76,7 +76,7 @@ Models: ${Object.entries(MODEL_PARAM_SPECS).map(([id, s]) => `${id} — ${s.desc
 
 // ── Result shaping ──────────────────────────────────────
 
-function pathSummary(p: PathProgress, rows = 4) {
+export function pathSummary(p: PathProgress, rows = 4) {
   return {
     pathId: p.pathId,
     path: p.pathName,
@@ -105,7 +105,7 @@ function pathSummary(p: PathProgress, rows = 4) {
   };
 }
 
-function overviewSummary(r: RoutineOverview, detailPathId?: string) {
+export function overviewSummary(r: RoutineOverview, detailPathId?: string) {
   return {
     planId: r.planId,
     revision: r.revision,

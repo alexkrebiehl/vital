@@ -31,6 +31,7 @@ import type { RoutineDeps } from '../routine/service';
 import { readAnalystConfig, type AnalystConfig } from './config';
 import { checkGrounding, parseAnalystReply, proseAnswerText } from './validate';
 import { boundedHistory } from './memory';
+import { resolvePageContext, type ResolvedPageContext } from './page-context';
 import type {
   AnalystAnswer,
   AnalystGrounding,
@@ -244,6 +245,18 @@ export async function askAnalyst(
   // Conversation memory: the earlier turns of THIS conversation, bounded here so
   // no caller can send an unbounded history. Empty for a new conversation.
   const history = boundedHistory(request?.history);
+  // The page the question was asked from. A page that no longer resolves, or a
+  // routine that cannot be read, leaves the question to be answered without it.
+  let pageContext: ResolvedPageContext | undefined;
+  if (request?.context && !isDemo) {
+    try {
+      pageContext = (await resolvePageContext(request.context, system, routineDeps)) ?? undefined;
+    } catch {
+      pageContext = undefined;
+    }
+  }
+  // Numbers quoted from the page context are grounded, like tool results.
+  const pageGrounding = pageContext ? [pageContext.json] : [];
   const withContext = {
     handlerId,
     retrieval: retrievalSummary(bundle),
@@ -263,6 +276,7 @@ export async function askAnalyst(
       system,
       notes: notes.text.length > 0 ? notes.text : undefined,
       history,
+      pageContext,
     });
     try {
       const looped = await runToolLoop(provider, `${config.systemPrompt}${TRAINING_TOOLS_PROMPT}`, user, toolCtx);
@@ -285,7 +299,7 @@ export async function askAnalyst(
         ...withContext,
         model: looped.model ?? config.model,
         answer: parsed.answer,
-        grounding: checkGrounding(parsed.answer, bundle, system, looped.toolOutputs),
+        grounding: checkGrounding(parsed.answer, bundle, system, [...pageGrounding, ...looped.toolOutputs]),
         planChange,
         toolsUsed: looped.toolsUsed,
       });
@@ -315,6 +329,7 @@ export async function askAnalyst(
       prompt: config.systemPrompt,
       notes: notes.text.length > 0 ? notes.text : undefined,
       history,
+      pageContext,
     });
 
     if (!result) {
@@ -339,7 +354,7 @@ export async function askAnalyst(
         });
       }
       answer = parsed.answer;
-      grounding = checkGrounding(answer, bundle, system);
+      grounding = checkGrounding(answer, bundle, system, pageGrounding);
     }
   } catch (error) {
     if (error instanceof AnalystProviderError) {

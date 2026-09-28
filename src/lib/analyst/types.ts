@@ -10,6 +10,7 @@ import type { UnitSystem } from '../prefs';
 import type { ComparisonResult } from '../analytics/stats';
 import type { DayWindow } from '../analytics/windows';
 import type { PlanChange } from '../routine/types';
+import type { PageContextRef } from './page-context-types';
 
 // ── Answers ────────────────────────────────────────────
 
@@ -133,6 +134,8 @@ export interface AnalystRequest {
    * first. A new conversation passes none.
    */
   history?: { role: 'user' | 'assistant'; content: string }[];
+  /** The page the question was asked from, resolved on the server (page-context.ts). */
+  context?: PageContextRef | null;
 }
 
 export type AnalystStatus =
@@ -156,6 +159,8 @@ export interface AnalystProviderContext {
    * first. Empty for a new conversation. Carried as untrusted DATA too.
    */
   history?: { role: 'user' | 'assistant'; content: string }[];
+  /** The page the reader is looking at, already resolved and bounded. Untrusted DATA. */
+  pageContext?: { label: string; json: string };
 }
 
 /**

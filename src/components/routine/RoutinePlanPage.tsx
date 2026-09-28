@@ -9,7 +9,7 @@
 
 import Link from 'next/link';
 import { Fragment } from 'react';
-import { ArrowLeft, ArrowRight, Check, MessageSquare, Repeat } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Repeat } from 'lucide-react';
 import type { CadenceDay, CadenceNode, CadenceView } from '@/lib/routine/cadence';
 import type { RoutineOverview } from '@/lib/routine/progress';
 import type { PhaseView } from '@/lib/routine/position';
@@ -17,7 +17,9 @@ import { formatDayKeyShort } from '@/lib/analytics/windows';
 import { Badge, Button, Card, EmptyState, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { useRoutineFetch, type RoutineApiResponse } from './shared';
-import { analystHref, pathHref, workoutHref } from './RoutineSection';
+import { pathHref, workoutHref } from './RoutineSection';
+import { DiscussButton } from '@/components/analyst/DiscussDialog';
+import { routineSuggestions } from './discuss-suggestions';
 
 function BackLink() {
   return (
@@ -75,7 +77,7 @@ export function RoutinePlanPage() {
   return (
     <div className="space-y-6">
       <BackLink />
-      <PlanHeader routine={routine} />
+      <PlanHeader routine={routine} onPlanChange={reload} />
       <Cadence cadence={routine.cadence} adherence={routine.adherence.text} />
       <Workouts routine={routine} />
       <Phases routine={routine} />
@@ -84,7 +86,7 @@ export function RoutinePlanPage() {
   );
 }
 
-function PlanHeader({ routine }: { routine: RoutineOverview }) {
+function PlanHeader({ routine, onPlanChange }: { routine: RoutineOverview; onPlanChange: () => void }) {
   return (
     <header className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0 max-w-3xl">
@@ -116,12 +118,12 @@ function PlanHeader({ routine }: { routine: RoutineOverview }) {
           </ul>
         )}
       </div>
-      <Link href={analystHref(`Review my training plan "${routine.title}" and my recent progress.`)}>
-        <Button size="sm">
-          <MessageSquare size={14} className="mr-1.5" aria-hidden="true" />
-          Discuss with analyst
-        </Button>
-      </Link>
+      <DiscussButton
+        context={{ kind: 'routine' }}
+        subject={`the plan "${routine.title}"`}
+        suggestions={routineSuggestions(routine)}
+        onPlanChange={onPlanChange}
+      />
     </header>
   );
 }

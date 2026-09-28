@@ -8,14 +8,16 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, ArrowRight, ChevronRight, MessageSquare, PauseCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronRight, PauseCircle } from 'lucide-react';
 import type { RoutineOverview } from '@/lib/routine/progress';
 import type { WorkoutSlotView, WorkoutView } from '@/lib/routine/workout-view';
 import type { WorkoutSourceStatus } from '@/lib/workout-sources/types';
-import { Badge, Button, Card, ErrorState, Skeleton } from '@/components/ui/primitives';
+import { Badge, Card, ErrorState, Skeleton } from '@/components/ui/primitives';
+import { DiscussButton } from '@/components/analyst/DiscussDialog';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { LightLabel, ReadinessBar, useRoutineFetch } from './shared';
-import { analystHref, pathHref, planHref } from './RoutineSection';
+import { pathHref, planHref } from './RoutineSection';
+import { workoutSuggestions } from './discuss-suggestions';
 import { formatDayKeyShort } from '@/lib/analytics/windows';
 
 interface WorkoutDetailResponse {
@@ -87,12 +89,12 @@ export function RoutineWorkoutPage() {
               : 'Not logged yet in this plan'}
           </p>
         </div>
-        <Link href={analystHref(`Walk me through ${workout.name} — what should I do in each exercise next time?`)}>
-          <Button size="sm">
-            <MessageSquare size={14} className="mr-1.5" aria-hidden="true" />
-            Discuss with analyst
-          </Button>
-        </Link>
+        <DiscussButton
+          context={{ kind: 'routine-workout', templateId: workout.id }}
+          subject={workout.name}
+          suggestions={workoutSuggestions(workout)}
+          onPlanChange={reload}
+        />
       </header>
 
       {workout.warmup.length > 0 && (

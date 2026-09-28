@@ -446,9 +446,11 @@ interface DialogProps {
   onClose: () => void;
   title: string;
   children: ReactNode;
+  /** 'lg' is a tall panel whose body fills it (full screen on phones), for chat-like content. */
+  size?: 'md' | 'lg';
 }
 
-export function Dialog({ open, onClose, title, children }: DialogProps) {
+export function Dialog({ open, onClose, title, children, size = 'md' }: DialogProps) {
   const ref = useRef<HTMLDivElement>(null);
   const prevFocusRef = useRef<HTMLElement | null>(null);
 
@@ -506,9 +508,13 @@ export function Dialog({ open, onClose, title, children }: DialogProps) {
       <div
         ref={ref}
         tabIndex={-1}
-        className="relative bg-surface border border-border rounded-card p-6 max-w-lg w-full mx-4 shadow-xl focus:outline-none max-h-[85vh] overflow-y-auto"
+        className={
+          size === 'lg'
+            ? 'relative bg-surface shadow-xl focus:outline-none flex flex-col w-full h-full p-4 sm:p-6 sm:h-[85vh] sm:max-w-3xl sm:mx-4 sm:border sm:border-border sm:rounded-card'
+            : 'relative bg-surface border border-border rounded-card p-6 max-w-lg w-full mx-4 shadow-xl focus:outline-none max-h-[85vh] overflow-y-auto'
+        }
       >
-        <div className="flex items-center justify-between mb-4 gap-3">
+        <div className={`flex items-center justify-between gap-3 ${size === 'lg' ? 'mb-3 shrink-0' : 'mb-4'}`}>
           <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
           <button
             onClick={onClose}

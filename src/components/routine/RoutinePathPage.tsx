@@ -10,14 +10,16 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, CheckCircle2, Circle, CircleDot, MessageSquare, PauseCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Circle, CircleDot, PauseCircle } from 'lucide-react';
 import type { PathProgress, RoutineOverview } from '@/lib/routine/progress';
 import type { RecoveryIndicator } from '@/lib/routine/recovery';
 import type { WorkoutSourceStatus } from '@/lib/workout-sources/types';
 import { Badge, Button, Card, DataStateNote, ErrorState, Skeleton } from '@/components/ui/primitives';
+import { DiscussButton } from '@/components/analyst/DiscussDialog';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { LightLabel, useRoutineFetch } from './shared';
-import { analystHref, pathHref } from './RoutineSection';
+import { pathHref } from './RoutineSection';
+import { pathSuggestions } from './discuss-suggestions';
 import { formatDayKeyShort } from '@/lib/analytics/windows';
 import type { NarrativeView } from '@/lib/routine/narrative-types';
 
@@ -84,7 +86,7 @@ export function RoutinePathPage() {
             {routine.title} · {path.areaName}
           </p>
           <h1 className="text-[24px] md:text-[30px] font-semibold tracking-tight text-text-primary leading-tight mt-1">
-            Path: {path.pathName}
+            {path.pathName} path
           </h1>
           <p className="text-sm text-text-secondary mt-1">
             Current stage: {stageNumber > 1 || path.stages.length > 1 ? `Stage ${stageNumber} ` : ''}
@@ -97,12 +99,12 @@ export function RoutinePathPage() {
             {path.nextStage && <Badge variant="accent">Next: {path.nextStage.name}</Badge>}
           </div>
         </div>
-        <Link href={analystHref(`How is my ${path.pathName.toLowerCase()} progression going, and what should I do next?`)}>
-          <Button size="sm">
-            <MessageSquare size={14} className="mr-1.5" aria-hidden="true" />
-            Discuss with analyst
-          </Button>
-        </Link>
+        <DiscussButton
+          context={{ kind: 'routine-path', pathId: path.pathId }}
+          subject={`the ${path.pathName} path`}
+          suggestions={pathSuggestions(path)}
+          onPlanChange={reload}
+        />
       </header>
 
       {path.hold && (
