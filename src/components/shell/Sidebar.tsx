@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, TrendingUp, Heart, FlaskConical, Activity, Moon, Weight,
-  UtensilsCrossed, Dumbbell, Lightbulb, Bot, Settings, ChevronRight,
+  UtensilsCrossed, Dumbbell, Lightbulb, Bot, Settings, ChevronRight, Pill,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { ThemeToggle } from './ThemeToggle';
@@ -21,6 +21,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Trends', href: '/trends', icon: <TrendingUp size={17} /> },
   { label: 'Health', href: '/health', icon: <Heart size={17} /> },
   { label: 'Lab', href: '/lab', icon: <FlaskConical size={17} /> },
+  { label: 'Medications', href: '/medications', icon: <Pill size={17} /> },
   { label: 'Activity', href: '/activity', icon: <Activity size={17} /> },
   { label: 'Sleep', href: '/sleep', icon: <Moon size={17} /> },
   { label: 'Body', href: '/body', icon: <Weight size={17} /> },
