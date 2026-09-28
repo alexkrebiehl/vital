@@ -30,6 +30,7 @@ import {
   retrieveGeneral,
 } from './retrieval';
 import { loadLabSnapshot, type LabLoader } from './labContext';
+import { loadMedicationSnapshot, type MedicationLoader } from './medicationsContext';
 import { AnalystProviderError, createProvider, DEMO_LABEL, supportsStreaming } from './provider';
 import { parseAnalystSse } from './stream';
 import { readAnalystConfig, type AnalystConfig } from './config';
@@ -43,6 +44,7 @@ import type {
   AnalystResponse,
   AnalystStatus,
   LabContextSnapshot,
+  MedicationContextSnapshot,
   RetrievalBundle,
 } from './types';
 
@@ -152,6 +154,21 @@ function labSentence(lab: LabContextSnapshot): string {
   return ` Lab results: ${lab.note}; ${lab.documents} document${lab.documents === 1 ? '' : 's'} and ${lab.totalObservations} lab observation${lab.totalObservations === 1 ? '' : 's'} across ${lab.totalSeries} series were read.`;
 }
 
+/**
+ * The medications half of the selection note. It states, in words, what the
+ * block carries and — importantly — what it is not: a record of what was logged,
+ * and not a known-complete list of medications. An absent read is stated too: a
+ * failed or unconfigured read must never read as "no medications were taken".
+ */
+function medicationSentence(med: MedicationContextSnapshot): string {
+  if (!med.available) return ` Medication records are not in this context: ${med.reason}`;
+  const list =
+    med.totalMedications === 0
+      ? 'no medication records'
+      : med.medications.map(m => `${m.groupingKey} (${m.daysRecorded} day${m.daysRecorded === 1 ? '' : 's'})`).join(', ');
+  return ` Medication records: ${med.note} — ${list}.${med.completeness ? ` ${med.completeness}` : ''}`;
+}
+
 function retrievalSummary(bundle: RetrievalBundle | null): AnalystResponse['retrieval'] {
   if (!bundle) return { recordsRead: 0, note: 'No dataset context was selected.', metrics: [] };
   return {
@@ -196,7 +213,7 @@ type Preparation = Prepared | { ok: false; response: AnalystResponse };
  */
 async function prepareAnalyst(
   request: AnalystRequest,
-  deps: { env?: NodeJS.ProcessEnv; labLoader?: LabLoader }
+  deps: { env?: NodeJS.ProcessEnv; labLoader?: LabLoader; medicationLoader?: MedicationLoader }
 ): Promise<Preparation> {
   const config = readAnalystConfig(deps.env ?? process.env);
   const validated = validateQuery(request?.query);
@@ -254,6 +271,27 @@ async function prepareAnalyst(
     };
   }
 
+  // The medication records live upstream, not in the metric dataset, so they are
+  // read separately and attached the same way the lab block is. A failed read
+  // yields an `available: false` block whose reason is stated — it never becomes
+  // "no medications were taken".
+  let medications: MedicationContextSnapshot | null = null;
+  try {
+    medications = await (deps.medicationLoader ?? loadMedicationSnapshot)(validated.query, {
+      ...(deps.env ? { env: deps.env } : {}),
+    });
+  } catch {
+    medications = null;
+  }
+  if (medications) {
+    bundle = {
+      ...bundle,
+      medications,
+      recordsRead: bundle.recordsRead + (medications.available ? medications.totalRecords : 0),
+      note: `${bundle.note}${medicationSentence(medications)}`,
+    };
+  }
+
   const system: UnitSystem = request?.system === 'imperial' ? 'imperial' : 'metric';
   const history = boundedHistory(request?.history);
 
@@ -285,7 +323,7 @@ function providerContext(prep: Prepared): AnalystProviderContext {
  */
 export async function askAnalyst(
   request: AnalystRequest,
-  deps: { env?: NodeJS.ProcessEnv; labLoader?: LabLoader } = {}
+  deps: { env?: NodeJS.ProcessEnv; labLoader?: LabLoader; medicationLoader?: MedicationLoader } = {}
 ): Promise<AnalystResponse> {
   const prep = await prepareAnalyst(request, deps);
   if (!prep.ok) return prep.response;
@@ -371,7 +409,7 @@ export async function askAnalyst(
  */
 export function streamAnalyst(
   request: AnalystRequest,
-  deps: { env?: NodeJS.ProcessEnv; labLoader?: LabLoader } = {}
+  deps: { env?: NodeJS.ProcessEnv; labLoader?: LabLoader; medicationLoader?: MedicationLoader } = {}
 ): { chunks: AsyncGenerator<AnalystStreamChunk>; abort: () => void } {
   let abortUpstream: (() => void) | null = null;
 

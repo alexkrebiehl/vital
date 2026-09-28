@@ -124,6 +124,15 @@ export interface RetrievalBundle {
    * stays valid; nothing here is ever read by a handler that does not check it.
    */
   lab?: LabContextSnapshot | null;
+  /**
+   * The bounded medications block. Present on every analyst context so a
+   * question about medications is answerable from the recorded data; `null` or
+   * `available: false` when there is no API or no records, which the block
+   * states rather than omitting silently.
+   *
+   * Optional so a hand-assembled bundle (a test double) stays valid.
+   */
+  medications?: MedicationContextSnapshot | null;
   /** How many records were read out of the dataset for this question. */
   recordsRead: number;
   /** Human sentence describing what was selected. */
@@ -215,6 +224,74 @@ export interface LabContextSnapshot {
   /** The block's stated bound, in words. Never silent truncation. */
   note: string;
   series: LabSnapshotSeries[];
+}
+
+// ── Medications context ─────────────────────────────────
+//
+// The owner's medication records, read from the Health Auto Export API rather
+// than from the metric dataset, so the analyst can answer a question about them
+// from data instead of from the free-text profile note.
+//
+// A record of what was logged — never advice, never a treatment plan, and never
+// presented as a complete list (Apple Health holds only what was entered).
+
+/** One medication, summarised. No dose or strength is ever derived. */
+export interface MedicationSummary {
+  /** Leading-name grouping key from the adapter; the display value is below. */
+  groupingKey: string;
+  /** The full original free-text label, exactly as the source holds it. */
+  displayText: string;
+  /** Dose records for this medication in the window. */
+  records: number;
+  /** Distinct calendar days it was recorded on, within the window. */
+  daysRecorded: number;
+  /** The most recent day recorded, or null when every record is undated. */
+  lastDay: string | null;
+  taken: number;
+  skipped: number;
+  unknown: number;
+  /**
+   * Records carrying no `scheduledDate`: attributable to no day. Counted here so
+   * they are neither dropped nor guessed into a day.
+   */
+  undated: number;
+}
+
+/**
+ * The bounded medications block carried on an analyst context.
+ *
+ * `available: false` carries the reason — an unreachable API or an unconfigured
+ * one is STATED, never turned into "there are no medication records".
+ */
+export interface MedicationContextSnapshot {
+  available: boolean;
+  /** Why no medication data is in the context. Null when available. */
+  reason: string | null;
+  /** The app's reference day the adherence is stated against. */
+  referenceDay: string | null;
+  /** The lookback the read covered, in days. */
+  lookbackDays: number | null;
+  windowFrom: string | null;
+  windowTo: string | null;
+  /** ISO instant the read happened — this block's freshness. */
+  readAt: string | null;
+  totalRecords: number;
+  totalMedications: number;
+  undatedRecords: number;
+  skippedRecords: number;
+  medications: MedicationSummary[];
+  /** The block's stated bound, in words. Never silent truncation. */
+  note: string;
+  /**
+   * The standing caveat: the list is what was entered, and is not known to be
+   * complete. Null when the block is unavailable.
+   */
+  completeness: string | null;
+  /**
+   * What this block is: a `record` of what was logged. Present so the model is
+   * told what it has rather than left to infer a treatment plan from it.
+   */
+  kind: 'record';
 }
 
 // ── Requests and responses ─────────────────────────────
