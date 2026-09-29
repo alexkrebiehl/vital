@@ -9,7 +9,7 @@
 
 import Link from 'next/link';
 import { Fragment } from 'react';
-import { ArrowLeft, ArrowRight, Check, Repeat } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, HeartPulse, Repeat } from 'lucide-react';
 import type { CadenceDay, CadenceNode, CadenceView } from '@/lib/routine/cadence';
 import type { RoutineOverview } from '@/lib/routine/progress';
 import type { PhaseView } from '@/lib/routine/position';
@@ -24,6 +24,7 @@ import {
   PlanWeek,
   RecoveryChip,
   pathHref,
+  recoveryHref,
   useRoutineFetch,
   workoutHref,
   type RoutineApiResponse,
@@ -127,12 +128,20 @@ function PlanHeader({ routine, onPlanChange }: { routine: RoutineOverview; onPla
           </ul>
         )}
       </div>
-      <DiscussButton
-        context={{ kind: 'routine' }}
-        subject={`the plan "${routine.title}"`}
-        suggestions={routineSuggestions(routine)}
-        onPlanChange={onPlanChange}
-      />
+      <div className="flex flex-wrap gap-2">
+        <Link href={recoveryHref}>
+          <Button size="sm">
+            <HeartPulse size={14} className="mr-1.5" aria-hidden="true" />
+            Recovery
+          </Button>
+        </Link>
+        <DiscussButton
+          context={{ kind: 'routine' }}
+          subject={`the plan "${routine.title}"`}
+          suggestions={routineSuggestions(routine)}
+          onPlanChange={onPlanChange}
+        />
+      </div>
     </header>
   );
 }

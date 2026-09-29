@@ -12,7 +12,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { formatDayKeyShort } from '@/lib/analytics/windows';
-import { Archive, CalendarDays, CalendarRange, ChevronRight, PauseCircle, Sparkles } from 'lucide-react';
+import { Archive, CalendarDays, CalendarRange, ChevronRight, HeartPulse, PauseCircle, Sparkles } from 'lucide-react';
 import type { PathProgress, RoutineOverview } from '@/lib/routine/progress';
 import type { ScheduledDayView } from '@/lib/routine/schedule';
 import { Badge, Button, Card, DataStateNote, EmptyState, ErrorState, Skeleton } from '@/components/ui/primitives';
@@ -30,6 +30,7 @@ import {
   RecoveryChip,
   pathHref,
   planHref,
+  recoveryHref,
   useRoutineFetch,
   workoutHref,
   type RoutineApiResponse,
@@ -204,6 +205,12 @@ function RoutineBody({ data, routine, onChange }: { data: RoutineApiResponse; ro
               <Button size="sm">
                 <CalendarRange size={14} className="mr-1.5" aria-hidden="true" />
                 Plan details
+              </Button>
+            </Link>
+            <Link href={recoveryHref}>
+              <Button size="sm">
+                <HeartPulse size={14} className="mr-1.5" aria-hidden="true" />
+                Recovery
               </Button>
             </Link>
             <DiscussButton
