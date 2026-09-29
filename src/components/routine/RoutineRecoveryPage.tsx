@@ -125,10 +125,18 @@ function meaning(routine: RoutineOverview): string {
   }
 }
 
+/** What to do with load while a signal is out: it applies to all training, not only paths ready to move on. */
+function caution(tripped: RecoveryIndicator[], status: RoutineOverview['recovery']['status']): string {
+  const names = tripped.map(i => i.label.toLowerCase()).join(' and ');
+  const one = tripped.length === 1;
+  return status === 'warn'
+    ? `Don’t add load anywhere until the ${names} ${one ? 'is' : 'are'} back inside the plan’s limits: keep sets, reps, weights and variations where they are, and ease off if sessions feel harder than usual.`
+    : `Be cautious about adding load anywhere until the ${names} ${one ? 'settles' : 'settle'}: keep training as planned, but hold off on extra sets, reps, weight or harder variations, and back off if sessions start to feel harder than usual.`;
+}
+
 function Now({ routine }: { routine: RoutineOverview }) {
   const r = routine.recovery;
-  const tripped = r.indicators.filter(i => i.status === 'warn' || i.status === 'watch');
-  const held = routine.paths.filter(p => p.heldBack.includes('recovery'));
+  const tripped = r.indicators.filter(i => i.gate && (i.status === 'warn' || i.status === 'watch'));
   return (
     <Card className="p-5 space-y-4 scroll-mt-20" as="section" id="now" aria-labelledby="now-title">
       <div>
@@ -142,25 +150,26 @@ function Now({ routine }: { routine: RoutineOverview }) {
       </div>
 
       {tripped.length > 0 && (
-        <div>
-          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary mb-1.5">Why</h3>
-          <ul className="space-y-1 list-none p-0">
-            {tripped.map(i => (
-              <li key={i.signal} className="text-xs text-text-secondary">
-                <a href={`#signal-${i.signal}`} className="font-medium text-text-primary hover:underline underline-offset-2">
-                  {i.label}
-                </a>{' '}
-                ({RECOVERY_TONE[i.status].toLowerCase()}): {i.text}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {held.length > 0 ? (
-        <HeldPaths title="Paths held back by recovery" paths={held} />
-      ) : (
-        tripped.length > 0 && <p className="text-xs text-text-secondary">No path’s light is being lowered by recovery right now.</p>
+        <>
+          <div>
+            <h3 className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary mb-1.5">Why</h3>
+            <ul className="space-y-3 list-none p-0 max-w-3xl">
+              {tripped.map(i => (
+                <li key={i.signal} className="text-xs text-text-secondary">
+                  <p>
+                    <a href={`#signal-${i.signal}`} className="font-medium text-text-primary hover:underline underline-offset-2">
+                      {i.label}
+                    </a>{' '}
+                    ({RECOVERY_TONE[i.status].toLowerCase()}): {i.text}
+                  </p>
+                  {i.rule && <p className="mt-0.5">{i.rule}</p>}
+                  {i.advice && <p className="mt-0.5">{i.advice}</p>}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <p className="text-xs text-text-primary rounded-control bg-surface-muted p-3 max-w-3xl">{caution(tripped, r.status)}</p>
+        </>
       )}
     </Card>
   );
