@@ -348,21 +348,26 @@ function DayTemplates({ day }: { day: ScheduledDayView }) {
 
 function NextSession({ routine }: { routine: RoutineOverview }) {
   const next = routine.next;
+  // Once today is logged the card keeps showing it, and what is due moves into "Then".
+  // A frequency plan's due after a logged session is only today's rest, so it is left out.
+  const then = next.today
+    ? [...(next.scheduleKind === 'frequency' && next.due.kind === 'rest' ? [] : [next.due]), ...next.upcoming].slice(0, 3)
+    : next.upcoming;
   return (
     <div className="mt-4 grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 rounded-control bg-surface-muted p-4">
       <div>
         <p className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary mb-1 flex items-center gap-1.5">
           <CalendarDays size={12} aria-hidden="true" />
-          {next.doneToday ? 'Next session' : 'Today'}
+          {next.today ? 'Today · completed' : 'Today'}
         </p>
-        <DayTemplates day={next.due} />
+        <DayTemplates day={next.today ?? next.due} />
         <p className="text-[11px] text-text-secondary mt-2">{next.why} {routine.adherence.text}</p>
       </div>
-      {next.upcoming.length > 0 && (
+      {then.length > 0 && (
         <div className="text-xs text-text-secondary lg:border-l lg:border-border lg:pl-4">
           <p className="font-semibold uppercase tracking-wide text-[11px] mb-1">Then</p>
           <ol className="space-y-0.5">
-            {next.upcoming.map((d, i) => (
+            {then.map((d, i) => (
               <li key={i}>
                 <DayLabel day={d} />
               </li>

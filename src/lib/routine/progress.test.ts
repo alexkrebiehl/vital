@@ -346,6 +346,7 @@ describe('schedule', () => {
     const today = next(p, [upper('2026-09-10'), lower('2026-09-11')], '2026-09-11');
     expect(today.doneToday).toBe(true);
     expect(today.due.kind).toBe('rest');
+    expect(today.today?.label).toBe('Lower');
   });
 
   it('rotates an optional slot session to session', () => {
@@ -353,6 +354,8 @@ describe('schedule', () => {
     const first = next(p, [], '2026-09-02').due.templates[0].slots[1];
     const second = next(p, [upper('2026-09-02'), lower('2026-09-03')], '2026-09-04').due.templates[0].slots[1];
     expect([first.pathId, second.pathId]).toEqual(['push', 'pull']);
+    // Today's session shows the slots as trained, not the next rotation.
+    expect(next(p, [upper('2026-09-02'), lower('2026-09-03'), upper('2026-09-04')], '2026-09-04').today?.templates[0].slots[1].pathId).toBe('pull');
     expect(second.optional).toBe(true);
   });
 
@@ -369,12 +372,26 @@ describe('schedule', () => {
     expect(['2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04'].map(d => next(p, [], d).due.label)).toEqual(['Upper', 'Lower', 'Rest day', 'Upper']);
   });
 
+  it('calendar cycles move on to the next training day once today is logged', () => {
+    const p = withSchedule({ kind: 'cycle', days: ['a', 'b', 'rest'], advance: 'calendar', anchorDate: '2026-09-01' });
+    const done = next(p, [lower('2026-09-02')], '2026-09-02');
+    expect(done.due.label).toBe('Upper');
+    expect(done.upcoming.map(d => d.label)).toEqual(['Lower', 'Rest day', 'Upper']);
+  });
+
   it('fixed weekdays', () => {
     const p = withSchedule({ kind: 'weekdays', days: { mon: 'a', thu: 'b' } });
     // 2026-09-14 is a Monday.
     expect(next(p, [], '2026-09-14').due.label).toBe('Upper');
     expect(next(p, [], '2026-09-15').due.kind).toBe('rest');
     expect(next(p, [], '2026-09-15').upcoming[0].label).toBe('Thu: Lower');
+    // Monday's session logged: Thursday is next, and Monday is only coming up again.
+    const done = next(p, [upper('2026-09-14')], '2026-09-14');
+    expect(done.due.label).toBe('Thu: Lower');
+    expect(done.upcoming.map(d => d.label)).toEqual(['Mon: Upper', 'Thu: Lower']);
+    expect(done.why).toBe('Already trained today; Thu is next in the weekly schedule.');
+    expect(done.today?.label).toBe('Upper');
+    expect(next(p, [], '2026-09-14').today).toBeNull();
   });
 
   it('N sessions a week rests once the week is full', () => {
