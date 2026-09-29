@@ -18,7 +18,22 @@ import type { ScheduledDayView } from '@/lib/routine/schedule';
 import { Badge, Button, Card, DataStateNote, EmptyState, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { SectionTitle } from '@/components/domain/DomainShared';
-import { ExerciseDataNotice, LightLabel, PlanChangeCard, ReadinessBar, useRoutineFetch, type RoutineApiResponse } from './shared';
+import {
+  BadgeLink,
+  BlockChips,
+  DeloadChip,
+  ExerciseDataNotice,
+  LightLabel,
+  PlanChangeCard,
+  PlanWeek,
+  ReadinessBar,
+  RecoveryChip,
+  pathHref,
+  planHref,
+  useRoutineFetch,
+  workoutHref,
+  type RoutineApiResponse,
+} from './shared';
 import type { PlanChange } from '@/lib/routine/types';
 import { DiscussButton } from '@/components/analyst/DiscussDialog';
 import { CREATE_PROMPT, routineSuggestions, untrackedSuggestions } from './discuss-suggestions';
@@ -164,30 +179,24 @@ function RoutineBody({ data, routine, onChange }: { data: RoutineApiResponse; ro
               </Link>
             </h3>
             <p className="text-xs text-text-secondary mt-0.5 max-w-2xl">{routine.goal}</p>
+            <PlanWeek routine={routine} className="mt-1" />
             <div className="flex flex-wrap items-center gap-2 mt-2">
               {routine.currentPhase ? (
-                <Link href={`${planHref}#phases`}>
-                  <Badge
-                    variant="accent"
-                    title={`${routine.currentPhase.progress.met} of ${routine.currentPhase.progress.total} required milestones reached — worked out from your sessions`}
-                  >
-                    Phase {routine.currentPhase.index + 1} of {routine.currentPhase.count}: {routine.currentPhase.name}
-                  </Badge>
-                </Link>
+                <BadgeLink
+                  href={`${planHref}#phases`}
+                  variant="accent"
+                  title={`${routine.currentPhase.progress.met} of ${routine.currentPhase.progress.total} required milestones reached — worked out from your sessions`}
+                >
+                  Phase {routine.currentPhase.index + 1} of {routine.currentPhase.count}: {routine.currentPhase.name}
+                </BadgeLink>
               ) : routine.phases.length > 0 ? (
-                <Link href={`${planHref}#phases`}>
-                  <Badge variant="success">All phases complete</Badge>
-                </Link>
+                <BadgeLink href={`${planHref}#phases`} variant="success">
+                  All phases complete
+                </BadgeLink>
               ) : null}
-              <Badge>{routine.started ? `Week ${routine.week}` : `Starts ${routine.startDate}`}</Badge>
-              {routine.currentBlocks.map(b => (
-                <Badge key={b}>{b}</Badge>
-              ))}
+              <BlockChips routine={routine} />
               <RecoveryChip routine={routine} />
-              {(routine.deload.status === 'due' || routine.deload.status === 'overdue') && (
-                <Badge variant="warning">{routine.deload.status === 'overdue' ? 'Deload overdue' : 'Deload due'}</Badge>
-              )}
-              {routine.deload.status === 'in-deload' && <Badge variant="info">Deload week</Badge>}
+              <DeloadChip routine={routine} />
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -275,17 +284,6 @@ function UntrackedNote({ routine, onChange }: { routine: RoutineOverview; onChan
         )}
       </Card>
     </section>
-  );
-}
-
-function RecoveryChip({ routine }: { routine: RoutineOverview }) {
-  const r = routine.recovery;
-  const variant = r.status === 'warn' ? 'warning' : r.status === 'watch' ? 'info' : r.status === 'ok' ? 'success' : 'default';
-  const label = r.status === 'warn' ? 'Recovery: hold' : r.status === 'watch' ? 'Recovery: watch' : r.status === 'ok' ? 'Recovery: ok' : 'Recovery: unknown';
-  return (
-    <Badge variant={variant} title={r.text}>
-      {label}
-    </Badge>
   );
 }
 
@@ -385,10 +383,6 @@ function NextSession({ routine }: { routine: RoutineOverview }) {
     </div>
   );
 }
-
-export const planHref = '/workouts/routine';
-export const workoutHref = (templateId: string) => `/workouts/routine/workouts/${encodeURIComponent(templateId)}`;
-export const pathHref = (pathId: string) => `/workouts/routine/${encodeURIComponent(pathId)}`;
 
 /** A schedule day's label with each workout in it linking to its page ("Wed: Workout B"). */
 function DayLabel({ day }: { day: ScheduledDayView }) {

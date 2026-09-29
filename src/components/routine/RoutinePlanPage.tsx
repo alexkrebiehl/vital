@@ -16,8 +16,18 @@ import type { PhaseView } from '@/lib/routine/position';
 import { formatDayKeyShort } from '@/lib/analytics/windows';
 import { Badge, Button, Card, EmptyState, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { useUnits } from '@/components/ui/UnitsProvider';
-import { ExerciseDataNotice, useRoutineFetch, type RoutineApiResponse } from './shared';
-import { pathHref, workoutHref } from './RoutineSection';
+import {
+  BadgeLink,
+  BlockChips,
+  DeloadChip,
+  ExerciseDataNotice,
+  PlanWeek,
+  RecoveryChip,
+  pathHref,
+  useRoutineFetch,
+  workoutHref,
+  type RoutineApiResponse,
+} from './shared';
 import { DiscussButton } from '@/components/analyst/DiscussDialog';
 import { routineSuggestions } from './discuss-suggestions';
 
@@ -94,22 +104,20 @@ function PlanHeader({ routine, onPlanChange }: { routine: RoutineOverview; onPla
         <p className="text-xs text-text-secondary">Training plan</p>
         <h1 className="text-[24px] md:text-[30px] font-semibold tracking-tight text-text-primary leading-tight mt-1">{routine.title}</h1>
         <p className="text-sm text-text-secondary mt-1">{routine.goal}</p>
+        <PlanWeek routine={routine} className="mt-1" />
         <div className="flex flex-wrap items-center gap-2 mt-3">
           {routine.currentPhase ? (
-            <Badge variant="accent">
+            <BadgeLink href="#phases" variant="accent">
               Phase {routine.currentPhase.index + 1} of {routine.currentPhase.count}: {routine.currentPhase.name}
-            </Badge>
+            </BadgeLink>
           ) : routine.phases.length > 0 ? (
-            <Badge variant="success">All phases complete</Badge>
+            <BadgeLink href="#phases" variant="success">
+              All phases complete
+            </BadgeLink>
           ) : null}
-          <Badge>{routine.started ? `Week ${routine.week} of ${routine.durationWeeks}` : `Starts ${formatDayKeyShort(routine.startDate)}`}</Badge>
-          {routine.currentBlocks.map(b => (
-            <Badge key={b}>{b}</Badge>
-          ))}
-          {(routine.deload.status === 'due' || routine.deload.status === 'overdue') && (
-            <Badge variant="warning">{routine.deload.status === 'overdue' ? 'Deload overdue' : 'Deload due'}</Badge>
-          )}
-          {routine.deload.status === 'in-deload' && <Badge variant="info">Deload week</Badge>}
+          <BlockChips routine={routine} />
+          <RecoveryChip routine={routine} />
+          <DeloadChip routine={routine} />
         </div>
         {routine.context.length > 0 && (
           <ul className="mt-3 space-y-0.5 text-xs text-text-secondary list-disc pl-4">

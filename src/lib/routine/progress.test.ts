@@ -203,7 +203,13 @@ describe('holds, recovery gates and deloads', () => {
     const routine = run(p, EXAMPLE, '2026-09-18', { series: id => (id === 'sleep_analysis' ? sleep : []) });
     expect(routine.recovery.status).toBe('warn');
     expect(routine.paths[0].light).toBe('yellow');
+    expect(routine.paths[0].heldBack).toEqual(['recovery']);
     expect(routine.paths[0].reasons.some(r => r.startsWith('Sleep: 5 h'))).toBe(true);
+  });
+
+  it('holds nothing back while recovery is inside the limits and no deload is due', () => {
+    const p = run(pushPlan(), EXAMPLE, '2026-09-18').paths[0];
+    expect(p.heldBack).toEqual([]);
   });
 
   it('a deload block replaces "move on" advice', () => {
@@ -214,6 +220,7 @@ describe('holds, recovery gates and deloads', () => {
     ];
     const p = run(pushPlan({ blocks: [{ name: 'Deload week', startWeek: 8, weeks: 1, kind: 'deload' }] }), more, '2026-09-25').paths[0];
     expect(p.light).toBe('green');
+    expect(p.heldBack).toEqual(['deload']);
     expect(p.nextAction).toMatch(/^Deload week: keep decline push-up and cut sets/);
   });
 });
@@ -486,6 +493,8 @@ describe('plan position and deloads', () => {
     expect(deloadStatus(p, '2026-09-01').status).toBe('due');
     expect(deloadStatus(p, '2026-09-18').status).toBe('overdue');
     expect(deloadStatus({ ...p, deloads: ['2026-09-07'] }, '2026-09-18').status).toBe('ok');
+    expect(deloadStatus(p, '2026-09-18').rule).toEqual({ everyWeeks: [4, 6], volumeReduction: [0.3, 0.5] });
+    expect(deloadStatus(pushPlan(), '2026-09-18')).toMatchObject({ status: 'none', rule: null });
   });
 });
 

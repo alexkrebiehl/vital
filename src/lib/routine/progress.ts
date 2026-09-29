@@ -66,6 +66,8 @@ export interface PathProgress {
    */
   tracked: boolean;
   reasons: string[];
+  /** What holds the path back from where performance alone would put it: recovery caps its light, a deload replaces moving on. */
+  heldBack: ('recovery' | 'deload')[];
   readiness: Readiness | null;
   nextAction: string;
   target: string;
@@ -231,6 +233,7 @@ export function evaluatePath(
   let reasons = [...evaluation.reasons];
   let nextAction = evaluation.nextAction;
   let readiness = evaluation.readiness;
+  const heldBack: PathProgress['heldBack'] = [];
   const tracked = inputs.exerciseData !== false || !stageNeedsExerciseData(stage);
 
   if (!tracked) {
@@ -250,11 +253,13 @@ export function evaluatePath(
         : `Hold ${stage.name.toLowerCase()} at an easy, pain-free volume; do not progress until "${path.hold.reason}" has resolved.`;
   } else if (light !== 'none' && LIGHT_ORDER.indexOf(light) > LIGHT_ORDER.indexOf(recoveryCap.cap)) {
     light = recoveryCap.cap;
+    heldBack.push('recovery');
     reasons.push(...recoveryCap.reasons);
     if (evaluation.light === 'green') nextAction = `Performance says move on, but recovery does not: repeat ${doseText(evaluation.target, inputs.system)} until ${recoveryCap.reasons.join(' ').replace(/\.$/, '').toLowerCase()} settles.`;
   }
   const deloadNow = blocks.find(b => b.kind === 'deload');
   if (!path.hold && (deloadNow || deload.status === 'overdue') && evaluation.light === 'green') {
+    heldBack.push('deload');
     nextAction = `${deloadNow ? deloadNow.name : 'Deload overdue'}: keep ${stage.name.toLowerCase()} and cut sets by a third to a half this week; progress after it.`;
   }
 
@@ -303,6 +308,7 @@ export function evaluatePath(
     light,
     tracked,
     reasons,
+    heldBack,
     readiness,
     nextAction,
     target: doseText(evaluation.target, inputs.system),

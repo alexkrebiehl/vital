@@ -15,8 +15,7 @@ import type { WorkoutSourceStatus } from '@/lib/workout-sources/types';
 import { Badge, Card, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { DiscussButton } from '@/components/analyst/DiscussDialog';
 import { useUnits } from '@/components/ui/UnitsProvider';
-import { ExerciseDataNotice, LightLabel, ReadinessBar, useRoutineFetch } from './shared';
-import { pathHref, planHref } from './RoutineSection';
+import { ExerciseDataNotice, LightLabel, ReadinessBar, pathHref, planHref, useRoutineFetch } from './shared';
 import { workoutSuggestions } from './discuss-suggestions';
 import { formatDayKeyShort } from '@/lib/analytics/windows';
 

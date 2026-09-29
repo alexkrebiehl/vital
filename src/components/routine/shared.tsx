@@ -3,17 +3,146 @@
 // ── Routine UI: shared pieces ───────────────────────────
 //
 // The light (one shared scale for every progression model), the data hook that
-// reads /api/routine, and the plan-change card the analyst page reuses.
+// reads /api/routine, the plan-change card the analyst page reuses, the routine
+// pages' links, and the status badges and recovery card shown on several pages.
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowRight, PlugZap, Undo2 } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { ArrowRight, ChevronRight, PlugZap, Undo2 } from 'lucide-react';
 import type { Light, Readiness } from '@/lib/routine/models/types';
 import type { RoutineOverview } from '@/lib/routine/progress';
+import type { RecoveryIndicator, RecoveryStatus } from '@/lib/routine/recovery';
 import type { RoutineResponse } from '@/lib/routine/service';
 import type { PlanChange } from '@/lib/routine/types';
 import type { UnitSystem } from '@/lib/prefs';
-import { Button, Card } from '@/components/ui/primitives';
+import { formatDayKeyShort } from '@/lib/analytics/windows';
+import { Badge, Button, Card } from '@/components/ui/primitives';
+
+export const planHref = '/workouts/routine';
+export const recoveryHref = '/workouts/recovery';
+export const workoutHref = (templateId: string) => `/workouts/routine/workouts/${encodeURIComponent(templateId)}`;
+export const pathHref = (pathId: string) => `/workouts/routine/${encodeURIComponent(pathId)}`;
+
+// ── Status badges ───────────────────────────────────────
+//
+// Every status badge on a routine page links to where it is explained: phases
+// and blocks to the plan page, recovery and deloads to the Recovery page.
+
+type BadgeVariant = 'default' | 'accent' | 'success' | 'warning' | 'info';
+
+export function BadgeLink({ href, variant, title, children }: { href: string; variant?: BadgeVariant; title?: string; children: ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex rounded-full transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+    >
+      <Badge variant={variant} title={title} className="underline-offset-2 hover:underline">
+        {children}
+      </Badge>
+    </Link>
+  );
+}
+
+export function recoveryVariant(status: RecoveryStatus): BadgeVariant {
+  return status === 'warn' ? 'warning' : status === 'watch' ? 'info' : status === 'ok' ? 'success' : 'default';
+}
+
+const RECOVERY_CHIP: Record<RoutineOverview['recovery']['status'], string> = {
+  warn: 'Recovery: hold',
+  watch: 'Recovery: watch',
+  ok: 'Recovery: ok',
+  unknown: 'Recovery: unknown',
+};
+
+export function RecoveryChip({ routine }: { routine: RoutineOverview }) {
+  const r = routine.recovery;
+  return (
+    <BadgeLink href={recoveryHref} variant={recoveryVariant(r.status)} title={r.text}>
+      {RECOVERY_CHIP[r.status]}
+    </BadgeLink>
+  );
+}
+
+/** Due, overdue or running this week; nothing while a deload is not yet due. */
+export function DeloadChip({ routine }: { routine: RoutineOverview }) {
+  const d = routine.deload;
+  if (d.status === 'due' || d.status === 'overdue') {
+    return (
+      <BadgeLink href={recoveryHref} variant="warning" title={d.text}>
+        {d.status === 'overdue' ? 'Deload overdue' : 'Deload due'}
+      </BadgeLink>
+    );
+  }
+  if (d.status === 'in-deload') {
+    return (
+      <BadgeLink href={recoveryHref} variant="info" title={d.text}>
+        Deload week
+      </BadgeLink>
+    );
+  }
+  return null;
+}
+
+/** Calendar blocks running this week, each linking to the plan's block table. */
+export function BlockChips({ routine }: { routine: RoutineOverview }) {
+  return (
+    <>
+      {routine.currentBlocks.map(b => (
+        <BadgeLink key={b} href={`${planHref}#blocks`}>
+          {b}
+        </BadgeLink>
+      ))}
+    </>
+  );
+}
+
+/** Where the reader is in the plan's calendar: plain text, not a status. */
+export function PlanWeek({ routine, className = '' }: { routine: RoutineOverview; className?: string }) {
+  return (
+    <p className={`text-xs text-text-secondary tnum ${className}`}>
+      {routine.started ? `Week ${routine.week} of ${routine.durationWeeks}` : `Starts ${formatDayKeyShort(routine.startDate)}`}
+    </p>
+  );
+}
+
+// ── Recovery card ───────────────────────────────────────
+
+export const RECOVERY_TONE: Record<RecoveryStatus, string> = {
+  ok: 'Inside limits',
+  watch: 'Watch',
+  warn: 'Hold',
+  info: 'For information',
+  unknown: 'Not enough data',
+};
+
+/** The recovery indicators at a glance, linking to the Recovery page for the detail. */
+export function RecoveryCard({ indicators, summary, deload }: { indicators: RecoveryIndicator[]; summary: string; deload: string }) {
+  return (
+    <Card className="p-5" as="section" aria-label="Recovery indicators">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-sm font-semibold text-text-primary">Recovery</h2>
+        <Link href={recoveryHref} className="inline-flex items-center text-xs text-text-secondary hover:text-text-primary hover:underline underline-offset-2">
+          Details
+          <ChevronRight size={12} aria-hidden="true" />
+        </Link>
+      </div>
+      <p className="text-xs text-text-secondary mb-3">{summary} {deload}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+        {indicators.map(i => (
+          <div key={i.signal} className="rounded-control bg-surface-muted p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-text-primary">{i.label}</span>
+              <Badge variant={recoveryVariant(i.status)}>{RECOVERY_TONE[i.status]}</Badge>
+            </div>
+            <p className="text-[11px] text-text-secondary mt-1">{i.text}</p>
+            {i.gate?.note && <p className="text-[11px] text-text-secondary mt-1 italic">{i.gate.note}</p>}
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
 
 export const LIGHT_LABEL: Record<Light, string> = {
   green: 'Green',
