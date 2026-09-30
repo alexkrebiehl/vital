@@ -513,6 +513,79 @@ describe('plan position and deloads', () => {
     expect(deloadStatus(p, '2026-09-18').rule).toEqual({ everyWeeks: [4, 6], volumeReduction: [0.3, 0.5] });
     expect(deloadStatus(pushPlan(), '2026-09-18')).toMatchObject({ status: 'none', rule: null });
   });
+
+  it('a recorded or detected deload runs for a week', () => {
+    const p = pushPlan({ rules: { qualifyingSessions: [2, 3], deload: { everyWeeks: [4, 6], volumeReduction: [0.3, 0.5] } } });
+    expect(deloadStatus({ ...p, deloads: ['2026-09-29'] }, '2026-10-05')).toMatchObject({ status: 'in-deload', window: { source: 'recorded', to: '2026-10-05' } });
+    expect(deloadStatus({ ...p, deloads: ['2026-09-29'] }, '2026-10-06')).toMatchObject({ status: 'ok', lastDeload: '2026-09-29' });
+    expect(deloadStatus(p, '2026-09-30', ['2026-09-29'])).toMatchObject({ status: 'in-deload', window: { source: 'detected' } });
+  });
+});
+
+describe('deload sessions pause progress', () => {
+  // Decline push-ups and assisted pull-ups, trained together.
+  const pushPull = () => {
+    const base = pushPlan();
+    return plan({
+      focusAreas: [
+        ...base.focusAreas,
+        {
+          id: 'back',
+          name: 'Pull',
+          paths: [
+            {
+              id: 'pull',
+              name: 'Pull-up',
+              currentStageId: 'assisted',
+              history: [{ stageId: 'assisted', startedOn: '2026-09-08' }],
+              stages: [{ id: 'assisted', name: 'Assisted pull-up', match: { names: ['Pull Up'] }, advanceWhen: { sets: [3, 4], reps: [5, 8], effort: RIR } }],
+            },
+          ],
+        },
+      ],
+      templates: [{ id: 'all', name: 'All', slots: [{ pathIds: ['push'] }, { pathIds: ['pull'] }] }],
+      rules: { qualifyingSessions: [2, 3], effort: RIR, deload: { everyWeeks: [4, 6], volumeReduction: [0.3, 0.5] } },
+    });
+  };
+  const day = (date: string, push: number[], pushRpe: number, pull: number[], pullRpe: number) =>
+    session(date, [
+      { name: 'Decline Push Up', sets: reps(push, push.map(() => pushRpe)) },
+      { name: 'Pull Up', sets: reps(pull, pull.map(() => pullRpe)) },
+    ]);
+  const before = [
+    day('2026-09-18', [12, 12, 10], 9.5, [5, 5, 4], 9.5),
+    day('2026-09-22', [12, 12, 10], 9.5, [5, 5, 5], 9.5),
+    day('2026-09-25', [12, 12, 11], 9.5, [6, 6, 5], 9.5),
+  ];
+  const deloadDay = day('2026-09-29', [8, 8, 8], 7.5, [4, 4, 4], 7.5);
+
+  it('reads the deload from the sessions and keeps the pre-deload light', () => {
+    const withDeload = run(pushPull(), [...before, deloadDay], '2026-09-29');
+    const without = run(pushPull(), before, '2026-09-29');
+    expect(withDeload.deload).toMatchObject({ status: 'in-deload', lastDeload: '2026-09-29', window: { source: 'detected' } });
+    const push = withDeload.paths.find(p => p.pathId === 'push')!;
+    expect(push.light).toBe(without.paths.find(p => p.pathId === 'push')!.light);
+    // Yellow-green before the deload: paused, but not "ready to move on after the deload".
+    expect(push.heldBack).not.toContain('deload');
+    expect(push.reasons[0]).toMatch(/^Deload since Sep 29/);
+    expect(push.rows[push.rows.length - 1].signal).toBe('Deload session · progress paused');
+  });
+
+  it('judges the first session after the deload against the ones before it', () => {
+    const r = run(pushPull(), [...before, deloadDay, day('2026-10-07', [12, 12, 12], 8.5, [6, 6, 6], 9)], '2026-10-07');
+    expect(r.deload.status).toBe('ok');
+    const push = r.paths.find(p => p.pathId === 'push')!;
+    expect(push.heldBack).not.toContain('deload');
+    // Not "New best" off an 8/8/8 deload session: 12/12/12 meets the marker.
+    expect(push.rows[push.rows.length - 1].signal).toBe('Meets the progression marker');
+  });
+
+  it('still calls fewer reps at the same effort a regression', () => {
+    const r = run(pushPull(), [...before, day('2026-09-29', [8, 8, 8], 9.5, [4, 4, 4], 9.5)], '2026-09-29');
+    expect(r.deload.status).not.toBe('in-deload');
+    const push = r.paths.find(p => p.pathId === 'push')!;
+    expect(push.rows[push.rows.length - 1].signal).not.toMatch(/Deload/);
+  });
 });
 
 describe('exercise matching', () => {

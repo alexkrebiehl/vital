@@ -103,7 +103,8 @@ export const volumeModel: ProgressionModel = {
     }
     facts.lastWeek = volumeText(lastWeek.total, metric, ctx);
     const ramp = prevWeek && prevWeek.total > 0 ? ((lastWeek.total - prevWeek.total) / prevWeek.total) * 100 : null;
-    const easing = ctx.blocks.some(b => b.kind === 'deload' || b.kind === 'taper');
+    const easingBlock = ctx.blocks.find(b => b.kind === 'deload' || b.kind === 'taper');
+    const easing = Boolean(easingBlock) || ctx.deloadWindow !== null;
     const falling = complete.length >= 3 && complete.slice(-3).every((w, i, a) => i === 0 || w.total < a[i - 1].total * 0.9);
     const cap = lastWeek.total * (1 + maxRamp / 100);
     const nextTarget = marker ? Math.min(cap, marker.range[1]) : cap;
@@ -130,7 +131,7 @@ export const volumeModel: ProgressionModel = {
       reasons.push(marker ? `Building toward ${volumeText(marker.range[0], metric, ctx)} a week (last: ${facts.lastWeek}).` : `Last week: ${facts.lastWeek}.`);
       nextAction = `Aim for up to ${volumeText(nextTarget, metric, ctx)} next week — no more than ${maxRamp}% above last week.`;
     }
-    if (easing) nextAction = `${ctx.blocks.find(b => b.kind === 'deload' || b.kind === 'taper')!.name}: keep volume down this week. ${nextAction}`;
+    if (easing) nextAction = `${easingBlock?.name ?? 'Deload week'}: keep volume down this week. ${nextAction}`;
     return { rows, light, reasons, readiness, nextAction, target: dose, facts };
   },
 };

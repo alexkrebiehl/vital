@@ -10,7 +10,7 @@ import { numberParam } from '../model-params';
 import { doseText, weightRangeText, weightText } from '../format';
 import type { Dose } from '../types';
 import { effortText, mergeRows, readinessLabel } from './shared';
-import { qualifyingRange, type EvaluationContext, type ModelEvaluation, type ProgressRow, type ProgressionModel } from './types';
+import { DELOAD_SIGNAL, easedIn, qualifyingRange, type EvaluationContext, type ModelEvaluation, type ProgressRow, type ProgressionModel } from './types';
 
 const ROUND_KG = 2.5;
 
@@ -45,6 +45,9 @@ export const percentageModel: ProgressionModel = {
       return { record, weight, onTarget, under };
     });
 
+    // Deload sessions keep their row but are not judged.
+    const eased = easedIn(ctx);
+    const active = judged.filter(j => !eased(j.record));
     const rows: ProgressRow[] = judged.map(j => ({
       dates: [j.record.date],
       sessionIds: [j.record.sessionId],
@@ -52,26 +55,26 @@ export const percentageModel: ProgressionModel = {
       work: `${ctx.stage.name} ${j.record.sets.map(s => s.reps ?? 0).join('/')} @ ${weightText(j.weight, ctx.system)}`,
       headline: j.record.totals.e1rmKg ? `e1RM ${weightText(j.record.totals.e1rmKg, ctx.system)}` : `${j.record.totals.reps} reps`,
       effort: effortText(j.record),
-      signal: j.onTarget ? 'On target' : j.under ? 'Under the prescribed load' : 'Missed prescribed sets',
+      signal: eased(j.record) ? DELOAD_SIGNAL : j.onTarget ? 'On target' : j.under ? 'Under the prescribed load' : 'Missed prescribed sets',
     }));
 
-    const q = judged.slice(-qualifying[1]).filter(j => j.onTarget).length;
+    const q = active.slice(-qualifying[1]).filter(j => j.onTarget).length;
     // Periodized work has no build-up toward a marker: only sessions on target count.
     const readiness = { qualifying: q, needed: qualifying[0], met: q >= qualifying[0], progress: Math.min(1, q / Math.max(1, qualifying[0])), label: readinessLabel(q, qualifying, 'sessions'), unit: 'sessions' as const };
     const prescription = `${doseText(dose, ctx.system)}${band ? ` (≈ ${weightRangeText(band, ctx.system)})` : ''}`;
     const facts: ModelEvaluation['facts'] = { stage: ctx.stage.name, prescription };
     if (oneRm > 0) facts.oneRepMax = weightText(oneRm, ctx.system);
-    const last = judged[judged.length - 1];
+    const last = active[active.length - 1];
     if (!last) {
       return { rows, light: 'none', reasons: ['No sessions logged in this stage yet.'], readiness, nextAction: `Next: ${prescription}.`, target: dose, facts };
     }
-    const missedTwice = judged.length >= 2 && judged.slice(-2).every(j => !j.onTarget && !j.under);
+    const missedTwice = active.length >= 2 && active.slice(-2).every(j => !j.onTarget && !j.under);
     const light: ModelEvaluation['light'] = missedTwice ? 'red' : readiness.met ? 'green' : last.onTarget ? 'yellow-green' : 'yellow';
     const reasons = [
       missedTwice
         ? 'The prescribed sets were missed in the last two sessions.'
         : last.onTarget
-          ? `The last session was on target (${rows[rows.length - 1].work}).`
+          ? `The last session was on target (${rows[judged.indexOf(last)].work}).`
           : last.under
             ? 'The last session was lighter than prescribed.'
             : 'The last session missed prescribed sets.',

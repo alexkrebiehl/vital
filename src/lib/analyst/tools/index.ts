@@ -413,7 +413,7 @@ export const ANALYST_TOOLS: AnalystTool[] = [
   {
     name: 'record_deload',
     kind: 'write',
-    description: 'Record that a deload started (resets the deload timer).',
+    description: 'Record that a deload started: it runs for a week, pauses progress and resets the deload timer. Deloads are also read from the sessions (fewer reps at a clearly lower RPE across most paths trained that day), so record one only when the data cannot show it, such as when effort is not logged.',
     parameters: { type: 'object', properties: { startedOn: { type: 'string', description: 'YYYY-MM-DD; default today.' } }, additionalProperties: false },
     async run(args, ctx) {
       const on = typeof args.startedOn === 'string' ? args.startedOn : await today(ctx);

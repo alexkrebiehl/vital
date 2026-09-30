@@ -4,9 +4,11 @@
 // evaluation, whatever the discipline: table rows, a light, how close the path
 // is to its next stage, and a default next action. The shared pipeline
 // (progress.ts) then applies what every model shares — holds, recovery gates,
-// deload blocks — so a model only has to judge performance.
+// deload blocks — so a model only has to judge performance. Deload sessions
+// (`eased`) keep their table row but are left out of the judgement.
 
 import type { UnitSystem } from '../../prefs';
+import { easedKey, type DeloadWindow } from '../deload';
 import type { PerformanceRecord } from '../records';
 import type { Block, Dose, Path, PlanRules, Range, Stage } from '../types';
 
@@ -72,6 +74,10 @@ export interface EvaluationContext {
   rules: PlanRules;
   /** Blocks running this week. */
   blocks: Block[];
+  /** Deload sessions of this path (`stageId:sessionId`, see deload.ts): shown, never judged. */
+  eased: Set<string>;
+  /** The deload running today, if any. */
+  deloadWindow: DeloadWindow | null;
   today: string;
   system: UnitSystem;
 }
@@ -79,6 +85,14 @@ export interface EvaluationContext {
 export interface ProgressionModel {
   id: string;
   evaluate(ctx: EvaluationContext): ModelEvaluation;
+}
+
+/** The signal on a deload session's row. */
+export const DELOAD_SIGNAL = 'Deload session · progress paused';
+
+/** Whether a record of the stage being judged is a deload session. */
+export function easedIn(ctx: EvaluationContext): (record: PerformanceRecord) => boolean {
+  return record => ctx.eased.has(easedKey(ctx.stage.id, record.sessionId));
 }
 
 /** The effort ceiling a dose (or the plan's rules) allows, as an RPE. */

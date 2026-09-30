@@ -37,7 +37,7 @@ import {
   valuesText,
   type Quantity,
 } from './shared';
-import { qualifyingRange, rpeCeiling, type EvaluationContext, type ModelEvaluation, type ProgressRow, type ProgressionModel } from './types';
+import { DELOAD_SIGNAL, easedIn, qualifyingRange, rpeCeiling, type EvaluationContext, type ModelEvaluation, type ProgressRow, type ProgressionModel } from './types';
 
 interface SessionJudgement {
   record: PerformanceRecord;
@@ -110,6 +110,9 @@ export const variationModel: ProgressionModel = {
     const range = targetRange(target, q);
     const qualifying = qualifyingRange(ctx.stage, ctx.rules);
     const judged = ctx.records.map(r => judge(r, target, q, ceiling));
+    // Deload sessions keep their row but neither count toward the marker nor against it.
+    const eased = easedIn(ctx);
+    const active = judged.filter(j => !eased(j.record));
 
     // ── Rows: the previous stage's last sessions, then this stage ──
     const rows: (ProgressRow & { keep?: boolean })[] = [];
@@ -127,24 +130,30 @@ export const variationModel: ProgressionModel = {
       });
     }
     let best = 0;
-    judged.forEach((j, i) => {
+    let prev: SessionJudgement | null = null;
+    judged.forEach(j => {
+      if (eased(j.record)) {
+        rows.push({ ...rowFor(j, ctx.stage.name, ctx.stage.id, q, ctx), signal: DELOAD_SIGNAL });
+        return;
+      }
       let signal: string;
-      const prevLoad = i > 0 ? judged[i - 1].record.totals.topWeightKg : null;
+      const prevLoad = prev ? prev.record.totals.topWeightKg : null;
       const load = j.record.totals.topWeightKg;
-      const lessHelp = j.record.loadMeaning === 'assistance' && prevLoad !== null && load !== null && load < prevLoad && j.total >= judged[i - 1].total;
-      const moreLoad = j.record.loadMeaning === 'added' && prevLoad !== null && load !== null && load > prevLoad && j.total >= judged[i - 1].total;
-      if (i === 0) signal = j.inRange && !j.effortHigh ? `Clean ${ctx.stage.name.toLowerCase()} entry` : `${ctx.stage.name} entry`;
+      const lessHelp = j.record.loadMeaning === 'assistance' && prev !== null && prevLoad !== null && load !== null && load < prevLoad && j.total >= prev.total;
+      const moreLoad = j.record.loadMeaning === 'added' && prev !== null && prevLoad !== null && load !== null && load > prevLoad && j.total >= prev.total;
+      if (!prev) signal = j.inRange && !j.effortHigh ? `Clean ${ctx.stage.name.toLowerCase()} entry` : `${ctx.stage.name} entry`;
       else if (j.qualifies) signal = 'Meets the progression marker';
       else if (j.nearTop && j.effortHigh) signal = 'Near top of range, effort high';
       else if (lessHelp) signal = 'Same reps with less assistance';
       else if (moreLoad) signal = 'Same reps with more load';
-      else signal = trendSignal(j.total, judged[i - 1].total, best);
+      else signal = trendSignal(j.total, prev.total, best);
       best = Math.max(best, j.total);
+      prev = j;
       rows.push({ ...rowFor(j, ctx.stage.name, ctx.stage.id, q, ctx), signal });
     });
 
-    const last = judged[judged.length - 1];
-    const recent = judged.slice(-qualifying[1]);
+    const last = active[active.length - 1];
+    const recent = active.slice(-qualifying[1]);
     const q2 = recent.filter(j => j.qualifies).length;
     const readiness = {
       qualifying: q2,
@@ -163,7 +172,7 @@ export const variationModel: ProgressionModel = {
       return {
         rows: mergeRows(rows),
         light: 'none',
-        reasons: [`No ${ctx.stage.name.toLowerCase()} sessions logged yet.`],
+        reasons: [judged.length ? `Only deload sessions of ${ctx.stage.name.toLowerCase()} so far; the next full session is judged.` : `No ${ctx.stage.name.toLowerCase()} sessions logged yet.`],
         readiness,
         nextAction: `Start ${ctx.stage.name.toLowerCase()} at ${doseText(ctx.stage.prescription ?? target, ctx.system) || 'an easy, controlled volume'}.`,
         target,
@@ -184,7 +193,7 @@ export const variationModel: ProgressionModel = {
 
     let light: ModelEvaluation['light'];
     let nextAction: string;
-    if (fallingStreak(judged.map(j => j.total))) {
+    if (fallingStreak(active.map(j => j.total))) {
       light = 'red';
       reasons.push('Performance fell in each of the last two sessions.');
       nextAction = `Hold ${ctx.stage.name.toLowerCase()} and drop a set until the numbers recover; check sleep, soreness and joints before pushing again.`;

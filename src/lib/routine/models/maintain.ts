@@ -7,7 +7,7 @@
 import { doseText } from '../format';
 import { judge } from './variation';
 import { effortText, headlineOf, loadSuffix, mergeRows, quantityFor, targetRange, valuesText } from './shared';
-import { rpeCeiling, type EvaluationContext, type ModelEvaluation, type ProgressRow, type ProgressionModel } from './types';
+import { DELOAD_SIGNAL, easedIn, rpeCeiling, type EvaluationContext, type ModelEvaluation, type ProgressRow, type ProgressionModel } from './types';
 
 export const maintainModel: ProgressionModel = {
   id: 'maintain',
@@ -17,6 +17,9 @@ export const maintainModel: ProgressionModel = {
     const range = targetRange(target, q);
     const judged = ctx.records.map(r => judge(r, target, q, rpeCeiling(target, ctx.rules)));
     const inRange = (j: (typeof judged)[number]) => !range || j.inRange;
+    // Deload sessions keep their row but are not judged.
+    const eased = easedIn(ctx);
+    const active = judged.filter(j => !eased(j.record));
 
     const rows: ProgressRow[] = judged.map(j => ({
       dates: [j.record.date],
@@ -25,15 +28,15 @@ export const maintainModel: ProgressionModel = {
       work: `${ctx.stage.name} ${valuesText(j.values, q, ctx.system)}${loadSuffix(j.record, ctx.system)}`,
       headline: headlineOf(j.values, q, ctx.system),
       effort: effortText(j.record),
-      signal: inRange(j) ? 'In range' : 'Below range',
+      signal: eased(j.record) ? DELOAD_SIGNAL : inRange(j) ? 'In range' : 'Below range',
     }));
 
     const targetText = doseText(target, ctx.system);
-    const last = judged[judged.length - 1];
+    const last = active[active.length - 1];
     if (!last) {
       return { rows, light: 'none', reasons: ['No sessions logged yet.'], readiness: null, nextAction: `Keep ${ctx.stage.name.toLowerCase()} at ${targetText || 'a comfortable level'}.`, target, facts: { stage: ctx.stage.name, target: targetText } };
     }
-    const lastTwoBelow = judged.length >= 2 && judged.slice(-2).every(j => !inRange(j));
+    const lastTwoBelow = active.length >= 2 && active.slice(-2).every(j => !inRange(j));
     const light: ModelEvaluation['light'] = lastTwoBelow ? 'red' : inRange(last) ? 'green' : 'yellow';
     return {
       rows: mergeRows(rows),

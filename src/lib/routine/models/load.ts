@@ -10,7 +10,7 @@ import { numberParam } from '../model-params';
 import { doseText, rangeText, weightText } from '../format';
 import type { PerformanceRecord } from '../records';
 import { effortFactor, effortText, mergeRows, readinessLabel, readinessProgress, rpesOf, topRpe, trendSignal } from './shared';
-import { qualifyingRange, rpeCeiling, type EvaluationContext, type ModelEvaluation, type ProgressRow, type ProgressionModel } from './types';
+import { DELOAD_SIGNAL, easedIn, qualifyingRange, rpeCeiling, type EvaluationContext, type ModelEvaluation, type ProgressRow, type ProgressionModel } from './types';
 
 interface LoadJudgement {
   record: PerformanceRecord;
@@ -63,16 +63,24 @@ export const loadModel: ProgressionModel = {
       };
     });
 
+    // Deload sessions keep their row but neither count toward the marker nor against it.
+    const eased = easedIn(ctx);
+    const active = judged.filter(j => !eased(j.record));
     let best = 0;
-    const rows: ProgressRow[] = judged.map((j, i) => {
+    let prev: LoadJudgement | null = null;
+    const rows: ProgressRow[] = judged.map(j => {
       const e = j.e1rm ?? 0;
       let signal: string;
-      if (i === 0) signal = 'First logged session';
-      else if (j.weight > judged[i - 1].weight) signal = `Weight up to ${weightText(j.weight, ctx.system)}`;
+      if (eased(j.record)) signal = DELOAD_SIGNAL;
+      else if (!prev) signal = 'First logged session';
+      else if (j.weight > prev.weight) signal = `Weight up to ${weightText(j.weight, ctx.system)}`;
       else if (j.qualifies) signal = 'All sets at the top of the range';
       else if (j.missed) signal = 'Missed reps';
-      else signal = trendSignal(e, judged[i - 1].e1rm, best);
-      best = Math.max(best, e);
+      else signal = trendSignal(e, prev.e1rm, best);
+      if (!eased(j.record)) {
+        best = Math.max(best, e);
+        prev = j;
+      }
       const setsText = j.repsAtWeight.every(r => r === j.repsAtWeight[0])
         ? `${j.repsAtWeight.length}×${j.repsAtWeight[0]}`
         : j.repsAtWeight.join('/');
@@ -88,9 +96,9 @@ export const loadModel: ProgressionModel = {
       };
     });
 
-    const last = judged[judged.length - 1];
+    const last = active[active.length - 1];
     // Qualifying sessions count only at the current working weight.
-    const atCurrent = last ? judged.filter(j => j.weight === last.weight) : [];
+    const atCurrent = last ? active.filter(j => j.weight === last.weight) : [];
     const recent = atCurrent.slice(-qualifying[1]);
     const q = recent.filter(j => j.qualifies).length;
     const progress = Math.max(0, ...recent.map(j => readinessProgress(j.performance, j.effort, q, qualifying[0])));
