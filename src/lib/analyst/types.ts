@@ -37,11 +37,26 @@ export interface AnalystAnswer {
   id: string;
   title: string;
   /**
+   * The medical analysis, as PROSE: paragraphs separated by a blank line, which
+   * the view renders as text rather than a bullet list. This is the answer's body
+   * — it explains what the findings mean, which measurements move together, and
+   * what possibilities the pattern is consistent with.
+   */
+  analysis: string;
+  /**
    * The three required sections, always present and always in this order:
    * what was measured, what it may mean, and what is uncertain or missing.
    */
   observed: string[];
   interpretation: string[];
+  /**
+   * What to do next: what to repeat or track, what to ask a clinician (with the
+   * reading and window named), and general lifestyle guidance the data supports.
+   * Named conditions appear here as POSSIBILITIES only — never a diagnosis.
+   */
+  recommendations: string[];
+  /** Closing takeaways. A short list, and optional — the prose carries the rest. */
+  summary: string[];
   uncertainty: string[];
   evidence: AnalystEvidence[];
   charts: AnalystChart[];

@@ -26,6 +26,8 @@ import { collectDisplayStrings } from './systemPrompt';
 export const MAX_TITLE_CHARS = 160;
 export const MAX_LINE_CHARS = 500;
 export const MAX_LINES_PER_SECTION = 8;
+/** The prose analysis is the body of the answer, so its ceiling is far larger. */
+export const MAX_ANALYSIS_CHARS = 6000;
 export const MAX_EVIDENCE = 8;
 /**
  * Hard cap on follow-ups kept. The prompt asks for one to three short
@@ -99,6 +101,27 @@ function coerceLines(raw: unknown, max = MAX_LINES_PER_SECTION): string[] {
     if (lines.length >= max) break;
   }
   return lines;
+}
+
+/**
+ * Coerce the prose analysis.
+ *
+ * Accepts a string (the intended form) or an array of paragraphs — a model that
+ * answers in list form still produces readable prose, joined with a blank line.
+ * The ceiling is generous because this is the answer's body, not a caption.
+ */
+function coerceProse(raw: unknown): string {
+  if (raw === null || raw === undefined) return '';
+  if (typeof raw !== 'string') {
+    if (Array.isArray(raw)) {
+      const parts = raw
+        .map(item => (typeof item === 'string' ? item.trim() : ''))
+        .filter(part => part.length > 0);
+      return parts.join('\n\n').slice(0, MAX_ANALYSIS_CHARS);
+    }
+    return '';
+  }
+  return raw.trim().slice(0, MAX_ANALYSIS_CHARS);
 }
 
 /**
@@ -258,14 +281,28 @@ export function parseAnalystReply(text: string, ctx: ReplyContext): ParsedReply 
   const source = raw as Record<string, unknown>;
   const observed = coerceLines(source.observed);
   const interpretation = coerceLines(source.interpretation);
+  const recommendations = coerceLines(source.recommendations);
+  const summary = coerceLines(source.summary);
   const uncertainty = coerceLines(source.uncertainty);
+  // The prose body. Longer than a bullet, so it is read with its own limit; when
+  // the model returns it as an array, the paragraphs are joined with a blank line
+  // so the view can still render it as text.
+  const analysis = coerceProse(source.analysis);
 
-  // An answer with nothing in any section is not an answer.
-  if (observed.length === 0 && interpretation.length === 0 && uncertainty.length === 0) {
+  // An answer with nothing in any section is not an answer. The prose body counts
+  // as content: a reply that explains its findings in paragraphs is complete even
+  // when it states no separate bullets.
+  if (
+    analysis.length === 0 &&
+    observed.length === 0 &&
+    interpretation.length === 0 &&
+    uncertainty.length === 0
+  ) {
     return {
       ok: false,
       answer: null,
-      reason: 'The model\'s reply had no observed, interpretation or uncertainty content, so no answer was produced.',
+      reason:
+        'The model\'s reply had no analysis, observed, interpretation or uncertainty content, so no answer was produced.',
     };
   }
 
@@ -280,8 +317,11 @@ export function parseAnalystReply(text: string, ctx: ReplyContext): ParsedReply 
     answer: {
       id: 'model',
       title,
+      analysis,
       observed,
       interpretation,
+      recommendations,
+      summary,
       uncertainty,
       evidence,
       charts: chartsFor(evidence, ctx.bundle),

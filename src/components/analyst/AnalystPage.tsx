@@ -555,6 +555,23 @@ function AnswerView({ response, onFollowUp }: { response: AnalystResponse; onFol
 
         <h2 className="text-base font-semibold text-text-primary">{answer.title}</h2>
 
+        {answer.analysis.trim().length > 0 && (
+          <section className="space-y-3">
+            <h3 className="text-[10px] uppercase tracking-wider text-text-secondary">Analysis</h3>
+            <div className="space-y-3">
+              {answer.analysis
+                .split(/\n{2,}/)
+                .map(paragraph => paragraph.trim())
+                .filter(paragraph => paragraph.length > 0)
+                .map((paragraph, i) => (
+                  <p key={i} className="text-sm text-text-primary leading-relaxed">
+                    {paragraph}
+                  </p>
+                ))}
+            </div>
+          </section>
+        )}
+
         {ANSWER_SECTIONS.map(section => {
           const lines = section.pick(answer);
           if (lines.length === 0) return null;
@@ -646,10 +663,16 @@ const STATUS_LABEL: Record<string, string> = {
   ok: 'Answer',
 };
 
+/**
+ * The supporting lists that follow the prose analysis. Each is a SHORT list — the
+ * prose carries the reasoning, so these are the facts, the next steps and the
+ * caveats, not the argument.
+ */
 const ANSWER_SECTIONS: { heading: string; pick: (a: AnalystAnswer) => string[] }[] = [
-  { heading: '1 · Observed measurements', pick: a => a.observed },
-  { heading: '2 · Possible interpretation', pick: a => a.interpretation },
-  { heading: '3 · Missing context and uncertainty', pick: a => a.uncertainty },
+  { heading: 'Measured', pick: a => a.observed },
+  { heading: 'What to do next', pick: a => a.recommendations },
+  { heading: 'Summary', pick: a => a.summary },
+  { heading: 'Missing context and uncertainty', pick: a => a.uncertainty },
 ];
 
 function EvRow({ label, value }: { label: string; value: string }) {
