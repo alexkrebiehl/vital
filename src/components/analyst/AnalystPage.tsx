@@ -578,13 +578,26 @@ function AnswerView({ response, onFollowUp }: { response: AnalystResponse; onFol
           return (
             <section key={section.heading}>
               <h3 className="text-[10px] uppercase tracking-wider text-text-secondary mb-1.5">{section.heading}</h3>
-              <ul className="list-disc pl-5 space-y-1.5">
-                {lines.map((line, i) => (
-                  <li key={i} className="text-sm text-text-primary leading-relaxed">
-                    {withLinks(line, `${section.heading}-${i}`)}
-                  </li>
-                ))}
-              </ul>
+              {lines.length === 1 ? (
+                // One line is a statement, not a list: draw it as text so the
+                // answer reads as prose with a paragraph, not as a bulleted page.
+                <p className="text-sm text-text-primary leading-relaxed">
+                  {withLinks(lines[0]!, `${section.heading}-0`)}
+                </p>
+              ) : section.prose ? (
+                // A section declared as prose is joined into one paragraph.
+                <p className="text-sm text-text-primary leading-relaxed">
+                  {withLinks(lines.join(' '), section.heading)}
+                </p>
+              ) : (
+                <ul className="list-disc pl-5 space-y-1.5">
+                  {lines.map((line, i) => (
+                    <li key={i} className="text-sm text-text-primary leading-relaxed">
+                      {withLinks(line, `${section.heading}-${i}`)}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
           );
         })}
@@ -670,11 +683,22 @@ const STATUS_LABEL: Record<string, string> = {
  * prose carries the reasoning, so these are the facts, the next steps and the
  * caveats, not the argument.
  */
-const ANSWER_SECTIONS: { heading: string; pick: (a: AnalystAnswer) => string[] }[] = [
-  { heading: 'Measured', pick: a => a.observed },
+/**
+ * The sections that follow the prose.
+ *
+ * There is deliberately NO "measured" list: the values are already on their own
+ * pages and the analysis links to them, so restating them here would be the
+ * machine dump the owner objected to. The evidence cards below the answer carry
+ * the links to the underlying charts and records.
+ *
+ * `prose: true` joins the entries into ONE paragraph instead of a bullet list —
+ * uncertainty is a statement about the answer, so it reads as text; the next steps
+ * are genuinely a list of actions, so they stay a list.
+ */
+const ANSWER_SECTIONS: { heading: string; pick: (a: AnalystAnswer) => string[]; prose?: boolean }[] = [
   { heading: 'What to do next', pick: a => a.recommendations },
-  { heading: 'Summary', pick: a => a.summary },
-  { heading: 'Missing context and uncertainty', pick: a => a.uncertainty },
+  { heading: 'Summary', pick: a => a.summary, prose: true },
+  { heading: 'Missing context and uncertainty', pick: a => a.uncertainty, prose: true },
 ];
 
 /**

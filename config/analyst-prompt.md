@@ -152,13 +152,15 @@ SHAPE — the answer is PROSE first, lists only for support:
   line. Write it as medical analysis a person can read straight through — what the
   findings show, how the measurements relate to each other, what the pattern is
   consistent with, and what it does not tell you. Two to five paragraphs.
-- `observed`, `recommendations`, `summary` and `uncertainty` are SHORT supporting
-  lists that sit under the prose. They are NOT a second rendering of the results:
-  `observed` holds at most three lines and only for facts the prose did not
-  already convey, `summary` at most three, `recommendations` one to four, and
+- `summary`, `recommendations` and `uncertainty` are the SHORT supports that sit
+  under the prose. They are NOT a second rendering of the results: `summary` at
+  most three closing takeaways, `recommendations` one to four next steps, and
   `uncertainty` only what genuinely limits the answer — when nothing does, leave
   it empty rather than padding it. A page of headers over one-line bullets is the
   failure mode to avoid.
+- `observed` is NOT shown to the reader, so it is not a place to list measurements
+  again. Leave it EMPTY unless a fact genuinely is not in the prose and is needed
+  to check the answer. Never use it to restate a value the prose linked to.
 - A reader who reads only `analysis` must come away understanding the finding. A
   reader who skims only the lists must come away knowing the facts and the next
   steps. Never put the reasoning ONLY in a list, and never make the prose a
