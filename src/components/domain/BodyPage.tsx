@@ -17,6 +17,9 @@ import {
 } from '@/lib/analytics';
 import { Card, Badge, DataStateNote } from '@/components/ui/primitives';
 import { MetricChart } from '@/components/charts';
+import { BodyMap } from '@/components/art/BodyMap';
+import { HeroFigure } from '@/components/art/HeroFigure';
+import { CompositionBar } from '@/components/art/CompositionBar';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import {
   DomainHeader, SectionTitle, SeriesCard, MetricGrid, CoverageNote, metricsForCategories,
@@ -43,8 +46,29 @@ export function BodyPage() {
     <div className="space-y-8">
       <DomainHeader
         title="Body"
+        category="body"
+        aside={<HeroFigure metricId="weight_body_mass" category="body" days={DAYS} />}
         subtitle={`Weight is the main series. Measurements are individual weigh-ins, not daily readings — the average gap is ${Number.isFinite(avgGap) ? avgGap.toFixed(1) : '—'} days.`}
       />
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_340px]">
+      <BodyMap
+        title="Where your measurements sit"
+        note="The latest reading for each body measurement in your data. Only measurements that exist are shown."
+        spots={[
+          { metricId: 'weight_body_mass', anchor: 'torso', category: 'body' },
+          { metricId: 'body_mass_index', anchor: 'body', category: 'body' },
+          { metricId: 'body_fat_percentage', anchor: 'torso', category: 'nutrition' },
+          { metricId: 'lean_body_mass', anchor: 'legs', category: 'activity' },
+          { metricId: 'waist_circumference', anchor: 'waist', category: 'recovery' },
+        ]}
+      />
+      <Card className="p-6 self-start">
+        <h2 className="text-[18px] font-semibold text-text-primary">Composition</h2>
+        <p className="mb-5 mt-1 text-sm text-text-secondary">Weight, split by the latest body-fat reading.</p>
+        <CompositionBar />
+      </Card>
+      </div>
 
       {/* ── Weight trajectory (owner request 2: only when there is data) ── */}
       {inWindow.length > 0 && (

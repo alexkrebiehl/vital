@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { BodyMap } from '@/components/art/BodyMap';
 import { TriangleAlert } from 'lucide-react';
 import { getMetric } from '@/lib/metrics';
 import { formatMetricWithUnit } from '@/lib/metrics/format';
@@ -20,6 +21,7 @@ import {
   trailingWindow,
   windowRangeLabel,
 } from '@/lib/analytics';
+import { HeroFigure } from '@/components/art/HeroFigure';
 import { Card, Badge, DataStateNote } from '@/components/ui/primitives';
 import { MetricChart, TrendFigure } from '@/components/charts';
 import { useUnits } from '@/components/ui/UnitsProvider';
@@ -63,7 +65,21 @@ export function HealthPage() {
     <div className="space-y-8">
       <DomainHeader
         title="Health"
+        aside={<HeroFigure metricId="resting_heart_rate" category="cardiovascular" days={30} />}
         subtitle={`Cardiovascular signals first, then every other category the dataset actually contains. Window: last ${DAYS} days ending ${formatDayKeyLong(REFERENCE_KEY)}.`}
+      />
+
+      <BodyMap
+        title="Your signals, mapped"
+        note="The latest reading for each cardiovascular and respiratory signal in your data. Only signals that exist are shown."
+        spots={[
+          { metricId: 'resting_heart_rate', anchor: 'heart', category: 'cardiovascular' },
+          { metricId: 'heart_rate_variability', anchor: 'heart', category: 'recovery' },
+          { metricId: 'walking_heart_rate', anchor: 'legs', category: 'activity' },
+          { metricId: 'respiratory_rate', anchor: 'lungs', category: 'respiratory' },
+          { metricId: 'blood_oxygen_saturation', anchor: 'lungs', category: 'respiratory' },
+          { metricId: 'vo2max', anchor: 'torso', category: 'activity' },
+        ]}
       />
 
       {/* ── Cardiovascular headline ─────────────────── */}
