@@ -42,7 +42,7 @@ export function PageHero({
           )}
           {children && <div className="mt-5 flex flex-wrap items-center gap-2">{children}</div>}
         </div>
-        {aside && <div className="shrink-0">{aside}</div>}
+        {aside && <div className="min-w-0 max-w-full shrink-0">{aside}</div>}
       </div>
     </header>
   );

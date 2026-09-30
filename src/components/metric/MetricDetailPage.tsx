@@ -229,7 +229,7 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
         seed={metaId.length * 131 + metaId.charCodeAt(0)}
         subtitle={`${meta.aggregationStrategy === 'sum' ? 'Summed per day' : meta.aggregationStrategy === 'latest' ? 'Latest recorded value' : 'Daily average'} · ${metricUnit(metaId, units) ? `unit ${metricUnit(metaId, units)}` : 'no unit'}`}
         aside={
-          <div className="w-[260px] rounded-2xl border border-border bg-surface/80 p-4 shadow-card backdrop-blur-sm">
+          <div className="w-full max-w-[260px] rounded-2xl border border-border bg-surface/80 p-4 shadow-card backdrop-blur-sm">
             <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-text-secondary">Latest reading</div>
             <div className="mt-1 text-[34px] font-semibold leading-none tnum tracking-[-0.03em] text-text-primary">
               {displayLatest(metaId, latest, units, bpRecords)}

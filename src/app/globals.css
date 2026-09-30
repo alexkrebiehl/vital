@@ -168,3 +168,37 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+/* ── Form controls ─────────────────────────────────────────
+   Native controls are restyled once, here, so every page shares one look.
+   Checkboxes, radios and files keep their native behaviour. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]),
+select,
+textarea {
+  background-color: var(--color-surface);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-card);
+  transition: border-color 150ms, box-shadow 150ms;
+  color-scheme: light;
+}
+.dark input, .dark select, .dark textarea { color-scheme: dark; }
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):hover,
+select:hover, textarea:hover { border-color: var(--color-text-secondary); }
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
+select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 2.25rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239CA2B1' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+}
+input::placeholder, textarea::placeholder { color: var(--color-text-secondary); opacity: 0.75; }
+input:disabled, select:disabled, textarea:disabled { opacity: 0.55; cursor: not-allowed; }
+::selection { background: color-mix(in srgb, var(--color-accent) 28%, transparent); }

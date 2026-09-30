@@ -35,7 +35,7 @@ export function HeroFigure({
   return (
     <Link
       href={`/metric/${metricId}`}
-      className="block w-[260px] rounded-2xl border border-border bg-surface/80 p-4 backdrop-blur-sm shadow-card transition-colors hover:border-border-strong"
+      className="block w-full max-w-[260px] rounded-2xl border border-border bg-surface/80 p-4 backdrop-blur-sm shadow-card transition-colors hover:border-border-strong"
     >
       <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-text-secondary">{label ?? meta.displayName}</div>
       <div className="mt-1 flex items-baseline gap-1.5">
