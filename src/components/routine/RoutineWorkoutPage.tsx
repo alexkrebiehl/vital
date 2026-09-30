@@ -8,7 +8,7 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, ArrowRight, ChevronRight, PauseCircle } from 'lucide-react';
+import { ArrowRight, ChevronRight, PauseCircle } from 'lucide-react';
 import type { RoutineOverview } from '@/lib/routine/progress';
 import type { WorkoutSlotView, WorkoutView } from '@/lib/routine/workout-view';
 import type { WorkoutSourceStatus } from '@/lib/workout-sources/types';
@@ -17,6 +17,7 @@ import { DiscussButton } from '@/components/analyst/DiscussDialog';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { ExerciseDataNotice, LightLabel, ReadinessBar, pathHref, planHref, useRoutineFetch } from './shared';
 import { workoutSuggestions } from './discuss-suggestions';
+import { useBreadcrumbLabel } from '@/components/shell/Breadcrumbs';
 import { formatDayKeyShort } from '@/lib/analytics/windows';
 
 interface WorkoutDetailResponse {
@@ -26,24 +27,15 @@ interface WorkoutDetailResponse {
   origin: 'live' | 'demo';
 }
 
-function BackLink() {
-  return (
-    <Link href="/workouts#routine" className="inline-flex items-center gap-1 text-sm text-text-secondary hover:text-text-primary transition-colors">
-      <ArrowLeft size={14} aria-hidden="true" />
-      <span>Workouts</span>
-    </Link>
-  );
-}
-
 export function RoutineWorkoutPage() {
   const { templateId } = useParams<{ templateId: string }>();
   const { units } = useUnits();
   const { state, reload } = useRoutineFetch<WorkoutDetailResponse>(`/api/routine/workouts/${encodeURIComponent(templateId)}`, units);
+  useBreadcrumbLabel(state.status === 'ok' ? state.data.workout.name : undefined);
 
   if (state.status === 'loading') {
     return (
       <div className="space-y-4">
-        <BackLink />
         <Skeleton height={32} width="50%" />
         <Skeleton height={180} />
       </div>
@@ -52,7 +44,6 @@ export function RoutineWorkoutPage() {
   if (state.status === 'error') {
     return (
       <div className="space-y-4">
-        <BackLink />
         <ErrorState title="This workout could not be loaded" message={state.message} onRetry={reload} />
       </div>
     );
@@ -65,7 +56,6 @@ export function RoutineWorkoutPage() {
 
   return (
     <div className="space-y-6">
-      <BackLink />
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-xs text-text-secondary">
