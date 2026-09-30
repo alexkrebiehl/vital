@@ -594,7 +594,7 @@ function SummaryCard({ label, value, sub, highlight }: {
 }) {
   return (
     <Card className={`p-4 ${highlight ? 'ring-1 ring-category-attention/30' : ''}`}>
-      <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-1">{label}</div>
+      <div className="text-[11px] uppercase tracking-[0.06em] font-medium text-text-secondary mb-1">{label}</div>
       <div className={`text-xl md:text-2xl font-semibold tnum ${highlight ? 'text-category-attention' : 'text-text-primary'} leading-none mb-1`}>
         {value}
       </div>

@@ -12,6 +12,8 @@
 // baked into a prerendered page at build time.
 
 import type { Metadata } from 'next';
+import { GeistSans } from 'geist/font/sans';
+import { GeistMono } from 'geist/font/mono';
 import './globals.css';
 import { AppShell } from '@/components/shell/AppShell';
 import { DatasetProvider } from '@/components/data/DatasetProvider';
@@ -87,7 +89,7 @@ export default async function RootLayout({
   const profile = await readProfile();
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={`${GeistSans.variable} ${GeistMono.variable}`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>

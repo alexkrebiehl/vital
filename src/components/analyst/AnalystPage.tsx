@@ -557,7 +557,7 @@ function AnswerView({ response, onFollowUp }: { response: AnalystResponse; onFol
 
         {answer.analysis.trim().length > 0 && (
           <section className="space-y-3">
-            <h3 className="text-[10px] uppercase tracking-wider text-text-secondary">Analysis</h3>
+            <h3 className="text-[11px] uppercase tracking-[0.06em] font-medium text-text-secondary">Analysis</h3>
             <div className="space-y-3">
               {answer.analysis
                 .split(/\n{2,}/)
@@ -577,7 +577,7 @@ function AnswerView({ response, onFollowUp }: { response: AnalystResponse; onFol
           if (lines.length === 0) return null;
           return (
             <section key={section.heading}>
-              <h3 className="text-[10px] uppercase tracking-wider text-text-secondary mb-1.5">{section.heading}</h3>
+              <h3 className="text-[11px] uppercase tracking-[0.06em] font-medium text-text-secondary mb-1.5">{section.heading}</h3>
               {lines.length === 1 ? (
                 // One line is a statement, not a list: draw it as text so the
                 // answer reads as prose with a paragraph, not as a bulleted page.
@@ -618,7 +618,7 @@ function AnswerView({ response, onFollowUp }: { response: AnalystResponse; onFol
 
         {answer.evidence.length > 0 && (
           <div className="space-y-2">
-            <h3 className="text-[10px] uppercase tracking-wider text-text-secondary">Evidence</h3>
+            <h3 className="text-[11px] uppercase tracking-[0.06em] font-medium text-text-secondary">Evidence</h3>
             {answer.evidence.map((ev, i) => (
               <div key={`${ev.metricId}-${i}`} className="border border-border rounded-control p-3">
                 <div className="flex flex-wrap items-baseline gap-2 mb-1">

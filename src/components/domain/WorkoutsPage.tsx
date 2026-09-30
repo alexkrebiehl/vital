@@ -386,7 +386,7 @@ function FilterChip({ active, onClick, label }: { active: boolean; onClick: () =
 function TotalCard({ label, value, sub, title }: { label: string; value: string; sub: string; title?: string }) {
   return (
     <Card className="p-4">
-      <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-1">{label}</div>
+      <div className="text-[11px] uppercase tracking-[0.06em] font-medium text-text-secondary mb-1">{label}</div>
       <div className="text-xl md:text-2xl font-semibold tnum text-text-primary leading-none mb-1" title={title}>
         {value}
       </div>

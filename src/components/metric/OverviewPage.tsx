@@ -240,7 +240,7 @@ export function OverviewPage({ initialGreeting }: { initialGreeting: string }) {
     <div className="space-y-8">
       {/* ── A. Greeting ─────────────────────────────── */}
       <div className="min-w-0">
-        <h1 className="text-[32px] sm:text-[40px] md:text-[44px] font-semibold tracking-tight text-text-primary leading-[1.1]">
+        <h1 className="text-[30px] sm:text-[36px] md:text-[40px] font-semibold tracking-[-0.035em] text-text-primary leading-[1.1]">
           {greeting}
         </h1>
         <p className="text-sm sm:text-base text-text-secondary mt-1">
@@ -253,10 +253,10 @@ export function OverviewPage({ initialGreeting }: { initialGreeting: string }) {
           to the other's height and leaves an empty band inside it. */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
         <Card variant="hero" className="md:col-span-2 p-6 md:p-8 flex flex-col h-fit" as="section">
-          <p className="text-[10px] uppercase tracking-[0.15em] font-medium text-hero-muted mb-3">
+          <p className="text-[11px] uppercase tracking-[0.08em] font-medium text-hero-muted mb-3">
             TODAY&rsquo;S BRIEFING
           </p>
-          <h2 className="text-[26px] md:text-[34px] font-semibold leading-[1.15] tracking-tight mb-3 text-hero-foreground">
+          <h2 className="text-[22px] md:text-[28px] font-medium leading-[1.22] tracking-[-0.025em] mb-4 text-hero-foreground max-w-[34ch]">
             {written?.headline ?? briefing.headline}
           </h2>
           <p className="text-sm text-hero-secondary max-w-xl mb-4 leading-relaxed">
@@ -346,7 +346,7 @@ export function OverviewPage({ initialGreeting }: { initialGreeting: string }) {
         {/* Companion card — filled with the evidence it claims */}
         <Card className="p-6 flex flex-col" as="section">
           <p
-            className={`text-[10px] uppercase tracking-[0.15em] font-medium mb-3 ${
+            className={`text-[11px] uppercase tracking-[0.08em] font-medium mb-3 ${
               watch?.tone === 'attention' ? 'text-category-attention' : 'text-text-secondary'
             }`}
           >
@@ -535,7 +535,7 @@ export function OverviewPage({ initialGreeting }: { initialGreeting: string }) {
           <div className="space-y-4">
             {sideInsights.map(insight => (
               <Card key={insight.metricId} className="p-5 flex flex-col" as="article">
-                <p className="text-[10px] uppercase tracking-[0.1em] font-medium text-text-secondary mb-2">
+                <p className="text-[11px] uppercase tracking-[0.08em] font-medium text-text-secondary mb-2">
                   OBSERVATION
                 </p>
                 <h4 className="text-sm font-semibold text-text-primary mb-1">{insight.title}</h4>
