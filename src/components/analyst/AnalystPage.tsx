@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle, Bot, ChevronRight, Loader2, Send, ShieldCheck, Sparkles, User,
 } from 'lucide-react';
+import { PageHero } from '@/components/art/PageHero';
 import { Badge, Button, Card, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { TrendFigure } from '@/components/charts';
 import { useUnits } from '@/components/ui/UnitsProvider';
@@ -231,21 +232,18 @@ export function AnalystPage() {
   return (
     <div className="space-y-6">
       {/* ── Header ─────────────────────────────────── */}
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-[26px] md:text-[32px] font-semibold tracking-tight text-text-primary leading-tight">
-            Ask about your health
-          </h1>
-          <p className="text-sm text-text-secondary mt-1">
-            Explore patterns in your Apple Health history.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
+      <PageHero
+        title="Ask about your health"
+        eyebrow="AI Analyst"
+        category="overview"
+        seed={42}
+        subtitle="Explore patterns in your Apple Health history."
+        aside={
           <Badge variant={providerReady ? 'accent' : 'default'} className="text-xs">
             {providerBadge(configState)}
           </Badge>
-        </div>
-      </header>
+        }
+      />
 
       {/* State notice: rendered only when there is something to say. */}
       {(configError || !configState || !availability.available || demoMode || misconfigured) && (
