@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
-import { ArrowLeft, TrendingUp, TrendingDown, Minus, Info, ChevronDown } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Info, ChevronDown } from 'lucide-react';
 import { getMetric, getAllMetrics } from '@/lib/metrics';
 import {
   formatMetricValue,
@@ -66,7 +66,6 @@ export function MetricDetailPage() {
   if (!meta) {
     return (
       <div className="space-y-6">
-        <BackLink />
         <InsufficientDataState
           metricName="this metric"
           message={`No metric is registered with the id "${metricId}". It may have been removed, or the link may be out of date.`}
@@ -197,7 +196,6 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
   if (all.length === 0) {
     return (
       <div className="space-y-6">
-        <BackLink />
         <div>
           <Badge variant="default" className="text-[10px]">{meta.category}</Badge>
           <h1 className="text-2xl md:text-3xl font-semibold text-text-primary mt-2">{meta.displayName}</h1>
@@ -215,8 +213,6 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
 
   return (
     <div className="space-y-6">
-      <BackLink />
-
       {/* ── Header ──────────────────────────────────── */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
@@ -553,18 +549,6 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
 }
 
 // ── Sub-components ────────────────────────────────────
-
-function BackLink() {
-  return (
-    <Link
-      href="/"
-      className="inline-flex items-center gap-1 text-sm text-text-secondary hover:text-text-primary transition-colors"
-    >
-      <ArrowLeft size={14} aria-hidden="true" />
-      <span>Back</span>
-    </Link>
-  );
-}
 
 function RelatedMetricsList({ metrics }: { metrics: ReturnType<typeof getAllMetrics> }) {
   if (metrics.length === 0) return null;

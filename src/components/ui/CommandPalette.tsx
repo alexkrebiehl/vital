@@ -5,6 +5,7 @@ import { X, Search, Command } from 'lucide-react';
 import { searchMetrics, getMetric } from '@/lib/metrics';
 import { searchLabAnalytes } from '@/lib/lab/search';
 import type { MetricDefinition } from '@/lib/metrics/types';
+import { flattenNav } from '@/components/shell/nav';
 
 interface SearchItem {
   id: string;
@@ -14,23 +15,9 @@ interface SearchItem {
   type: 'metric' | 'page' | 'query' | 'lab';
 }
 
-const NAV_ITEMS: SearchItem[] = [
-  { id: 'overview', label: 'Overview', description: 'Daily health briefing', href: '/', type: 'page' },
-  { id: 'trends', label: 'Trends', description: 'What changed over time', href: '/trends', type: 'page' },
-  { id: 'health', label: 'Health', description: 'Cardiovascular summary', href: '/health', type: 'page' },
-  { id: 'lab', label: 'Lab', description: 'Lab results imported from PDFs', href: '/lab', type: 'page' },
-  { id: 'activity', label: 'Activity', description: 'Steps, exercise, calories', href: '/activity', type: 'page' },
-  { id: 'sleep', label: 'Sleep', description: 'Sleep analysis', href: '/sleep', type: 'page' },
-  { id: 'body', label: 'Body', description: 'Weight and body metrics', href: '/body', type: 'page' },
-  { id: 'nutrition', label: 'Nutrition', description: 'Dietary intake', href: '/nutrition', type: 'page' },
-  { id: 'workouts', label: 'Workouts', description: 'Current routine and progress', href: '/workouts', type: 'page' },
-  { id: 'all-workouts', label: 'All workouts', description: 'Workout history', href: '/workouts/all', type: 'page' },
-  { id: 'recovery', label: 'Recovery', description: 'Recovery signals and deload timing', href: '/workouts/recovery', type: 'page' },
-  { id: 'insights', label: 'Insights', description: 'Discovered patterns', href: '/insights', type: 'page' },
-  { id: 'analyst', label: 'AI Analyst', description: 'Ask about your health', href: '/analyst', type: 'page' },
-  { id: 'themes', label: 'Themes', description: 'Light and dark colour themes', href: '/themes', type: 'page' },
-  { id: 'settings', label: 'Settings', description: 'Preferences and configuration', href: '/settings', type: 'page' },
-];
+// The pages come from the navigation registry, so search can never miss a page
+// the sidebar shows, or offer one it no longer does.
+const NAV_ITEMS: SearchItem[] = flattenNav().map(item => ({ ...item, type: 'page' }));
 
 interface CommandPaletteContextType {
   open: () => void;

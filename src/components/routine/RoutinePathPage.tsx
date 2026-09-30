@@ -10,7 +10,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, CheckCircle2, Circle, CircleDot, PauseCircle } from 'lucide-react';
+import { CheckCircle2, Circle, CircleDot, PauseCircle } from 'lucide-react';
 import type { PathProgress, RoutineOverview } from '@/lib/routine/progress';
 import type { WorkoutSourceStatus } from '@/lib/workout-sources/types';
 import { Badge, Button, Card, DataStateNote, ErrorState, Skeleton } from '@/components/ui/primitives';
@@ -18,6 +18,7 @@ import { DiscussButton } from '@/components/analyst/DiscussDialog';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { ExerciseDataNotice, LightLabel, ReadinessBar, RecoveryCard, pathHref, useRoutineFetch } from './shared';
 import { pathSuggestions } from './discuss-suggestions';
+import { useBreadcrumbLabel } from '@/components/shell/Breadcrumbs';
 import { formatDayKeyShort } from '@/lib/analytics/windows';
 import type { NarrativeView } from '@/lib/routine/narrative-types';
 
@@ -29,19 +30,11 @@ interface PathDetailResponse {
   origin: 'live' | 'demo';
 }
 
-function BackLink() {
-  return (
-    <Link href="/workouts#routine" className="inline-flex items-center gap-1 text-sm text-text-secondary hover:text-text-primary transition-colors">
-      <ArrowLeft size={14} aria-hidden="true" />
-      <span>Workouts</span>
-    </Link>
-  );
-}
-
 export function RoutinePathPage() {
   const { pathId } = useParams<{ pathId: string }>();
   const { units } = useUnits();
   const { state, reload } = useRoutineFetch<PathDetailResponse>(`/api/routine/${encodeURIComponent(pathId)}`, units);
+  useBreadcrumbLabel(state.status === 'ok' ? `${state.data.path.pathName} path` : undefined);
 
   // A model note is written in the background: poll a few times, backing off.
   const polls = useRef(0);
@@ -58,7 +51,6 @@ export function RoutinePathPage() {
   if (state.status === 'loading') {
     return (
       <div className="space-y-4">
-        <BackLink />
         <Skeleton height={32} width="50%" />
         <Skeleton height={180} />
       </div>
@@ -67,7 +59,6 @@ export function RoutinePathPage() {
   if (state.status === 'error') {
     return (
       <div className="space-y-4">
-        <BackLink />
         <ErrorState title="This path could not be loaded" message={state.message} onRetry={reload} />
       </div>
     );
@@ -77,7 +68,6 @@ export function RoutinePathPage() {
 
   return (
     <div className="space-y-6">
-      <BackLink />
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-xs text-text-secondary">

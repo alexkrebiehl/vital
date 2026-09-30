@@ -9,7 +9,7 @@
 
 import Link from 'next/link';
 import { Fragment } from 'react';
-import { ArrowLeft, ArrowRight, Check, HeartPulse, Repeat } from 'lucide-react';
+import { ArrowRight, Check, HeartPulse, Repeat } from 'lucide-react';
 import type { CadenceDay, CadenceNode, CadenceView } from '@/lib/routine/cadence';
 import type { RoutineOverview } from '@/lib/routine/progress';
 import type { PhaseView } from '@/lib/routine/position';
@@ -32,15 +32,6 @@ import {
 import { DiscussButton } from '@/components/analyst/DiscussDialog';
 import { routineSuggestions } from './discuss-suggestions';
 
-function BackLink() {
-  return (
-    <Link href="/workouts#routine" className="inline-flex items-center gap-1 text-sm text-text-secondary hover:text-text-primary transition-colors">
-      <ArrowLeft size={14} aria-hidden="true" />
-      <span>Workouts</span>
-    </Link>
-  );
-}
-
 const SECTION_HEADING = 'text-sm font-semibold text-text-primary';
 
 export function RoutinePlanPage() {
@@ -50,7 +41,6 @@ export function RoutinePlanPage() {
   if (state.status === 'loading') {
     return (
       <div className="space-y-4">
-        <BackLink />
         <Skeleton height={32} width="50%" />
         <Skeleton height={140} />
         <Skeleton height={180} />
@@ -60,7 +50,6 @@ export function RoutinePlanPage() {
   if (state.status === 'error') {
     return (
       <div className="space-y-4">
-        <BackLink />
         <ErrorState title="The plan could not be loaded" message={state.message} onRetry={reload} />
       </div>
     );
@@ -69,7 +58,6 @@ export function RoutinePlanPage() {
   if (!routine) {
     return (
       <div className="space-y-4">
-        <BackLink />
         <Card className="p-5">
           <EmptyState
             title="No active plan"
@@ -87,7 +75,6 @@ export function RoutinePlanPage() {
 
   return (
     <div className="space-y-6">
-      <BackLink />
       <PlanHeader routine={routine} onPlanChange={reload} />
       <ExerciseDataNotice routine={routine} />
       <Cadence cadence={routine.cadence} adherence={routine.adherence.text} />

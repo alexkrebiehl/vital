@@ -7,7 +7,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Dumbbell, Info, ArrowUpDown } from 'lucide-react';
+import { Dumbbell, Info, ArrowUpDown } from 'lucide-react';
 import { REFERENCE_KEY } from '@/lib/adapters/dataset';
 import { formatDurationHm, formatMetricWithUnit } from '@/lib/metrics/format';
 import {
@@ -114,16 +114,10 @@ export function AllWorkoutsPage() {
 
   return (
     <div className="space-y-8">
-      <div className="space-y-4">
-        <Link href="/workouts" className="inline-flex items-center gap-1 text-sm text-text-secondary hover:text-text-primary transition-colors">
-          <ArrowLeft size={14} aria-hidden="true" />
-          <span>Workouts</span>
-        </Link>
-        <DomainHeader
-          title="All workouts"
-          subtitle={`Recorded sessions across ${filtered.window.label.toLowerCase()} (${filtered.views.length} shown of ${filtered.inWindowCount} in the window). Only the fields the dataset actually contains are shown.`}
-        />
-      </div>
+      <DomainHeader
+        title="Workout history"
+        subtitle={`Recorded sessions across ${filtered.window.label.toLowerCase()} (${filtered.views.length} shown of ${filtered.inWindowCount} in the window). Only the fields the dataset actually contains are shown.`}
+      />
 
       {/* ── Filters ─────────────────────────────────── */}
       <Card className="p-5 space-y-4" as="section">

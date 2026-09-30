@@ -12,7 +12,7 @@
 
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { ArrowLeft, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { RoutineOverview } from '@/lib/routine/progress';
 import type { RecoveryIndicator } from '@/lib/routine/recovery';
@@ -24,15 +24,6 @@ import { DiscussButton } from '@/components/analyst/DiscussDialog';
 import { LightLabel, RECOVERY_TONE, pathHref, planHref, recoveryVariant, useRoutineFetch, type RoutineApiResponse } from './shared';
 import { recoverySuggestions } from './discuss-suggestions';
 
-function BackLink() {
-  return (
-    <Link href="/workouts#routine" className="inline-flex items-center gap-1 text-sm text-text-secondary hover:text-text-primary transition-colors">
-      <ArrowLeft size={14} aria-hidden="true" />
-      <span>Workouts</span>
-    </Link>
-  );
-}
-
 const SECTION_HEADING = 'text-sm font-semibold text-text-primary';
 
 export function RoutineRecoveryPage() {
@@ -42,7 +33,6 @@ export function RoutineRecoveryPage() {
   if (state.status === 'loading') {
     return (
       <div className="space-y-4">
-        <BackLink />
         <Skeleton height={32} width="40%" />
         <Skeleton height={120} />
         <Skeleton height={220} />
@@ -52,7 +42,6 @@ export function RoutineRecoveryPage() {
   if (state.status === 'error') {
     return (
       <div className="space-y-4">
-        <BackLink />
         <ErrorState title="Recovery could not be loaded" message={state.message} onRetry={reload} />
       </div>
     );
@@ -61,7 +50,6 @@ export function RoutineRecoveryPage() {
   if (!routine) {
     return (
       <div className="space-y-4">
-        <BackLink />
         <Card className="p-5">
           <EmptyState
             title="No active plan"
@@ -79,7 +67,6 @@ export function RoutineRecoveryPage() {
 
   return (
     <div className="space-y-6">
-      <BackLink />
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 max-w-3xl">
           <p className="text-xs text-text-secondary">
