@@ -10,9 +10,10 @@
 //   training_load     training sessions in the last 7 days vs the weekly mean
 //                     of the 28 days before them (% change)
 //
-// Every indicator is reported with its numbers and windows. A plan's recovery
-// gates decide which ones matter and how much (`watch` or `warn`); without a
-// gate an indicator is shown for information only.
+// Every indicator is reported with its numbers and windows, the readings behind
+// them, and the plan's rule for it in words. A plan's recovery gates decide
+// which ones matter and how much (`watch` or `warn`); without a gate an
+// indicator is shown for information only.
 
 import { addDays } from '../analytics/windows';
 import type { UnitSystem } from '../prefs';
@@ -39,6 +40,18 @@ export interface RecoveryIndicator {
   status: RecoveryStatus;
   gate?: RecoveryGate;
   observations: number;
+  /**
+   * The readings behind the numbers, oldest first, in display units: daily for
+   * the health signals, one point per week (keyed by its first day) for
+   * training load.
+   */
+  points: DayValue[];
+  /** First day of the window `current` is measured over; points before it are the baseline. */
+  recentFrom: string;
+  /** The plan's gate in words ("Watch if …"), null without a gate. */
+  rule: string | null;
+  /** What to do about it, only while the gate is tripped (watch or warn). */
+  advice: string | null;
 }
 
 export interface RecoveryInputs {
@@ -57,6 +70,67 @@ const LABELS: Record<RecoverySignalId, string> = {
   body_weight_rate: 'Body-weight trend',
   training_load: 'Training load',
 };
+
+/** What each signal's value is, for the rule sentence. */
+const SUBJECTS: Record<RecoverySignalId, string> = {
+  resting_hr: 'the 7-day average',
+  hrv: 'the 7-day average',
+  sleep_hours: 'average sleep over the last 7 nights',
+  body_weight_rate: 'the 28-day weight trend',
+  training_load: 'sessions in the last 7 days',
+};
+
+const BASELINES: Record<RecoverySignalId, string> = {
+  resting_hr: 'the 28 days before',
+  hrv: 'the 28 days before',
+  sleep_hours: 'its baseline',
+  body_weight_rate: 'its baseline',
+  training_load: 'the weekly average of the 4 weeks before',
+};
+
+// General guidance, never treatment: the analyst's own rule (systemPrompt.ts)
+// is to suggest a professional rather than give medical advice.
+const ADVICE: Record<RecoverySignalId, string> = {
+  resting_hr:
+    'A raised resting heart rate often follows hard training, short sleep, stress or an oncoming cold. Keep sessions easy and sleep well until it settles back toward your usual level.',
+  hrv: 'HRV away from your usual level often follows hard training, short sleep, alcohol or stress. Keep effort moderate and prioritise sleep until it settles.',
+  sleep_hours: 'Short sleep slows recovery more than anything else here. Protect a regular bedtime before adding load.',
+  body_weight_rate:
+    'Body weight is changing faster than the plan allows. If you are losing weight, eating a little more supports recovery; if gaining, check the trend against your goal.',
+  training_load:
+    'Your training frequency has changed sharply from the weeks before. After a jump, hold doses until the new rhythm settles; after a gap, ease back in rather than resuming at full volume.',
+};
+
+/** The plan's gate in words, with the threshold in display units. */
+function ruleText(signal: RecoverySignalId, gate: RecoveryGate | undefined, system: UnitSystem): string | null {
+  if (!gate) return null;
+  const raw = gate.threshold ?? 0;
+  // Gates are written in kg/week regardless of the display unit.
+  const amount =
+    signal === 'body_weight_rate'
+      ? `${round(convertValue(raw, 'kg', system), 2)} ${displayUnit('kg', system)}/week`
+      : signal === 'training_load'
+        ? `${raw}%`
+        : `${raw} ${signal === 'resting_hr' ? 'bpm' : signal === 'hrv' ? 'ms' : 'h'}`;
+  const who = gate.severity === 'warn' ? 'Hold progression' : 'Watch';
+  if (signal === 'training_load') {
+    // The gate is on the % change against the weekly average.
+    const vs = BASELINES.training_load;
+    switch (gate.rule) {
+      case 'rising': return `${who} if sessions in the last 7 days rise ${raw}% or more above ${vs}.`;
+      case 'falling': return `${who} if sessions in the last 7 days drop ${raw}% or more below ${vs}.`;
+      case 'above': return raw < 0 ? `${who} if sessions in the last 7 days are less than ${-raw}% below ${vs}.` : `${who} if sessions in the last 7 days are more than ${raw}% above ${vs}.`;
+      case 'below': return raw < 0 ? `${who} if sessions in the last 7 days are more than ${-raw}% below ${vs}.` : `${who} if sessions in the last 7 days are less than ${raw}% above ${vs}.`;
+    }
+  }
+  const subject = SUBJECTS[signal];
+  switch (gate.rule) {
+    case 'below': return `${who} if ${subject} is below ${amount}.`;
+    case 'above': return `${who} if ${subject} is above ${amount}.`;
+    case 'rising': return `${who} if ${subject} rises ${amount} or more above ${BASELINES[signal]}.`;
+    case 'falling': return `${who} if ${subject} drops ${amount} or more below ${BASELINES[signal]}.`;
+  }
+}
 
 function between(points: DayValue[], from: string, to: string): number[] {
   return points.filter(p => p.key >= from && p.key <= to && Number.isFinite(p.value)).map(p => p.value);
@@ -85,6 +159,17 @@ function slopePerDay(points: DayValue[]): number | null {
     den += (xs[i] - mx) ** 2;
   }
   return den > 0 ? num / den : null;
+}
+
+function pointsBetween(points: DayValue[], from: string, to: string, shown: (v: number) => number): DayValue[] {
+  return points
+    .filter(p => p.key >= from && p.key <= to && Number.isFinite(p.value))
+    .sort((a, b) => a.key.localeCompare(b.key))
+    .map(p => ({ key: p.key, value: shown(p.value) }));
+}
+
+function adviceFor(signal: RecoverySignalId, status: RecoveryStatus): string | null {
+  return status === 'watch' || status === 'warn' ? ADVICE[signal] : null;
 }
 
 function judgeGate(gate: RecoveryGate | undefined, current: number | null, baseline: number | null): RecoveryStatus {
@@ -119,6 +204,7 @@ export function recoveryIndicators(inputs: RecoveryInputs, gates: RecoveryGate[]
     const current = mean(recent);
     const baseline = mean(base);
     const gate = gateFor(signal);
+    const status = judgeGate(gate, current, baseline);
     out.push({
       signal,
       label: LABELS[signal],
@@ -126,8 +212,12 @@ export function recoveryIndicators(inputs: RecoveryInputs, gates: RecoveryGate[]
       baseline: baseline === null ? null : round(baseline),
       unit,
       observations: recent.length,
-      status: judgeGate(gate, current, baseline),
+      status,
       gate,
+      points: pointsBetween(series, baseFrom, today, v => round(v)),
+      recentFrom,
+      rule: ruleText(signal, gate, system),
+      advice: adviceFor(signal, status),
       text:
         current === null
           ? `No ${LABELS[signal].toLowerCase()} readings in the last 7 days.`
@@ -136,9 +226,11 @@ export function recoveryIndicators(inputs: RecoveryInputs, gates: RecoveryGate[]
   }
 
   {
-    const nights = between(inputs.series('sleep_analysis'), recentFrom, today).map(m => m / 60);
+    const sleep = inputs.series('sleep_analysis');
+    const nights = between(sleep, recentFrom, today).map(m => m / 60);
     const current = mean(nights);
     const gate = gateFor('sleep_hours');
+    const status = judgeGate(gate, current, null);
     out.push({
       signal: 'sleep_hours',
       label: LABELS.sleep_hours,
@@ -146,19 +238,26 @@ export function recoveryIndicators(inputs: RecoveryInputs, gates: RecoveryGate[]
       baseline: null,
       unit: 'h',
       observations: nights.length,
-      status: judgeGate(gate, current, null),
+      status,
       gate,
+      points: pointsBetween(sleep, baseFrom, today, m => round(m / 60, 2)),
+      recentFrom,
+      rule: ruleText('sleep_hours', gate, system),
+      advice: adviceFor('sleep_hours', status),
       text: current === null ? 'No sleep recorded in the last 7 nights.' : `${round(current, 2)} h asleep on average over the last ${nights.length} night${nights.length === 1 ? '' : 's'}.`,
     });
   }
 
   {
-    const weights = inputs.series('weight_body_mass').filter(p => p.key >= addDays(today, -27) && p.key <= today);
+    const trendFrom = addDays(today, -27);
+    const weights = inputs.series('weight_body_mass').filter(p => p.key >= trendFrom && p.key <= today);
     const perDay = slopePerDay(weights);
     const kgPerWeek = perDay === null ? null : perDay * 7;
     const gate = gateFor('body_weight_rate');
     const shown = kgPerWeek === null ? null : round(convertValue(kgPerWeek, 'kg', system), 2);
     const unit = `${displayUnit('kg', system)}/week`;
+    // Gates are written in kg/week regardless of the display unit.
+    const status = judgeGate(gate, kgPerWeek, null);
     out.push({
       signal: 'body_weight_rate',
       label: LABELS.body_weight_rate,
@@ -166,9 +265,13 @@ export function recoveryIndicators(inputs: RecoveryInputs, gates: RecoveryGate[]
       baseline: null,
       unit,
       observations: weights.length,
-      // Gates are written in kg/week regardless of the display unit.
-      status: judgeGate(gate, kgPerWeek, null),
+      status,
       gate,
+      // The whole window is the trend: there is no separate baseline.
+      points: pointsBetween(weights, trendFrom, today, kg => round(convertValue(kg, 'kg', system), 2)),
+      recentFrom: trendFrom,
+      rule: ruleText('body_weight_rate', gate, system),
+      advice: adviceFor('body_weight_rate', status),
       text:
         shown === null
           ? 'Not enough weigh-ins in the last 28 days for a trend.'
@@ -181,6 +284,12 @@ export function recoveryIndicators(inputs: RecoveryInputs, gates: RecoveryGate[]
     const base = inputs.trainingDays.filter(d => d >= baseFrom && d <= baseTo).length / 4;
     const change = base > 0 ? ((recent - base) / base) * 100 : null;
     const gate = gateFor('training_load');
+    const status = judgeGate(gate, change, 0);
+    const weeks = [4, 3, 2, 1, 0].map(ago => {
+      const from = addDays(today, -6 - ago * 7);
+      const to = addDays(from, 6);
+      return { key: from, value: inputs.trainingDays.filter(d => d >= from && d <= to).length };
+    });
     out.push({
       signal: 'training_load',
       label: LABELS.training_load,
@@ -188,8 +297,12 @@ export function recoveryIndicators(inputs: RecoveryInputs, gates: RecoveryGate[]
       baseline: round(base),
       unit: 'sessions/week',
       observations: recent,
-      status: judgeGate(gate, change, 0),
+      status,
       gate,
+      points: weeks,
+      recentFrom,
+      rule: ruleText('training_load', gate, system),
+      advice: adviceFor('training_load', status),
       text:
         base > 0
           ? `${recent} session${recent === 1 ? '' : 's'} in the last 7 days vs ${round(base)} a week before that (${change! >= 0 ? '+' : ''}${Math.round(change!)}%).`

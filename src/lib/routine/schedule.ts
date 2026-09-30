@@ -50,6 +50,8 @@ export interface NextSessionView {
   due: ScheduledDayView;
   /** True when a session was already logged today. */
   doneToday: boolean;
+  /** What was logged today, once it is: then `due` is the next session after it. */
+  today: ScheduledDayView | null;
   /** A short explanation: "Follows Workout B on Sep 15", "2 of 3–4 this week". */
   why: string;
   upcoming: ScheduledDayView[];
@@ -219,6 +221,19 @@ export function nextSession(
   week: number,
   system: UnitSystem
 ): NextSessionView {
+  const ids = [...new Set(completed.filter(c => c.date === today).map(c => c.templateId))];
+  // Slots as they were trained today, so rotation is counted from before today's session.
+  const done = ids.length ? dayView(plan, { templateIds: ids }, completed.filter(c => c.date < today), system) : null;
+  return { ...dueSession(plan, completed, today, week, system), today: done };
+}
+
+function dueSession(
+  plan: TrainingPlan,
+  completed: CompletedSession[],
+  today: string,
+  week: number,
+  system: UnitSystem
+): Omit<NextSessionView, 'today'> {
   const schedule = activeSchedule(plan, week);
   const last = completed[completed.length - 1];
   const doneToday = last?.date === today;
@@ -228,11 +243,20 @@ export function nextSession(
     const days = schedule.days;
     const n = days.length;
     const idx = cyclePosition(plan, schedule, completed, today);
-    const upcoming = [1, 2, 3].map(k => view(days[(idx + k) % n]));
     if (schedule.advance === 'calendar') {
-      const why = `Day ${idx + 1} of the ${n}-day cycle (counted from ${cycleAnchor(plan, schedule)}).`;
-      return { scheduleKind: 'cycle', due: view(days[idx]), doneToday, why, upcoming };
+      // Once today's session is logged, the cycle's next training day is what is due.
+      let at = idx;
+      for (let k = 1; doneToday && k <= n; k++) {
+        if (isTraining(days[(idx + k) % n])) {
+          at = (idx + k) % n;
+          break;
+        }
+      }
+      const counted = `of the ${n}-day cycle (counted from ${cycleAnchor(plan, schedule)})`;
+      const why = doneToday ? `Already trained today; day ${at + 1} ${counted} is next.` : `Day ${idx + 1} ${counted}.`;
+      return { scheduleKind: 'cycle', due: view(days[at]), doneToday, why, upcoming: [1, 2, 3].map(k => view(days[(at + k) % n])) };
     }
+    const upcoming = [1, 2, 3].map(k => view(days[(idx + k) % n]));
     const lastName = last ? (plan.templates.find(t => t.id === last.templateId)?.name ?? null) : null;
     const why = !last
       ? 'Start of the cycle.'
@@ -244,12 +268,23 @@ export function nextSession(
 
   if (schedule.kind === 'weekdays') {
     const at = (key: string): ScheduleDay => schedule.days[weekdayOf(key)] ?? { rest: true };
+    const dayName = (key: string) => weekdayOf(key).replace(/^./, c => c.toUpperCase());
+    const dated = (key: string): ScheduledDayView => ({ ...view(at(key)), label: `${dayName(key)}: ${view(at(key)).label}` });
+    // Once today's session is logged, the next training day is what is due.
+    let from = today;
+    for (let k = 1; doneToday && k <= 7; k++) {
+      if (isTraining(at(addDays(today, k)))) {
+        from = addDays(today, k);
+        break;
+      }
+    }
     const upcoming: ScheduledDayView[] = [];
     for (let k = 1; upcoming.length < 3 && k <= 7; k++) {
-      const d = at(addDays(today, k));
-      if (isTraining(d)) upcoming.push({ ...view(d), label: `${weekdayOf(addDays(today, k)).replace(/^./, c => c.toUpperCase())}: ${view(d).label}` });
+      if (isTraining(at(addDays(from, k)))) upcoming.push(dated(addDays(from, k)));
     }
-    return { scheduleKind: 'weekdays', due: view(at(today)), doneToday, why: `${weekdayOf(today).replace(/^./, c => c.toUpperCase())} in the weekly schedule.`, upcoming };
+    return from === today
+      ? { scheduleKind: 'weekdays', due: view(at(today)), doneToday, why: `${dayName(today)} in the weekly schedule.`, upcoming }
+      : { scheduleKind: 'weekdays', due: dated(from), doneToday, why: `Already trained today; ${dayName(from)} is next in the weekly schedule.`, upcoming };
   }
 
   // Frequency: rotate templates; rest when this week's range is met or rest is too short.

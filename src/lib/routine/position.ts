@@ -3,12 +3,13 @@
 //   planWeek        1-based week of the plan for a day (clamped to the plan)
 //   planPosition    every calendar block with its position and whether its targets were met
 //   phaseViews      the milestones, with the current one worked out from the data
-//   deloadStatus    weeks since the last deload against the plan's rule
+//   deloadStatus    a deload running now, or weeks since the last one against the plan's rule
 //
 // Target checks use the logged sessions of the target's path: a target counts
 // as met when any session from the block's start onward reached its dose.
 
-import { addDays, diffDays } from '../analytics/windows';
+import { addDays, diffDays, formatDayKeyShort } from '../analytics/windows';
+import { DELOAD_DAYS, plannedWindows, windowOn, type DeloadWindow } from './deload';
 import type { UnitSystem } from '../prefs';
 import { doseText } from './format';
 import { judge } from './models/variation';
@@ -91,31 +92,40 @@ export function planPosition(
 }
 
 export interface DeloadStatus {
-  /** Days a deload started (blocks already begun, plus logged deloads). */
+  /** Days a deload started (blocks already begun, plus logged and detected deloads). */
   lastDeload: string | null;
   weeksSince: number;
   status: 'none' | 'ok' | 'due' | 'overdue' | 'in-deload';
   text: string;
+  /** The plan's rule: how often, and how much to cut (fractions). Null without one. */
+  rule: { everyWeeks: [number, number]; volumeReduction: [number, number] } | null;
+  /** While in a deload: where it came from and its last day. */
+  window: DeloadWindow | null;
 }
 
-export function deloadStatus(plan: TrainingPlan, today: string): DeloadStatus {
-  const week = planWeek(plan, today);
-  const inBlock = currentBlocks(plan, week).find(b => b.kind === 'deload');
-  if (inBlock) return { lastDeload: blockDates(plan, inBlock).from, weeksSince: 0, status: 'in-deload', text: `${inBlock.name} is running this week.` };
-  const starts = [
-    ...plan.blocks.filter(b => b.kind === 'deload').map(b => blockDates(plan, b).from),
-    ...plan.deloads,
-  ].filter(d => d <= today);
+/** `detected`: deload starts read from the sessions (see deload.ts). */
+export function deloadStatus(plan: TrainingPlan, today: string, detected: string[] = []): DeloadStatus {
+  const rule = plan.rules.deload ?? null;
+  const windows = [...plannedWindows(plan), ...detected.map(from => ({ from, to: addDays(from, DELOAD_DAYS - 1), source: 'detected' as const }))];
+  const now = windowOn(windows, today);
+  if (now) {
+    const block = now.source === 'block' ? plan.blocks.find(b => b.kind === 'deload' && blockDates(plan, b).from === now.from) : undefined;
+    const text = block
+      ? `${block.name} is running this week.`
+      : `Deload since ${formatDayKeyShort(now.from)} (${now.source === 'detected' ? 'read from lighter sessions at lower effort' : 'recorded'}); progress resumes after ${formatDayKeyShort(now.to)}.`;
+    return { lastDeload: now.from, weeksSince: 0, status: 'in-deload', text, rule, window: now };
+  }
+  const starts = windows.map(w => w.from).filter(d => d <= today);
   const lastDeload = starts.sort().pop() ?? null;
   const since = Math.floor(diffDays(lastDeload ?? plan.startDate, today) / 7);
-  const rule = plan.rules.deload;
-  if (!rule) return { lastDeload, weeksSince: since, status: 'none', text: 'This plan has no deload rule.' };
+  const base = { lastDeload, weeksSince: since, rule, window: null };
+  if (!rule) return { ...base, status: 'none', text: 'This plan has no deload rule.' };
   const [lo, hi] = rule.everyWeeks;
   const reduce = `${Math.round(rule.volumeReduction[0] * 100)}–${Math.round(rule.volumeReduction[1] * 100)}%`;
   const since_ = lastDeload ? `since the last deload (${lastDeload})` : 'since the plan started';
-  if (since >= hi) return { lastDeload, weeksSince: since, status: 'overdue', text: `${since} weeks ${since_}; the plan calls for one every ${lo}–${hi}. Cut sets by ${reduce} for a week.` };
-  if (since >= lo) return { lastDeload, weeksSince: since, status: 'due', text: `${since} weeks ${since_}: a deload is due (cut sets by ${reduce} for a week), sooner if recovery slips.` };
-  return { lastDeload, weeksSince: since, status: 'ok', text: `${since} week${since === 1 ? '' : 's'} ${since_}; next due in ${lo - since}–${hi - since} weeks.` };
+  if (since >= hi) return { ...base, status: 'overdue', text: `${since} weeks ${since_}; the plan calls for one every ${lo}–${hi}. Cut sets by ${reduce} for a week.` };
+  if (since >= lo) return { ...base, status: 'due', text: `${since} weeks ${since_}: a deload is due (cut sets by ${reduce} for a week), sooner if recovery slips.` };
+  return { ...base, status: 'ok', text: `${since} week${since === 1 ? '' : 's'} ${since_}; next due in ${lo - since}–${hi - since} weeks.` };
 }
 
 // ── Phases: milestones reached by progress ──────────────

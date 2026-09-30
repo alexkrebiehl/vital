@@ -12,13 +12,11 @@ import { useParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, CheckCircle2, Circle, CircleDot, PauseCircle } from 'lucide-react';
 import type { PathProgress, RoutineOverview } from '@/lib/routine/progress';
-import type { RecoveryIndicator } from '@/lib/routine/recovery';
 import type { WorkoutSourceStatus } from '@/lib/workout-sources/types';
 import { Badge, Button, Card, DataStateNote, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { DiscussButton } from '@/components/analyst/DiscussDialog';
 import { useUnits } from '@/components/ui/UnitsProvider';
-import { ExerciseDataNotice, LightLabel, ReadinessBar, useRoutineFetch } from './shared';
-import { pathHref } from './RoutineSection';
+import { ExerciseDataNotice, LightLabel, ReadinessBar, RecoveryCard, pathHref, useRoutineFetch } from './shared';
 import { pathSuggestions } from './discuss-suggestions';
 import { formatDayKeyShort } from '@/lib/analytics/windows';
 import type { NarrativeView } from '@/lib/routine/narrative-types';
@@ -129,7 +127,7 @@ export function RoutinePathPage() {
 
       <AreaSiblings routine={routine} path={path} />
 
-      <Recovery indicators={routine.recovery.indicators} summary={routine.recovery.text} deload={routine.deload.text} />
+      <RecoveryCard indicators={routine.recovery.indicators} summary={routine.recovery.text} deload={routine.deload.text} />
     </div>
   );
 }
@@ -286,28 +284,6 @@ function StageGuidance({ path, routine }: { path: PathProgress; routine: Routine
           </ul>
         </div>
       )}
-    </Card>
-  );
-}
-
-function Recovery({ indicators, summary, deload }: { indicators: RecoveryIndicator[]; summary: string; deload: string }) {
-  const tone = { ok: 'Inside limits', watch: 'Watch', warn: 'Hold', info: 'For information', unknown: 'Not enough data' } as const;
-  return (
-    <Card className="p-5" as="section" aria-label="Recovery indicators">
-      <h2 className="text-sm font-semibold text-text-primary">Recovery</h2>
-      <p className="text-xs text-text-secondary mb-3">{summary} {deload}</p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-        {indicators.map(i => (
-          <div key={i.signal} className="rounded-control bg-surface-muted p-3">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-medium text-text-primary">{i.label}</span>
-              <Badge variant={i.status === 'warn' ? 'warning' : i.status === 'watch' ? 'info' : i.status === 'ok' ? 'success' : 'default'}>{tone[i.status]}</Badge>
-            </div>
-            <p className="text-[11px] text-text-secondary mt-1">{i.text}</p>
-            {i.gate?.note && <p className="text-[11px] text-text-secondary mt-1 italic">{i.gate.note}</p>}
-          </div>
-        ))}
-      </div>
     </Card>
   );
 }

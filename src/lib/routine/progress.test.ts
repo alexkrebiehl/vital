@@ -203,7 +203,13 @@ describe('holds, recovery gates and deloads', () => {
     const routine = run(p, EXAMPLE, '2026-09-18', { series: id => (id === 'sleep_analysis' ? sleep : []) });
     expect(routine.recovery.status).toBe('warn');
     expect(routine.paths[0].light).toBe('yellow');
+    expect(routine.paths[0].heldBack).toEqual(['recovery']);
     expect(routine.paths[0].reasons.some(r => r.startsWith('Sleep: 5 h'))).toBe(true);
+  });
+
+  it('holds nothing back while recovery is inside the limits and no deload is due', () => {
+    const p = run(pushPlan(), EXAMPLE, '2026-09-18').paths[0];
+    expect(p.heldBack).toEqual([]);
   });
 
   it('a deload block replaces "move on" advice', () => {
@@ -214,6 +220,7 @@ describe('holds, recovery gates and deloads', () => {
     ];
     const p = run(pushPlan({ blocks: [{ name: 'Deload week', startWeek: 8, weeks: 1, kind: 'deload' }] }), more, '2026-09-25').paths[0];
     expect(p.light).toBe('green');
+    expect(p.heldBack).toEqual(['deload']);
     expect(p.nextAction).toMatch(/^Deload week: keep decline push-up and cut sets/);
   });
 });
@@ -339,6 +346,7 @@ describe('schedule', () => {
     const today = next(p, [upper('2026-09-10'), lower('2026-09-11')], '2026-09-11');
     expect(today.doneToday).toBe(true);
     expect(today.due.kind).toBe('rest');
+    expect(today.today?.label).toBe('Lower');
   });
 
   it('rotates an optional slot session to session', () => {
@@ -346,6 +354,8 @@ describe('schedule', () => {
     const first = next(p, [], '2026-09-02').due.templates[0].slots[1];
     const second = next(p, [upper('2026-09-02'), lower('2026-09-03')], '2026-09-04').due.templates[0].slots[1];
     expect([first.pathId, second.pathId]).toEqual(['push', 'pull']);
+    // Today's session shows the slots as trained, not the next rotation.
+    expect(next(p, [upper('2026-09-02'), lower('2026-09-03'), upper('2026-09-04')], '2026-09-04').today?.templates[0].slots[1].pathId).toBe('pull');
     expect(second.optional).toBe(true);
   });
 
@@ -362,12 +372,26 @@ describe('schedule', () => {
     expect(['2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04'].map(d => next(p, [], d).due.label)).toEqual(['Upper', 'Lower', 'Rest day', 'Upper']);
   });
 
+  it('calendar cycles move on to the next training day once today is logged', () => {
+    const p = withSchedule({ kind: 'cycle', days: ['a', 'b', 'rest'], advance: 'calendar', anchorDate: '2026-09-01' });
+    const done = next(p, [lower('2026-09-02')], '2026-09-02');
+    expect(done.due.label).toBe('Upper');
+    expect(done.upcoming.map(d => d.label)).toEqual(['Lower', 'Rest day', 'Upper']);
+  });
+
   it('fixed weekdays', () => {
     const p = withSchedule({ kind: 'weekdays', days: { mon: 'a', thu: 'b' } });
     // 2026-09-14 is a Monday.
     expect(next(p, [], '2026-09-14').due.label).toBe('Upper');
     expect(next(p, [], '2026-09-15').due.kind).toBe('rest');
     expect(next(p, [], '2026-09-15').upcoming[0].label).toBe('Thu: Lower');
+    // Monday's session logged: Thursday is next, and Monday is only coming up again.
+    const done = next(p, [upper('2026-09-14')], '2026-09-14');
+    expect(done.due.label).toBe('Thu: Lower');
+    expect(done.upcoming.map(d => d.label)).toEqual(['Mon: Upper', 'Thu: Lower']);
+    expect(done.why).toBe('Already trained today; Thu is next in the weekly schedule.');
+    expect(done.today?.label).toBe('Upper');
+    expect(next(p, [], '2026-09-14').today).toBeNull();
   });
 
   it('N sessions a week rests once the week is full', () => {
@@ -486,6 +510,81 @@ describe('plan position and deloads', () => {
     expect(deloadStatus(p, '2026-09-01').status).toBe('due');
     expect(deloadStatus(p, '2026-09-18').status).toBe('overdue');
     expect(deloadStatus({ ...p, deloads: ['2026-09-07'] }, '2026-09-18').status).toBe('ok');
+    expect(deloadStatus(p, '2026-09-18').rule).toEqual({ everyWeeks: [4, 6], volumeReduction: [0.3, 0.5] });
+    expect(deloadStatus(pushPlan(), '2026-09-18')).toMatchObject({ status: 'none', rule: null });
+  });
+
+  it('a recorded or detected deload runs for a week', () => {
+    const p = pushPlan({ rules: { qualifyingSessions: [2, 3], deload: { everyWeeks: [4, 6], volumeReduction: [0.3, 0.5] } } });
+    expect(deloadStatus({ ...p, deloads: ['2026-09-29'] }, '2026-10-05')).toMatchObject({ status: 'in-deload', window: { source: 'recorded', to: '2026-10-05' } });
+    expect(deloadStatus({ ...p, deloads: ['2026-09-29'] }, '2026-10-06')).toMatchObject({ status: 'ok', lastDeload: '2026-09-29' });
+    expect(deloadStatus(p, '2026-09-30', ['2026-09-29'])).toMatchObject({ status: 'in-deload', window: { source: 'detected' } });
+  });
+});
+
+describe('deload sessions pause progress', () => {
+  // Decline push-ups and assisted pull-ups, trained together.
+  const pushPull = () => {
+    const base = pushPlan();
+    return plan({
+      focusAreas: [
+        ...base.focusAreas,
+        {
+          id: 'back',
+          name: 'Pull',
+          paths: [
+            {
+              id: 'pull',
+              name: 'Pull-up',
+              currentStageId: 'assisted',
+              history: [{ stageId: 'assisted', startedOn: '2026-09-08' }],
+              stages: [{ id: 'assisted', name: 'Assisted pull-up', match: { names: ['Pull Up'] }, advanceWhen: { sets: [3, 4], reps: [5, 8], effort: RIR } }],
+            },
+          ],
+        },
+      ],
+      templates: [{ id: 'all', name: 'All', slots: [{ pathIds: ['push'] }, { pathIds: ['pull'] }] }],
+      rules: { qualifyingSessions: [2, 3], effort: RIR, deload: { everyWeeks: [4, 6], volumeReduction: [0.3, 0.5] } },
+    });
+  };
+  const day = (date: string, push: number[], pushRpe: number, pull: number[], pullRpe: number) =>
+    session(date, [
+      { name: 'Decline Push Up', sets: reps(push, push.map(() => pushRpe)) },
+      { name: 'Pull Up', sets: reps(pull, pull.map(() => pullRpe)) },
+    ]);
+  const before = [
+    day('2026-09-18', [12, 12, 10], 9.5, [5, 5, 4], 9.5),
+    day('2026-09-22', [12, 12, 10], 9.5, [5, 5, 5], 9.5),
+    day('2026-09-25', [12, 12, 11], 9.5, [6, 6, 5], 9.5),
+  ];
+  const deloadDay = day('2026-09-29', [8, 8, 8], 7.5, [4, 4, 4], 7.5);
+
+  it('reads the deload from the sessions and keeps the pre-deload light', () => {
+    const withDeload = run(pushPull(), [...before, deloadDay], '2026-09-29');
+    const without = run(pushPull(), before, '2026-09-29');
+    expect(withDeload.deload).toMatchObject({ status: 'in-deload', lastDeload: '2026-09-29', window: { source: 'detected' } });
+    const push = withDeload.paths.find(p => p.pathId === 'push')!;
+    expect(push.light).toBe(without.paths.find(p => p.pathId === 'push')!.light);
+    // Yellow-green before the deload: paused, but not "ready to move on after the deload".
+    expect(push.heldBack).not.toContain('deload');
+    expect(push.reasons[0]).toMatch(/^Deload since Sep 29/);
+    expect(push.rows[push.rows.length - 1].signal).toBe('Deload session · progress paused');
+  });
+
+  it('judges the first session after the deload against the ones before it', () => {
+    const r = run(pushPull(), [...before, deloadDay, day('2026-10-07', [12, 12, 12], 8.5, [6, 6, 6], 9)], '2026-10-07');
+    expect(r.deload.status).toBe('ok');
+    const push = r.paths.find(p => p.pathId === 'push')!;
+    expect(push.heldBack).not.toContain('deload');
+    // Not "New best" off an 8/8/8 deload session: 12/12/12 meets the marker.
+    expect(push.rows[push.rows.length - 1].signal).toBe('Meets the progression marker');
+  });
+
+  it('still calls fewer reps at the same effort a regression', () => {
+    const r = run(pushPull(), [...before, day('2026-09-29', [8, 8, 8], 9.5, [4, 4, 4], 9.5)], '2026-09-29');
+    expect(r.deload.status).not.toBe('in-deload');
+    const push = r.paths.find(p => p.pathId === 'push')!;
+    expect(push.rows[push.rows.length - 1].signal).not.toMatch(/Deload/);
   });
 });
 

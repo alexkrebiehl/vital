@@ -6,7 +6,7 @@ import { startFromReference } from '@/lib/routine/actions';
 import { loadRoutine } from '@/lib/routine/service';
 import { FilePlanRepository } from '@/lib/routine/store';
 import type { PathProgress, RoutineOverview } from '@/lib/routine/progress';
-import { pathSuggestions, routineSuggestions, untrackedSuggestions, workoutSuggestions } from './discuss-suggestions';
+import { pathSuggestions, recoverySuggestions, routineSuggestions, untrackedSuggestions, workoutSuggestions } from './discuss-suggestions';
 
 // The demo analyst's plan-status pattern (demo-plan.ts): every set has a
 // question it can route, so the dialog works without a configured provider.
@@ -28,6 +28,7 @@ describe('discuss suggestions', () => {
   it('include a question the demo analyst can route in every set', () => {
     const sets = [
       routineSuggestions(routine),
+      recoverySuggestions(routine),
       pathSuggestions(path()),
       workoutSuggestions(routine.workouts[0]),
       untrackedSuggestions({ name: 'Dips', sessions: 3, lastDate: '2026-09-20' }),

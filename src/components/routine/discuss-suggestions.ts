@@ -32,6 +32,16 @@ export function routineSuggestions(routine: RoutineOverview): string[] {
   return out.slice(0, 4);
 }
 
+export function recoverySuggestions(routine: RoutineOverview): string[] {
+  const out = ['Is my recovery holding back my progress?'];
+  const d = routine.deload.status;
+  if (d === 'due' || d === 'overdue') out.push('Should I start a deload this week?', "I'm starting a deload today — please record it.");
+  const tripped = routine.recovery.indicators.find(i => i.status === 'warn' || i.status === 'watch');
+  if (tripped) out.push(`What can I do about my ${tripped.label.toLowerCase()}?`);
+  if (out.length < 3) out.push('How is my routine going?');
+  return out.slice(0, 4);
+}
+
 export function pathSuggestions(path: PathProgress): string[] {
   const name = path.pathName.toLowerCase();
   const out = [`How is my ${name} progression going?`];

@@ -25,6 +25,7 @@ const NAV_ITEMS: SearchItem[] = [
   { id: 'nutrition', label: 'Nutrition', description: 'Dietary intake', href: '/nutrition', type: 'page' },
   { id: 'workouts', label: 'Workouts', description: 'Current routine and progress', href: '/workouts', type: 'page' },
   { id: 'all-workouts', label: 'All workouts', description: 'Workout history', href: '/workouts/all', type: 'page' },
+  { id: 'recovery', label: 'Recovery', description: 'Recovery signals and deload timing', href: '/workouts/recovery', type: 'page' },
   { id: 'insights', label: 'Insights', description: 'Discovered patterns', href: '/insights', type: 'page' },
   { id: 'analyst', label: 'AI Analyst', description: 'Ask about your health', href: '/analyst', type: 'page' },
   { id: 'themes', label: 'Themes', description: 'Light and dark colour themes', href: '/themes', type: 'page' },

@@ -222,6 +222,7 @@ const nextView = (due: ScheduledDayView, upcoming: ScheduledDayView[], extra: Pa
   scheduleKind: 'cycle',
   due,
   doneToday: false,
+  today: null,
   why: '',
   upcoming,
   ...extra,

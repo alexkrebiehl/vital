@@ -10,7 +10,9 @@
 //     3. apply what every model shares:
 //          a hold      → red (regress) or at most yellow (hold), with its reason
 //          recovery    → a `warn` gate caps the light at yellow, `watch` at yellow-green
-//          deloads     → a deload block, or an overdue deload, replaces "move on" advice
+//          deloads     → a deload running (planned, recorded or read from lighter,
+//                         easier sessions) pauses progress; it and an overdue
+//                         deload replace "move on" advice
 //   for the plan
 //     the current phase (from the data), calendar blocks, what session is next,
 //     adherence, deload timing, recovery.
@@ -26,6 +28,8 @@ import { MODEL_PARAM_SPECS } from './model-params';
 import { PROGRESSION_MODELS, type Light, type ModelEvaluation, type ProgressRow, type Readiness } from './models';
 import { stageRows } from './models/variation';
 import { LIGHT_ORDER } from './models/types';
+import { detectDeloads, easedKey } from './deload';
+import { formatDayKeyShort } from '../analytics/windows';
 import { currentBlocks, deloadStatus, phaseViews, planPosition, planWeek, type BlockView, type DeloadStatus, type PathState, type PhaseView } from './position';
 import { recordsForStage, stageNeedsExerciseData, type PerformanceRecord } from './records';
 import { recoveryIndicators, recoverySummary, type DayValue, type RecoveryIndicator } from './recovery';
@@ -66,6 +70,8 @@ export interface PathProgress {
    */
   tracked: boolean;
   reasons: string[];
+  /** What holds the path back from where performance alone would put it: recovery caps its light, a deload replaces moving on. */
+  heldBack: ('recovery' | 'deload')[];
   readiness: Readiness | null;
   nextAction: string;
   target: string;
@@ -200,7 +206,9 @@ export function evaluatePath(
   byStage: Map<string, PerformanceRecord[]>,
   recoveryCap: { cap: Light; reasons: string[] },
   deload: DeloadStatus,
-  inputs: RoutineInputs
+  inputs: RoutineInputs,
+  /** This path's deload sessions (`stageId:sessionId`). */
+  eased: Set<string> = new Set()
 ): PathProgress {
   const index = Math.max(0, path.stages.findIndex(s => s.id === path.currentStageId));
   const stage = path.stages[index];
@@ -223,6 +231,8 @@ export function evaluatePath(
     previousStage,
     rules: plan.rules,
     blocks,
+    eased,
+    deloadWindow: deload.window,
     today: inputs.today,
     system: inputs.system,
   });
@@ -231,6 +241,7 @@ export function evaluatePath(
   let reasons = [...evaluation.reasons];
   let nextAction = evaluation.nextAction;
   let readiness = evaluation.readiness;
+  const heldBack: PathProgress['heldBack'] = [];
   const tracked = inputs.exerciseData !== false || !stageNeedsExerciseData(stage);
 
   if (!tracked) {
@@ -250,12 +261,27 @@ export function evaluatePath(
         : `Hold ${stage.name.toLowerCase()} at an easy, pain-free volume; do not progress until "${path.hold.reason}" has resolved.`;
   } else if (light !== 'none' && LIGHT_ORDER.indexOf(light) > LIGHT_ORDER.indexOf(recoveryCap.cap)) {
     light = recoveryCap.cap;
+    heldBack.push('recovery');
     reasons.push(...recoveryCap.reasons);
     if (evaluation.light === 'green') nextAction = `Performance says move on, but recovery does not: repeat ${doseText(evaluation.target, inputs.system)} until ${recoveryCap.reasons.join(' ').replace(/\.$/, '').toLowerCase()} settles.`;
   }
   const deloadNow = blocks.find(b => b.kind === 'deload');
-  if (!path.hold && (deloadNow || deload.status === 'overdue') && evaluation.light === 'green') {
-    nextAction = `${deloadNow ? deloadNow.name : 'Deload overdue'}: keep ${stage.name.toLowerCase()} and cut sets by a third to a half this week; progress after it.`;
+  const inDeload = deload.status === 'in-deload';
+  const pausedHere = records.filter(r => eased.has(easedKey(stage.id, r.sessionId)));
+  if (!path.hold && tracked) {
+    const window = deload.window;
+    const inWindow = window ? pausedHere.filter(r => r.date >= window.from && r.date <= window.to) : [];
+    if (inDeload && window && inWindow.length) {
+      // Paused, not held back: only a path performance would move on is waiting on the deload.
+      if (evaluation.light === 'green') heldBack.push('deload');
+      reasons.unshift(`Deload since ${formatDayKeyShort(window.from)}: its lighter sessions don't count for or against progress.`);
+      nextAction = `Keep ${stage.name.toLowerCase()} light until ${formatDayKeyShort(window.to)}, then pick up where you left off: ${evaluation.nextAction.charAt(0).toLowerCase()}${evaluation.nextAction.slice(1)}`;
+    } else if ((deloadNow || inDeload || deload.status === 'overdue') && evaluation.light === 'green') {
+      heldBack.push('deload');
+      nextAction = `${deloadNow ? deloadNow.name : inDeload ? 'Deload week' : 'Deload overdue'}: keep ${stage.name.toLowerCase()} and cut sets by a third to a half this week; progress after it.`;
+    } else if (records.length && pausedHere.some(r => r.sessionId === records[records.length - 1].sessionId)) {
+      reasons.push(`The ${formatDayKeyShort(records[records.length - 1].date)} session was lighter at a lower effort, so it doesn't count against progress.`);
+    }
   }
 
   const stages: StageView[] = path.stages.map((s, i) => ({
@@ -303,6 +329,7 @@ export function evaluatePath(
     light,
     tracked,
     reasons,
+    heldBack,
     readiness,
     nextAction,
     target: doseText(evaluation.target, inputs.system),
@@ -334,17 +361,20 @@ export function buildRoutine(inputs: RoutineInputs): RoutineOverview {
     : watch.length
       ? { cap: 'yellow-green' as Light, reasons: watch.map(i => `${i.label}: ${i.text}`) }
       : { cap: 'green' as Light, reasons: [] };
-  const deload = deloadStatus(plan, today);
+
+  const stageRecords = new Map(plan.focusAreas.flatMap(a => a.paths).map(p => [p.id, pathRecords(p, inputs)]));
+  const deloads = detectDeloads(plan, stageRecords);
+  const deload = deloadStatus(plan, today, deloads.starts);
 
   const recordsByPath = new Map<string, PerformanceRecord[]>();
   const states = new Map<string, PathState>();
   const paths: PathProgress[] = [];
   for (const area of plan.focusAreas) {
     for (const path of area.paths) {
-      const byStage = pathRecords(path, inputs);
+      const byStage = stageRecords.get(path.id)!;
       const records = [...byStage.values()].flat().sort((a, b) => a.startTime.localeCompare(b.startTime));
       recordsByPath.set(path.id, records);
-      const progress = evaluatePath(plan, area.id, area.name, path, byStage, recoveryCap, deload, inputs);
+      const progress = evaluatePath(plan, area.id, area.name, path, byStage, recoveryCap, deload, inputs, deloads.eased.get(path.id));
       paths.push(progress);
       states.set(path.id, {
         path,
