@@ -565,7 +565,7 @@ function AnswerView({ response, onFollowUp }: { response: AnalystResponse; onFol
                 .filter(paragraph => paragraph.length > 0)
                 .map((paragraph, i) => (
                   <p key={i} className="text-sm text-text-primary leading-relaxed">
-                    {paragraph}
+                    {withLinks(paragraph, `p${i}`)}
                   </p>
                 ))}
             </div>
@@ -580,7 +580,9 @@ function AnswerView({ response, onFollowUp }: { response: AnalystResponse; onFol
               <h3 className="text-[10px] uppercase tracking-wider text-text-secondary mb-1.5">{section.heading}</h3>
               <ul className="list-disc pl-5 space-y-1.5">
                 {lines.map((line, i) => (
-                  <li key={i} className="text-sm text-text-primary leading-relaxed">{line}</li>
+                  <li key={i} className="text-sm text-text-primary leading-relaxed">
+                    {withLinks(line, `${section.heading}-${i}`)}
+                  </li>
                 ))}
               </ul>
             </section>
@@ -674,6 +676,39 @@ const ANSWER_SECTIONS: { heading: string; pick: (a: AnalystAnswer) => string[] }
   { heading: 'Summary', pick: a => a.summary },
   { heading: 'Missing context and uncertainty', pick: a => a.uncertainty },
 ];
+
+/**
+ * Render a line that may carry inline link tokens — `[haemoglobin](/metric/hemoglobin)`.
+ *
+ * The model is asked to POINT at a measurement rather than recite it, so the
+ * answer's prose names the metric and the reader clicks through to the value. Only
+ * same-origin routes are turned into links: anything else is shown as plain text,
+ * because the token comes from model output.
+ */
+const LINK_TOKEN = /\[([^\]]+)\]\((\/[^)\s]*)\)/g;
+
+function withLinks(text: string, keyPrefix: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  let last = 0;
+  let match: RegExpExecArray | null;
+  LINK_TOKEN.lastIndex = 0;
+  while ((match = LINK_TOKEN.exec(text)) !== null) {
+    if (match.index > last) nodes.push(text.slice(last, match.index));
+    const [, label, href] = match;
+    nodes.push(
+      <Link
+        key={`${keyPrefix}-${match.index}`}
+        href={href}
+        className="text-accent underline decoration-dotted underline-offset-2 hover:decoration-solid"
+      >
+        {label}
+      </Link>
+    );
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) nodes.push(text.slice(last));
+  return nodes;
+}
 
 function EvRow({ label, value }: { label: string; value: string }) {
   return (
