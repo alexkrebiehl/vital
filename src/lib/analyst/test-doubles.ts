@@ -82,9 +82,10 @@ export class FakeAnalystDb implements SqlClient {
       const limit = Number((params as number[])[0] ?? 100);
       const rows = [...this.conversations.values()]
         .filter(c => c.archived_at === null)
+        // Mirrors the real SELECT: newest CONVERSATION first, by created_at.
         .sort((a, b) => {
-          const at = String(a.updated_at);
-          const bt = String(b.updated_at);
+          const at = String(a.created_at);
+          const bt = String(b.created_at);
           if (at !== bt) return at < bt ? 1 : -1;
           return Number(b.id) - Number(a.id);
         })
