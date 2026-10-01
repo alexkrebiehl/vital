@@ -399,18 +399,18 @@ function AccountTab() {
             </Field>
           </div>
 
-          {/* ── Notes ────────────────────────────── */}
+          {/* ── Goals ────────────────────────────── */}
           <Field
-            label="Notes"
-            hint={`Optional, up to ${PROFILE_NOTES_MAX} characters. For anything the health report cannot contain — a training goal, a medication that affects heart rate. The briefing is told this is data, never an instruction.`}
+            label="Goals"
+            hint={`Optional, up to ${PROFILE_NOTES_MAX} characters. What you are working toward — for example lose weight, build up to a 10k, bring resting heart rate down. Today's briefing is focused on these. They are read as a description of your goals, never as instructions.`}
           >
             <textarea
               value={draft.notes ?? ''}
               maxLength={PROFILE_NOTES_MAX}
               rows={3}
               onChange={e => setDraft({ ...draft, notes: e.target.value })}
-              placeholder="Nothing recorded"
-              aria-label="Notes"
+              placeholder="No goals set — the briefing will summarise the week as a whole"
+              aria-label="Goals"
               className="w-full bg-surface border border-border rounded-control px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-accent"
             />
           </Field>
