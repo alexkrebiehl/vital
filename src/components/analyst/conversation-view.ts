@@ -28,8 +28,9 @@ export function answerFromStoredPayload(payload: StoredAssistantPayload): Analys
   return {
     id: payload.handlerId,
     title: payload.answer.title,
-    analysis: '',
-    summary: [],
+    // Older saved turns have no prose or closing summary.
+    analysis: payload.answer.analysis ?? '',
+    summary: payload.answer.summary ?? [],
     observed: payload.answer.observed,
     interpretation: payload.answer.interpretation,
     recommendations: payload.answer.recommendations ?? [],
