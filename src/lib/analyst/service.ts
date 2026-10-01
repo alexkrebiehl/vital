@@ -31,11 +31,17 @@ import {
 } from './retrieval';
 import { loadLabSnapshot, type LabLoader } from './labContext';
 import { loadMedicationSnapshot, type MedicationLoader } from './medicationsContext';
-import { AnalystProviderError, createProvider, DEMO_LABEL, supportsStreaming } from './provider';
+import { AnalystProviderError, createProvider, DEMO_LABEL, supportsStreaming, supportsTools, type ToolCallingProvider } from './provider';
 import { parseAnalystSse } from './stream';
+import { buildAnalystUserMessage, TRAINING_TOOLS_PROMPT } from './systemPrompt';
+import { runToolLoop, type ToolLoopHooks } from './tool-loop';
+import { combineChanges, type ToolContext } from './tools';
+import { demoPlanAnswer, PLAN_PROMPTS } from './demo-plan';
+import type { RoutineDeps } from '../routine/service';
 import { readAnalystConfig, type AnalystConfig } from './config';
-import { checkGrounding, parseAnalystReply } from './validate';
+import { checkGrounding, parseAnalystReply, proseAnswerText } from './validate';
 import { boundedHistory, type ChatTurn } from './memory';
+import { resolvePageContext, type ResolvedPageContext } from './page-context';
 import type {
   AnalystAnswer,
   AnalystGrounding,
@@ -135,7 +141,7 @@ function baseResponse(config: AnalystConfig, status: AnalystStatus, fields: Part
     handlerId: 'none',
     answer: null,
     message: null,
-    suggested: SUPPORTED_PROMPTS,
+    suggested: [...SUPPORTED_PROMPTS, ...PLAN_PROMPTS],
     notice: config.provider === 'demo' ? DEMO_NOTICE : EDUCATIONAL_NOTICE,
     retrieval: { recordsRead: 0, note: 'No dataset context was selected.', metrics: [] },
     grounding: NO_GROUNDING,
@@ -185,7 +191,18 @@ function retrievalSummary(bundle: RetrievalBundle | null): AnalystResponse['retr
 export type AnalystStreamChunk =
   | { kind: 'reasoning'; text: string }
   | { kind: 'answer'; text: string }
+  /** The answer text streamed so far was not the answer: a tool is about to run (or, tool null, the reply is repaired). */
+  | { kind: 'step'; tool: string | null }
   | { kind: 'result'; response: AnalystResponse };
+
+/** What the service reads besides the request. Every field is injectable for tests. */
+export interface AnalystDeps {
+  env?: NodeJS.ProcessEnv;
+  labLoader?: LabLoader;
+  medicationLoader?: MedicationLoader;
+  /** Where the training plan is read and written (plan tools, page context). */
+  routine?: RoutineDeps;
+}
 
 interface Prepared {
   ok: true;
@@ -197,6 +214,9 @@ interface Prepared {
   handlerId: string;
   system: UnitSystem;
   history: ChatTurn[];
+  routineDeps: RoutineDeps;
+  /** The page the question was asked from, resolved; undefined when none or unreadable. */
+  pageContext?: ResolvedPageContext;
 }
 
 type Preparation = Prepared | { ok: false; response: AnalystResponse };
@@ -209,11 +229,12 @@ type Preparation = Prepared | { ok: false; response: AnalystResponse };
  * Kept in one place so the two paths cannot drift — a question the service
  * refuses is refused identically whether it was asked over SSE or not. A refusal
  * or a misconfiguration comes back as `ok: false` with the finished response,
- * and no provider was created.
+ * and no provider was created. So does a training-plan request the demo
+ * analyst answered by pattern (demo-plan.ts): it is finished before any provider.
  */
 async function prepareAnalyst(
   request: AnalystRequest,
-  deps: { env?: NodeJS.ProcessEnv; labLoader?: LabLoader; medicationLoader?: MedicationLoader }
+  deps: AnalystDeps
 ): Promise<Preparation> {
   const config = readAnalystConfig(deps.env ?? process.env);
   const validated = validateQuery(request?.query);
@@ -235,6 +256,30 @@ async function prepareAnalyst(
   }
 
   const isDemo = config.provider === 'demo';
+  const system: UnitSystem = request?.system === 'imperial' ? 'imperial' : 'metric';
+  const routineDeps: RoutineDeps = deps.routine ?? { env: deps.env };
+
+  // The demo analyst handles training-plan requests by pattern (demo-plan.ts),
+  // through the same plan actions a model's tools use.
+  if (isDemo) {
+    try {
+      const planned = await demoPlanAnswer(validated.query, system, routineDeps);
+      if (planned) {
+        return {
+          ok: false,
+          response: base('ok', { handlerId: planned.handlerId, answer: planned.answer, planChange: planned.planChange }),
+        };
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        response: base('error', {
+          message: `The training plan could not be read or changed: ${error instanceof Error ? error.message : String(error)}`,
+        }),
+      };
+    }
+  }
+
   const matched = isDemo ? selectHandler(validated.query) : selectHandlerStrict(validated.query);
 
   if (isDemo && !matched) {
@@ -292,10 +337,25 @@ async function prepareAnalyst(
     };
   }
 
-  const system: UnitSystem = request?.system === 'imperial' ? 'imperial' : 'metric';
   const history = boundedHistory(request?.history);
 
-  return { ok: true, config, query: validated.query, notes, notesEcho, bundle, handlerId, system, history };
+  // The page the question was asked from. A page that no longer resolves, or a
+  // routine that cannot be read, leaves the question to be answered without it.
+  let pageContext: ResolvedPageContext | undefined;
+  if (request?.context && !isDemo) {
+    try {
+      pageContext = (await resolvePageContext(request.context, system, routineDeps)) ?? undefined;
+    } catch {
+      pageContext = undefined;
+    }
+  }
+
+  return { ok: true, config, query: validated.query, notes, notesEcho, bundle, handlerId, system, history, routineDeps, pageContext };
+}
+
+/** Numbers quoted from the page context are grounded, like tool results. */
+function pageGrounding(prep: Prepared): string[] {
+  return prep.pageContext ? [prep.pageContext.json] : [];
 }
 
 /** Build the provider request context from a prepared analyst question. */
@@ -308,7 +368,85 @@ function providerContext(prep: Prepared): AnalystProviderContext {
     prompt: prep.config.systemPrompt,
     notes: prep.notes.text.length > 0 ? prep.notes.text : undefined,
     history: prep.history,
+    pageContext: prep.pageContext,
   };
+}
+
+/** The provider's refusal, bounded, as a note shown with the tool-less answer. */
+export function toolsUnavailableNote(reason: string): string {
+  const trimmed = reason.length > 400 ? `${reason.slice(0, 399)}…` : reason;
+  return `Plan tools were unavailable, so this answer was made from the health summary alone and cannot see or change your training plan. ${trimmed}`;
+}
+
+/** True when this question goes through the training-plan tools. */
+function usesTools(config: AnalystConfig, provider: ReturnType<typeof createProvider>): provider is ReturnType<typeof createProvider> & ToolCallingProvider {
+  return config.tools === 'auto' && supportsTools(provider);
+}
+
+/**
+ * Answer through the training-plan tool loop. `rejected` means the server
+ * refused the tool definitions before any tool ran: the caller answers the
+ * ordinary way and shows the note. Anything else is a finished response, which
+ * carries any plan change made along the way — even when the answer failed.
+ */
+async function answerWithTools(
+  prep: Prepared,
+  provider: ToolCallingProvider,
+  hooks?: ToolLoopHooks
+): Promise<{ response: AnalystResponse } | { rejected: string }> {
+  const { config, bundle, handlerId, notesEcho } = prep;
+  const base = (status: AnalystStatus, fields: Partial<AnalystResponse> = {}) =>
+    baseResponse(config, status, { untrustedNotes: notesEcho, ...fields });
+  const withContext = { handlerId, retrieval: retrievalSummary(bundle) };
+  const toolCtx: ToolContext = { system: prep.system, deps: prep.routineDeps, changes: [] };
+  const user = buildAnalystUserMessage({
+    question: prep.query,
+    bundle,
+    system: prep.system,
+    notes: prep.notes.text.length > 0 ? prep.notes.text : undefined,
+    history: prep.history,
+    pageContext: prep.pageContext,
+  });
+  try {
+    const looped = await runToolLoop(provider, `${config.systemPrompt}${TRAINING_TOOLS_PROMPT}`, user, toolCtx, hooks);
+    const planChange = combineChanges(toolCtx.changes);
+    let parsed = parseAnalystReply(looped.text, { bundle });
+    if ((!parsed.ok || !parsed.answer) && looped.draft) {
+      // Prose even after the repair turn: show the draft as written rather than fail.
+      const shaped = proseAnswerText(looped.draft);
+      if (shaped) parsed = parseAnalystReply(shaped, { bundle });
+    }
+    if (!parsed.ok || !parsed.answer) {
+      return {
+        response: base('error', {
+          ...withContext,
+          planChange,
+          toolsUsed: looped.toolsUsed,
+          message: `${parsed.reason ?? "The model's reply could not be read as an answer."}${planChange ? ' The plan change it made was saved and can be undone below.' : ''}`,
+        }),
+      };
+    }
+    return {
+      response: base('ok', {
+        ...withContext,
+        model: looped.model ?? config.model,
+        answer: parsed.answer,
+        grounding: checkGrounding(parsed.answer, bundle, prep.system, [...pageGrounding(prep), ...looped.toolOutputs]),
+        planChange,
+        toolsUsed: looped.toolsUsed,
+      }),
+    };
+  } catch (error) {
+    const planChange = combineChanges(toolCtx.changes);
+    // A server that rejects tool definitions (HTTP 400 before any tool ran)
+    // is answered the ordinary way; anything else is reported.
+    const rejectedTools = error instanceof AnalystProviderError && error.statusCode === 400 && !planChange;
+    if (rejectedTools) return { rejected: toolsUnavailableNote(error.message) };
+    if (error instanceof AnalystProviderError) {
+      return { response: base('error', { ...withContext, planChange, message: error.message }) };
+    }
+    throw error;
+  }
 }
 
 /**
@@ -323,28 +461,54 @@ function providerContext(prep: Prepared): AnalystProviderContext {
  */
 export async function askAnalyst(
   request: AnalystRequest,
-  deps: { env?: NodeJS.ProcessEnv; labLoader?: LabLoader; medicationLoader?: MedicationLoader } = {}
+  deps: AnalystDeps = {}
 ): Promise<AnalystResponse> {
   const prep = await prepareAnalyst(request, deps);
   if (!prep.ok) return prep.response;
 
+  const provider = providerFor(prep);
+  if ('response' in provider) return provider.response;
+
+  // A configured model may use the training-plan tools (ANALYST_TOOLS=off disables them).
+  let toolsUnavailable: string | null = null;
+  if (usesTools(prep.config, provider.provider)) {
+    const outcome = await answerWithTools(prep, provider.provider);
+    if ('response' in outcome) return outcome.response;
+    // Answered without tools below — but say so, so a refusal cannot hide.
+    toolsUnavailable = outcome.rejected;
+  }
+  return answerWithoutTools(prep, provider.provider, toolsUnavailable);
+}
+
+/** The configured provider, or the finished response saying why it cannot be created. */
+function providerFor(prep: Prepared): { provider: ReturnType<typeof createProvider> } | { response: AnalystResponse } {
+  try {
+    return { provider: createProvider(prep.config) };
+  } catch (error) {
+    return {
+      response: baseResponse(prep.config, 'misconfigured', {
+        untrustedNotes: prep.notesEcho,
+        handlerId: prep.handlerId,
+        message: error instanceof Error ? error.message : 'The configured provider could not be created.',
+      }),
+    };
+  }
+}
+
+/** One non-streamed completion from the prepared context, parsed and grounded. */
+async function answerWithoutTools(
+  prep: Prepared,
+  provider: ReturnType<typeof createProvider>,
+  toolsUnavailable: string | null
+): Promise<AnalystResponse> {
   const { config, bundle, handlerId, notesEcho } = prep;
+  const noTools = toolsUnavailable ? { toolsUnavailable } : {};
   const base = (status: AnalystStatus, fields: Partial<AnalystResponse> = {}) =>
-    baseResponse(config, status, { untrustedNotes: notesEcho, ...fields });
+    baseResponse(config, status, { untrustedNotes: notesEcho, ...noTools, ...fields });
   const withContext = {
     handlerId,
     retrieval: retrievalSummary(bundle),
   };
-
-  let provider;
-  try {
-    provider = createProvider(config);
-  } catch (error) {
-    return base('misconfigured', {
-      handlerId,
-      message: error instanceof Error ? error.message : 'The configured provider could not be created.',
-    });
-  }
 
   let answer: AnalystAnswer | null = null;
   let grounding: AnalystGrounding = NO_GROUNDING;
@@ -372,7 +536,7 @@ export async function askAnalyst(
         });
       }
       answer = parsed.answer;
-      grounding = checkGrounding(answer, bundle, prep.system);
+      grounding = checkGrounding(answer, bundle, prep.system, pageGrounding(prep));
     }
   } catch (error) {
     if (error instanceof AnalystProviderError) {
@@ -391,6 +555,45 @@ export async function askAnalyst(
 }
 
 /**
+ * Run `work`, yielding every chunk it emits as soon as it is emitted, and
+ * return what it resolves to. Bridges the tool loop's callbacks into the
+ * stream's generator without buffering.
+ */
+async function* relay<T>(
+  work: (emit: (chunk: AnalystStreamChunk) => void) => Promise<T>
+): AsyncGenerator<AnalystStreamChunk, T> {
+  const queue: AnalystStreamChunk[] = [];
+  let wake: (() => void) | null = null;
+  let settled: { value: T } | { error: unknown } | null = null;
+  const nudge = () => {
+    wake?.();
+    wake = null;
+  };
+  work(chunk => {
+    queue.push(chunk);
+    nudge();
+  }).then(
+    value => {
+      settled = { value };
+      nudge();
+    },
+    error => {
+      settled = { error };
+      nudge();
+    }
+  );
+  for (;;) {
+    while (queue.length) yield queue.shift() as AnalystStreamChunk;
+    const done = settled as { value: T } | { error: unknown } | null;
+    if (done) {
+      if ('error' in done) throw done.error;
+      return done.value;
+    }
+    await new Promise<void>(resolve => (wake = resolve));
+  }
+}
+
+/**
  * Ask the analyst and stream the reply as it is produced.
  *
  * Yields reasoning and answer fragments separately, then exactly one `result`
@@ -398,6 +601,12 @@ export async function askAnalyst(
  * returns, built by the same validation. The assembled ANSWER text (never the
  * reasoning) is what is parsed, guarded and presented; reasoning is streamed for
  * display only and is never promoted into an answer.
+ *
+ * With the training-plan tools, every model turn is streamed (or, for a
+ * provider that cannot stream, run whole), and a `step` chunk marks each tool
+ * call: the text streamed before it was not the answer. The result carries any
+ * plan change, so a caller must never re-ask after a `step` naming a tool — the
+ * change has already been made.
  *
  * When the provider cannot stream (the demo provider, or an endpoint that does
  * not speak this wire format), the non-streaming answer is computed and a single
@@ -409,9 +618,10 @@ export async function askAnalyst(
  */
 export function streamAnalyst(
   request: AnalystRequest,
-  deps: { env?: NodeJS.ProcessEnv; labLoader?: LabLoader; medicationLoader?: MedicationLoader } = {}
+  deps: AnalystDeps = {}
 ): { chunks: AsyncGenerator<AnalystStreamChunk>; abort: () => void } {
   let abortUpstream: (() => void) | null = null;
+  const cancelled = new AbortController();
 
   async function* run(): AsyncGenerator<AnalystStreamChunk> {
     const prep = await prepareAnalyst(request, deps);
@@ -421,29 +631,40 @@ export function streamAnalyst(
     }
 
     const { config, bundle, handlerId, notesEcho } = prep;
-    const base = (status: AnalystStatus, fields: Partial<AnalystResponse> = {}) =>
-      baseResponse(config, status, { untrustedNotes: notesEcho, ...fields });
-    const withContext = { handlerId, retrieval: retrievalSummary(bundle) };
-
-    let provider;
-    try {
-      provider = createProvider(config);
-    } catch (error) {
-      yield {
-        kind: 'result',
-        response: base('misconfigured', {
-          handlerId,
-          message: error instanceof Error ? error.message : 'The configured provider could not be created.',
-        }),
-      };
+    const created = providerFor(prep);
+    if ('response' in created) {
+      yield { kind: 'result', response: created.response };
       return;
     }
+    const provider = created.provider;
+
+    let toolsUnavailable: string | null = null;
+    if (usesTools(config, provider)) {
+      const outcome = yield* relay(emit =>
+        answerWithTools(prep, provider, {
+          onReasoning: text => emit({ kind: 'reasoning', text }),
+          onAnswer: text => emit({ kind: 'answer', text }),
+          onStep: step => emit({ kind: 'step', tool: step.tool }),
+          onOpen: abort => (abortUpstream = abort),
+          signal: cancelled.signal,
+        })
+      );
+      abortUpstream = null;
+      if ('response' in outcome) {
+        yield { kind: 'result', response: outcome.response };
+        return;
+      }
+      toolsUnavailable = outcome.rejected;
+    }
+    const noTools = toolsUnavailable ? { toolsUnavailable } : {};
+    const base = (status: AnalystStatus, fields: Partial<AnalystResponse> = {}) =>
+      baseResponse(config, status, { untrustedNotes: notesEcho, ...noTools, ...fields });
+    const withContext = { handlerId, retrieval: retrievalSummary(bundle) };
 
     // A provider that cannot stream still gets an answer; it just arrives in one
     // chunk. Nothing is faked about it.
     if (!supportsStreaming(provider)) {
-      const response = await askAnalyst(request, deps);
-      yield { kind: 'result', response };
+      yield { kind: 'result', response: await answerWithoutTools(prep, provider, toolsUnavailable) };
       return;
     }
 
@@ -473,7 +694,7 @@ export function streamAnalyst(
         } else if (event.kind === 'answer') {
           assembled += event.text;
           yield { kind: 'answer', text: event.text };
-        } else {
+        } else if (event.kind === 'done') {
           if (event.model) model = event.model;
           finishReason = event.finishReason;
           reasoningTokens = event.reasoningTokens;
@@ -529,7 +750,7 @@ export function streamAnalyst(
         ...withContext,
         answer: parsed.answer,
         message: null,
-        grounding: checkGrounding(parsed.answer, bundle, prep.system),
+        grounding: checkGrounding(parsed.answer, bundle, prep.system, pageGrounding(prep)),
         // The streaming path reports the model the provider named, so the
         // attribution line matches what the answer view shows.
         model: model ?? config.model,
@@ -539,7 +760,10 @@ export function streamAnalyst(
 
   return {
     chunks: run(),
-    abort: () => abortUpstream?.(),
+    abort: () => {
+      cancelled.abort();
+      abortUpstream?.();
+    },
   };
 }
 

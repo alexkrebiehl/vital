@@ -119,4 +119,44 @@ describe('analyst streaming client (SPEC §8)', () => {
       )
     ).rejects.toThrow('HTTP 500');
   });
+
+  it('reports tool steps, and never falls back once a plan tool ran', async () => {
+    globalThis.fetch = vi.fn(async (url: string) =>
+      url === '/api/analyst/stream'
+        ? sseResponse(
+            [
+              'event: answer\ndata: {"kind":"answer","text":"Let me check."}',
+              'event: step\ndata: {"kind":"step","tool":"set_path_hold"}',
+              '',
+            ].join('\n\n')
+          )
+        : new Response('{}', { status: 200 })
+    ) as unknown as typeof fetch;
+
+    const steps: unknown[] = [];
+    const { handlers } = recordingHandlers();
+    const streaming = askAnalystStreaming(
+      { query: 'pause core', system: 'metric', conversationId: null, context: { kind: 'routine' } },
+      { ...handlers, onStep: s => steps.push(s) }
+    );
+    const error = await streaming.catch(e => e);
+    expect(steps).toEqual([{ tool: 'set_path_hold' }]);
+    expect(error).toBeInstanceOf(AnalystStreamError);
+    expect(error.retrySafe).toBe(false);
+    expect(error.message).toMatch(/not asked again/);
+
+    const nonStreaming = vi.fn(async () => {});
+    await expect(askWithStreamingFallback(() => Promise.reject(error), nonStreaming)).rejects.toBe(error);
+    expect(nonStreaming).not.toHaveBeenCalled();
+    // The page context rides along in the request body.
+    const body = JSON.parse((globalThis.fetch as unknown as { mock: { calls: [string, RequestInit][] } }).mock.calls[0][1].body as string);
+    expect(body.context).toEqual({ kind: 'routine' });
+  });
+
+  it('does not fall back when the ask was cancelled', async () => {
+    const nonStreaming = vi.fn(async () => {});
+    const abort = new DOMException('The operation was aborted.', 'AbortError');
+    await expect(askWithStreamingFallback(() => Promise.reject(abort), nonStreaming)).rejects.toBe(abort);
+    expect(nonStreaming).not.toHaveBeenCalled();
+  });
 });

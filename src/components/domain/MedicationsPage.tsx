@@ -25,6 +25,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pill } from 'lucide-react';
 import { Badge, Card, DataStateNote, EmptyState, ErrorState, LoadingState } from '@/components/ui/primitives';
 import { useDatasetMeta } from '@/components/data/DatasetProvider';
+import { useUnits } from '@/components/ui/UnitsProvider';
 import { formatDayKeyLong, addDays } from '@/lib/analytics/windows';
 import { fetchMedications, type MedicationReadResponse } from '@/lib/medications/client-data';
 import {
@@ -114,6 +115,7 @@ function MedicationsContent({
   referenceKey: string;
   onRefresh: () => void;
 }) {
+  const { timezone } = useUnits();
   const records = data.records;
   const empty = hasNoRecords(records);
 
@@ -223,10 +225,11 @@ function MedicationsContent({
 // ── Pieces ──────────────────────────────────────────────────────────────────
 
 function TodayRow({ record }: { record: MedicationRecord }) {
+  const { timezone } = useUnits();
   return (
     <div className="py-2.5 flex flex-wrap items-center gap-x-3 gap-y-1">
       <span className="text-sm font-medium text-text-primary">{record.displayText}</span>
-      <span className="text-xs text-text-secondary tnum">{scheduledTimeLabel(record.scheduledDate)}</span>
+      <span className="text-xs text-text-secondary tnum">{scheduledTimeLabel(record.scheduledDate, timezone)}</span>
       <StatusBadge status={record.status} />
       <span className="text-xs text-text-secondary tnum ml-auto">{formatUnits(record.dosage)}</span>
     </div>

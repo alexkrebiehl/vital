@@ -7,6 +7,10 @@ next-env.d.ts
 .env.development.local
 .env.test.local
 .env.production.local
+# The training plan store's fallback when no database is configured.
+data/training-plans.json
+data/*.tmp
+
 # Uploaded lab PDFs: runtime data (documents a person uploaded), never source.
 # Content-addressed, so every file here is a person's own document.
 data/lab/

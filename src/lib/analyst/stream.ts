@@ -8,6 +8,8 @@
 //
 //   delta.reasoning  → reasoning text   (this gateway's field name)
 //   delta.content    → answer text
+//   delta.tool_calls → tool-call fragments, keyed by index (the plan tools'
+//                      streamed turns; see OpenAICompatibleProvider.converseStreamed)
 //
 // `delta.reasoning` is the field this gateway actually uses. `reasoning_content`
 // is a DIFFERENT field some OpenAI-compatible servers use; accepting it here
@@ -24,6 +26,11 @@ export type AnalystStreamEvent =
   | { kind: 'reasoning'; text: string }
   /** An answer delta: fragments of the JSON answer object. */
   | { kind: 'answer'; text: string }
+  /**
+   * A tool-call delta. Calls stream in fragments keyed by `index`: the first
+   * fragment usually carries the id and name, later ones append to `arguments`.
+   */
+  | ToolCallDelta
   /** The terminal event: the model id, how it finished and the token usage. */
   | {
       kind: 'done';
@@ -31,6 +38,15 @@ export type AnalystStreamEvent =
       finishReason: string | null;
       reasoningTokens: number | null;
     };
+
+/** One fragment of a streamed tool call (`delta.tool_calls[i]`). */
+export interface ToolCallDelta {
+  kind: 'tool_call';
+  index: number;
+  id: string | null;
+  name: string | null;
+  arguments: string;
+}
 
 /** The usage counters a final streamed chunk may carry. */
 export interface StreamUsage {
@@ -68,6 +84,7 @@ export interface FrameContent {
   model: string | null;
   finishReason: string | null;
   reasoningTokens: number | null;
+  toolCalls: ToolCallDelta[];
   /** True when the frame carried the `[DONE]` sentinel. */
   done: boolean;
 }
@@ -86,6 +103,7 @@ export function readSseFrame(frame: string): FrameContent {
     model: null,
     finishReason: null,
     reasoningTokens: null,
+    toolCalls: [],
     done: false,
   };
 
@@ -133,6 +151,21 @@ export function readSseFrame(frame: string): FrameContent {
     // The reasoning field is `delta.reasoning` on this gateway.
     if (typeof delta.reasoning === 'string') out.reasoning = delta.reasoning;
     if (typeof delta.content === 'string') out.answer = delta.content;
+    if (Array.isArray(delta.tool_calls)) {
+      delta.tool_calls.forEach((raw, i) => {
+        const call = asRecord(raw);
+        if (!call) return;
+        const fn = asRecord(call.function);
+        out.toolCalls.push({
+          kind: 'tool_call',
+          // A server that sends each call whole may leave the index out.
+          index: typeof call.index === 'number' ? call.index : i,
+          id: typeof call.id === 'string' && call.id ? call.id : null,
+          name: typeof fn?.name === 'string' && fn.name ? fn.name : null,
+          arguments: typeof fn?.arguments === 'string' ? fn.arguments : '',
+        });
+      });
+    }
   }
 
   return out;
@@ -171,6 +204,7 @@ export async function* parseAnalystSse(
         if (content.reasoningTokens !== null) reasoningTokens = content.reasoningTokens;
         if (content.reasoning) yield { kind: 'reasoning', text: content.reasoning };
         if (content.answer) yield { kind: 'answer', text: content.answer };
+        yield* content.toolCalls;
         if (content.done) {
           sawDone = true;
           break;
@@ -185,6 +219,7 @@ export async function* parseAnalystSse(
       if (content.reasoningTokens !== null) reasoningTokens = content.reasoningTokens;
       if (content.reasoning) yield { kind: 'reasoning', text: content.reasoning };
       if (content.answer) yield { kind: 'answer', text: content.answer };
+      yield* content.toolCalls;
     }
   } finally {
     reader.releaseLock();

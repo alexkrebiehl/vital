@@ -4,6 +4,7 @@ import { retrieve, retrieveGeneral } from '@/lib/analyst/retrieval';
 import { BOUNDARY_NOTE } from '@/lib/analyst/handlers';
 import { buildContextPayload } from '@/lib/analyst/systemPrompt';
 import {
+  proseAnswerText,
   checkGrounding,
   extractJsonObject,
   extractNumericTokens,
@@ -403,5 +404,16 @@ describe('follow-ups (SPEC §8)', () => {
 
     const duplicated = answerFrom(JSON.stringify(baseFields({ followUps: ['How is my HRV trending?', 'how is my hrv trending?'] })));
     expect(duplicated.answer!.followUps).toEqual(['How is my HRV trending?']);
+  });
+});
+
+describe('proseAnswerText', () => {
+  it('shapes prose into an interpretation-only answer, dropping reasoning and pseudo tool calls', () => {
+    const text = proseAnswerText('<think>hmm</think>First point.\n\nSecond point.<tool_call>{"name":"x"}</tool_call>');
+    expect(JSON.parse(text!)).toMatchObject({ observed: [], interpretation: ['First point.', 'Second point.'] });
+  });
+
+  it('returns null when nothing readable is left', () => {
+    expect(proseAnswerText('<tool_call>{"name":"get_training_plan"}')).toBeNull();
   });
 });

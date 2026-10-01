@@ -239,6 +239,29 @@ function chartsFor(evidence: AnalystEvidence[], bundle: RetrievalBundle): Analys
   return charts;
 }
 
+/**
+ * A free-text reply the model would not restate as JSON, shaped into an answer:
+ * the prose (reasoning and pseudo tool-call blocks removed) becomes the
+ * interpretation, and the uncertainty says it is shown as written. Returns null
+ * when nothing readable is left. Its numbers still go through the grounding check.
+ */
+export function proseAnswerText(prose: string): string | null {
+  const cleaned = prose
+    .replace(/<think>[\s\S]*?<\/think>/gi, ' ')
+    .replace(/<tool_call>[\s\S]*?(<\/tool_call>|$)/gi, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  if (cleaned.length < 2) return null;
+  const paragraphs = cleaned.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean).slice(0, 8);
+  return JSON.stringify({
+    observed: [],
+    interpretation: paragraphs,
+    uncertainty: ['The model answered in free text instead of the structured format, so this reply is shown as written and is not split into observations and interpretation.'],
+    evidence: [],
+    followUps: [],
+  });
+}
+
 export interface ReplyContext {
   bundle: RetrievalBundle;
 }
@@ -369,7 +392,7 @@ interface NumericToken {
  * exactly as the analyst's grounding audit does — two audits that disagreed
  * about what one token is would be worse than one.
  */
-export const DURATION_RE = /(\d+(?:\.\d+)?)\s*h(?:ours?|rs?)?\s*(?:(\d+(?:\.\d+)?)\s*m(?:in(?:utes?)?)?)?/gi;
+export const DURATION_RE = /(\d+(?:\.\d+)?)\s*h(?:ours?|rs?)?\b\s*(?:(\d+(?:\.\d+)?)\s*m(?:in(?:utes?)?)?\b)?/gi;
 
 /**
  * Extract numeric tokens from a line of prose.
@@ -478,11 +501,14 @@ export function normalizeCitation(text: string): string {
 export function checkGrounding(
   answer: AnalystAnswer,
   bundle: RetrievalBundle,
-  system: UnitSystem = 'metric'
+  system: UnitSystem = 'metric',
+  /** Tool results the model saw (JSON text): their numbers and strings are grounded too. */
+  extra: string[] = []
 ): AnalystGrounding {
-  const displays = collectDisplayStrings(bundle, system).map(normalizeCitation).filter(d => d.length > 0);
+  const displays = [...collectDisplayStrings(bundle, system), ...extra].map(normalizeCitation).filter(d => d.length > 0);
   const allowed = [
     ...collectBundleNumbers(bundle),
+    ...extra.flatMap(text => (text.match(/\d+(?:\.\d+)?/g) ?? []).map(Number)),
     // Numbers the display strings themselves state. Nothing is scaled: an
     // invented unit conversion must not become a match, so no ×1000 for "1.7K".
     ...displays.flatMap(display => extractNumericTokens(display).map(token => token.value)),

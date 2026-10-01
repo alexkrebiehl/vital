@@ -88,8 +88,17 @@ services:
       HAE_API_KEY: "${HAE_API_KEY:-}"
       HAE_PROBE_METRIC: "${HAE_PROBE_METRIC:-resting_heart_rate}"
       HAE_CACHE_TTL_SECONDS: "${HAE_CACHE_TTL_SECONDS:-300}"
-      # Timezone overnight sleep is assigned in and days are cut on.
-      VITAL_TIMEZONE: "${VITAL_TIMEZONE:-UTC}"
+      # ── Workout sources (server-side only) ──────────────────────────────────
+      # The exercises, sets, reps, load and RPE the Workouts routine tracks.
+      # Without HEVY_API_KEY, Settings → Connections shows Hevy as not
+      # configured. An empty HEVY_API_URL means Hevy's own API.
+      HEVY_API_KEY: "${HEVY_API_KEY:-}"
+      HEVY_API_URL: "${HEVY_API_URL:-}"
+      HEVY_CACHE_TTL_SECONDS: "${HEVY_CACHE_TTL_SECONDS:-300}"
+      WORKOUT_SOURCE_LOOKBACK_DAYS: "${WORKOUT_SOURCE_LOOKBACK_DAYS:-400}"
+      # Fallback timezone until a profile is stored; the profile's timezone
+      # (defaulted from the first browser, editable in Settings) cuts the days.
+      VITAL_TIMEZONE: "${VITAL_TIMEZONE:-}"
       # ── Profile (server-side only) ──────────────────────────────────────────
       # The profile is NOT an environment variable: it is the `profile` row in
       # the Postgres database above (id = 1), written by Settings → Account.

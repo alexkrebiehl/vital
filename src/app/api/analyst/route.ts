@@ -23,6 +23,7 @@
 import { NextResponse } from 'next/server';
 import { askAnalyst, publicConfigState, readAnalystConfig, supportedPrompts, validateQuery } from '@/lib/analyst';
 import { appendExchange, memoryTurnsFor, resolveConversations } from '@/lib/analyst/conversations';
+import { parsePageContextRef } from '@/lib/analyst/page-context-types';
 import type { UnitSystem } from '@/lib/prefs';
 import { LiveDataUnavailableError, installDataset } from '@/lib/adapters/runtime';
 
@@ -80,6 +81,9 @@ export async function POST(request: Request) {
     notes: raw.notes as string | undefined,
     system,
     history,
+    // The page a "Discuss with analyst" dialog was opened from, if any: only a
+    // descriptor, resolved into page state on the server.
+    context: parsePageContextRef(raw.context),
   });
 
   // A question the service refused was never asked: nothing is saved for it.

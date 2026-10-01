@@ -43,6 +43,7 @@ function openaiEnv(): NodeJS.ProcessEnv {
     ANALYST_API_URL: 'http://127.0.0.1:9/v1',
     ANALYST_MODEL: 'mock-analyst-1',
     ANALYST_API_KEY: 'sk-test-not-a-real-key',
+    ANALYST_TOOLS: 'off',
   } as unknown as NodeJS.ProcessEnv;
 }
 

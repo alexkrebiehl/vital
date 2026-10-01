@@ -9,6 +9,8 @@
 import type { UnitSystem } from '../prefs';
 import type { ComparisonResult } from '../analytics/stats';
 import type { DayWindow } from '../analytics/windows';
+import type { PlanChange } from '../routine/types';
+import type { PageContextRef } from './page-context-types';
 import type { ResolvedInterval, ResultStatus, StatusTone } from '../lab/status';
 import type { PanelSpecimen } from '../lab/panel';
 
@@ -323,6 +325,8 @@ export interface AnalystRequest {
    * first. A new conversation passes none.
    */
   history?: { role: 'user' | 'assistant'; content: string }[];
+  /** The page the question was asked from, resolved on the server (page-context.ts). */
+  context?: PageContextRef | null;
 }
 
 export type AnalystStatus =
@@ -346,6 +350,8 @@ export interface AnalystProviderContext {
    * first. Empty for a new conversation. Carried as untrusted DATA too.
    */
   history?: { role: 'user' | 'assistant'; content: string }[];
+  /** The page the reader is looking at, already resolved and bounded. Untrusted DATA. */
+  pageContext?: { label: string; json: string };
 }
 
 /**
@@ -409,4 +415,13 @@ export interface AnalystResponse {
   grounding: AnalystGrounding;
   /** Untrusted notes received with the request (echoed, never obeyed). */
   untrustedNotes: { received: boolean; characters: number; note: string };
+  /** The training-plan change this answer made, if any (undoable from the UI). */
+  planChange?: PlanChange | null;
+  /** Names of the tools the model called, in order (never their data). */
+  toolsUsed?: string[];
+  /**
+   * Set when the provider refused the training-plan tools and the answer was
+   * made without them: why, in the provider's (scrubbed) words.
+   */
+  toolsUnavailable?: string | null;
 }

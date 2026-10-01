@@ -11,9 +11,9 @@
 // carries the revision the client last read; the caller compares it with the
 // stored revision before calling in, and a stale write is refused upstream (409).
 //
-// DISPLAY CONFIGURATION ONLY: a unit system, a theme and three booleans. There
-// is no column for a health record, a token or a credential, and no query here
-// can read one.
+// DISPLAY CONFIGURATION ONLY: a unit system, a theme mode, two theme ids and
+// three booleans. There is no column for a health record, a token or a
+// credential, and no query here can read one.
 //
 // The record is validated with the same `validatePreferencesRecord` the client
 // uses, so a hand-edited row cannot inject an unknown field or a schema version
@@ -31,6 +31,8 @@ import { getPool } from './pool';
 const SELECT_PREFERENCES = `
   SELECT units,
          theme,
+         light_theme,
+         dark_theme,
          notifications,
          schema_version,
          revision,
@@ -40,16 +42,18 @@ const SELECT_PREFERENCES = `
 `;
 
 const UPSERT_PREFERENCES = `
-  INSERT INTO preferences (id, units, theme, notifications, schema_version, revision, updated_at)
-  VALUES (1, $1, $2, $3::jsonb, $4, $5, now())
+  INSERT INTO preferences (id, units, theme, notifications, schema_version, revision, updated_at, light_theme, dark_theme)
+  VALUES (1, $1, $2, $3::jsonb, $4, $5, now(), $6, $7)
   ON CONFLICT (id) DO UPDATE
      SET units          = EXCLUDED.units,
          theme          = EXCLUDED.theme,
+         light_theme    = EXCLUDED.light_theme,
+         dark_theme     = EXCLUDED.dark_theme,
          notifications  = EXCLUDED.notifications,
          schema_version = EXCLUDED.schema_version,
          revision       = EXCLUDED.revision,
          updated_at     = now()
-  RETURNING units, theme, notifications, schema_version, revision, updated_at
+  RETURNING units, theme, light_theme, dark_theme, notifications, schema_version, revision, updated_at
 `;
 
 function poolOrThrow(env: NodeJS.ProcessEnv) {
@@ -64,6 +68,8 @@ function poolOrThrow(env: NodeJS.ProcessEnv) {
 function toRecord(row: Record<string, unknown>): PreferencesRecord {
   const validated = validatePreferencesRecord({
     theme: row.theme,
+    lightTheme: row.light_theme,
+    darkTheme: row.dark_theme,
     units: row.units,
     notifications: row.notifications ?? {},
     schemaVersion: Number(row.schema_version),
@@ -98,6 +104,8 @@ export async function writePreferencesRow(
     JSON.stringify(preferences.notifications),
     PREFS_SCHEMA_VERSION,
     revision,
+    preferences.lightTheme,
+    preferences.darkTheme,
   ]);
   const row = result.rows[0];
   if (!row) throw new Error('The preferences write returned no row.');

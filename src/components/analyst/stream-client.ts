@@ -12,14 +12,18 @@
 //     can style them apart and the answer is never polluted with reasoning;
 //   * a stream that fails before the terminal `result` frame THROWS, so the
 //     caller can fall back to the non-streaming endpoint instead of being left
-//     with a half-rendered turn.
+//     with a half-rendered turn — unless a plan tool already ran: asking again
+//     could make the same plan change twice, so that failure is final.
 
 import { splitSseFrames } from '@/lib/analyst/stream';
 import type { AnalystResponse } from '@/lib/analyst/types';
+import type { PageContextRef } from '@/lib/analyst/page-context-types';
 
 export interface AnalystStreamHandlers {
   onReasoning: (text: string) => void;
   onAnswer: (text: string) => void;
+  /** The answer text so far was not the answer: `tool` is about to run, or (null) the reply is being repaired. */
+  onStep?: (step: { tool: string | null }) => void;
   onResult: (response: AnalystResponse & Record<string, unknown>) => void;
 }
 
@@ -28,14 +32,22 @@ export interface AnalystStreamRequest {
   system: 'metric' | 'imperial';
   conversationId: number | null;
   notes?: string;
+  context?: PageContextRef | null;
 }
 
 /** A structured stream failure, so the caller can fall back deliberately. */
 export class AnalystStreamError extends Error {
-  constructor(message: string) {
+  /** False once a tool ran: the question must not be asked again. */
+  readonly retrySafe: boolean;
+  constructor(message: string, retrySafe = true) {
     super(message);
     this.name = 'AnalystStreamError';
+    this.retrySafe = retrySafe;
   }
+}
+
+function isAbort(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError';
 }
 
 /**
@@ -55,7 +67,10 @@ export async function askWithStreamingFallback(
   try {
     await streaming();
     return { usedStreaming: true };
-  } catch {
+  } catch (error) {
+    // A cancelled ask stays cancelled, and one that already ran a tool is not
+    // asked again: either would repeat work the user did not ask for twice.
+    if (isAbort(error) || (error instanceof AnalystStreamError && !error.retrySafe)) throw error;
     await nonStreaming();
     return { usedStreaming: false };
   }
@@ -88,6 +103,7 @@ export async function askAnalystStreaming(
   const decoder = new TextDecoder();
   let buffer = '';
   let sawResult = false;
+  let toolRan = false;
 
   try {
     for (;;) {
@@ -106,17 +122,31 @@ export async function askAnalystStreaming(
           handlers.onReasoning(String((parsed.data as { text?: unknown }).text ?? ''));
         } else if (parsed.event === 'answer') {
           handlers.onAnswer(String((parsed.data as { text?: unknown }).text ?? ''));
+        } else if (parsed.event === 'step') {
+          const tool = (parsed.data as { tool?: unknown }).tool;
+          if (typeof tool === 'string') toolRan = true;
+          handlers.onStep?.({ tool: typeof tool === 'string' ? tool : null });
         }
       }
     }
   } catch (error) {
-    if (error instanceof AnalystStreamError) throw error;
-    throw new AnalystStreamError(error instanceof Error ? error.message : 'The analyst stream failed.');
+    if (error instanceof AnalystStreamError || isAbort(error)) throw error;
+    throw lost(error instanceof Error ? error.message : 'The analyst stream failed.', toolRan);
   } finally {
     reader.releaseLock();
   }
 
-  if (!sawResult) throw new AnalystStreamError('The analyst stream ended without a final result.');
+  if (!sawResult) throw lost('The analyst stream ended without a final result.', toolRan);
+}
+
+/** A broken stream; after a tool ran it says so, and is not retried. */
+function lost(message: string, toolRan: boolean): AnalystStreamError {
+  return toolRan
+    ? new AnalystStreamError(
+        `${message} The analyst had already used its plan tools, so the question was not asked again — reload to see whether the plan changed.`,
+        false
+      )
+    : new AnalystStreamError(message);
 }
 
 /** Read one SSE frame's `event:` name and JSON `data:` payload. */

@@ -7,6 +7,8 @@
 //
 //   event: reasoning   the model's own working (display only, never an answer)
 //   event: answer      fragments of the answer text
+//   event: step        the answer text so far was not the answer: a plan tool is
+//                      about to run ({tool}), or the reply is repaired ({tool:null})
 //   event: result      ONE terminal frame: the finished response, the model
 //                      attribution, the follow-ups, and what happened to the turn
 //
@@ -24,6 +26,7 @@
 
 import { askAnalyst, streamAnalyst, publicConfigState, readAnalystConfig, validateQuery } from '@/lib/analyst';
 import { appendExchange, memoryTurnsFor, resolveConversations } from '@/lib/analyst/conversations';
+import { parsePageContextRef } from '@/lib/analyst/page-context-types';
 import type { AnalystResponse } from '@/lib/analyst/types';
 import type { UnitSystem } from '@/lib/prefs';
 import { LiveDataUnavailableError, installDataset } from '@/lib/adapters/runtime';
@@ -86,6 +89,9 @@ export async function POST(request: Request) {
     notes: raw.notes as string | undefined,
     system,
     history,
+    // The page the question was asked from ("Discuss with analyst"); resolved
+    // on the server, so the browser only names it.
+    context: parsePageContextRef(raw.context),
   };
 
   // Drive the service generator inside the stream, so nothing is buffered: each
@@ -103,12 +109,19 @@ export async function POST(request: Request) {
       };
 
       let final: AnalystResponse | null = null;
+      // Once a plan tool ran, the question is never asked again: it could make
+      // the same change twice.
+      let toolRan = false;
 
       try {
         for await (const chunk of chunks) {
           if (closed) break;
           if (chunk.kind === 'reasoning') send('reasoning', { kind: 'reasoning', text: chunk.text });
           else if (chunk.kind === 'answer') send('answer', { kind: 'answer', text: chunk.text });
+          else if (chunk.kind === 'step') {
+            if (chunk.tool) toolRan = true;
+            send('step', { kind: 'step', tool: chunk.tool });
+          }
           else final = chunk.response;
         }
       } catch (error) {
@@ -117,7 +130,7 @@ export async function POST(request: Request) {
         // and can fall back rather than hang.
         if (!closed && !final) {
           const message = error instanceof Error ? error.message : 'The analyst stream failed.';
-          final = await askAnalyst(analystRequest).catch(() => null);
+          final = toolRan ? null : await askAnalyst(analystRequest).catch(() => null);
           if (!final) send('result', { kind: 'result', status: 'error', message, answer: null, model: null });
         }
       }
