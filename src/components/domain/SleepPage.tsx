@@ -24,6 +24,7 @@ import {
   windowRangeLabel,
 } from '@/lib/analytics';
 import { useState } from 'react';
+import { HeroFigure } from '@/components/art/HeroFigure';
 import { Card, Badge, DataStateNote, InsufficientDataState } from '@/components/ui/primitives';
 import { MetricChart, TrendFigure, SleepStageChart, SleepStageTable, SLEEP_STAGE_META } from '@/components/charts';
 import { useUnits } from '@/components/ui/UnitsProvider';
@@ -76,6 +77,7 @@ export function SleepPage() {
     <div className="space-y-8">
       <DomainHeader
         title="Sleep"
+        aside={<HeroFigure metricId="sleep_analysis" category="sleep" days={30} />}
         subtitle={`Latest episode, stages, duration, consistency and recovery across ${windowRangeLabel(trailingWindow(REFERENCE_KEY, LONG_DAYS))}. Nights are assigned to the waking date.`}
       />
 

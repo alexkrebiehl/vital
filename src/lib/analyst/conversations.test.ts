@@ -87,17 +87,26 @@ describe('conversations — create, list, read', () => {
     expect(db.conversationCount()).toBe(0);
   });
 
-  it('lists newest activity first and reads one conversation with its turns', async () => {
+  it('lists the newest conversation first, even when an older one was just used', async () => {
     const db = new FakeAnalystDb();
     const first = await createConversationForApi({ client: db }, 'First');
     const second = await createConversationForApi({ client: db }, 'Second');
     const firstId = first.ok ? first.data.id : 0;
     const secondId = second.ok ? second.data.id : 0;
 
+    // A turn added to the OLDER conversation updates its `updated_at`. It must not
+    // lift it above the conversation that was started later - that is the bug the
+    // owner reported: his newest conversation sitting second in the list.
     await appendExchange({ client: db }, firstId, 'How is my HRV trending?', await okResponse('How is my HRV trending?'));
 
     const listed = await listConversationsForApi({ client: db });
-    expect(listed.ok && listed.conversations.map(c => c.id)).toEqual([firstId, secondId]);
+    expect(listed.ok && listed.conversations.map(c => c.id)).toEqual([secondId, firstId]);
+
+    // The list still carries both timestamps, so the view can show when it was
+    // asked and when it was last active.
+    const secondRow = listed.ok ? listed.conversations.find(c => c.id === secondId) : undefined;
+    expect(secondRow?.createdAt).toBeTruthy();
+    expect(secondRow?.updatedAt).toBeTruthy();
 
     const read = await readConversationForApi({ client: db }, firstId);
     expect(read.ok && read.data.messages.map(m => m.role)).toEqual(['user', 'assistant']);

@@ -17,6 +17,7 @@ import {
   MIN_PAIRED_OBSERVATIONS,
   type LoggedDayStats,
 } from '@/lib/analytics';
+import { HeroFigure } from '@/components/art/HeroFigure';
 import { Card, Badge, DataStateNote, InsufficientDataState, SegmentedControl } from '@/components/ui/primitives';
 import { MetricChart, TrendFigure } from '@/components/charts';
 import { useUnits } from '@/components/ui/UnitsProvider';
@@ -94,6 +95,7 @@ export function NutritionPage() {
     <div className="space-y-8">
       <DomainHeader
         title="Nutrition"
+        aside={<HeroFigure metricId="dietary_energy" category="nutrition" days={30} />}
         subtitle={`Logged dietary intake across ${windowRangeLabel(window)}. These are entries you recorded, not measurements of what you ate.`}
       />
 

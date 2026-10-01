@@ -26,16 +26,16 @@ export function TopBar() {
   const initials = initialsOf(name);
 
   return (
-    <header className="h-14 border-b border-border flex items-center gap-2 px-4 md:px-6 bg-surface sticky top-0 z-20">
+    <header className="h-16 border-b border-border flex items-center gap-2 px-4 md:px-8 bg-page/85 backdrop-blur-md sticky top-0 z-20">
       {/* Search — icon-only below sm, full field above */}
       <button
         onClick={open}
-        className="hidden sm:flex items-center gap-2 w-full max-w-md min-w-0 px-3 py-1.5 bg-surface-muted border border-border rounded-control text-sm text-text-secondary hover:border-accent/40 transition-colors min-h-[36px]"
+        className="hidden sm:flex items-center gap-2 w-full max-w-md min-w-0 px-3 py-1.5 bg-surface border border-border rounded-control text-sm text-text-secondary shadow-card hover:border-border-strong transition-colors min-h-[38px]"
         aria-label="Search your health data"
       >
         <Search size={15} className="shrink-0" aria-hidden="true" />
         <span className="flex-1 text-left truncate">Search your health data…</span>
-        <span className="flex items-center gap-0.5 text-[10px] text-text-secondary bg-surface px-1.5 py-0.5 rounded shrink-0">
+        <span className="flex items-center gap-0.5 text-[10px] text-text-secondary bg-surface-muted px-1.5 py-0.5 rounded-md shrink-0 font-mono">
           <Command size={10} aria-hidden="true" />K
         </span>
       </button>
@@ -51,7 +51,7 @@ export function TopBar() {
 
       {/* Avatar — initials from the profile name, or a neutral icon. */}
       <div
-        className="w-8 h-8 rounded-full bg-primary text-primary-text flex items-center justify-center text-xs font-semibold shrink-0"
+        className="w-8 h-8 rounded-full bg-accent-tint text-primary ring-1 ring-border flex items-center justify-center text-xs font-semibold shrink-0"
         aria-label={name ? `Signed in as ${name}` : 'Account profile'}
         title={name ?? 'Account profile'}
       >

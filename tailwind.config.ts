@@ -18,6 +18,7 @@ const config: Config = {
         "text-primary": "var(--color-text-primary)",
         "text-secondary": "var(--color-text-secondary)",
         border: "var(--color-border)",
+        "border-strong": "var(--color-border-strong)",
         accent: {
           tint: "var(--color-accent-tint)",
           DEFAULT: "var(--color-accent)",
@@ -47,13 +48,15 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: [
-          "-apple-system",
-          '"Segoe UI"',
-          "Inter",
-          "system-ui",
-          "sans-serif",
-        ],
+        sans: ["var(--font-geist-sans)", "-apple-system", '"Segoe UI"', "system-ui", "sans-serif"],
+        mono: ["var(--font-geist-mono)", "ui-monospace", "monospace"],
+      },
+      // Geist is a variable font: softer weights than the stock 500/600 give
+      // headings and labels a calmer, more editorial colour.
+      fontWeight: { medium: "480", semibold: "560" },
+      boxShadow: {
+        card: "var(--shadow-card)",
+        pop: "var(--shadow-pop)",
       },
       borderRadius: {
         card: "var(--radius-card)",

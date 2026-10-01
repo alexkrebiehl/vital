@@ -11,6 +11,7 @@
 // browsers and devices; this browser keeps only a namespaced cache for the
 // pre-paint theme. No API key, token or health record is ever stored in the browser.
 
+import { PageHero } from '@/components/art/PageHero';
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -147,8 +148,8 @@ function SettingsView() {
 
   if (!prefs) {
     return (
-      <div className="max-w-4xl mx-auto space-y-6">
-        <h1 className="text-2xl md:text-3xl font-semibold text-text-primary">Settings</h1>
+      <div className="space-y-6">
+        <PageHero title="Settings" eyebrow="Settings" category="neutral" seed={9} subtitle="Preferences, coverage and honest connection states for this build." />
         <div role="status" aria-live="polite" className="space-y-3">
           <span className="sr-only">Loading your saved preferences</span>
           <Skeleton height={120} />
@@ -159,15 +160,15 @@ function SettingsView() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-semibold text-text-primary">Settings</h1>
-          <p className="text-sm text-text-secondary mt-1">
-            Preferences, coverage and honest connection states for this build.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
+    <div className="space-y-6">
+      <PageHero
+        title="Settings"
+        eyebrow="Settings"
+        category="neutral"
+        seed={9}
+        subtitle="Preferences, coverage and honest connection states for this build."
+        aside={
+          <div className="flex items-center gap-2 rounded-2xl border border-border bg-surface/80 p-2 shadow-card backdrop-blur-sm">
           {/* The Data pipeline panel lives here now: provenance is a Settings
               surface, not page chrome. This opens the same panel the fast
               freshness control in the header used to. */}
@@ -187,8 +188,9 @@ function SettingsView() {
               <Save size={12} aria-hidden="true" /> {notice.text}
             </span>
           )}
-        </div>
-      </header>
+          </div>
+        }
+      />
 
       <Tabs tabs={TABS} active={tab} onChange={setTab} />
 

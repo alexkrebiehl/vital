@@ -25,13 +25,13 @@ export interface ThemeDef {
 }
 
 export const THEMES: readonly ThemeDef[] = [
-  { id: 'default', scheme: 'light', name: 'Default', description: 'Warm off-white with a deep green accent.' },
+  { id: 'default', scheme: 'light', name: 'Default', description: 'Cool graphite neutrals with an indigo accent.' },
   { id: 'solarized', scheme: 'light', name: 'Solarized', description: 'Ethan Schoonover’s cream base with blue accents.' },
   { id: 'github', scheme: 'light', name: 'GitHub', description: 'Crisp white and grey with GitHub blue.' },
   { id: 'gruvbox', scheme: 'light', name: 'Gruvbox', description: 'Retro parchment with earthy, muted colours.' },
   { id: 'catppuccin', scheme: 'light', name: 'Catppuccin Latte', description: 'Soft pastel light with a mauve accent.' },
 
-  { id: 'default', scheme: 'dark', name: 'Default', description: 'Green-black with a soft sage accent.' },
+  { id: 'default', scheme: 'dark', name: 'Default', description: 'Near-black graphite with a soft periwinkle accent.' },
   { id: 'solarized', scheme: 'dark', name: 'Solarized', description: 'Deep blue-teal base with Solarized accents.' },
   { id: 'monokai', scheme: 'dark', name: 'Monokai', description: 'The classic editor theme: warm charcoal and neon green.' },
   { id: 'dracula', scheme: 'dark', name: 'Dracula', description: 'Purple-tinted dark with vivid pink and purple.' },

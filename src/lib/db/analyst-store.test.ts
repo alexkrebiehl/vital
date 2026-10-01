@@ -41,17 +41,23 @@ describe('analyst-store — create, read, list', () => {
     expect(await findConversation(db, 999)).toBeNull();
   });
 
-  it('lists conversations newest activity first', async () => {
+  it('lists the newest conversation first, by when it was started', async () => {
     const db = new FakeAnalystDb();
     const first = await insertConversation(db, 'First');
     const second = await insertConversation(db, 'Second');
-    // A turn in the FIRST conversation makes it the most recently active.
+    // A turn in the FIRST conversation makes it the most recently ACTIVE. It must
+    // not lift it above the conversation started later: the list is ordered by
+    // when a conversation was asked, so the newest question is always at the top.
     await insertMessage(db, first.id, { role: 'user', content: 'hello' }, 200);
 
     const listed = await listConversations(db);
-    expect(listed.map(c => c.id)).toEqual([first.id, second.id]);
-    expect(listed[0].messageCount).toBe(1);
-    expect(listed[1].messageCount).toBe(0);
+    expect(listed.map(c => c.id)).toEqual([second.id, first.id]);
+    expect(listed[0].messageCount).toBe(0);
+    expect(listed[1].messageCount).toBe(1);
+    // Both timestamps travel, so the view can show the asked date and the
+    // last-active time separately.
+    expect(listed[1].createdAt).toBeTruthy();
+    expect(listed[1].updatedAt).toBeTruthy();
   });
 
   it('reads one conversation\'s turns oldest first, in the order they were said', async () => {

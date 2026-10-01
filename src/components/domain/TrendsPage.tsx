@@ -393,7 +393,7 @@ function RelationshipsTab() {
           <>
             <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 mb-4">
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-text-secondary">
+                <div className="text-[11px] uppercase tracking-[0.06em] font-medium text-text-secondary">
                   Pearson correlation
                 </div>
                 <div className="text-3xl font-semibold tnum text-text-primary">

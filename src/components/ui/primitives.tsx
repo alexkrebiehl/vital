@@ -18,8 +18,8 @@ export function Button({
 }: ButtonProps) {
   const base = 'inline-flex items-center justify-center font-medium transition-colors focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50 disabled:pointer-events-none';
   const variants: Record<string, string> = {
-    primary: 'bg-primary text-primary-text hover:opacity-90',
-    secondary: 'bg-surface border border-border text-text-primary hover:bg-surface-muted',
+    primary: 'bg-primary text-primary-text shadow-sm hover:opacity-90 active:opacity-100',
+    secondary: 'bg-surface border border-border-strong text-text-primary shadow-sm hover:bg-surface-muted',
     ghost: 'text-text-secondary hover:text-text-primary hover:bg-surface-muted',
     danger: 'bg-red-600 text-white hover:bg-red-700',
   };
@@ -58,7 +58,7 @@ interface CardProps {
 }
 
 const CARD_VARIANTS: Record<string, string> = {
-  default: 'bg-surface border border-border',
+  default: 'bg-surface border border-border shadow-card',
   hero: 'bg-hero border border-hero-border text-hero-foreground',
   accent: 'bg-accent-tint border border-transparent',
   muted: 'bg-surface-muted border border-transparent',
@@ -74,7 +74,7 @@ export function Card({
 }: CardProps) {
   return (
     <Tag
-      className={`${CARD_VARIANTS[variant]} rounded-card ${onClick ? 'cursor-pointer hover:shadow-sm transition-shadow' : ''} ${className}`}
+      className={`${CARD_VARIANTS[variant]} rounded-card ${onClick ? 'cursor-pointer hover:border-border-strong hover:shadow-pop transition-[box-shadow,border-color]' : ''} ${className}`}
       onClick={onClick}
       {...props}
     >
@@ -95,7 +95,7 @@ interface BadgeProps {
 
 export function Badge({ children, variant = 'default', className = '', title }: BadgeProps) {
   const variants: Record<string, string> = {
-    default: 'bg-surface-muted text-text-secondary',
+    default: 'bg-surface-muted text-text-secondary ring-1 ring-inset ring-border',
     accent: 'bg-accent-tint text-primary',
     hero: 'bg-hero-muted/15 text-hero-muted',
     success: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
@@ -119,7 +119,7 @@ interface PillProps {
 
 export function Pill({ children, active = false, className = '' }: PillProps) {
   return (
-    <span className={`inline-flex items-center px-3 py-1.5 text-sm rounded-full transition-colors ${
+    <span className={`inline-flex items-center px-3 py-1.5 text-sm rounded-lg transition-colors ${
       active
         ? 'bg-accent-tint text-primary font-medium'
         : 'text-text-secondary hover:text-text-primary hover:bg-surface-muted'

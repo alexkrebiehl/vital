@@ -1,5 +1,9 @@
 'use client';
 
+import { PageHero } from '@/components/art/PageHero';
+import { Spark } from '@/components/art/Spark';
+import { CATEGORY_VAR } from '@/components/art/categories';
+import { artCategoryOf } from '@/components/domain/DomainShared';
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
@@ -214,29 +218,28 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
   return (
     <div className="space-y-6">
       {/* ── Header ──────────────────────────────────── */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <Badge variant="default" className="text-[10px]">{meta.category}</Badge>
-            {!dataMeta.live && meta.demoAvailable && <Badge variant="accent" className="text-[10px]">Demo</Badge>}
-            <StaleBadge days={staleDays} />
+      <PageHero
+        title={meta.displayName}
+        eyebrow={meta.category}
+        category={artCategoryOf(metaId)}
+        seed={metaId.length * 131 + metaId.charCodeAt(0)}
+        subtitle={`${meta.aggregationStrategy === 'sum' ? 'Summed per day' : meta.aggregationStrategy === 'latest' ? 'Latest recorded value' : 'Daily average'} · ${metricUnit(metaId, units) ? `unit ${metricUnit(metaId, units)}` : 'no unit'}`}
+        aside={
+          <div className="w-full max-w-[260px] rounded-2xl border border-border bg-surface/80 p-4 shadow-card backdrop-blur-sm">
+            <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-text-secondary">Latest reading</div>
+            <div className="mt-1 text-[34px] font-semibold leading-none tnum tracking-[-0.03em] text-text-primary">
+              {displayLatest(metaId, latest, units, bpRecords)}
+            </div>
+            <div className="mt-1 text-[11px] text-text-secondary">{formatDayKeyLong(latest!.key)}</div>
+            <div className="mt-3" aria-hidden="true">
+              <Spark values={chartPoints.map(p => p.value)} color={CATEGORY_VAR[artCategoryOf(metaId)]} height={40} />
+            </div>
           </div>
-          <h1 className="text-2xl md:text-3xl font-semibold text-text-primary">{meta.displayName}</h1>
-          <p className="text-xs text-text-secondary mt-1">
-            {meta.aggregationStrategy === 'sum' ? 'Summed per day' : meta.aggregationStrategy === 'latest' ? 'Latest recorded value' : 'Daily average'} ·
-            {metricUnit(metaId, units) ? `unit ${metricUnit(metaId, units)}` : 'no unit'}
-          </p>
-        </div>
-
-        <div className="text-left sm:text-right">
-          <div className="text-3xl md:text-4xl font-semibold tnum text-text-primary leading-none">
-            {displayLatest(metaId, latest, units, bpRecords)}
-          </div>
-          <div className="text-xs text-text-secondary mt-1">
-            Latest reading · {formatDayKeyLong(latest!.key)}
-          </div>
-        </div>
-      </div>
+        }
+      >
+        {!dataMeta.live && meta.demoAvailable && <Badge variant="accent" className="text-[10px]">Demo</Badge>}
+        <StaleBadge days={staleDays} />
+      </PageHero>
 
       {/* ── Explicit data states (SPEC §6) ──────────── */}
       <div className="space-y-1.5">
@@ -578,8 +581,8 @@ function SummaryCard({ label, value, sub, highlight }: {
 }) {
   return (
     <Card className={`p-4 ${highlight ? 'ring-1 ring-category-attention/30' : ''}`}>
-      <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-1">{label}</div>
-      <div className={`text-xl md:text-2xl font-semibold tnum ${highlight ? 'text-category-attention' : 'text-text-primary'} leading-none mb-1`}>
+      <div className="mb-2 text-[12px] font-medium text-text-secondary">{label}</div>
+      <div className={`mb-1.5 text-[22px] md:text-[26px] font-semibold tracking-[-0.03em] tnum ${highlight ? 'text-category-attention' : 'text-text-primary'} leading-none`}>
         {value}
       </div>
       <div className="text-[10px] text-text-secondary">{sub}</div>

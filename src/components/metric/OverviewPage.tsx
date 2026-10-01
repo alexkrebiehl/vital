@@ -44,7 +44,7 @@ import {
   metricUnit,
 } from '@/lib/metrics/format';
 import {
-  Card, Badge, ChangeCue, SegmentedControl, DataStateNote, Sparkline,
+  Card, Badge, ChangeCue, SegmentedControl, DataStateNote,
 } from '@/components/ui/primitives';
 import { TrendFigure } from '@/components/charts';
 import { useUnits } from '@/components/ui/UnitsProvider';
@@ -55,6 +55,9 @@ import { briefingSchedule, briefingTimeLabel } from '@/lib/briefing/schedule';
 import { OverviewMedications } from './OverviewMedications';
 import { useProfile } from '@/components/profile/ProfileProvider';
 import { greetingLine } from '@/lib/profile/types';
+import { ContourField } from '@/components/art/ContourField';
+import { Spark } from '@/components/art/Spark';
+import { CATEGORY_VAR, type ArtCategory } from '@/components/art/categories';
 import { useDatasetMeta } from '@/components/data/DatasetProvider';
 import { datasetProvenanceSentence } from '@/lib/adapters/dataset';
 
@@ -239,24 +242,31 @@ export function OverviewPage({ initialGreeting }: { initialGreeting: string }) {
   return (
     <div className="space-y-8">
       {/* ── A. Greeting ─────────────────────────────── */}
-      <div className="min-w-0">
-        <h1 className="text-[32px] sm:text-[40px] md:text-[44px] font-semibold tracking-tight text-text-primary leading-[1.1]">
-          {greeting}
-        </h1>
-        <p className="text-sm sm:text-base text-text-secondary mt-1">
-          Your health snapshot for {weekdayName(REFERENCE_KEY)}, {formatDayKeyLong(REFERENCE_KEY)}
-        </p>
+      <div className="min-w-0 flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0">
+          <p className="mb-2 inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-[12px] font-medium text-text-secondary shadow-card">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
+            {weekdayName(REFERENCE_KEY)}, {formatDayKeyLong(REFERENCE_KEY)}
+          </p>
+          <h1 className="text-[34px] sm:text-[44px] md:text-[52px] font-semibold tracking-[-0.045em] text-text-primary leading-[1.02]">
+            {greeting}
+          </h1>
+          <p className="text-[15px] text-text-secondary mt-2">
+            Your health snapshot for today, read against your own recent baseline.
+          </p>
+        </div>
       </div>
 
       {/* ── B. Main briefing hero + companion ───────── */}
       {/* items-start: each card sizes to its own content, so neither stretches
           to the other's height and leaves an empty band inside it. */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
-        <Card variant="hero" className="md:col-span-2 p-6 md:p-8 flex flex-col h-fit" as="section">
-          <p className="text-[10px] uppercase tracking-[0.15em] font-medium text-hero-muted mb-3">
+        <Card variant="hero" className="relative isolate overflow-hidden md:col-span-2 p-6 md:p-9 flex flex-col h-fit" as="section">
+          <ContourField category="overview" seed={21} lines={17} className="absolute inset-0 -z-10 h-full w-full" />
+          <p className="text-[11px] uppercase tracking-[0.08em] font-medium text-hero-muted mb-3">
             TODAY&rsquo;S BRIEFING
           </p>
-          <h2 className="text-[26px] md:text-[34px] font-semibold leading-[1.15] tracking-tight mb-3 text-hero-foreground">
+          <h2 className="text-[24px] md:text-[32px] font-medium leading-[1.16] tracking-[-0.03em] mb-4 text-hero-foreground max-w-[30ch]">
             {written?.headline ?? briefing.headline}
           </h2>
           <p className="text-sm text-hero-secondary max-w-xl mb-4 leading-relaxed">
@@ -346,7 +356,7 @@ export function OverviewPage({ initialGreeting }: { initialGreeting: string }) {
         {/* Companion card — filled with the evidence it claims */}
         <Card className="p-6 flex flex-col" as="section">
           <p
-            className={`text-[10px] uppercase tracking-[0.15em] font-medium mb-3 ${
+            className={`text-[11px] uppercase tracking-[0.08em] font-medium mb-3 ${
               watch?.tone === 'attention' ? 'text-category-attention' : 'text-text-secondary'
             }`}
           >
@@ -439,7 +449,7 @@ export function OverviewPage({ initialGreeting }: { initialGreeting: string }) {
       {coreSignals.some(s => s.counts.window > 0) && (
         <section>
           <div className="flex items-baseline justify-between gap-3 mb-4">
-            <h2 className="text-[22px] md:text-[24px] font-semibold text-text-primary">
+            <h2 className="text-[20px] md:text-[24px] font-semibold tracking-[-0.03em] text-text-primary">
               Core health signals
             </h2>
             <span className="text-xs text-text-secondary">Latest available reading, with yesterday for comparison</span>
@@ -457,7 +467,7 @@ export function OverviewPage({ initialGreeting }: { initialGreeting: string }) {
       {/* ── D. What changed this week ──────────────── */}
       <section>
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 mb-4">
-          <h2 className="text-[22px] md:text-[24px] font-semibold text-text-primary">
+          <h2 className="text-[20px] md:text-[24px] font-semibold tracking-[-0.03em] text-text-primary">
             What changed this week?
           </h2>
           <span className="text-xs text-text-secondary tnum">{panelWindows}</span>
@@ -484,7 +494,7 @@ export function OverviewPage({ initialGreeting }: { initialGreeting: string }) {
       {/* ── E. Your health story ───────────────────── */}
       <section id="health-story" className="scroll-mt-20">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <h2 className="text-[22px] md:text-[24px] font-semibold text-text-primary">
+          <h2 className="text-[20px] md:text-[24px] font-semibold tracking-[-0.03em] text-text-primary">
             Your health story
           </h2>
           <SegmentedControl
@@ -535,7 +545,7 @@ export function OverviewPage({ initialGreeting }: { initialGreeting: string }) {
           <div className="space-y-4">
             {sideInsights.map(insight => (
               <Card key={insight.metricId} className="p-5 flex flex-col" as="article">
-                <p className="text-[10px] uppercase tracking-[0.1em] font-medium text-text-secondary mb-2">
+                <p className="text-[11px] uppercase tracking-[0.08em] font-medium text-text-secondary mb-2">
                   OBSERVATION
                 </p>
                 <h4 className="text-sm font-semibold text-text-primary mb-1">{insight.title}</h4>
@@ -637,9 +647,12 @@ function SignalCard({
       ? describeChange(metricId, delta, deltaPct, { system: units, comparisonLabel: 'yesterday' })
       : null;
 
+  const accent = CATEGORY_VAR[signalCategory(metricId)];
   return (
-    <Link href={`/metric/${metricId}`} className="block">
-      <Card className="p-5 h-full hover:shadow-sm transition-shadow">
+    <Link href={`/metric/${metricId}`} className="block group">
+      <Card className="relative overflow-hidden p-5 h-full transition-[box-shadow,border-color,transform] group-hover:-translate-y-0.5 group-hover:border-border-strong group-hover:shadow-pop">
+        <span aria-hidden="true" className="absolute inset-x-0 top-0 h-[3px]" style={{ background: accent }} />
+        <span aria-hidden="true" className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-[0.12] blur-2xl" style={{ background: accent }} />
         <div className="flex items-start justify-between gap-2 mb-2">
           <span className="text-xs font-medium text-text-secondary">{label}</span>
           {latest?.key === REFERENCE_KEY ? (
@@ -651,7 +664,7 @@ function SignalCard({
           ) : null}
         </div>
 
-        <div className="text-[32px] md:text-[36px] font-semibold tnum text-text-primary leading-none mb-1">
+        <div className="text-[38px] md:text-[44px] font-semibold tnum tracking-[-0.04em] text-text-primary leading-none mb-2">
           {formatted}
         </div>
 
@@ -671,8 +684,8 @@ function SignalCard({
           </div>
         </div>
 
-        <div className="h-7">
-          <Sparkline data={sparkline} width={160} height={28} />
+        <div aria-hidden="true" className="-mx-1">
+          <Spark values={sparkline} color={accent} height={52} />
         </div>
         <span className="sr-only">
           {label}, last 30 days: {counts.window} observations. Baseline window {counts.baseline} observations.
@@ -716,26 +729,51 @@ function ComparisonRow({
     );
   }
 
+  // Both bars share one scale that starts at zero, so their lengths are in true
+  // proportion and a small change never looks like a large one.
+  const top = Math.max(Math.abs(c.current), Math.abs(c.baseline)) || 1;
+  const curPct = Math.max(2, (Math.abs(c.current) / top) * 100);
+  const basePct = Math.max(2, (Math.abs(c.baseline) / top) * 100);
+  const attention = change.tone === 'attention';
+  const barColor = attention ? 'var(--color-category-attention)' : 'var(--color-accent)';
+
   return (
-    <li className="py-3">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1" title={exactTitle}>
-        <span className="text-sm font-medium text-text-primary w-24 shrink-0">{label}</span>
-        <span className="text-sm tnum text-text-primary">{formatDurationAggregate(metricId, c.current, units)}</span>
-        <span className="text-[11px] text-text-secondary">
-          prior {formatDurationAggregate(metricId, c.baseline, units)}
-        </span>
-        <span className="flex-1" />
-        <span className={`text-xs tnum ${change.tone === 'attention' ? 'text-category-attention' : 'text-text-secondary'}`}>
+    <li className="py-4">
+      <div className="grid grid-cols-1 items-center gap-x-6 gap-y-2 md:grid-cols-[110px_1fr_auto]" title={exactTitle}>
+        <span className="text-[15px] font-medium text-text-primary">{label}</span>
+        <div className="space-y-1.5" aria-hidden="true">
+          <div className="flex items-center gap-3">
+            <div className="h-2.5 rounded-full" style={{ width: `${curPct}%`, background: barColor }} />
+            <span className="text-[13px] font-medium tnum text-text-primary whitespace-nowrap">
+              {formatDurationAggregate(metricId, c.current, units)}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="h-2.5 rounded-full bg-border-strong" style={{ width: `${basePct}%` }} />
+            <span className="text-[12px] tnum text-text-secondary whitespace-nowrap">
+              {formatDurationAggregate(metricId, c.baseline, units)} prior
+            </span>
+          </div>
+        </div>
+        <span className={`inline-flex w-fit items-center rounded-md px-2 py-1 text-xs tnum ring-1 ring-inset ${attention ? 'bg-category-attention/10 text-category-attention ring-category-attention/30' : 'bg-surface-muted text-text-primary ring-border'}`}>
           <ChangeCue direction={change.direction} value={change.value} percent={percent} />
         </span>
       </div>
-      <p className="text-[11px] text-text-secondary tnum mt-0.5">
-        {cmp.lengthLabel} · {cmp.rangeLabel} · {cmp.counts.evaluated} vs {cmp.counts.baseline} observations
-        {cmp.excludedDays.length > 0 ? ' · today excluded, still in progress' : ''}
-        {isDuration
-          ? ` · ${durationAggregateExact(c.current)} vs ${durationAggregateExact(c.baseline)} in the prior window`
-          : ''}
-      </p>
+      <span className="sr-only">
+        {label}: {formatDurationAggregate(metricId, c.current, units)} this period against {formatDurationAggregate(metricId, c.baseline, units)} in the prior period.
+      </span>
+      <details className="mt-2 group">
+        <summary className="cursor-pointer list-none text-[11px] text-text-secondary hover:text-text-primary">
+          <span className="underline decoration-dotted underline-offset-2">How this was compared</span>
+        </summary>
+        <p className="mt-1 text-[11px] text-text-secondary tnum">
+          {cmp.lengthLabel} · {cmp.rangeLabel} · {cmp.counts.evaluated} vs {cmp.counts.baseline} observations
+          {cmp.excludedDays.length > 0 ? ' · today excluded, still in progress' : ''}
+          {isDuration
+            ? ` · ${durationAggregateExact(c.current)} vs ${durationAggregateExact(c.baseline)} in the prior window`
+            : ''}
+        </p>
+      </details>
     </li>
   );
 }
@@ -771,4 +809,12 @@ function ObservationItem({
       </div>
     </li>
   );
+}
+
+/** Which category hue a core signal belongs to. */
+function signalCategory(metricId: string): ArtCategory {
+  if (metricId.includes('sleep')) return 'sleep';
+  if (metricId.includes('heart') || metricId === 'blood_pressure') return 'cardiovascular';
+  if (metricId.includes('step') || metricId.includes('exercise') || metricId.includes('energy')) return 'activity';
+  return 'overview';
 }

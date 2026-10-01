@@ -28,8 +28,11 @@ export function answerFromStoredPayload(payload: StoredAssistantPayload): Analys
   return {
     id: payload.handlerId,
     title: payload.answer.title,
+    analysis: '',
+    summary: [],
     observed: payload.answer.observed,
     interpretation: payload.answer.interpretation,
+    recommendations: payload.answer.recommendations ?? [],
     uncertainty: payload.answer.uncertainty,
     evidence: payload.answer.evidence,
     // Not persisted: chart points are health values. The answer still renders.

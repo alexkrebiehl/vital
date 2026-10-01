@@ -38,8 +38,11 @@ function baseResponse(overrides: Partial<AnalystResponse> = {}): AnalystResponse
     answer: {
       id: 'sleep-1-month',
       title: 'Sleep over the last month',
+      analysis: '',
+      summary: [],
       observed: ['Time asleep averaged 7h 12m across 29 recorded nights.'],
       interpretation: ['The window describes the same period of your record.'],
+      recommendations: [],
       uncertainty: ['Nights without a recording are excluded.'],
       evidence: [
         { metricId: 'sleep_analysis', metricName: 'Sleep', windowLabel: 'Last 30 days', aggregation: 'daily average', sampleCount: '29 nights', href: '/metric/sleep_analysis?range=30d' },
@@ -123,6 +126,7 @@ describe('stored payload', () => {
       ...huge.answer!,
       observed: Array.from({ length: 200 }, () => 'x'.repeat(1000)),
       interpretation: Array.from({ length: 200 }, () => 'y'.repeat(1000)),
+      recommendations: [],
       uncertainty: Array.from({ length: 200 }, () => 'z'.repeat(1000)),
       evidence: Array.from({ length: 100 }, () => ({ metricId: 'sleep_analysis', metricName: 'Sleep', windowLabel: 'Last 30 days', aggregation: 'daily average', sampleCount: '29 nights', href: '/metric/sleep_analysis?range=30d' })),
     };

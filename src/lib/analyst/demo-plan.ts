@@ -30,7 +30,10 @@ export interface DemoPlanResult {
 }
 
 function answer(id: string, title: string, observed: string[], interpretation: string[], uncertainty: string[], followUps: string[]): AnalystAnswer {
-  return { id, title, observed, interpretation, uncertainty, evidence: [], charts: [], followUps, boundaryNote: BOUNDARY_NOTE };
+  return {
+    id, title, analysis: '', observed, interpretation, recommendations: [], summary: [], uncertainty,
+    evidence: [], charts: [], followUps, boundaryNote: BOUNDARY_NOTE,
+  };
 }
 
 const CREATE_RE = /\b(create|build|make|design|generate|start|write|set up)\b.*\b(plan|program|programme|routine|block)\b/;

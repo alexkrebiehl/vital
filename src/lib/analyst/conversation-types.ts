@@ -32,8 +32,17 @@ export interface ConversationSummary {
  */
 export interface StoredAnswer {
   title: string;
+  /** The prose analysis. Optional: older saved turns have none. */
+  analysis?: string;
   observed: string[];
   interpretation: string[];
+  /** Closing takeaways. Optional for the same reason. */
+  summary?: string[];
+  /**
+   * What to do next. Optional: turns saved before this field existed simply have
+   * none, and the view renders the section empty rather than inventing advice.
+   */
+  recommendations?: string[];
   uncertainty: string[];
   evidence: AnalystEvidence[];
   followUps: string[];

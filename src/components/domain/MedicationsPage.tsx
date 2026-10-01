@@ -27,7 +27,7 @@ import { Badge, Card, DataStateNote, EmptyState, ErrorState, LoadingState } from
 import { MedicationDoseChart } from '@/components/charts';
 import { useDatasetMeta } from '@/components/data/DatasetProvider';
 import { useUnits } from '@/components/ui/UnitsProvider';
-import { formatDayKeyLong } from '@/lib/analytics/windows';
+import { formatDayKeyLong, addDays } from '@/lib/analytics/windows';
 import { fetchMedications, type MedicationReadResponse } from '@/lib/medications/client-data';
 import {
   MEDICATIONS_LOOKBACK_DAYS,
@@ -193,7 +193,7 @@ function MedicationsContent({
           </SectionTitle>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {groups.map(group => (
-              <MedicationGroupCard key={group.key} group={group} />
+              <MedicationGroupCard key={group.key} group={group} referenceKey={referenceKey} />
             ))}
           </div>
         </section>
@@ -305,26 +305,70 @@ export function StatusBadge({ status }: { status: MedicationStatus }) {
   );
 }
 
-function MedicationGroupCard({ group }: { group: MedicationGroup }) {
+function MedicationGroupCard({ group, referenceKey }: { group: MedicationGroup; referenceKey: string }) {
   const words = statusSummaryWords(group.records);
   return (
-    <Card className="p-4 flex flex-col">
-      <div className="flex items-start justify-between gap-2 mb-1">
-        <span className="text-sm font-medium text-text-primary">{group.key}</span>
-        <Badge variant="default" className="text-[10px] shrink-0">
+    <Card className="flex flex-col p-5">
+      <div className="mb-3 flex items-start justify-between gap-2">
+        <span className="text-[15px] font-semibold tracking-[-0.01em] text-text-primary">{group.key}</span>
+        <Badge variant="default" className="shrink-0 text-[10px]">
           {group.records.length} record{group.records.length === 1 ? '' : 's'}
         </Badge>
       </div>
 
-      <p className="text-[11px] text-text-secondary">
-        {group.days.length === 0
-          ? 'No dated record in this window'
-          : `Recorded on ${group.days.length} day${group.days.length === 1 ? '' : 's'} · last ${formatDayKeyLong(group.lastDay!)}`}
-      </p>
-      <p className="text-[11px] text-text-secondary mt-0.5">
-        {group.skipped === 0 ? 'No entry was recorded as skipped' : `${group.skipped} recorded as skipped`}
-      </p>
-      {words.length > 0 && <p className="text-[11px] text-text-secondary mt-0.5">{words.join(' · ')}</p>}
+      <DoseStrip records={group.records} referenceKey={referenceKey} days={MEDICATIONS_LOOKBACK_DAYS} />
+
+      <div className="mt-3 space-y-0.5 text-[11px] text-text-secondary">
+        <p>
+          {group.days.length === 0
+            ? 'No dated record in this window'
+            : `Recorded on ${group.days.length} day${group.days.length === 1 ? '' : 's'} · last ${formatDayKeyLong(group.lastDay!)}`}
+        </p>
+        <p>{group.skipped === 0 ? 'No entry was recorded as skipped' : `${group.skipped} recorded as skipped`}</p>
+        {words.length > 0 && <p>{words.join(' · ')}</p>}
+      </div>
     </Card>
+  );
+}
+
+/**
+ * One cell per day of the window: filled when a dose was logged, amber when any
+ * record that day is marked skipped, hollow when nothing was logged. A hollow
+ * cell means the source holds no record for that day, not that a dose was
+ * missed, and the legend says so. The same information is given in words in the
+ * card below and in the accessible label.
+ */
+function DoseStrip({ records, referenceKey, days }: { records: MedicationRecord[]; referenceKey: string; days: number }) {
+  const byDay = new Map<string, { taken: number; skipped: number; other: number }>();
+  for (const r of records) {
+    if (!r.dayKey) continue;
+    const c = byDay.get(r.dayKey) ?? { taken: 0, skipped: 0, other: 0 };
+    if (r.status === 'Taken') c.taken += 1; else if (r.status === 'Skipped') c.skipped += 1; else c.other += 1;
+    byDay.set(r.dayKey, c);
+  }
+  const cells = Array.from({ length: days }, (_, i) => addDays(referenceKey, i - (days - 1)));
+  const recorded = cells.filter(k => byDay.has(k)).length;
+  return (
+    <div role="img" aria-label={`Recorded on ${recorded} of the last ${days} days. Hollow cells are days with no record.`}>
+      <div className="flex gap-[3px]">
+        {cells.map(k => {
+          const c = byDay.get(k);
+          const style = !c
+            ? 'border border-border-strong bg-transparent'
+            : c.skipped > 0
+              ? 'bg-category-attention'
+              : 'bg-primary';
+          return (
+            <span key={k} title={`${formatDayKeyLong(k)}: ${!c ? 'no record' : c.skipped > 0 ? 'a dose recorded as skipped' : 'recorded'}`}
+              className={`h-7 min-w-0 flex-1 rounded-[4px] ${style}`} />
+          );
+        })}
+      </div>
+      <div className="mt-1.5 flex justify-between text-[10px] text-text-secondary">
+        <span>{formatDayKeyLong(cells[0])}</span>
+        <span>hollow = no record</span>
+        <span>{formatDayKeyLong(cells[cells.length - 1])}</span>
+      </div>
+    </div>
   );
 }

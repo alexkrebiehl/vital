@@ -2,8 +2,8 @@
 //
 // The analyst's answer is a JSON object, so the text that streams in is JSON
 // cut off at an arbitrary point. Showing it raw defeats streaming; this reads
-// whatever is complete so far — the title and the section lines, the last one
-// still growing — so the reader sees the answer take shape.
+// whatever is complete so far — the title, the analysis and the section lines,
+// the last one still growing — so the reader sees the answer take shape.
 //
 // This is display only. The streamed text is never trusted as the answer: the
 // finished reply still goes through parseAnalystReply and the grounding audit
@@ -14,8 +14,9 @@
 /** What of the answer can be shown before it is complete. */
 export interface PartialAnswer {
   title: string;
-  observed: string[];
-  interpretation: string[];
+  analysis: string;
+  recommendations: string[];
+  summary: string[];
   uncertainty: string[];
 }
 
@@ -180,8 +181,9 @@ export function partialAnswer(text: string): PartialAnswer | null {
   const source = raw as Record<string, unknown>;
   return {
     title: typeof source.title === 'string' ? source.title : '',
-    observed: lines(source.observed),
-    interpretation: lines(source.interpretation),
+    analysis: typeof source.analysis === 'string' ? source.analysis : '',
+    recommendations: lines(source.recommendations),
+    summary: lines(source.summary),
     uncertainty: lines(source.uncertainty),
   };
 }

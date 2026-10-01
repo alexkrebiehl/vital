@@ -209,7 +209,7 @@ function CommandPaletteModal({ onClose }: { onClose: () => void }) {
                     {item.description}
                   </div>
                 </div>
-                <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                <span className={`text-[11px] uppercase tracking-[0.06em] font-medium px-1.5 py-0.5 rounded ${
                   item.type === 'metric' ? 'bg-surface-muted' :
                   item.type === 'query' ? 'bg-accent-tint text-primary' :
                   item.type === 'lab' ? 'bg-accent-tint text-primary' :

@@ -2,8 +2,9 @@
 
 // ── Analyst answer (SPEC §8) ────────────────────────────
 //
-// One analyst turn as the reader sees it: the three sections, charts, evidence
-// cards, grounding audit, plan change and follow-ups — or, with no answer, why.
+// One analyst turn as the reader sees it: the prose analysis and the sections
+// after it, charts, evidence cards, grounding audit, plan change and follow-ups
+// — or, with no answer, why.
 // Shared by the AI Analyst page and the "Discuss with analyst" dialog.
 
 import Link from 'next/link';
@@ -102,20 +103,7 @@ export function StreamingAnswer({ text }: { text: string }) {
       ) : (
         <Skeleton height={14} width="40%" />
       )}
-      {ANSWER_SECTIONS.map(section => {
-        const lines = section.pick(partial);
-        if (lines.length === 0) return null;
-        return (
-          <section key={section.heading}>
-            <h3 className="text-[10px] uppercase tracking-wider text-text-secondary mb-1.5">{section.heading}</h3>
-            <ul className="list-disc pl-5 space-y-1.5">
-              {lines.map((line, i) => (
-                <li key={i} className="text-sm text-text-primary leading-relaxed break-words">{line}</li>
-              ))}
-            </ul>
-          </section>
-        );
-      })}
+      <AnswerText answer={partial} />
     </>
   ) : text.trimStart().startsWith('`') ? (
     // An opening code fence: the JSON has not started yet.
@@ -235,20 +223,7 @@ export function AnswerView({
           </p>
         )}
 
-        {ANSWER_SECTIONS.map(section => {
-          const lines = section.pick(answer);
-          if (lines.length === 0) return null;
-          return (
-            <section key={section.heading}>
-              <h3 className="text-[10px] uppercase tracking-wider text-text-secondary mb-1.5">{section.heading}</h3>
-              <ul className="list-disc pl-5 space-y-1.5">
-                {lines.map((line, i) => (
-                  <li key={i} className="text-sm text-text-primary leading-relaxed">{line}</li>
-                ))}
-              </ul>
-            </section>
-          );
-        })}
+        <AnswerText answer={answer} />
 
         {answer.charts.length > 0 && (
           <div className="space-y-3">
@@ -266,7 +241,7 @@ export function AnswerView({
 
         {answer.evidence.length > 0 && (
           <div className="space-y-2">
-            <h3 className="text-[10px] uppercase tracking-wider text-text-secondary">Evidence</h3>
+            <h3 className="text-[11px] uppercase tracking-[0.06em] font-medium text-text-secondary">Evidence</h3>
             {answer.evidence.map((ev, i) => (
               <div key={`${ev.metricId}-${i}`} className="border border-border rounded-control p-3">
                 <div className="flex flex-wrap items-baseline gap-2 mb-1">
@@ -326,11 +301,122 @@ const STATUS_LABEL: Record<string, string> = {
   ok: 'Answer',
 };
 
-const ANSWER_SECTIONS: { heading: string; pick: (a: Pick<AnalystAnswer, 'observed' | 'interpretation' | 'uncertainty'>) => string[] }[] = [
-  { heading: '1 · Observed measurements', pick: a => a.observed },
-  { heading: '2 · Possible interpretation', pick: a => a.interpretation },
-  { heading: '3 · Missing context and uncertainty', pick: a => a.uncertainty },
+/** The parts of an answer drawn as text, whole or still streaming. */
+type AnswerTextParts = Pick<AnalystAnswer, 'analysis' | 'recommendations' | 'summary' | 'uncertainty'> &
+  Partial<Pick<AnalystAnswer, 'observed' | 'interpretation'>>;
+
+/**
+ * The prose analysis, then the sections that follow it.
+ *
+ * An answer with no analysis — a demo handler's, or one stored before answers
+ * had prose — reads its observed and interpretation lines as the body instead,
+ * so it is not left showing only its caveats.
+ */
+function AnswerText({ answer }: { answer: AnswerTextParts }) {
+  const paragraphs = answer.analysis.trim()
+    ? answer.analysis
+        .split(/\n{2,}/)
+        .map(paragraph => paragraph.trim())
+        .filter(paragraph => paragraph.length > 0)
+    : [...(answer.observed ?? []), ...(answer.interpretation ?? [])];
+  return (
+    <>
+      {paragraphs.length > 0 && (
+        <section className="space-y-3">
+          <h3 className="text-[11px] uppercase tracking-[0.06em] font-medium text-text-secondary">Analysis</h3>
+          <div className="space-y-3">
+            {paragraphs.map((paragraph, i) => (
+              <p key={i} className="text-sm text-text-primary leading-relaxed break-words">
+                {withLinks(paragraph, `p${i}`)}
+              </p>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {ANSWER_SECTIONS.map(section => {
+        const lines = section.pick(answer);
+        if (lines.length === 0) return null;
+        return (
+          <section key={section.heading}>
+            <h3 className="text-[11px] uppercase tracking-[0.06em] font-medium text-text-secondary mb-1.5">{section.heading}</h3>
+            {lines.length === 1 ? (
+              // One line is a statement, not a list: draw it as text so the
+              // answer reads as prose with a paragraph, not as a bulleted page.
+              <p className="text-sm text-text-primary leading-relaxed break-words">
+                {withLinks(lines[0]!, `${section.heading}-0`)}
+              </p>
+            ) : section.prose ? (
+              // A section declared as prose is joined into one paragraph.
+              <p className="text-sm text-text-primary leading-relaxed break-words">
+                {withLinks(lines.join(' '), section.heading)}
+              </p>
+            ) : (
+              <ul className="list-disc pl-5 space-y-1.5">
+                {lines.map((line, i) => (
+                  <li key={i} className="text-sm text-text-primary leading-relaxed break-words">
+                    {withLinks(line, `${section.heading}-${i}`)}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        );
+      })}
+    </>
+  );
+}
+
+/**
+ * The sections that follow the prose.
+ *
+ * There is deliberately NO "measured" list: the values are already on their own
+ * pages and the analysis links to them, so restating them here would be the
+ * machine dump the owner objected to. The evidence cards below the answer carry
+ * the links to the underlying charts and records.
+ *
+ * `prose: true` joins the entries into ONE paragraph instead of a bullet list —
+ * uncertainty is a statement about the answer, so it reads as text; the next steps
+ * are genuinely a list of actions, so they stay a list.
+ */
+const ANSWER_SECTIONS: { heading: string; pick: (a: AnswerTextParts) => string[]; prose?: boolean }[] = [
+  { heading: 'What to do next', pick: a => a.recommendations },
+  { heading: 'Summary', pick: a => a.summary, prose: true },
+  { heading: 'Missing context and uncertainty', pick: a => a.uncertainty, prose: true },
 ];
+
+/**
+ * Render a line that may carry inline link tokens — `[haemoglobin](/metric/hemoglobin)`.
+ *
+ * The model is asked to POINT at a measurement rather than recite it, so the
+ * answer's prose names the metric and the reader clicks through to the value. Only
+ * same-origin routes are turned into links: anything else is shown as plain text,
+ * because the token comes from model output.
+ */
+const LINK_TOKEN = /\[([^\]]+)\]\((\/[^)\s]*)\)/g;
+
+function withLinks(text: string, keyPrefix: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  let last = 0;
+  let match: RegExpExecArray | null;
+  LINK_TOKEN.lastIndex = 0;
+  while ((match = LINK_TOKEN.exec(text)) !== null) {
+    if (match.index > last) nodes.push(text.slice(last, match.index));
+    const [, label, href] = match;
+    nodes.push(
+      <Link
+        key={`${keyPrefix}-${match.index}`}
+        href={href}
+        className="text-accent underline decoration-dotted underline-offset-2 hover:decoration-solid"
+      >
+        {label}
+      </Link>
+    );
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) nodes.push(text.slice(last));
+  return nodes;
+}
 
 function EvRow({ label, value }: { label: string; value: string }) {
   return (

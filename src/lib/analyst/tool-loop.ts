@@ -40,7 +40,7 @@ export const MAX_TOOL_ROUNDS = 6;
 export const MAX_TOOL_CALLS = 12;
 
 export const REPAIR_INSTRUCTION =
-  'Your last reply was not the JSON object the instructions require, so it cannot be shown. Reply again with the same answer as one JSON object in the required shape ("title", "observed", "interpretation", "uncertainty", "evidence", "followUps") and nothing outside it. Do not call tools.';
+  'Your last reply was not the JSON object the instructions require, so it cannot be shown. Reply again with the same answer as one JSON object in the required shape ("title", "analysis", "recommendations", "summary", "uncertainty", "evidence", "followUps") and nothing outside it. Do not call tools.';
 
 export interface ToolLoopResult {
   text: string;

@@ -296,14 +296,14 @@ function AnalyteHistory({
       <section aria-label="Latest observation">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Card className="p-4">
-            <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-1">Status</div>
+            <div className="text-[11px] uppercase tracking-[0.06em] font-medium text-text-secondary mb-1">Status</div>
             <LabStatusBadge label={latest.statusLabel} tone={latest.tone} />
             <div className="text-[10px] text-text-secondary mt-1">
               {points.length} observation{points.length === 1 ? '' : 's'} in this range
             </div>
           </Card>
           <Card className="p-4">
-            <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-1">Change</div>
+            <div className="text-[11px] uppercase tracking-[0.06em] font-medium text-text-secondary mb-1">Change</div>
             <div className="text-sm font-medium tnum text-text-primary">
               {change === null
                 ? 'no observations'

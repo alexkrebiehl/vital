@@ -5,6 +5,7 @@
 // Every recorded session, filtered and sorted, with totals, comparisons and
 // frequency. The Workouts page keeps the routine and a short summary.
 
+import { MixBar, type MixSlice } from '@/components/art/MixBar';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { Dumbbell, Info, ArrowUpDown } from 'lucide-react';
@@ -164,7 +165,7 @@ export function AllWorkoutsPage() {
       {filtered.totals.sessions > 0 && (
         <section>
           <SectionTitle hint={`${filtered.views.length} sessions in view`}>Recorded totals</SectionTitle>
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+          <Card className="grid grid-cols-2 divide-border md:grid-cols-3 md:divide-x xl:grid-cols-5">
             <TotalCard label="Sessions" value={String(filtered.totals.sessions)} sub={`${filtered.window.label.toLowerCase()}`} />
             <TotalCard
               label="Time recorded"
@@ -191,7 +192,15 @@ export function AllWorkoutsPage() {
               value={String(filtered.views.filter(v => v.hasHeartRate).length)}
               sub={`of ${filtered.views.length} sessions recorded heart rate`}
             />
-          </div>
+          </Card>
+          <Card className="mt-4 p-6">
+            <h3 className="mb-1 text-[15px] font-semibold text-text-primary">Where the time went</h3>
+            <p className="mb-5 text-sm text-text-secondary">Recorded workout time by activity, for the sessions in view.</p>
+            <MixBar
+              summary={`Workout time by activity across ${filtered.views.length} sessions`}
+              slices={mixSlices(filtered.views)}
+            />
+          </Card>
           <div className="mt-3">
             <DataStateNote>
               Aggregate workout time is shown in hours:minutes; the exact minute totals are in each
@@ -436,14 +445,31 @@ function FilterChip({ active, onClick, label }: { active: boolean; onClick: () =
 
 export function TotalCard({ label, value, sub, title }: { label: string; value: string; sub: string; title?: string }) {
   return (
-    <Card className="p-4">
-      <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-1">{label}</div>
-      <div className="text-xl md:text-2xl font-semibold tnum text-text-primary leading-none mb-1" title={title}>
+    <div className="p-5">
+      <div className="mb-2 text-[12px] font-medium text-text-secondary">{label}</div>
+      <div className="mb-1.5 text-[26px] font-semibold leading-none tnum tracking-[-0.03em] text-text-primary" title={title}>
         {value}
       </div>
-      <div className="text-[10px] text-text-secondary">{sub}</div>
-    </Card>
+      <div className="text-[11px] text-text-secondary">{sub}</div>
+    </div>
   );
+}
+
+function mixSlices(views: WorkoutView[]): MixSlice[] {
+  const byType = new Map<string, { minutes: number; n: number }>();
+  for (const v of views) {
+    if (!(v.duration_minutes > 0)) continue;
+    const cur = byType.get(v.workout_type) ?? { minutes: 0, n: 0 };
+    cur.minutes += v.duration_minutes;
+    cur.n += 1;
+    byType.set(v.workout_type, cur);
+  }
+  return [...byType.entries()].map(([label, t]) => ({
+    label,
+    value: t.minutes,
+    display: formatDurationHm(t.minutes),
+    detail: `${t.n} ${t.n === 1 ? 'session' : 'sessions'}`,
+  }));
 }
 
 function WorkoutDetail({

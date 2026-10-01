@@ -189,7 +189,12 @@ export function ConversationSelector({
                       >
                         <span className="block text-xs text-text-primary truncate">{conversation.title}</span>
                         <span className="block text-[10px] text-text-secondary truncate tnum">
-                          {conversation.messageCount} {conversation.messageCount === 1 ? 'turn' : 'turns'} · {formatWhen(conversation.updatedAt, timezone)}
+                          {conversation.messageCount} {conversation.messageCount === 1 ? 'turn' : 'turns'} · {formatWhen(conversation.createdAt, timezone)}
+                          {/* When a turn was added after the conversation was
+                              started, say so: the date shown is when it was
+                              ASKED, so a later turn would otherwise look wrong. */}
+                          {formatWhen(conversation.updatedAt, timezone) !== formatWhen(conversation.createdAt, timezone) &&
+                            ` · last active ${formatWhen(conversation.updatedAt, timezone)}`}
                         </span>
                       </button>
                       <button

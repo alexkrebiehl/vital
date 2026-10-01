@@ -22,9 +22,12 @@ function answerFrom(text: string) {
 function baseFields(extra: Record<string, unknown> = {}) {
   return {
     title: 'Sleep across the last 30 days',
+    analysis: '',
+    summary: [],
     observed: ['Time asleep averaged 7h 15m in the last 30 days.'],
     interpretation: ['The window is short, so a single week can shift the average.'],
-    uncertainty: ['Nights without a recording are excluded.'],
+    recommendations: [],
+      uncertainty: ['Nights without a recording are excluded.'],
     evidence: [
       { metricId: 'sleep_analysis', windowLabel: 'Aug 19 → Sep 17', aggregation: 'daily average', sampleCount: '27 nights' },
     ],
@@ -103,6 +106,8 @@ describe('reply validation and repair (SPEC §8)', () => {
       JSON.stringify(
         baseFields({
           title: 'x'.repeat(500),
+          analysis: '',
+          summary: [],
           observed: Array.from({ length: 20 }, (_, i) => `line ${i}`),
           followUps: Array.from({ length: 20 }, (_, i) => `q${i}`),
         })
@@ -115,14 +120,17 @@ describe('reply validation and repair (SPEC §8)', () => {
   });
 
   it('drops empty sections and refuses a reply with no content at all', () => {
-    const partial = answerFrom(JSON.stringify({ title: 't', observed: ['a'], interpretation: [], uncertainty: [] }));
+    const partial = answerFrom(JSON.stringify({ title: 't', observed: ['a'], interpretation: [], recommendations: [],
+      uncertainty: [] }));
     expect(partial.ok).toBe(true);
     expect(partial.answer!.interpretation).toEqual([]);
 
-    const empty = answerFrom(JSON.stringify({ title: 't', observed: [], interpretation: [], uncertainty: [] }));
+    const empty = answerFrom(JSON.stringify({ title: 't', observed: [], interpretation: [], recommendations: [],
+      uncertainty: [] }));
     expect(empty.ok).toBe(false);
     expect(empty.answer).toBeNull();
-    expect(empty.reason).toContain('no observed');
+    expect(empty.reason).toContain('no analysis');
+    expect(empty.reason).toContain('observed');
   });
 
   it('fails honestly when the reply is not JSON', () => {
@@ -189,8 +197,11 @@ describe('grounding check (SPEC §8)', () => {
     const answer: AnalystAnswer = {
       id: 'model',
       title: 't',
+      analysis: '',
+      summary: [],
       observed: ['Time asleep averaged 7h 42m.'],
       interpretation: [],
+      recommendations: [],
       uncertainty: [],
       evidence: [],
       charts: [],
@@ -215,8 +226,11 @@ describe('grounding check (SPEC §8)', () => {
     const answer: AnalystAnswer = {
       id: 'model',
       title: 't',
+      analysis: '',
+      summary: [],
       observed: [`The window runs from ${start} to ${sleepBundle.summaries[0].window.endKey}.`],
       interpretation: [],
+      recommendations: [],
       uncertainty: [],
       evidence: [],
       charts: [],
@@ -229,7 +243,8 @@ describe('grounding check (SPEC §8)', () => {
 
   it('examines every numeric token in observed and interpretation', () => {
     const answer = answerFrom(
-      JSON.stringify(baseFields({ observed: ['1 thing'], interpretation: ['2 other things'], uncertainty: ['9999 ignored'] }))
+      JSON.stringify(baseFields({ observed: ['1 thing'], interpretation: ['2 other things'], recommendations: [],
+      uncertainty: ['9999 ignored'] }))
     ).answer as AnalystAnswer;
     const grounding = checkGrounding(answer, sleepBundle);
     // Uncertainty is not audited (it usually describes what is missing).
@@ -274,8 +289,11 @@ describe('grounding formatted citations (SPEC §8)', () => {
     const answer: AnalystAnswer = {
       id: 'model',
       title: 't',
+      analysis: '',
+      summary: [],
       observed: [`Steps totalled ${steps.current} across ${steps.window.range}, against ${steps.baseline} in the window before.`],
       interpretation: [],
+      recommendations: [],
       uncertainty: [],
       evidence: [],
       charts: [],
@@ -296,8 +314,11 @@ describe('grounding formatted citations (SPEC §8)', () => {
     const answer: AnalystAnswer = {
       id: 'model',
       title: 't',
+      analysis: '',
+      summary: [],
       observed: [`Time asleep averaged ≈ ${display.mean.replace(' ', '')} in the window.`],
       interpretation: [],
+      recommendations: [],
       uncertainty: [],
       evidence: [],
       charts: [],
@@ -336,8 +357,11 @@ describe('grounding formatted citations (SPEC §8)', () => {
     const answer: AnalystAnswer = {
       id: 'model',
       title: 't',
+      analysis: '',
+      summary: [],
       observed: ['Time asleep averaged 7h 32m in the last 30 days.', 'The shortest night was 5h 12m.'],
       interpretation: ['That is 2h 20m more than 6h 4m, a change of 12.5% across 27 nights.'],
+      recommendations: [],
       uncertainty: [],
       evidence: [],
       charts: [],

@@ -32,11 +32,20 @@ const INSERT_CONVERSATION = `
   RETURNING ${CONVERSATION_COLUMNS}
 `;
 
+/**
+ * The conversation list, newest conversation FIRST.
+ *
+ * Ordered by `created_at`, not `updated_at`: a conversation that was asked earlier
+ * but received a turn today would otherwise jump above one asked since, so the
+ * conversation you actually just started is not at the top. The list shows the
+ * created date for the same reason, and states the last-active time beside it when
+ * the two differ.
+ */
 const SELECT_CONVERSATIONS = `
   SELECT ${CONVERSATION_COLUMNS}
     FROM analyst_conversations
    WHERE archived_at IS NULL
-   ORDER BY updated_at DESC, id DESC
+   ORDER BY created_at DESC, id DESC
    LIMIT $1
 `;
 

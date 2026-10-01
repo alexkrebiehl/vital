@@ -47,7 +47,7 @@ function WorkoutsSummary() {
         <span id="recent-workouts-title">Recent workouts</span>
       </SectionTitle>
       {totals.sessions > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="grid grid-cols-1 divide-y divide-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           <TotalCard label="Sessions" value={String(totals.sessions)} sub={window.label.toLowerCase()} />
           <TotalCard
             label="Time recorded"
@@ -56,7 +56,7 @@ function WorkoutsSummary() {
             title={`${Math.round(totals.minutes)} min recorded in total`}
           />
           <TotalCard label="Last session" value={last.workout_type} sub={formatDayKeyLong(last.key)} />
-        </div>
+        </Card>
       ) : (
         <Card className="p-4">
           <DataStateNote>

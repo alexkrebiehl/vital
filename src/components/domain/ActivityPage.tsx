@@ -18,6 +18,7 @@ import {
   type WorkoutView,
 } from '@/lib/analytics';
 import { formatDurationHm } from '@/lib/metrics/format';
+import { HeroFigure } from '@/components/art/HeroFigure';
 import { Card, DataStateNote } from '@/components/ui/primitives';
 import { MetricChart } from '@/components/charts';
 import { useUnits } from '@/components/ui/UnitsProvider';
@@ -63,6 +64,7 @@ export function ActivityPage() {
     <div className="space-y-8">
       <DomainHeader
         title="Activity"
+        aside={<HeroFigure metricId="step_count" category="activity" days={30} />}
         subtitle={`Movement, exercise and energy across the last ${DAYS} days ending ${formatDayKeyLong(REFERENCE_KEY)}. Today is still in progress, so it is never compared with a complete day.`}
       />
 

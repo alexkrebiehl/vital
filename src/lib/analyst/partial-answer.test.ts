@@ -3,8 +3,9 @@ import { parsePartialJson, partialAnswer } from './partial-answer';
 
 const FULL = JSON.stringify({
   title: 'Routine is on track',
-  observed: ['Adherence is 8 of 8 sessions.', 'Decline push-up reached 12/12/11 ("top of range").'],
-  interpretation: ['Ready to progress.'],
+  analysis: 'Adherence is 8 of 8 sessions.\n\nDecline push-up reached 12/12/11 ("top of range").',
+  recommendations: ['Progress to the next stage.'],
+  summary: ['Ready to progress.'],
   uncertainty: ['Form is not recorded.'],
   evidence: [{ metricId: 'x', sampleCount: 3 }],
   followUps: ['What next?'],
@@ -16,30 +17,34 @@ describe('partial answer while streaming', () => {
     for (let n = 0; n <= FULL.length; n++) {
       const partial = partialAnswer(FULL.slice(0, n));
       if (n === 0) expect(partial).toBeNull();
-      const lines = partial ? partial.observed.length + partial.interpretation.length + partial.uncertainty.length : 0;
+      const lines = partial
+        ? partial.analysis.length + partial.recommendations.length + partial.summary.length + partial.uncertainty.length
+        : 0;
       expect(lines).toBeGreaterThanOrEqual(lastLines);
       lastLines = lines;
     }
     expect(partialAnswer(FULL)).toEqual({
       title: 'Routine is on track',
-      observed: ['Adherence is 8 of 8 sessions.', 'Decline push-up reached 12/12/11 ("top of range").'],
-      interpretation: ['Ready to progress.'],
+      analysis: 'Adherence is 8 of 8 sessions.\n\nDecline push-up reached 12/12/11 ("top of range").',
+      recommendations: ['Progress to the next stage.'],
+      summary: ['Ready to progress.'],
       uncertainty: ['Form is not recorded.'],
     });
   });
 
   it('shows a line as it grows, and drops a cut-off escape', () => {
-    const cut = '{"title":"Routine","observed":["Adherence is 8 of';
-    expect(partialAnswer(cut)).toMatchObject({ title: 'Routine', observed: ['Adherence is 8 of'] });
+    const cut = '{"title":"Routine","recommendations":["Repeat the stage for';
+    expect(partialAnswer(cut)).toMatchObject({ title: 'Routine', recommendations: ['Repeat the stage for'] });
+    expect(partialAnswer('{"title":"Routine","analysis":"Adherence is 8 of')).toMatchObject({ analysis: 'Adherence is 8 of' });
     expect(partialAnswer('{"title":"Say \\"hi\\')?.title).toBe('Say "hi');
     expect(partialAnswer('{"title":"caf\\u00e')?.title).toBe('caf');
     expect(partialAnswer('{"title":"caf\\u00e9"')?.title).toBe('café');
   });
 
   it('skips a code fence or preamble before the object, and leaves prose alone', () => {
-    expect(partialAnswer('```json\n{"title":"T","observed":"one line"')).toMatchObject({ title: 'T', observed: ['one line'] });
+    expect(partialAnswer('```json\n{"title":"T","summary":"one line"')).toMatchObject({ title: 'T', summary: ['one line'] });
     expect(partialAnswer('Let me check your routine first.')).toBeNull();
-    expect(partialAnswer('{"ti')).toEqual({ title: '', observed: [], interpretation: [], uncertainty: [] });
+    expect(partialAnswer('{"ti')).toEqual({ title: '', analysis: '', recommendations: [], summary: [], uncertainty: [] });
   });
 
   it('parses partial literals, numbers and nesting', () => {
