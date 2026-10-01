@@ -6,9 +6,8 @@
 // frequency. The Workouts page keeps the routine and a short summary.
 
 import { MixBar, type MixSlice } from '@/components/art/MixBar';
-import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
-import { Dumbbell, Info, ArrowUpDown } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Dumbbell, Info } from 'lucide-react';
 import { REFERENCE_KEY } from '@/lib/adapters/dataset';
 import { formatDurationHm, formatMetricWithUnit } from '@/lib/metrics/format';
 import {
@@ -24,20 +23,13 @@ import {
   type WorkoutView,
 } from '@/lib/analytics';
 import {
-  Card, Badge, Button, DataStateNote, Dialog, EmptyState, InsufficientDataState, Select,
+  Card, Button, DataStateNote, Dialog, EmptyState, InsufficientDataState, Select,
 } from '@/components/ui/primitives';
 import { MetricChart } from '@/components/charts';
 import { DomainHeader, SectionTitle } from './DomainShared';
 import { useUnits } from '@/components/ui/UnitsProvider';
+import { RangeControl } from '@/components/ui/RangeControl';
 import { SessionExercises } from '@/components/routine/SessionExercises';
-import { matchSession } from '@/lib/workout-sources/match';
-
-const RANGE_OPTIONS = [
-  { value: '30', label: 'Last 30 days' },
-  { value: '90', label: 'Last 90 days' },
-  { value: '180', label: 'Last 180 days' },
-  { value: '365', label: 'All recorded (365 days)' },
-];
 
 const SORT_OPTIONS: { value: WorkoutSort; label: string }[] = [
   { value: 'date-desc', label: 'Newest first' },
@@ -47,34 +39,6 @@ const SORT_OPTIONS: { value: WorkoutSort; label: string }[] = [
   { value: 'distance', label: 'Longest distance' },
 ];
 
-interface SourceSession {
-  startTime: string;
-  endTime: string;
-  sourceName: string;
-}
-
-/** When each workout-source session happened, so a workout can say a source (Hevy) also logged it. Empty until loaded, or if it fails. */
-function useSourceSessions(): SourceSession[] {
-  const [sessions, setSessions] = useState<SourceSession[]>([]);
-  useEffect(() => {
-    let cancelled = false;
-    fetch('/api/workout-sources/sessions', { cache: 'no-store' })
-      .then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((body: { sessions: SourceSession[] }) => !cancelled && setSessions(body.sessions))
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-  return sessions;
-}
-
-/** "Health Auto Export + Hevy" when a workout source logged the same session. */
-function sourceLabel(view: WorkoutView, alsoFrom: Map<string, string>): string {
-  const also = alsoFrom.get(view.id);
-  return also && also !== view.source ? `${view.source} + ${also}` : view.source;
-}
-
 export function AllWorkoutsPage() {
   const { units } = useUnits();
   const [type, setType] = useState('all');
@@ -83,15 +47,6 @@ export function AllWorkoutsPage() {
   const [selected, setSelected] = useState<WorkoutView | null>(null);
 
   const views = useMemo(() => workoutViews(), []);
-  const sourceSessions = useSourceSessions();
-  const alsoFrom = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const v of views) {
-      const hit = matchSession(v, sourceSessions);
-      if (hit) m.set(v.id, hit.sourceName);
-    }
-    return m;
-  }, [views, sourceSessions]);
   const filtered = useMemo(
     () => filterWorkouts({ type, days: Number(days), sort }, views),
     [type, days, sort, views]
@@ -142,12 +97,7 @@ export function AllWorkoutsPage() {
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-3">
             <span className="text-xs font-medium text-text-secondary">Date range</span>
-            <Select
-              value={days}
-              onChange={setDays}
-              options={RANGE_OPTIONS}
-              aria-label="Workout date range"
-            />
+            <RangeControl value={days} onChange={setDays} ariaLabel="Workout date range" />
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs font-medium text-text-secondary">Sort</span>
@@ -223,7 +173,7 @@ export function AllWorkoutsPage() {
                   ? `${filtered.window.label} contains no recorded workout. A window with no session means nothing was logged, which is not the same as no activity.`
                   : `${filtered.inWindowCount} sessions are recorded in ${filtered.window.label.toLowerCase()}, but none of type ${type}. Widen the activity filter or the date range.`
               }
-              action={<Button variant="secondary" onClick={() => { setType('all'); setDays('180'); }}>Reset filters</Button>}
+              action={<Button variant="secondary" onClick={() => { setType('all'); setDays('30'); }}>Reset filters</Button>}
             />
           </Card>
         ) : (
@@ -252,7 +202,6 @@ export function AllWorkoutsPage() {
                       <span className="text-[11px] text-text-secondary">no heart rate</span>
                     )}
                     <span className="flex-1" />
-                    <span className="text-[11px] text-text-secondary">{sourceLabel(w, alsoFrom)}</span>
                   </button>
                 </li>
               ))}
@@ -400,25 +349,9 @@ export function AllWorkoutsPage() {
         </section>
       )}
 
-      <Card className="p-5">
-        <div className="flex items-start gap-2">
-          <Info size={14} className="mt-0.5 shrink-0 text-text-secondary" aria-hidden="true" />
-          <div className="text-xs text-text-secondary leading-relaxed space-y-1">
-            <p>
-              <span className="text-text-primary font-medium">What is not here.</span> The dataset contains no GPS
-              traces, routes, maps, elevation, cadence or heart-rate series within a session, so none is drawn or
-              invented. Heart rate is a per-session average and maximum only, and {views.length - views.filter(v => v.hasHeartRate).length} of {views.length} recorded sessions have no heart rate at all.
-            </p>
-            <Link href="/activity" className="inline-flex items-center gap-1 text-primary hover:underline min-h-[24px]">
-              See workout frequency alongside daily activity <ArrowUpDown size={12} aria-hidden="true" />
-            </Link>
-          </div>
-        </div>
-      </Card>
-
       {/* ── Detail dialog ───────────────────────────── */}
       <Dialog open={selected !== null} onClose={() => setSelected(null)} title={selected ? `${selected.workout_type} detail` : 'Workout detail'}>
-        {selected && <WorkoutDetail view={selected} units={units} allViews={views} source={sourceLabel(selected, alsoFrom)} />}
+        {selected && <WorkoutDetail view={selected} units={units} allViews={views} />}
       </Dialog>
     </div>
   );
@@ -473,11 +406,9 @@ function mixSlices(views: WorkoutView[]): MixSlice[] {
 }
 
 function WorkoutDetail({
-  view, units, allViews, source,
+  view, units, allViews,
 }: {
   view: WorkoutView;
-  /** The recording source, plus any workout source that logged the same session. */
-  source: string;
   units: 'metric' | 'imperial';
   allViews: WorkoutView[];
 }) {
@@ -486,7 +417,6 @@ function WorkoutDetail({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="default" className="text-[10px]">{source}</Badge>
         <span className="text-xs text-text-secondary">{workoutWhenLabel(view)}</span>
       </div>
 
@@ -499,7 +429,6 @@ function WorkoutDetail({
         <DetailRow label="Average heart rate" value={view.hasHeartRate ? `${view.avg_heart_rate} bpm` : 'Not recorded for this session'} />
         <DetailRow label="Maximum heart rate" value={view.hasHeartRate ? `${view.max_heart_rate} bpm` : 'Not recorded for this session'} />
         <DetailRow label="Active calories" value={`${view.calories_burned} kcal`} />
-        <DetailRow label="Source" value={source} />
         <DetailRow label="Record id" value={view.id} />
       </dl>
 

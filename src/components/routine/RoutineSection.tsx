@@ -94,7 +94,7 @@ function SourceNote({ data, noticeShown = false }: { data: RoutineApiResponse; n
     if (noticeShown) return null;
     return (
       <DataStateNote tone="attention">
-        No workout source is connected, so sets, reps, load and effort are unknown. Apple Health workouts still count for
+        No workout source is connected, so sets, reps, load and effort are unknown. Recorded workouts still count for
         plans matched by workout type (e.g. running). Connect Hevy with <code>HEVY_API_KEY</code> — see Settings → Connections.
       </DataStateNote>
     );
