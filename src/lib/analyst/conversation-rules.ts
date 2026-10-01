@@ -44,6 +44,8 @@ export const MAX_STORED_PAYLOAD_CHARS = 16000;
 const MAX_STORED_EVIDENCE = 8;
 const MAX_STORED_LINES = 6;
 const MAX_STORED_LINE_CHARS = 600;
+/** The analysis prose, when the whole answer must shrink to fit. */
+const MAX_STORED_ANALYSIS_CHARS = 3000;
 const MAX_STORED_SUGGESTED = 6;
 const MAX_STORED_METRICS = 12;
 const MAX_STORED_UNMATCHED = 10;
@@ -110,15 +112,26 @@ export function attributionFor(response: AnalystResponse): string {
 
 /** The answer rendered as the text the reader saw, for the stored content. */
 export function renderAnswerText(answer: StoredAnswer): string {
+  // As the answer view draws it: the prose analysis, or for an answer without
+  // one, its observed and interpretation lines, then the sections after it.
+  const analysis = answer.analysis?.trim() ?? '';
   const sections: { heading: string; lines: string[] }[] = [
-    { heading: 'Observed measurements', lines: answer.observed },
-    { heading: 'Possible interpretation', lines: answer.interpretation },
+    ...(analysis
+      ? []
+      : [
+          { heading: 'Observed measurements', lines: answer.observed },
+          { heading: 'Possible interpretation', lines: answer.interpretation },
+        ]),
+    { heading: 'What to do next', lines: answer.recommendations ?? [] },
+    { heading: 'Summary', lines: answer.summary ?? [] },
     { heading: 'Missing context and uncertainty', lines: answer.uncertainty },
   ];
-  const body = sections
-    .filter(s => s.lines.length > 0)
-    .map(s => `${s.heading}:\n${s.lines.map(line => `- ${line}`).join('\n')}`)
-    .join('\n\n');
+  const body = [
+    ...(analysis ? [analysis] : []),
+    ...sections
+      .filter(s => s.lines.length > 0)
+      .map(s => `${s.heading}:\n${s.lines.map(line => `- ${line}`).join('\n')}`),
+  ].join('\n\n');
   return body.length > 0 ? `${answer.title}\n\n${body}` : answer.title;
 }
 
@@ -127,8 +140,11 @@ function toStoredAnswer(response: AnalystResponse): StoredAnswer | null {
   if (!answer) return null;
   return {
     title: answer.title,
+    analysis: answer.analysis,
     observed: [...answer.observed],
     interpretation: [...answer.interpretation],
+    recommendations: [...answer.recommendations],
+    summary: [...answer.summary],
     uncertainty: [...answer.uncertainty],
     evidence: answer.evidence.map(ev => ({ ...ev })),
     followUps: [...answer.followUps],
@@ -171,6 +187,9 @@ export function buildStoredPayload(response: AnalystResponse): StoredAssistantPa
     grounding: { checked: response.grounding.checked, unmatched: [...response.grounding.unmatched] },
     untrustedNotes: { ...response.untrustedNotes },
     notice: response.notice,
+    ...(response.planChange ? { planChange: { ...response.planChange, diff: response.planChange.diff.slice(0, 20) } } : {}),
+    ...(response.toolsUsed?.length ? { toolsUsed: response.toolsUsed.slice(0, 24) } : {}),
+    ...(response.toolsUnavailable ? { toolsUnavailable: response.toolsUnavailable.slice(0, 600) } : {}),
   };
   return truncatePayload(payload);
 }
@@ -214,6 +233,8 @@ export function truncatePayload(payload: StoredAssistantPayload): StoredAssistan
         ...a,
         observed: a.observed.slice(0, MAX_STORED_LINES),
         interpretation: a.interpretation.slice(0, MAX_STORED_LINES),
+        recommendations: a.recommendations?.slice(0, MAX_STORED_LINES),
+        summary: a.summary?.slice(0, MAX_STORED_LINES),
         uncertainty: a.uncertainty.slice(0, MAX_STORED_LINES),
         followUps: a.followUps.slice(0, MAX_STORED_LINES),
       };
@@ -224,8 +245,11 @@ export function truncatePayload(payload: StoredAssistantPayload): StoredAssistan
       const cut = (lines: string[]) => lines.map(l => l.slice(0, MAX_STORED_LINE_CHARS));
       current.answer = {
         ...a,
+        analysis: a.analysis?.slice(0, MAX_STORED_ANALYSIS_CHARS),
         observed: cut(a.observed),
         interpretation: cut(a.interpretation),
+        recommendations: a.recommendations && cut(a.recommendations),
+        summary: a.summary && cut(a.summary),
         uncertainty: cut(a.uncertainty),
       };
     },

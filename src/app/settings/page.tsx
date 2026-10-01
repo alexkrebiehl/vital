@@ -16,7 +16,7 @@ import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  Bell, Clock, Database, Info, Palette, Ruler, Save, Shield, Trash2, TriangleAlert, UserRound,
+  Bell, Clock, Database, Dumbbell, Info, Palette, Ruler, Save, Shield, Trash2, TriangleAlert, UserRound,
 } from 'lucide-react';
 import { getAllMetrics, getMetric } from '@/lib/metrics';
 import { convertValue, displayUnit, formatMetricWithUnit, hasConversion } from '@/lib/metrics/format';
@@ -26,10 +26,10 @@ import { REFERENCE_KEY, unavailableReasonFor } from '@/lib/adapters/dataset';
 import {
   applyTheme, clearPreferences, getPreferencesState, loadPreferences,
   savePreferencesResult, subscribePreferences, syncPreferences,
-  type ThemeMode, type UnitSystem, type VitalPreferences,
+  type UnitSystem, type VitalPreferences,
 } from '@/lib/prefs';
 import {
-  Badge, Button, Card, DataStateNote, ErrorState, Select, Skeleton, Tabs,
+  Badge, Button, Card, ChoiceButton, DataStateNote, ErrorState, Select, Skeleton, Tabs,
 } from '@/components/ui/primitives';
 import type { PipelineStatusReport, StageStatus } from '@/lib/pipeline/types';
 import { STAGE_STATUS_LABEL } from '@/lib/pipeline/types';
@@ -39,6 +39,7 @@ import { LabUpload } from '@/components/settings/LabUpload';
 import {
   PROFILE_NAME_MAX,
   PROFILE_NOTES_MAX,
+  runtimeTimezone,
   type VitalProfile,
 } from '@/lib/profile/types';
 
@@ -131,7 +132,6 @@ function SettingsView() {
     <K extends keyof VitalPreferences>(key: K, value: VitalPreferences[K]) => {
       const current = loadPreferences();
       const next = { ...current, [key]: value };
-      if (key === 'theme') applyTheme(value as ThemeMode);
       void send(next);
     },
     [send]
@@ -236,19 +236,13 @@ function SettingsView() {
           {/* ── Theme ──────────────────────────────── */}
           <Card className="p-6">
             <SectionHead icon={<Palette size={18} className="text-text-secondary" />} title="Theme" />
-            <div className="flex flex-wrap gap-2">
-              {(['light', 'dark', 'system'] as const).map(theme => (
-                <ChoiceButton
-                  key={theme}
-                  active={prefs.theme === theme}
-                  onClick={() => update('theme', theme)}
-                  label={theme === 'light' ? 'Light' : theme === 'dark' ? 'Dark' : 'System'}
-                />
-              ))}
-            </div>
-            <DataStateNote>
-              The theme is applied before first paint from a stored value, so there is no flash of the wrong theme.
-            </DataStateNote>
+            <p className="text-sm text-text-secondary">
+              Choose light and dark themes on the{' '}
+              <Link href="/themes" className="text-primary hover:underline">
+                Themes page
+              </Link>
+              .
+            </p>
           </Card>
 
           {/* ── Notifications ──────────────────────── */}
@@ -287,7 +281,7 @@ function SettingsView() {
               onClick={() => {
                 clearPreferences();
                 const fresh = loadPreferences();
-                applyTheme(fresh.theme);
+                applyTheme(fresh);
                 setPrefs(fresh);
               }}
             >
@@ -330,6 +324,21 @@ function AccountTab() {
   }, [profile]);
 
   const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(profile), [draft, profile]);
+
+  // Read after mount: the server render has no browser, and reading it during
+  // render would make the hydrated HTML disagree with the server's.
+  const [browserTimezone, setBrowserTimezone] = useState<string | null>(null);
+  useEffect(() => setBrowserTimezone(runtimeTimezone()), []);
+  const timezoneOptions = useMemo(() => {
+    const zones = [...TIMEZONES];
+    for (const tz of [browserTimezone, profile.timezone, draft.timezone]) {
+      if (tz && !zones.includes(tz)) zones.push(tz);
+    }
+    return zones.map(tz => ({
+      value: tz,
+      label: tz === browserTimezone ? `${tz} (this browser)` : tz,
+    }));
+  }, [browserTimezone, profile.timezone, draft.timezone]);
 
   const submit = async () => {
     setError(null);
@@ -399,18 +408,18 @@ function AccountTab() {
             </Field>
           </div>
 
-          {/* ── Notes ────────────────────────────── */}
+          {/* ── Goals ────────────────────────────── */}
           <Field
-            label="Notes"
-            hint={`Optional, up to ${PROFILE_NOTES_MAX} characters. For anything the health report cannot contain — a training goal, a medication that affects heart rate. The briefing is told this is data, never an instruction.`}
+            label="Goals"
+            hint={`Optional, up to ${PROFILE_NOTES_MAX} characters. What you are working toward — for example lose weight, build up to a 10k, bring resting heart rate down. Today's briefing is focused on these. They are read as a description of your goals, never as instructions.`}
           >
             <textarea
               value={draft.notes ?? ''}
               maxLength={PROFILE_NOTES_MAX}
               rows={3}
               onChange={e => setDraft({ ...draft, notes: e.target.value })}
-              placeholder="Nothing recorded"
-              aria-label="Notes"
+              placeholder="No goals set — the briefing will summarise the week as a whole"
+              aria-label="Goals"
               className="w-full bg-surface border border-border rounded-control px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-accent"
             />
           </Field>
@@ -418,19 +427,23 @@ function AccountTab() {
           {/* ── Timezone ─────────────────────────── */}
           <Field
             label="Timezone"
-            hint="The single source of truth for the app's calendar days: it labels windows in this browser AND cuts the server's day boundaries and briefing day. The dataset itself is stored in its own zone and is never rewritten."
+            hint="Cuts the app's calendar days: when a night, a workout or a daily total belongs to, the clock times shown on every page, and the briefing day. It starts as this browser's timezone and stays whatever you choose here."
           >
             <Select
               value={draft.timezone}
               onChange={v => setDraft({ ...draft, timezone: v })}
-              options={[
-                ...TIMEZONES.map(tz => ({ value: tz, label: tz })),
-                ...(TIMEZONES.includes(draft.timezone)
-                  ? []
-                  : [{ value: draft.timezone, label: `${draft.timezone} (current)` }]),
-              ]}
+              options={timezoneOptions}
               aria-label="Timezone"
             />
+            {browserTimezone && browserTimezone !== draft.timezone && (
+              <button
+                type="button"
+                onClick={() => setDraft({ ...draft, timezone: browserTimezone })}
+                className="mt-1.5 text-xs text-accent hover:underline"
+              >
+                Use this browser&rsquo;s timezone ({browserTimezone})
+              </button>
+            )}
           </Field>
 
           {/* ── Briefing hour ────────────────────── */}
@@ -702,6 +715,42 @@ function ConnectionsTab() {
         )}
       </Card>
 
+      <Card className="p-6">
+        <SectionHead icon={<Dumbbell size={18} className="text-text-secondary" />} title="Workout sources" />
+        <p className="text-xs text-text-secondary leading-relaxed mb-3">
+          Apple Health records a workout&apos;s type, time and calories only. A workout source adds what was actually
+          done — exercises, sets, reps, load and effort — which the routine on the Workouts page needs.
+        </p>
+        <div className="space-y-3 text-sm">
+          {(report?.workoutSources ?? []).map(source => (
+            <StatusRow
+              key={source.id}
+              label={source.displayName}
+              value={
+                source.origin === 'demo'
+                  ? `Demo sessions (${source.sessions})`
+                  : !source.configured
+                    ? `Not configured (set ${source.envVars[0]})`
+                    : source.lastError
+                      ? `Error: ${source.lastError}`
+                      : `Connected (${source.host ?? 'host unknown'}) · ${source.sessions} session${source.sessions === 1 ? '' : 's'}${
+                          source.lastSyncAt ? ` · synced ${source.lastSyncAt.slice(0, 16).replace('T', ' ')} UTC` : ''
+                        }`
+              }
+              tone={source.lastError ? 'warning' : source.configured || source.origin === 'demo' ? 'neutral' : 'muted'}
+            />
+          ))}
+          {report && report.workoutSources.length === 0 && (
+            <p className="text-xs text-text-secondary">No workout source was checked.</p>
+          )}
+        </div>
+        <div className="mt-4">
+          <DataStateNote>
+            Source API keys are read from the server environment only. Synced sessions stay in the server&apos;s memory
+            and are never written to the database.
+          </DataStateNote>
+        </div>
+      </Card>
     </div>
   );
 }
@@ -888,23 +937,6 @@ function SectionHead({ icon, title }: { icon: React.ReactNode; title: string }) 
       {icon}
       <h2 className="text-base font-semibold text-text-primary">{title}</h2>
     </div>
-  );
-}
-
-function ChoiceButton({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`px-4 py-2 text-sm rounded-control border transition-colors min-h-[44px] ${
-        active
-          ? 'bg-primary text-primary-text border-primary'
-          : 'bg-surface text-text-secondary border-border hover:text-text-primary'
-      }`}
-    >
-      {label}
-    </button>
   );
 }
 

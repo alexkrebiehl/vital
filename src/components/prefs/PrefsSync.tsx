@@ -5,7 +5,8 @@
 // Mounted once in the root layout. Its only job is to start the preferences
 // engine: read the server record on mount, import a legacy localStorage value
 // once, re-read when the window regains focus, and re-apply the theme whenever
-// the settings change.
+// the settings change or, under "Match system", the operating system switches
+// between light and dark.
 //
 // It renders nothing. The theme is applied here rather than at first paint
 // because the server's value can differ from this device's cache — the cache
@@ -18,7 +19,7 @@ export default function PrefsSync() {
   useEffect(() => {
     const apply = () => {
       try {
-        applyTheme(loadPreferences().theme);
+        applyTheme(loadPreferences());
       } catch {
         // A theme that cannot be applied is cosmetic: never break the page.
       }
@@ -28,7 +29,18 @@ export default function PrefsSync() {
     // replaces it if the two disagree.
     apply();
     startPreferencesSync();
-    return subscribePreferences(apply);
+    const unsubscribe = subscribePreferences(apply);
+    let media: MediaQueryList | null = null;
+    try {
+      media = window.matchMedia('(prefers-color-scheme: dark)');
+      media.addEventListener('change', apply);
+    } catch {
+      media = null;
+    }
+    return () => {
+      unsubscribe();
+      media?.removeEventListener('change', apply);
+    };
   }, []);
 
   return null;

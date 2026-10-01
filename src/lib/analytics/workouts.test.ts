@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { REFERENCE_KEY, workoutList } from '@/lib/adapters/dataset';
-import { dayKey } from '@/lib/analytics/windows';
+import { FIXTURES, REFERENCE_KEY, resetToDemoDataset, setActiveDataset, workoutList } from '@/lib/adapters/dataset';
+import { clockLabel, dayKey } from '@/lib/analytics/windows';
 import {
   filterWorkouts,
   MIN_COMPARABLE_WORKOUTS,
@@ -31,6 +31,31 @@ describe('workout day keys (dataset timezone, not UTC slices)', () => {
   });
 });
 
+describe('workout clocks follow the active dataset timezone', () => {
+  it('re-reads the zone after the dataset changes instead of keeping the one at import', () => {
+    const start = '2026-04-06T01:27:00.000Z';
+    const chicago = workoutViews().find(v => v.start_time === start);
+    expect(chicago?.startClock).toBe('8:27 PM');
+
+    setActiveDataset({ ...FIXTURES, timezone: 'America/New_York' }, { mode: 'demo' });
+    try {
+      const newYork = workoutViews().find(v => v.start_time === start);
+      expect(newYork?.startClock).toBe('9:27 PM');
+      expect(newYork?.key).toBe('2026-04-05');
+    } finally {
+      resetToDemoDataset();
+    }
+  });
+});
+
+describe('clockLabel', () => {
+  it('formats an instant as a wall-clock time in the given zone', () => {
+    expect(clockLabel('2026-09-28T03:27:00.000Z', 'America/New_York')).toBe('11:27 PM');
+    expect(clockLabel('2026-09-28T03:27:00.000Z', 'UTC')).toBe('3:27 AM');
+    expect(clockLabel(new Date('2026-01-15T14:05:00.000Z'), 'America/New_York')).toBe('9:05 AM');
+  });
+});
+
 describe('workout filtering (SPEC §7)', () => {
   it('filters by activity type, date range and sort order', () => {
     const all = workoutViews();
@@ -54,6 +79,17 @@ describe('workout filtering (SPEC §7)', () => {
     expect(thirty.views.length).toBeLessThanOrEqual(ninety.views.length);
     expect(thirty.views.every(v => v.key >= thirty.window.startKey)).toBe(true);
     expect(thirty.totals.sessions).toBe(thirty.views.length);
+  });
+
+  it('counts activity types within the window, whatever type is selected', () => {
+    const all = workoutViews();
+    const thirty = filterWorkouts({ type: 'all', days: 30, sort: 'date-desc' }, all);
+    expect(thirty.types.reduce((a, t) => a + t.count, 0)).toBe(thirty.inWindowCount);
+    for (const t of thirty.types) {
+      expect(t.count).toBe(thirty.views.filter(v => v.workout_type === t.type).length);
+    }
+    const running = filterWorkouts({ type: 'Running', days: 30, sort: 'date-desc' }, all);
+    expect(running.types).toEqual(thirty.types);
   });
 
   it('lists activity types with their counts, computed from the records', () => {

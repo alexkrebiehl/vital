@@ -506,7 +506,7 @@ const workoutFrequency: AnalystHandler = {
           windowLabel: windowRangeLabel(w.window),
           aggregation: 'count of recorded sessions',
           sampleCount: `${w.sessions} sessions in the window`,
-          href: '/workouts',
+          href: '/workouts/all',
         },
       ],
       charts: [],

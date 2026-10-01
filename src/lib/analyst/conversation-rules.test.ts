@@ -22,6 +22,7 @@ import {
   validateTitle,
 } from '@/lib/analyst/conversation-rules';
 import type { AnalystResponse } from '@/lib/analyst/types';
+import { answerFromStoredPayload } from '@/components/analyst/conversation-view';
 
 function baseResponse(overrides: Partial<AnalystResponse> = {}): AnalystResponse {
   return {
@@ -114,6 +115,37 @@ describe('stored payload', () => {
     expect(payload.truncated).toBeUndefined();
   });
 
+  it('keeps the prose analysis, next steps and summary, so a reopened turn reads as it did', () => {
+    const response = baseResponse();
+    response.answer = {
+      ...response.answer!,
+      analysis: 'Your [sleep](/metric/sleep_analysis) held steady.\n\nNo night fell short.',
+      recommendations: ['Keep the same bedtime.'],
+      summary: ['Sleep is steady.'],
+    };
+    const payload = buildStoredPayload(response);
+    expect(payload.answer?.analysis).toBe(response.answer.analysis);
+    expect(payload.answer?.recommendations).toEqual(['Keep the same bedtime.']);
+    expect(payload.answer?.summary).toEqual(['Sleep is steady.']);
+    expect(answerFromStoredPayload(payload)).toMatchObject({
+      analysis: response.answer.analysis,
+      recommendations: ['Keep the same bedtime.'],
+      summary: ['Sleep is steady.'],
+    });
+  });
+
+  it('reopens a turn saved before answers had prose with an empty analysis', () => {
+    const payload = buildStoredPayload(baseResponse());
+    const { analysis: _a, summary: _s, recommendations: _r, ...older } = payload.answer!;
+    expect(answerFromStoredPayload({ ...payload, answer: older })).toMatchObject({ analysis: '', summary: [], recommendations: [] });
+  });
+
+  it('keeps the note that plan tools were unavailable, bounded, and only when set', () => {
+    const note = `Plan tools were unavailable, so this answer was made from the health summary alone. ${'x'.repeat(900)}`;
+    expect(buildStoredPayload(baseResponse({ toolsUnavailable: note })).toolsUnavailable).toBe(note.slice(0, 600));
+    expect('toolsUnavailable' in buildStoredPayload(baseResponse())).toBe(false);
+  });
+
   it('bounds an oversized payload rather than storing it whole', () => {
     const huge = baseResponse();
     huge.answer = {
@@ -144,6 +176,19 @@ describe('assistant content', () => {
     expect(content).toContain('Sleep over the last month');
     expect(content).toContain('Observed measurements:');
     expect(content).toContain('- Time asleep averaged 7h 12m across 29 recorded nights.');
+  });
+
+  it('renders the prose analysis in place of the observed lines when there is one', () => {
+    const response = baseResponse();
+    response.answer = {
+      ...response.answer!,
+      analysis: 'Sleep held steady across the month.',
+      recommendations: ['Keep the same bedtime.'],
+    };
+    const content = assistantContent(response);
+    expect(content).toContain('Sleep held steady across the month.');
+    expect(content).toContain('What to do next:\n- Keep the same bedtime.');
+    expect(content).not.toContain('Observed measurements:');
   });
 
   it('falls back to the honest message, and never to an empty row', () => {

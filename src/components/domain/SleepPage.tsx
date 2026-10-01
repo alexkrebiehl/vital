@@ -14,6 +14,7 @@ import {
 } from '@/lib/adapters/dataset';
 import {
   buildSeriesSummary,
+  clockLabel,
   formatDayKeyLong,
   formatDayKeyShort,
   median,
@@ -28,7 +29,7 @@ import { Card, Badge, DataStateNote, InsufficientDataState } from '@/components/
 import { MetricChart, TrendFigure, SleepStageChart, SleepStageTable, SLEEP_STAGE_META } from '@/components/charts';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import {
-  DomainHeader, SectionTitle, SeriesCard, CoverageNote, MetricGrid, metricsForCategories,
+  DomainHeader, SectionTitle, SeriesCard, MetricGrid, metricsForCategories,
 } from './DomainShared';
 
 const DAYS = 30;
@@ -431,7 +432,6 @@ export function SleepPage() {
         days={DAYS}
       />
 
-      <CoverageNote metricIds={['sleep_analysis', 'sleep_in_bed', 'heart_rate_variability']} />
     </div>
   );
 }
@@ -512,16 +512,9 @@ interface BedtimeStats {
   stdMinutes: number;
 }
 
-const CLOCK = new Intl.DateTimeFormat('en-US', {
-  timeZone: REFERENCE_TZ,
-  hour: 'numeric',
-  minute: '2-digit',
-  hour12: true,
-});
-
 /** Local wall-clock time of an ISO instant in the dataset timezone. */
 function localTime(iso: string): string {
-  return CLOCK.format(new Date(iso));
+  return clockLabel(iso, REFERENCE_TZ);
 }
 
 /**

@@ -1,14 +1,14 @@
 // ── Preferences: shared types and pure rules ────────────
 //
-// The display preferences the SERVER owns: the unit system, the theme and the
-// three notification flags. They live in the Vital Postgres database, in the
+// The display preferences the SERVER owns: the unit system, the theme mode, the
+// light and dark theme picks and the three notification flags. They live in the Vital Postgres database, in the
 // same database as the profile (the `preferences` row; see `store.ts`), so one
 // person's settings follow them between browsers and devices instead of being
 // trapped in one browser's localStorage.
 //
-// This module has NO imports and touches nothing global, so the server store,
-// the API route, the client sync layer and the tests all share one validator
-// and one set of defaults. Nothing here reads or writes a file, a browser API
+// This module imports only the theme catalogue (`./themes`, itself import-free)
+// and touches nothing global, so the server store, the API route, the client
+// sync layer and the tests all share one validator and one set of defaults. Nothing here reads or writes a file, a browser API
 // or the network.
 //
 // There is no field for a credential, a token or a health record, and the route
@@ -16,6 +16,8 @@
 // here: it belongs to the server-owned profile (`@/lib/profile`), which is the
 // single source of truth for the app's calendar days. Legacy `vital-prefs`
 // payloads that still carry one are read once and the key is dropped.
+
+import { DEFAULT_THEME_ID, isThemeId, type ColorScheme } from './themes';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 export type UnitSystem = 'metric' | 'imperial';
@@ -32,6 +34,10 @@ export interface NotificationPreferences {
 /** The editable display choices. This is what a PUT replaces, whole. */
 export interface VitalPreferences {
   theme: ThemeMode;
+  /** The theme shown when the light side is in use (`./themes`). */
+  lightTheme: string;
+  /** The theme shown when the dark side is in use (`./themes`). */
+  darkTheme: string;
   units: UnitSystem;
   notifications: NotificationPreferences;
 }
@@ -69,16 +75,20 @@ export const DEFAULT_NOTIFICATIONS: NotificationPreferences = {
 
 export const DEFAULT_PREFERENCES: VitalPreferences = {
   theme: 'system',
+  lightTheme: DEFAULT_THEME_ID,
+  darkTheme: DEFAULT_THEME_ID,
   units: 'metric',
   notifications: { ...DEFAULT_NOTIFICATIONS },
 };
 
 /** The fields a PUT may carry. Anything else is rejected, not dropped. */
-export const PREFERENCES_FIELDS = ['theme', 'units', 'notifications', 'revision'] as const;
+export const PREFERENCES_FIELDS = ['theme', 'lightTheme', 'darkTheme', 'units', 'notifications', 'revision'] as const;
 
 /** The fields a stored record carries. Anything else is rejected on read. */
 export const PREFERENCES_RECORD_FIELDS = [
   'theme',
+  'lightTheme',
+  'darkTheme',
   'units',
   'notifications',
   'schemaVersion',
@@ -124,6 +134,21 @@ export interface PreferencesInvalid {
 
 function unknownFields(body: Record<string, unknown>, allowed: readonly string[]): string[] {
   return Object.keys(body).filter(key => !allowed.includes(key));
+}
+
+/** The two theme picks, by field and side. */
+const THEME_PICKS = [
+  ['lightTheme', 'light'],
+  ['darkTheme', 'dark'],
+] as const satisfies readonly (readonly [keyof VitalPreferences, ColorScheme])[];
+
+/**
+ * A theme pick read tolerantly: a missing value (a record or cache written
+ * before picks existed) or an unknown id (a theme since removed) is the default,
+ * so one stale pick never throws away the rest of the record.
+ */
+function themePickOr(scheme: ColorScheme, value: unknown): string {
+  return isThemeId(scheme, value) ? value : DEFAULT_THEME_ID;
 }
 
 function readNotifications(
@@ -182,6 +207,13 @@ export function validatePreferencesInput(raw: unknown): PreferencesValid<{
   if (!isThemeMode(body.theme)) {
     errors.push(`"theme" must be one of ${THEME_MODES.join(', ')}.`);
   }
+  // A PUT replaces the whole record, so both picks are required and must name
+  // a theme this build knows.
+  for (const [field, scheme] of THEME_PICKS) {
+    if (!isThemeId(scheme, body[field])) {
+      errors.push(`"${field}" must name a ${scheme} theme.`);
+    }
+  }
   if (!isUnitSystem(body.units)) {
     errors.push(`"units" must be one of ${UNIT_SYSTEMS.join(', ')}.`);
   }
@@ -205,6 +237,8 @@ export function validatePreferencesInput(raw: unknown): PreferencesValid<{
     value: {
       preferences: {
         theme: body.theme as ThemeMode,
+        lightTheme: body.lightTheme as string,
+        darkTheme: body.darkTheme as string,
         units: body.units as UnitSystem,
         notifications,
       },
@@ -216,6 +250,8 @@ export function validatePreferencesInput(raw: unknown): PreferencesValid<{
 /**
  * Validate a stored record on the way in, so a hand-edited row cannot smuggle
  * in an unknown field, a wrong type or a schema this build does not understand.
+ * The theme picks are the one tolerant part: missing or unknown, they read as
+ * the default theme (see `themePickOr`).
  */
 export function validatePreferencesRecord(
   raw: unknown
@@ -261,6 +297,8 @@ export function validatePreferencesRecord(
     ok: true,
     value: {
       theme: body.theme as ThemeMode,
+      lightTheme: themePickOr('light', body.lightTheme),
+      darkTheme: themePickOr('dark', body.darkTheme),
       units: body.units as UnitSystem,
       notifications,
       schemaVersion: PREFS_SCHEMA_VERSION,
@@ -289,6 +327,8 @@ export function parseLegacyPreferences(raw: string): VitalPreferences | null {
   const body = parsed as Record<string, unknown>;
 
   const theme = isThemeMode(body.theme) ? body.theme : DEFAULT_PREFERENCES.theme;
+  const lightTheme = themePickOr('light', body.lightTheme);
+  const darkTheme = themePickOr('dark', body.darkTheme);
   const units = isUnitSystem(body.units) ? body.units : DEFAULT_PREFERENCES.units;
 
   const notifications = { ...DEFAULT_NOTIFICATIONS };
@@ -302,7 +342,7 @@ export function parseLegacyPreferences(raw: string): VitalPreferences | null {
 
   // A legacy `timezone` (and anything else) is deliberately dropped: the
   // timezone lives in the server-owned profile and is never a browser value.
-  return { theme, units, notifications };
+  return { theme, lightTheme, darkTheme, units, notifications };
 }
 
 /**
@@ -313,6 +353,8 @@ export function parseLegacyPreferences(raw: string): VitalPreferences | null {
 export function describeStoredPreferences(prefs: VitalPreferences): { key: string; value: string }[] {
   return [
     { key: 'theme', value: prefs.theme },
+    { key: 'lightTheme', value: prefs.lightTheme },
+    { key: 'darkTheme', value: prefs.darkTheme },
     { key: 'units', value: prefs.units },
     { key: 'notifications.dailyBriefing', value: String(prefs.notifications.dailyBriefing) },
     { key: 'notifications.weeklyReport', value: String(prefs.notifications.weeklyReport) },

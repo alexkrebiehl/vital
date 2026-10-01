@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { PLAN_PROMPTS } from '@/lib/analyst/demo-plan';
 import { REFERENCE_KEY, availableMetricIds, seriesFor, workoutList } from '@/lib/adapters/dataset';
 import { getAllMetrics } from '@/lib/metrics';
 import { askAnalyst, EDUCATIONAL_NOTICE, NOTES_MAX_CHARS, QUERY_MAX_CHARS, sanitizeUntrustedNotes, validateQuery } from '@/lib/analyst/service';
@@ -211,7 +212,7 @@ describe('askAnalyst service (SPEC §8)', () => {
     expect(response.status).toBe('unsupported');
     expect(response.answer).toBeNull();
     expect(response.message).toContain('pattern');
-    expect(response.suggested).toEqual(SUPPORTED_PROMPTS);
+    expect(response.suggested).toEqual([...SUPPORTED_PROMPTS, ...PLAN_PROMPTS]);
     expect(response.retrieval.recordsRead).toBe(0);
   });
 

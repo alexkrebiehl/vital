@@ -24,15 +24,9 @@ import {
 } from '@/components/ui/primitives';
 import { MetricChart, RelationshipScatter } from '@/components/charts';
 import { useUnits } from '@/components/ui/UnitsProvider';
+import { RangeControl } from '@/components/ui/RangeControl';
 import { DomainHeader, SectionTitle } from './DomainShared';
 import type { MetricDefinition } from '@/lib/metrics/types';
-
-const RANGE_OPTIONS = [
-  { value: '7', label: '7D' },
-  { value: '30', label: '30D' },
-  { value: '90', label: '90D' },
-  { value: '180', label: '180D' },
-];
 
 const DEFAULT_SELECTION = ['resting_heart_rate', 'heart_rate_variability', 'sleep_analysis'];
 const MAX_SELECTION = 4;
@@ -91,12 +85,7 @@ function CompareTab() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <span className="text-xs font-medium text-text-secondary">Date range</span>
-            <SegmentedControl
-              options={RANGE_OPTIONS}
-              value={days}
-              onChange={setDays}
-              ariaLabel="Comparison date range"
-            />
+            <RangeControl value={days} onChange={setDays} ariaLabel="Comparison date range" />
           </div>
           <span className="text-xs text-text-secondary tnum">
             {windowRangeLabel(window)}
@@ -337,12 +326,7 @@ function RelationshipsTab() {
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-3">
             <span className="text-xs font-medium text-text-secondary">Date range</span>
-            <SegmentedControl
-              options={RANGE_OPTIONS}
-              value={days}
-              onChange={setDays}
-              ariaLabel="Relationship date range"
-            />
+            <RangeControl value={days} onChange={setDays} ariaLabel="Relationship date range" />
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs font-medium text-text-secondary">Alignment</span>

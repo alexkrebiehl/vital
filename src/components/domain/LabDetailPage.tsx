@@ -20,7 +20,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Info } from 'lucide-react';
+import { Info } from 'lucide-react';
 import { formatDayKeyLong } from '@/lib/analytics/windows';
 import { analyteByKey } from '@/lib/lab/analytes';
 import { analyteKeyOfSeriesId, URINE_SERIES_SEPARATOR, type PanelSpecimen } from '@/lib/lab/panel';
@@ -54,17 +54,17 @@ import {
   ErrorState,
   InsufficientDataState,
   LoadingState,
-  SegmentedControl,
-} from '@/components/ui/primitives';
+  } from '@/components/ui/primitives';
+import { RangeControl } from '@/components/ui/RangeControl';
 import { LabChart, LabChartFacts, LabObservationTable } from '@/components/charts';
 import { LabNotices, LabStatusBadge, LabAnalyteDescription, needsSexNotice, observationRows } from './LabShared';
+import { useBreadcrumbLabel } from '@/components/shell/Breadcrumbs';
 
-const RANGE_OPTIONS = [
-  { value: 'all', label: 'All' },
-  { value: '1825', label: '5Y' },
+/** After the shared 7/30/90 presets and Custom: lab results are years apart, so the long views stay. */
+const RANGE_EXTRAS = [
   { value: '365', label: '1Y' },
-  { value: '90', label: '90D' },
-  { value: '30', label: '30D' },
+  { value: '1825', label: '5Y' },
+  { value: 'all', label: 'All' },
 ];
 
 interface LoadedLab {
@@ -112,7 +112,6 @@ export function LabDetailPage() {
   if (state.loading) {
     return (
       <div className="space-y-6">
-        <BackLink />
         <LoadingState label="Reading the stored lab results" />
       </div>
     );
@@ -121,7 +120,6 @@ export function LabDetailPage() {
   if (state.error || !state.data) {
     return (
       <div className="space-y-6">
-        <BackLink />
         <ErrorState
           title="The stored lab results could not be read"
           message={`${state.error ?? 'No lab series was returned.'} Nothing is shown in its place.`}
@@ -132,18 +130,6 @@ export function LabDetailPage() {
   }
 
   return <LabDetailContent seriesKey={analyteKey} data={state.data} />;
-}
-
-function BackLink() {
-  return (
-    <Link
-      href="/lab"
-      className="inline-flex items-center gap-1 text-sm text-text-secondary hover:text-text-primary transition-colors min-h-[44px]"
-    >
-      <ArrowLeft size={14} aria-hidden="true" />
-      <span>All lab results</span>
-    </Link>
-  );
 }
 
 function LabDetailContent({ seriesKey, data }: { seriesKey: string; data: LoadedLab }) {
@@ -162,12 +148,12 @@ function LabDetailContent({ seriesKey, data }: { seriesKey: string; data: Loaded
   // blood copy.
   const specimen: PanelSpecimen =
     analyte?.specimen ?? (seriesKey.endsWith(`${URINE_SERIES_SEPARATOR}urine`) ? 'urine' : 'other');
+  useBreadcrumbLabel(analyte?.displayName ?? registry?.displayName);
 
   // ── An honest not-found state ────────────────────────────────────────────
   if (!analyte && !registry) {
     return (
       <div className="space-y-6">
-        <BackLink />
         <InsufficientDataState
           metricName="this analyte"
           message={`No analyte is registered under the key "${seriesKey}", and no imported result uses it either. The link may be out of date, or the key may be misspelled.`}
@@ -186,8 +172,6 @@ function LabDetailContent({ seriesKey, data }: { seriesKey: string; data: Loaded
 
   return (
     <div className="space-y-6">
-      <BackLink />
-
       <header className="min-w-0">
         <div className="flex flex-wrap items-center gap-2 mb-1">
           <Badge variant="default" className="text-[10px]">{category}</Badge>
@@ -370,7 +354,7 @@ function AnalyteHistory({
 
       {/* ── Range control ──────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <SegmentedControl options={RANGE_OPTIONS} value={range} onChange={setRange} ariaLabel="Observation range" />
+        <RangeControl value={range} onChange={setRange} extraOptions={RANGE_EXTRAS} ariaLabel="Observation range" />
         <div className="flex rounded-control overflow-hidden border border-border">
           <button
             type="button"

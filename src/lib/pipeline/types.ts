@@ -1,8 +1,10 @@
 // ── Pipeline stage vocabulary (SPEC §10) ────────────────
 //
 // Types and labels shared by the server-side status resolver and the interface
-// that renders it. This module has no imports, so the browser can use it
+// that renders it. This module has only type imports, so the browser can use it
 // without pulling the server probe into the client bundle.
+
+import type { WorkoutSourceStatus } from '../workout-sources/types';
 
 export type StageStatus = 'healthy' | 'degraded' | 'unknown' | 'unconfigured';
 
@@ -90,6 +92,8 @@ export interface PipelineStatusReport {
   probe: PipelineProbe;
   dataset: PipelineDatasetSummary;
   cache: PipelineCacheInfo;
+  /** Detailed-workout sources (Hevy, …): configured or not, and what each holds. */
+  workoutSources: WorkoutSourceStatus[];
   /** Reference day / instant of the dataset driving the dashboard. */
   dataAsOf: string | null;
   checkedAt: string;

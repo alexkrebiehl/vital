@@ -20,8 +20,9 @@ import { DatasetProvider } from '@/components/data/DatasetProvider';
 import { ConnectionErrorState } from '@/components/data/ConnectionErrorState';
 import { FALLBACK_CLIENT_META } from '@/components/data/fallback-meta';
 import { LiveDataUnavailableError, resolveDataset, type ResolvedDataset } from '@/lib/adapters/runtime';
-import { readProfile } from '@/lib/profile/store';
+import { readProfileState } from '@/lib/profile/store';
 import { LEGACY_STORAGE_KEY, preferencesCacheKey } from '@/lib/prefs/types';
+import { DEFAULT_THEME_ID, themesFor } from '@/lib/prefs/themes';
 import PrefsSync from '@/components/prefs/PrefsSync';
 
 export const metadata: Metadata = {
@@ -41,15 +42,30 @@ export const revalidate = 0;
  * theme before the first paint. The legacy `vital-prefs` key is read once as a
  * fallback, because a browser that has not synced since the upgrade still has
  * only that.
+ *
+ * It resolves the theme the way `resolveTheme` in `@/lib/prefs` does: the mode
+ * picks the side, that side's pick names the palette, and a pick this build
+ * does not know (or a cache from before picks existed) is the default theme.
+ * It sets `data-theme` for the palette and the `dark` class for Tailwind.
  */
+const KNOWN_THEMES = JSON.stringify({
+  light: themesFor('light').map(t => t.id),
+  dark: themesFor('dark').map(t => t.id),
+});
+
 const themeScript = `
   (function() {
     try {
       var raw = localStorage.getItem('${preferencesCacheKey()}') || localStorage.getItem('${LEGACY_STORAGE_KEY}');
-      var theme = (JSON.parse(raw || '{}') || {}).theme || 'system';
-      if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        document.documentElement.classList.add('dark');
-      }
+      var prefs = JSON.parse(raw || '{}') || {};
+      var theme = prefs.theme || 'system';
+      var scheme = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+      var known = ${KNOWN_THEMES};
+      var id = prefs[scheme + 'Theme'];
+      if (known[scheme].indexOf(id) < 0) id = '${DEFAULT_THEME_ID}';
+      var root = document.documentElement;
+      if (scheme === 'dark') root.classList.add('dark');
+      root.setAttribute('data-theme', scheme + '-' + id);
     } catch(e) {}
   })();
 `;
@@ -72,8 +88,7 @@ export default async function RootLayout({
         host: error.host,
         hint:
           'Vital is running in live mode (VITAL_DATA_MODE=live), so no demo data is shown in its place. ' +
-          'Check that the Health Auto Export server is reachable from this host and that HAE_API_URL and ' +
-          'HAE_API_KEY are set, then retry.',
+          'Check the data connection in Settings and that the server is reachable from this host, then retry.',
       };
     } else {
       throw error;
@@ -86,7 +101,7 @@ export default async function RootLayout({
   // Read server-side, per request: the greeting, the avatar and the briefing all
   // read one profile, and the browser never needs to fetch it to render. The
   // read is awaitable because the record may live in Postgres.
-  const profile = await readProfile();
+  const { profile, stored: profileStored } = await readProfileState();
 
   return (
     <html lang="en" suppressHydrationWarning className={`${GeistSans.variable} ${GeistMono.variable}`}>
@@ -98,7 +113,7 @@ export default async function RootLayout({
           {/* Starts the server-backed settings sync (theme/units) and re-applies
               the theme when the server's value differs from this device's cache. */}
           <PrefsSync />
-          <AppShell profile={profile}>
+          <AppShell profile={profile} profileStored={profileStored}>
             {failure ? (
               <ConnectionErrorState
                 title={failure.title}

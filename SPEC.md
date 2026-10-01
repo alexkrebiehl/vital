@@ -168,7 +168,7 @@ Desktop:
   Workouts
   Insights
   AI Analyst
-- Settings and theme control anchored near the bottom.
+- Themes and Settings links anchored near the bottom. (The single light/dark toggle became a Themes page, Sep 28 2026: theme cards grouped under Light and Dark, one pick per side, with Light / Dark / Match system choosing between them.)
 - Give AI Analyst a subtle accent treatment.
 - Active navigation uses a tinted pill, not a loud solid block.
 
@@ -408,7 +408,7 @@ Insights:
 Settings:
 - Units
 - Timezone
-- Theme
+- Theme (a link to the Themes page)
 - Data coverage
 - Available metrics
 - Connection configuration/status
@@ -613,7 +613,7 @@ Required interactions:
 - Metric drill-down
 - Chart range changes
 - Chart tooltips
-- Theme switching with persistence
+- Theme switching with persistence (the Themes page: a mode plus a light and a dark theme pick, saved with the other preferences)
 - Unit switching with consistent conversions
 - Timezone preference
 - Search and keyboard command palette
@@ -739,3 +739,26 @@ Start by inspecting the project, then build. Make reasonable decisions without u
 
 Above all: make the Overview feel like a thoughtful personal morning briefing, and make every important statement traceable to evidence.
 ```
+────────────────────────────────────────
+ADDENDUM — 15. TRAINING ROUTINE, WORKOUT SOURCES AND ANALYST TOOLS
+────────────────────────────────────────
+
+Added after the original build; the numbered sections above are unchanged.
+
+Workout sources (src/lib/workout-sources/):
+- Apple Health records a workout's type, time and calories only. A workout source is a plugin that reads a training app's API for exercises, sets, reps, load, duration, distance and RPE, normalized into one `TrainingSession` model. Hevy is the first plugin.
+- Sessions are health data: held in server memory (process-global, TTL cache, incremental sync), never written to the database. Demo mode serves committed demo sessions.
+- Settings → Connections lists every source with its real status.
+
+Training plans (src/lib/routine/):
+- A plan is configuration and may be stored (migration 0007, with a revision per write). It is discipline-agnostic: focus areas → paths → ordered stages, each path judged by a pluggable progression model (variation, load, percentage, volume, maintain); rules (qualifying sessions, effort, light definitions, deloads, recovery gates); phases — milestones reached by progress, the current one derived from the data and never from the date, so the reader is never "behind"; calendar blocks only for deloads, peaks and tapers; session templates; and a schedule that may be a cycle of any length, fixed weekdays, or N sessions a week. No cadence or discipline is privileged.
+- Progress is computed, never generated: each path gets session rows with signals, a light on one scale (green / yellow-green / yellow / red / none) with reasons, readiness for the next stage and a next action. Holds, recovery gates and deloads apply to every model.
+- Qualitative checks (pain, form) are shown as checks for the person; no data source records them.
+
+Workouts page:
+- A Routine section shows the current phase (from the data), the next session, recovery and deload status, and a card per path. Each card opens /workouts/routine/[pathId]: current stage, session table (Date | Work | Total | Effort | Signal), light and reasons, next action, stage map, cues and checks, recovery indicators.
+- The path note may be rewritten by a model from a fact sheet; it is shown only when every number traces to the computed figures and it names the computed light, otherwise the computed text is shown and the page says why.
+
+AI analyst (§8 amended):
+- A configured model may call tools to read the routine, sessions, exercise catalogue and example plans, and to create or change the plan. Every change is validated as a whole plan, stored as a revision, reported in the answer and undoable. Numbers quoted from tool results count as grounded. Rounds, tool calls and plan changes per question are bounded; ANALYST_TOOLS=off disables tools.
+- The demo analyst handles plan requests by pattern through the same actions.

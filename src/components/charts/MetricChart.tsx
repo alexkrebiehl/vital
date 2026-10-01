@@ -172,29 +172,31 @@ export function MetricChart({
               {xAxis}
               {yAxis}
               <Tooltip content={<MetricTooltip metricId={metricId} units={units} />} />
-              {showBaseline && baselineBand && (
-                <>
-                  <ReferenceArea
-                    y1={baselineBand.low}
-                    y2={baselineBand.high}
-                    fill="var(--color-accent)"
-                    fillOpacity={0.07}
-                    stroke="none"
-                  />
-                  <ReferenceLine
-                    y={baselineBand.mean}
-                    stroke="var(--color-text-secondary)"
-                    strokeDasharray="4 4"
-                    strokeWidth={1}
-                    opacity={0.7}
-                    label={{
-                      value: baselineBand.label,
-                      position: 'insideTopRight',
-                      style: { fontSize: 10, fill: 'var(--color-text-secondary)' },
-                    }}
-                  />
-                </>
-              )}
+              {/* An array, not a fragment: recharts reads its children with react-is 18,
+                  which does not recognise React 19 fragments, and drops what is inside one. */}
+              {showBaseline && baselineBand && [
+                <ReferenceArea
+                  key="band"
+                  y1={baselineBand.low}
+                  y2={baselineBand.high}
+                  fill="var(--color-accent)"
+                  fillOpacity={0.07}
+                  stroke="none"
+                />,
+                <ReferenceLine
+                  key="mean"
+                  y={baselineBand.mean}
+                  stroke="var(--color-text-secondary)"
+                  strokeDasharray="4 4"
+                  strokeWidth={1}
+                  opacity={0.7}
+                  label={{
+                    value: baselineBand.label,
+                    position: 'insideTopRight',
+                    style: { fontSize: 10, fill: 'var(--color-text-secondary)' },
+                  }}
+                />,
+              ]}
               <Area
                 type="monotone"
                 dataKey="value"

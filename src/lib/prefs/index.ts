@@ -26,6 +26,7 @@ import {
   createPrefsEngine,
   type PreferencesState,
   type PrefsEngine,
+  type PrefsEngineDeps,
   type SaveOutcome,
   type SyncStatus,
 } from './engine';
@@ -33,12 +34,14 @@ import {
   DEFAULT_PREFERENCES,
   preferencesCacheKey,
   PREFS_SCHEMA_VERSION,
-  type ThemeMode,
   type UnitSystem,
   type VitalPreferences,
 } from './types';
+import { themeAttr, type ColorScheme } from './themes';
 
 export type { ThemeMode, UnitSystem } from './types';
+export type { ColorScheme, ThemeDef } from './themes';
+export { DEFAULT_THEME_ID, THEMES, themeAttr, themesFor } from './themes';
 export type {
   NotificationPreferences,
   PreferencesRecord,
@@ -58,6 +61,29 @@ export const PREFERENCES_ENDPOINT = '/api/preferences';
 
 let engine: PrefsEngine | null = null;
 
+/** The BroadcastChannel the tabs of one browser share preference saves on. */
+export const PREFERENCES_TABS_CHANNEL = 'vital:preferences';
+
+/** Other tabs of this browser, or undefined where BroadcastChannel is missing. */
+function tabsChannel(): NonNullable<PrefsEngineDeps['tabs']> | undefined {
+  if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') return undefined;
+  try {
+    const channel = new BroadcastChannel(PREFERENCES_TABS_CHANNEL);
+    return {
+      post: record => {
+        try {
+          channel.postMessage(record);
+        } catch {
+          // A tab that cannot post still saved; the others catch up on focus.
+        }
+      },
+      listen: cb => channel.addEventListener('message', event => cb(event.data)),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 /** The shared engine, created once per browser. Safe to call on the server. */
 export function getPrefsEngine(): PrefsEngine {
   if (engine) return engine;
@@ -74,7 +100,7 @@ export function getPrefsEngine(): PrefsEngine {
     fetchImpl: (input, init) => fetch(input, init),
     now: () => Date.now(),
     // Every state change is announced on the window so the existing consumers
-    // (UnitsProvider, ThemeToggle, MetricChart, the Settings form) re-render
+    // (UnitsProvider, the Themes page, MetricChart, the Settings form) re-render
     // through the same event they have always listened for.
     onChange: () => {
       if (typeof window === 'undefined') return;
@@ -88,13 +114,15 @@ export function getPrefsEngine(): PrefsEngine {
       if (typeof window === 'undefined') return;
       window.addEventListener('focus', cb);
     },
+    tabs: tabsChannel(),
   });
   return engine;
 }
 
 /**
- * Read the server once and pick changes up whenever the window regains focus, so
- * a second tab or a second device converges without a reload. Idempotent.
+ * Read the server once, follow saves made in this browser's other tabs as they
+ * happen, and pick changes up whenever the window regains focus, so a second
+ * device converges without a reload. Idempotent.
  */
 export function startPreferencesSync(): void {
   getPrefsEngine().start();
@@ -158,18 +186,40 @@ export function describeStoredPreferences(prefs: VitalPreferences): { key: strin
   return [{ key: STORAGE_KEY_NAME, value: JSON.stringify(prefs) }];
 }
 
-/** Apply a theme to the document. Unchanged behaviour; kept for callers. */
-export function applyTheme(theme: ThemeMode): void {
+type ThemeChoice = Pick<VitalPreferences, 'theme' | 'lightTheme' | 'darkTheme'>;
+
+/** True when the operating system asks for dark. False wherever it cannot be read. */
+export function systemPrefersDark(): boolean {
+  try {
+    return typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The theme on show: the mode picks the side (the OS decides under `system`),
+ * and that side's pick names the palette. `attr` is the `data-theme` value.
+ */
+export function resolveTheme(
+  prefs: ThemeChoice,
+  systemDark: boolean = systemPrefersDark()
+): { scheme: ColorScheme; id: string; attr: string } {
+  const scheme: ColorScheme = prefs.theme === 'system' ? (systemDark ? 'dark' : 'light') : prefs.theme;
+  const id = scheme === 'dark' ? prefs.darkTheme : prefs.lightTheme;
+  return { scheme, id, attr: themeAttr(scheme, id) };
+}
+
+/**
+ * Apply the theme to the document: `data-theme` selects the palette in
+ * globals.css, and the `dark` class keeps Tailwind's `dark:` variants working.
+ */
+export function applyTheme(prefs: ThemeChoice): void {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
-  if (theme === 'dark') {
-    root.classList.add('dark');
-  } else if (theme === 'light') {
-    root.classList.remove('dark');
-  } else {
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    root.classList.toggle('dark', prefersDark);
-  }
+  const { scheme, attr } = resolveTheme(prefs);
+  root.classList.toggle('dark', scheme === 'dark');
+  root.dataset.theme = attr;
 }
 
 export { preferencesCacheKey, PREFS_SCHEMA_VERSION };

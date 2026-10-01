@@ -63,6 +63,9 @@ function openaiEnv(baseUrl: string): NodeJS.ProcessEnv {
     ANALYST_API_URL: baseUrl,
     ANALYST_MODEL: 'mock-analyst-1',
     ANALYST_API_KEY: 'sk-test-key-that-must-never-leak',
+    // These cases pin the plain (tool-less) stream; the plan-tool stream is
+    // covered in src/lib/analyst/stream-tools.test.ts.
+    ANALYST_TOOLS: 'off',
   } as unknown as NodeJS.ProcessEnv;
 }
 

@@ -7,7 +7,7 @@ import { artCategoryOf } from '@/components/domain/DomainShared';
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
-import { ArrowLeft, TrendingUp, TrendingDown, Minus, Info, ChevronDown } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Info, ChevronDown } from 'lucide-react';
 import { getMetric, getAllMetrics } from '@/lib/metrics';
 import {
   formatMetricValue,
@@ -20,7 +20,6 @@ import {
   REFERENCE_KEY,
   WINDOW_START_KEY,
   canonicalDayKey,
-  datasetProvenanceSentence,
   metricHasData,
   seriesFor,
   sleepSeries,
@@ -45,16 +44,16 @@ import {
 } from '@/lib/analytics';
 import { compareValues, stddev, mean, percentChange } from '@/lib/analytics';
 import {
-  Card, Badge, InsufficientDataState, SegmentedControl, StaleBadge, ChangeCue, DataStateNote,
+  Card, Badge, InsufficientDataState, StaleBadge, ChangeCue, DataStateNote,
 } from '@/components/ui/primitives';
 import { MetricChart, AccessibleDataTable } from '@/components/charts';
 import { useUnits } from '@/components/ui/UnitsProvider';
+import { RangeControl } from '@/components/ui/RangeControl';
+import { rangeDays } from '@/lib/ranges';
 import { useDatasetMeta } from '@/components/data/DatasetProvider';
 
-const RANGE_OPTIONS = [
-  { value: '7d', label: '7D' },
-  { value: '30d', label: '30D' },
-  { value: '90d', label: '90D' },
+/** After the shared 7/30/90 presets and Custom: the long views this page also offers. */
+const RANGE_EXTRAS = [
   { value: '1y', label: '1Y' },
   { value: 'all', label: 'All' },
 ];
@@ -70,7 +69,6 @@ export function MetricDetailPage() {
   if (!meta) {
     return (
       <div className="space-y-6">
-        <BackLink />
         <InsufficientDataState
           metricName="this metric"
           message={`No metric is registered with the id "${metricId}". It may have been removed, or the link may be out of date.`}
@@ -87,7 +85,12 @@ export function MetricDetailPage() {
   return <MetricDetailContent metaId={metricId} />;
 }
 
-const RANGE_TOKENS = ['7d', '30d', '90d', '1y', 'all'];
+const RANGE_TOKENS = ['1y', 'all'];
+
+/** A ?range= value the page can open at: a day count such as 45d, 1y, or all. */
+function isKnownRange(token: string | null): token is string {
+  return token !== null && (RANGE_TOKENS.includes(token) || rangeDays(token, 'token') !== null);
+}
 
 function MetricDetailContent({ metaId }: { metaId: string }) {
   const units = useUnits().units;
@@ -98,7 +101,7 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
   // at the period the insight was computed over.
   const requestedRange = searchParams.get('range');
   const [range, setRange] = useState<string>(
-    requestedRange && RANGE_TOKENS.includes(requestedRange) ? requestedRange : meta.defaultRange || '30d'
+    isKnownRange(requestedRange) ? requestedRange : meta.defaultRange || '30d'
   );
   const [showBaseline, setShowBaseline] = useState(true);
   const [view, setView] = useState<'chart' | 'table'>('chart');
@@ -201,7 +204,6 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
   if (all.length === 0) {
     return (
       <div className="space-y-6">
-        <BackLink />
         <div>
           <Badge variant="default" className="text-[10px]">{meta.category}</Badge>
           <h1 className="text-2xl md:text-3xl font-semibold text-text-primary mt-2">{meta.displayName}</h1>
@@ -219,8 +221,6 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
 
   return (
     <div className="space-y-6">
-      <BackLink />
-
       {/* ── Header ──────────────────────────────────── */}
       <PageHero
         title={meta.displayName}
@@ -366,10 +366,11 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
 
           {/* ── Controls ───────────────────────────── */}
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <SegmentedControl
-              options={RANGE_OPTIONS}
+            <RangeControl
               value={range}
               onChange={setRange}
+              format="token"
+              extraOptions={RANGE_EXTRAS}
               ariaLabel="Chart range"
             />
             <div className="flex items-center gap-2">
@@ -510,45 +511,6 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
 
           <RelatedMetricsList metrics={relatedMetrics} />
 
-          {/* ── Provenance ─────────────────────────── */}
-          {coverage && (
-            <Card className="p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <Info size={14} className="text-text-secondary" aria-hidden="true" />
-                <h3 className="text-sm font-semibold text-text-primary">Data provenance</h3>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                <div>
-                  <span className="text-text-secondary">First observed</span>
-                  <p className="text-text-primary tnum font-medium">
-                    {formatDayKeyLong(canonicalDayKey(coverage.firstObservation))}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-text-secondary">Last observed</span>
-                  <p className="text-text-primary tnum font-medium">
-                    {formatDayKeyLong(canonicalDayKey(coverage.lastObservation))}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-text-secondary">Coverage</span>
-                  <p className="text-text-primary tnum font-medium">
-                    {coverage.observedDays}/{coverage.expectedDays} days ({coverage.samplingFrequency})
-                  </p>
-                </div>
-                <div>
-                  <span className="text-text-secondary">Sources</span>
-                  <p className="text-text-primary font-medium">{coverage.sourceNames.join(', ')}</p>
-                </div>
-              </div>
-              <div className="mt-3">
-                <DataStateNote>
-                  {datasetProvenanceSentence()} Missing days are excluded rather than treated as zero,
-                  and the latest reading may differ from the day you are viewing.
-                </DataStateNote>
-              </div>
-            </Card>
-          )}
         </>
       )}
     </div>
@@ -556,18 +518,6 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
 }
 
 // ── Sub-components ────────────────────────────────────
-
-function BackLink() {
-  return (
-    <Link
-      href="/"
-      className="inline-flex items-center gap-1 text-sm text-text-secondary hover:text-text-primary transition-colors"
-    >
-      <ArrowLeft size={14} aria-hidden="true" />
-      <span>Back</span>
-    </Link>
-  );
-}
 
 function RelatedMetricsList({ metrics }: { metrics: ReturnType<typeof getAllMetrics> }) {
   if (metrics.length === 0) return null;
