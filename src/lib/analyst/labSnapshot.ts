@@ -39,26 +39,26 @@ import { MAX_POINTS_PER_SERIES, type LabSpec } from './retrieval';
 /**
  * The number of series the overview block carries.
  *
- * BUDGET REASONING (measured, not guessed). One entry — its latest and previous
- * reading with their intervals, plus the display strings — serializes to about
- * 1.4 KB. Measured against the owner's own dataset (104 series, 10 categories),
- * the 20-series overview block — including the list of the 84 series it left out
- * — is 28,844 bytes (≈1.4 KB per entry), against the ~32 KB the WHOLE general
- * metric selection already occupies (14 summaries over 30 days). Forty series
- * would be ~55 KB: a lab block that pushes the metric context out rather than
- * travelling with it. A question that names an analyte is not limited by this
- * cap at all: it gets that analyte's own bounded history (≤
- * MAX_POINTS_PER_SERIES observations).
+ * NO LONGER A WORKING CAP. It was 20, chosen on a measured budget: one entry
+ * serializes to about 1.4 KB, so 20 series cost ~28.8 KB against the ~32 KB the
+ * whole general metric selection already occupies. That produced answers whose
+ * first paragraph was a caveat about how much had been withheld — the reader was
+ * told 33 series were missing more loudly than anything about the results that
+ * WERE present, and the model kept hedging about what it could not see.
  *
- * WHAT THE CAP SELECTS (see `overviewSelection`). Not twenty series picked by
- * newest date alone: when many series share one newest date (one document), that
- * rule shows an arbitrary alphabetical slice of a single day and hides
- * everything else. The block instead carries, in order: the most recent series
- * overall, the most recent series in each category the data holds, the
- * longest-running series, and then the most recently measured to fill the
- * budget. Whatever it leaves out is named in `notIncludedSeries`.
+ * The block now carries EVERY series the dataset holds, so the caveat has
+ * nothing to say. The measured cost is ~1.4 KB per entry; the owner's 53 series
+ * come to roughly 74 KB of context, which the provider's window holds. The bound
+ * that remains is this constant — raise it again if the dataset grows past what
+ * one context can carry, and the block will state the cap in words when it bites
+ * (see `capped` / `notIncludedSeries`), never silently.
+ *
+ * WHAT IT SELECTS (see `overviewSelection`). Even with the cap lifted the order
+ * matters if it ever bites again: most recent series overall, then the most
+ * recent in each category, then the longest-running, then most recently measured.
+ * Whatever it leaves out is named in `notIncludedSeries`.
  */
-export const MAX_LAB_SERIES = 20;
+export const MAX_LAB_SERIES = 200;
 
 /** The words that make a question a lab question rather than a wearable one. */
 export const LAB_TOPIC_RE =

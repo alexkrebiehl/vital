@@ -3,85 +3,95 @@
 @tailwind utilities;
 
 /* ── Design Tokens ─────────────────────────────────────── */
+/* Identity: cool graphite neutrals, one indigo accent. Colour is reserved for
+   meaning (the accent, category data series, attention); surfaces stay quiet. */
 :root {
-  /* Light theme (default) */
-  --color-page: #F6F5F1;
+  --color-page: #F7F7F9;
   --color-surface: #FFFFFF;
-  --color-surface-muted: #EEEDE7;
+  --color-surface-muted: #F0F1F5;
   --color-surface-elevated: #FFFFFF;
-  --color-text-primary: #202722;
-  --color-text-secondary: #626B65;
-  --color-border: #E1E4DD;
-  --color-accent: #285C49;
-  --color-accent-tint: #E7EFE8;
-  --color-primary: #285C49;
+  --color-text-primary: #14161C;
+  --color-text-secondary: #5B6170;
+  --color-border: #E5E7ED;
+  --color-border-strong: #D3D6DF;
+  --color-accent: #4453C8;
+  --color-accent-tint: #ECEEFC;
+  --color-primary: #4453C8;
   --color-primary-text: #FFFFFF;
 
-  /* Hero surface — follows the theme.
-     Light theme: the briefing is a warm, lightly green-tinted panel with dark
-     text, so the page reads as one palette (a dark slab in a light UI looked
-     like the wrong theme had leaked in). The green accent still marks it as the
-     briefing. Dark theme keeps the deep green-black anchor.
-     The foreground tokens exist so components never hard-code a hex on a themed
-     surface. Contrast on this surface: headline 12.7:1, label 6.6:1, body 6.2:1. */
-  --color-hero: #E7EFE8;
-  --color-hero-border: #D2E0D5;
-  --color-hero-foreground: #172B24;
-  --color-hero-muted: #285C49;
-  --color-hero-secondary: #4A5B50;
+  /* Briefing surface follows the theme: a soft indigo wash in light, a deep
+     ink-indigo in dark. Foreground tokens keep components free of hex values. */
+  --color-hero: #EEF0FD;
+  --color-hero-border: #DCE0F6;
+  --color-hero-foreground: #14163A;
+  --color-hero-muted: #4453C8;
+  --color-hero-secondary: #4A4F72;
 
-  /* Floating surfaces (tooltips) stay dark in both themes: they sit over
-     arbitrary content, and a dark chip reads as an overlay rather than as part
-     of the page. Kept separate from the hero tokens so the briefing surface can
-     follow the theme without dragging tooltips with it. */
-  --color-tooltip: #172B24;
-  --color-tooltip-foreground: #F1F4EF;
+  /* Tooltips stay dark in both themes so they read as an overlay. */
+  --color-tooltip: #14161C;
+  --color-tooltip-foreground: #F2F3F6;
 
-  /* Category accents */
-  --color-category-activity: #4A8B8B;
-  --color-category-cardiovascular: #D4796A;
-  --color-category-sleep: #6A6D9E;
-  --color-category-body: #A6896A;
-  --color-category-nutrition: #7F9C7A;
-  --color-category-respiratory: #5FA8B3;
-  --color-category-recovery: #7B7EAD;
-  --color-category-attention: #C4913E;
+  /* Category accents (data series only) */
+  --color-category-activity: #2F93A8;
+  --color-category-cardiovascular: #E0705F;
+  --color-category-sleep: #6066D4;
+  --color-category-body: #A9865F;
+  --color-category-nutrition: #B5709B;
+  --color-category-respiratory: #4FA3D1;
+  --color-category-recovery: #8B6FD0;
+  --color-category-attention: #C98A1B;
+
+  /* Elevation: hairline plus an almost imperceptible lift. */
+  --shadow-card: 0 1px 2px rgba(20, 22, 28, 0.04), 0 0 0 1px rgba(20, 22, 28, 0.02);
+  --shadow-pop: 0 12px 32px -8px rgba(20, 22, 28, 0.16), 0 2px 6px rgba(20, 22, 28, 0.06);
 
   /* Layout */
-  --sidebar-width: 224px;
-  --content-max-width: 1360px;
-  --radius-card: 20px;
-  --radius-control: 12px;
+  --sidebar-width: 240px;
+  --content-max-width: 1320px;
+  --radius-card: 16px;
+  --radius-control: 10px;
 }
 
 .dark {
-  --color-page: #101713;
-  --color-surface: #19221D;
-  --color-surface-muted: #1A2A20;
-  --color-surface-elevated: #222E27;
-  --color-text-primary: #F1F4EF;
-  --color-text-secondary: #ABB6AC;
-  --color-border: #334238;
-  --color-accent: #A9CBB2;
-  --color-accent-tint: #1E332A;
-  --color-primary: #A9CBB2;
-  --color-primary-text: #101713;
+  --color-page: #0C0D11;
+  --color-surface: #14161C;
+  --color-surface-muted: #1B1E26;
+  --color-surface-elevated: #1B1E26;
+  --color-text-primary: #F2F3F6;
+  --color-text-secondary: #9CA2B1;
+  --color-border: #252933;
+  --color-border-strong: #343945;
+  --color-accent: #9DAAFF;
+  --color-accent-tint: #1E2343;
+  --color-primary: #9DAAFF;
+  --color-primary-text: #0C0D11;
 
-  /* Hero stays dark and readable in dark theme too. */
-  --color-hero: #0E1E18;
-  --color-hero-border: #24382E;
-  --color-hero-foreground: #F1F4EF;
-  --color-hero-muted: #A9CBB2;
-  --color-hero-secondary: #C6D3C8;
+  --color-hero: #151936;
+  --color-hero-border: #262C56;
+  --color-hero-foreground: #F2F3F6;
+  --color-hero-muted: #9DAAFF;
+  --color-hero-secondary: #C3C8E8;
 
-  /* Tooltips: dark in this theme as well; see the light block's note. */
-  --color-tooltip: #0E1E18;
-  --color-tooltip-foreground: #F1F4EF;
+  --color-tooltip: #242834;
+  --color-tooltip-foreground: #F2F3F6;
+
+  --color-category-activity: #4FB3C8;
+  --color-category-cardiovascular: #EE8876;
+  --color-category-sleep: #8A90F0;
+  --color-category-body: #C4A27B;
+  --color-category-nutrition: #D08BB6;
+  --color-category-respiratory: #6FBDE8;
+  --color-category-recovery: #A88FEA;
+  --color-category-attention: #E0A53A;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-pop: 0 16px 40px -8px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 /* ── Typography ────────────────────────────────────────── */
 html {
-  font-family: -apple-system, "Segoe UI", Inter, system-ui, sans-serif;
+  font-family: var(--font-geist-sans), -apple-system, "Segoe UI", system-ui, sans-serif;
+  font-feature-settings: "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -98,8 +108,13 @@ html {
   box-sizing: border-box;
 }
 
+h1, h2, h3 { letter-spacing: -0.02em; text-wrap: balance; }
+p { text-wrap: pretty; }
+
 body {
   margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
   padding: 0;
   background-color: var(--color-page);
   color: var(--color-text-primary);
@@ -122,7 +137,7 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border);
+  background: var(--color-border-strong);
   border-radius: 3px;
 }
 
@@ -153,3 +168,37 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+/* ── Form controls ─────────────────────────────────────────
+   Native controls are restyled once, here, so every page shares one look.
+   Checkboxes, radios and files keep their native behaviour. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]),
+select,
+textarea {
+  background-color: var(--color-surface);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-card);
+  transition: border-color 150ms, box-shadow 150ms;
+  color-scheme: light;
+}
+.dark input, .dark select, .dark textarea { color-scheme: dark; }
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):hover,
+select:hover, textarea:hover { border-color: var(--color-text-secondary); }
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
+select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 2.25rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239CA2B1' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+}
+input::placeholder, textarea::placeholder { color: var(--color-text-secondary); opacity: 0.75; }
+input:disabled, select:disabled, textarea:disabled { opacity: 0.55; cursor: not-allowed; }
+::selection { background: color-mix(in srgb, var(--color-accent) 28%, transparent); }

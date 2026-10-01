@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle, Bot, ChevronRight, Loader2, Send, ShieldCheck, Sparkles, User,
 } from 'lucide-react';
+import { PageHero } from '@/components/art/PageHero';
 import { Badge, Button, Card, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { TrendFigure } from '@/components/charts';
 import { useUnits } from '@/components/ui/UnitsProvider';
@@ -231,21 +232,18 @@ export function AnalystPage() {
   return (
     <div className="space-y-6">
       {/* ── Header ─────────────────────────────────── */}
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-[26px] md:text-[32px] font-semibold tracking-tight text-text-primary leading-tight">
-            Ask about your health
-          </h1>
-          <p className="text-sm text-text-secondary mt-1">
-            Explore patterns in your Apple Health history.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
+      <PageHero
+        title="Ask about your health"
+        eyebrow="AI Analyst"
+        category="overview"
+        seed={42}
+        subtitle="Explore patterns in your Apple Health history."
+        aside={
           <Badge variant={providerReady ? 'accent' : 'default'} className="text-xs">
             {providerBadge(configState)}
           </Badge>
-        </div>
-      </header>
+        }
+      />
 
       {/* State notice: rendered only when there is something to say. */}
       {(configError || !configState || !availability.available || demoMode || misconfigured) && (
@@ -555,17 +553,49 @@ function AnswerView({ response, onFollowUp }: { response: AnalystResponse; onFol
 
         <h2 className="text-base font-semibold text-text-primary">{answer.title}</h2>
 
+        {answer.analysis.trim().length > 0 && (
+          <section className="space-y-3">
+            <h3 className="text-[11px] uppercase tracking-[0.06em] font-medium text-text-secondary">Analysis</h3>
+            <div className="space-y-3">
+              {answer.analysis
+                .split(/\n{2,}/)
+                .map(paragraph => paragraph.trim())
+                .filter(paragraph => paragraph.length > 0)
+                .map((paragraph, i) => (
+                  <p key={i} className="text-sm text-text-primary leading-relaxed">
+                    {withLinks(paragraph, `p${i}`)}
+                  </p>
+                ))}
+            </div>
+          </section>
+        )}
+
         {ANSWER_SECTIONS.map(section => {
           const lines = section.pick(answer);
           if (lines.length === 0) return null;
           return (
             <section key={section.heading}>
-              <h3 className="text-[10px] uppercase tracking-wider text-text-secondary mb-1.5">{section.heading}</h3>
-              <ul className="list-disc pl-5 space-y-1.5">
-                {lines.map((line, i) => (
-                  <li key={i} className="text-sm text-text-primary leading-relaxed">{line}</li>
-                ))}
-              </ul>
+              <h3 className="text-[11px] uppercase tracking-[0.06em] font-medium text-text-secondary mb-1.5">{section.heading}</h3>
+              {lines.length === 1 ? (
+                // One line is a statement, not a list: draw it as text so the
+                // answer reads as prose with a paragraph, not as a bulleted page.
+                <p className="text-sm text-text-primary leading-relaxed">
+                  {withLinks(lines[0]!, `${section.heading}-0`)}
+                </p>
+              ) : section.prose ? (
+                // A section declared as prose is joined into one paragraph.
+                <p className="text-sm text-text-primary leading-relaxed">
+                  {withLinks(lines.join(' '), section.heading)}
+                </p>
+              ) : (
+                <ul className="list-disc pl-5 space-y-1.5">
+                  {lines.map((line, i) => (
+                    <li key={i} className="text-sm text-text-primary leading-relaxed">
+                      {withLinks(line, `${section.heading}-${i}`)}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
           );
         })}
@@ -586,7 +616,7 @@ function AnswerView({ response, onFollowUp }: { response: AnalystResponse; onFol
 
         {answer.evidence.length > 0 && (
           <div className="space-y-2">
-            <h3 className="text-[10px] uppercase tracking-wider text-text-secondary">Evidence</h3>
+            <h3 className="text-[11px] uppercase tracking-[0.06em] font-medium text-text-secondary">Evidence</h3>
             {answer.evidence.map((ev, i) => (
               <div key={`${ev.metricId}-${i}`} className="border border-border rounded-control p-3">
                 <div className="flex flex-wrap items-baseline gap-2 mb-1">
@@ -646,11 +676,61 @@ const STATUS_LABEL: Record<string, string> = {
   ok: 'Answer',
 };
 
-const ANSWER_SECTIONS: { heading: string; pick: (a: AnalystAnswer) => string[] }[] = [
-  { heading: '1 · Observed measurements', pick: a => a.observed },
-  { heading: '2 · Possible interpretation', pick: a => a.interpretation },
-  { heading: '3 · Missing context and uncertainty', pick: a => a.uncertainty },
+/**
+ * The supporting lists that follow the prose analysis. Each is a SHORT list — the
+ * prose carries the reasoning, so these are the facts, the next steps and the
+ * caveats, not the argument.
+ */
+/**
+ * The sections that follow the prose.
+ *
+ * There is deliberately NO "measured" list: the values are already on their own
+ * pages and the analysis links to them, so restating them here would be the
+ * machine dump the owner objected to. The evidence cards below the answer carry
+ * the links to the underlying charts and records.
+ *
+ * `prose: true` joins the entries into ONE paragraph instead of a bullet list —
+ * uncertainty is a statement about the answer, so it reads as text; the next steps
+ * are genuinely a list of actions, so they stay a list.
+ */
+const ANSWER_SECTIONS: { heading: string; pick: (a: AnalystAnswer) => string[]; prose?: boolean }[] = [
+  { heading: 'What to do next', pick: a => a.recommendations },
+  { heading: 'Summary', pick: a => a.summary, prose: true },
+  { heading: 'Missing context and uncertainty', pick: a => a.uncertainty, prose: true },
 ];
+
+/**
+ * Render a line that may carry inline link tokens — `[haemoglobin](/metric/hemoglobin)`.
+ *
+ * The model is asked to POINT at a measurement rather than recite it, so the
+ * answer's prose names the metric and the reader clicks through to the value. Only
+ * same-origin routes are turned into links: anything else is shown as plain text,
+ * because the token comes from model output.
+ */
+const LINK_TOKEN = /\[([^\]]+)\]\((\/[^)\s]*)\)/g;
+
+function withLinks(text: string, keyPrefix: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  let last = 0;
+  let match: RegExpExecArray | null;
+  LINK_TOKEN.lastIndex = 0;
+  while ((match = LINK_TOKEN.exec(text)) !== null) {
+    if (match.index > last) nodes.push(text.slice(last, match.index));
+    const [, label, href] = match;
+    nodes.push(
+      <Link
+        key={`${keyPrefix}-${match.index}`}
+        href={href}
+        className="text-accent underline decoration-dotted underline-offset-2 hover:decoration-solid"
+      >
+        {label}
+      </Link>
+    );
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) nodes.push(text.slice(last));
+  return nodes;
+}
 
 function EvRow({ label, value }: { label: string; value: string }) {
   return (

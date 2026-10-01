@@ -20,37 +20,49 @@ import {
   type SeriesSummary,
 } from '@/lib/analytics';
 import { Card, Badge, ChangeCue, DataStateNote } from '@/components/ui/primitives';
-import { TrendFigure } from '@/components/charts';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { useDatasetMeta } from '@/components/data/DatasetProvider';
 import type { MetricDefinition } from '@/lib/metrics/types';
+import { PageHero } from '@/components/art/PageHero';
+import { Spark } from '@/components/art/Spark';
+import { CATEGORY_VAR } from '@/components/art/categories';
+import type { ArtCategory } from '@/components/art/categories';
 
 // ── Page header ────────────────────────────────────────
 
+const CATEGORY_BY_TITLE: Record<string, ArtCategory> = {
+  Health: 'cardiovascular', Sleep: 'sleep', Activity: 'activity', Body: 'body',
+  Nutrition: 'nutrition', Workouts: 'activity', Insights: 'insight', Trends: 'overview',
+  Lab: 'lab', Medications: 'medication',
+};
+
 export function DomainHeader({
-  title, subtitle, children,
+  title, subtitle, children, category, eyebrow, aside,
 }: {
   title: string;
   subtitle: string;
   children?: React.ReactNode;
+  category?: ArtCategory;
+  eyebrow?: string;
+  aside?: React.ReactNode;
 }) {
   return (
-    <header className="flex flex-wrap items-start justify-between gap-4">
-      <div className="min-w-0">
-        <h1 className="text-[26px] md:text-[32px] font-semibold tracking-tight text-text-primary leading-tight">
-          {title}
-        </h1>
-        <p className="text-sm text-text-secondary mt-1 max-w-2xl">{subtitle}</p>
-      </div>
-      {children && <div className="flex items-center gap-2 shrink-0">{children}</div>}
-    </header>
+    <PageHero
+      title={title}
+      subtitle={subtitle}
+      eyebrow={eyebrow ?? title}
+      category={category ?? CATEGORY_BY_TITLE[title] ?? 'neutral'}
+      aside={aside}
+    >
+      {children}
+    </PageHero>
   );
 }
 
 export function SectionTitle({ children, hint }: { children: React.ReactNode; hint?: string }) {
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
-      <h2 className="text-[20px] md:text-[24px] font-semibold text-text-primary">{children}</h2>
+      <h2 className="text-[19px] md:text-[22px] font-semibold tracking-[-0.025em] text-text-primary">{children}</h2>
       {hint && <span className="text-xs text-text-secondary">{hint}</span>}
     </div>
   );
@@ -81,6 +93,15 @@ export function visibleSummaries(summaries: SeriesSummary[]): SeriesSummary[] {
   return summaries.filter(s => s.points.length > 0);
 }
 
+const CATEGORY_TO_ART: Record<string, ArtCategory> = {
+  cardiovascular: 'cardiovascular', activity: 'activity', sleep: 'sleep', body: 'body',
+  nutrition: 'nutrition', respiratory: 'respiratory', recovery: 'recovery',
+};
+export function artCategoryOf(metricId: string): ArtCategory {
+  const c = getMetric(metricId)?.category as string | undefined;
+  return (c && CATEGORY_TO_ART[c]) || 'neutral';
+}
+
 export function SeriesCard({
   summary, days, emphasis = false,
 }: {
@@ -93,66 +114,67 @@ export function SeriesCard({
   // No observation in this window ⇒ no card (owner request 2).
   if (summary.points.length === 0) return null;
 
+  const color = CATEGORY_VAR[artCategoryOf(summary.metricId)];
+  const values = summary.points.map(p => p.value);
+  const first = summary.points[0];
+  const last = summary.points[summary.points.length - 1];
+  const sparkLabel = `${summary.metricName} · ${windowRangeLabel(summary.window)} · ${summary.points.length} observations. From ${formatMetricWithUnit(summary.metricId, first.value, units)} to ${formatMetricWithUnit(summary.metricId, last.value, units)}.`;
+
   return (
-    <Card className="p-5 flex flex-col">
-      <div className="flex items-start justify-between gap-2 mb-1">
-        <span className="text-xs font-medium text-text-secondary">{summary.metricName}</span>
+    <Card className="group relative flex flex-col overflow-hidden p-5">
+      <span className="absolute inset-x-0 top-0 h-[3px]" style={{ background: color }} aria-hidden="true" />
+      <div className="mb-3 flex items-start justify-between gap-2">
+        <span className="flex items-center gap-2 text-[13px] font-medium text-text-primary">
+          <span className="h-2 w-2 rounded-full" style={{ background: color }} aria-hidden="true" />
+          {summary.metricName}
+        </span>
         {summary.latest && (
-          <span className="text-[10px] text-text-secondary">Latest · {formatDayKeyLong(summary.latest.key)}</span>
+          <span className="text-[11px] text-text-secondary">{formatDayKeyLong(summary.latest.key)}</span>
         )}
       </div>
 
-      <div className={`${emphasis ? 'text-[34px] md:text-[40px]' : 'text-[28px] md:text-[32px]'} font-semibold tnum text-text-primary leading-none mb-2`}>
-        {summary.latestValue}
-      </div>
-
-      <div className="text-xs text-text-secondary space-y-1 mb-3">
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+        <div className={`${emphasis ? 'text-[40px] md:text-[46px]' : 'text-[32px] md:text-[36px]'} font-semibold tnum leading-none tracking-[-0.035em] text-text-primary`}>
+          {summary.latestValue}
+        </div>
         {summary.valid ? (
-          <div className="inline-flex items-center gap-1">
-            <ChangeCue
-              direction={summary.direction}
-              value={summary.changeValue}
-              percent={summary.changePercent}
-            />
-            <span>vs prior {days} days</span>
-          </div>
+          <span className="mb-0.5 inline-flex items-center gap-1 rounded-md bg-surface-muted px-2 py-1 text-xs text-text-primary ring-1 ring-inset ring-border">
+            <ChangeCue direction={summary.direction} value={summary.changeValue} percent={summary.changePercent} />
+            <span className="text-text-secondary">vs prior {days}d</span>
+          </span>
         ) : (
-          <div>Not enough paired observations for a {days}-day comparison.</div>
+          <span className="mb-0.5 text-xs text-text-secondary">Not enough paired observations for a {days}-day comparison.</span>
         )}
-        <div className="tnum">
-          {windowRangeLabel(summary.evaluatedWindow)} {summary.accumulating ? 'total' : 'avg'}{' '}
-          {formatMetricWithUnit(summary.metricId, summary.windowAverage, units)}
+      </div>
+
+      <div role="img" aria-label={sparkLabel} className="my-4">
+        <Spark values={values} color={color} height={56} />
+      </div>
+
+      <dl className="space-y-1.5 border-t border-border pt-3 text-xs">
+        <div className="flex items-baseline justify-between gap-3 tnum">
+          <dt className="text-text-secondary">{windowRangeLabel(summary.evaluatedWindow)} {summary.accumulating ? 'total' : 'avg'}</dt>
+          <dd className="text-text-primary">{formatMetricWithUnit(summary.metricId, summary.windowAverage, units)}</dd>
         </div>
-        <div className="tnum">
-          {windowRangeLabel(summary.baselineWindow)} {summary.accumulating ? 'total' : 'avg'}{' '}
-          {formatMetricWithUnit(summary.metricId, summary.baselineAverage, units)}
+        <div className="flex items-baseline justify-between gap-3 tnum">
+          <dt className="text-text-secondary">{windowRangeLabel(summary.baselineWindow)} {summary.accumulating ? 'total' : 'avg'}</dt>
+          <dd className="text-text-primary">{formatMetricWithUnit(summary.metricId, summary.baselineAverage, units)}</dd>
         </div>
-        <div>
+        <div className="text-text-secondary">
           {summary.lengthLabel} · {summary.counts.evaluated} vs {summary.counts.baseline} observations
         </div>
         {summary.excludedDays.length > 0 && (
-          <div>Today excluded (still in progress), so a partial day is never compared with a complete one.</div>
+          <div className="text-text-secondary">Today excluded (still in progress), so a partial day is never compared with a complete one.</div>
         )}
-      </div>
+      </dl>
 
-      <TrendFigure
-        metricId={summary.metricId}
-        data={summary.points}
-        caption={`${summary.metricName} · ${windowRangeLabel(summary.window)} · ${
-          summary.points.length
-        } observations`}
-        height={64}
-      />
-
-      <div className="mt-3">
-        <Link
-          href={`/metric/${summary.metricId}`}
-          className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-        >
-          Open {summary.metricName} detail
-          <ChevronRight size={14} aria-hidden="true" />
-        </Link>
-      </div>
+      <Link
+        href={`/metric/${summary.metricId}`}
+        className="mt-4 inline-flex items-center gap-1 text-[13px] font-medium text-primary hover:underline"
+      >
+        Open {summary.metricName} detail
+        <ChevronRight size={14} aria-hidden="true" className="transition-transform group-hover:translate-x-0.5" />
+      </Link>
     </Card>
   );
 }
@@ -200,29 +222,25 @@ export function MetricTile({ metric, days }: { metric: MetricDefinition; days: n
 
   // No observation in this window ⇒ no tile (owner request 2).
   if (points.length === 0) return null;
+  const color = CATEGORY_VAR[artCategoryOf(metric.id)];
 
   return (
-    <Card className="p-4 flex flex-col">
-      <div className="flex items-start justify-between gap-2 mb-1">
-        <span className="text-sm font-medium text-text-primary">{metric.displayName}</span>
-        <Badge variant="default" className="text-[10px] shrink-0">
-          {all.length} obs
-        </Badge>
+    <Card className="group relative flex flex-col overflow-hidden p-4">
+      <span className="absolute inset-y-0 left-0 w-[3px]" style={{ background: color }} aria-hidden="true" />
+      <div className="mb-1 flex items-start justify-between gap-2">
+        <span className="text-[13px] font-medium text-text-primary">{metric.displayName}</span>
+        <Badge variant="default" className="shrink-0 text-[10px]">{all.length} obs</Badge>
       </div>
-
-      <div className="text-xl font-semibold tnum text-text-primary leading-none mb-1">
+      <div className="text-[24px] font-semibold leading-tight tnum tracking-[-0.025em] text-text-primary">
         {latest ? formatMetricWithUnit(metric.id, latest.value, units) : '—'}
       </div>
+      <div className="my-2" aria-hidden="true"><Spark values={points.map(p => p.value)} color={color} height={32} /></div>
       <p className="text-[11px] text-text-secondary">
-        Latest · {latest ? formatDayKeyLong(latest.key) : 'no reading'} · {points.length} readings in{' '}
-        {windowRangeLabel(win)}
+        Latest · {latest ? formatDayKeyLong(latest.key) : 'no reading'} · {points.length} readings in {windowRangeLabel(win)}
       </p>
-
-      <div className="mt-3">
-        <Link href={`/metric/${metric.id}`} className="text-xs text-primary hover:underline">
-          View detail
-        </Link>
-      </div>
+      <Link href={`/metric/${metric.id}`} className="mt-2 text-xs font-medium text-primary hover:underline">
+        View detail
+      </Link>
     </Card>
   );
 }

@@ -354,7 +354,7 @@ function LabContent({ data }: { data: LoadedLab }) {
 function Fact({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[10px] uppercase tracking-wider text-text-secondary">{label}</dt>
+      <dt className="text-[11px] uppercase tracking-[0.06em] font-medium text-text-secondary">{label}</dt>
       <dd className="text-text-primary font-medium tnum break-words">{value}</dd>
       {sub && <dd className="text-[10px] text-text-secondary leading-relaxed">{sub}</dd>}
     </div>

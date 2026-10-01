@@ -15,6 +15,8 @@ bytes ─▶ pdf-items ─▶ layout ─▶ parse ─▶ (model-assist) ─▶ E
 | `layout.ts` | Geometry → structure: lines, the date-header row, one column per date, analyte blocks, cell→column attribution, flag attachment, wrapped text. |
 | `parse.ts` | Structure → meaning: values, intervals, flags, name→canonical key, document kind, document date, redaction, confidence. |
 | `model-assist.ts` | OPTIONAL second pass for a layout never seen before. Off unless the deterministic pass found nothing. |
+| `quest.ts` | The Quest Diagnostics results table: two result columns, no date-header row. |
+| `mychart.ts` | The MyChart (Epic) results table: two analyte columns per line, a `Normal range:` interval per row, a value concatenated with its flag, and a chart-axis line per block. |
 | `index.ts` | `extractLabDocument(bytes, { filename, sha256, modelAssist, modelDeps })` — the whole pipeline. |
 
 ## Why geometry, and not a line regex
@@ -107,6 +109,32 @@ keeps a row only if its printed name, value, printed text, unit, interval, flag 
 verbatim in the document (`MAX_CANDIDATES` 200). Everything else is dropped and reported. Surviving
 rows carry `extraction_method: 'model'`, and `ExtractionResult.pass` states which pass produced the
 rows. A readable document never reaches the network.
+
+## The MyChart (Epic) layout
+
+A MyChart export (`Test Details`, `Test Results`) prints a patient header, a panel title, a collection
+date, then — after any number of narrative pages — a result table whose rows are FOUR-line groups, and
+every line is printed TWO-WIDE (a left column near x≈55 and a right column near x≈318):
+
+```
+HGB                                HCT
+Normal range: 11.5 - 15.5 g/dl      Normal range: 35.0 - 45.0 %
+10.9Low                            34.9Low
+11.511.5  15.515.5                 3535  4545
+```
+
+- **The value and its flag are separate runs.** The joined text is ambiguous (`13.58High` is 13.5 +
+  `High`), so values are read from `line.items` and the flag is the run just to the right of a value.
+- **The fourth line is chart-axis noise**, each bound printed twice. It is refused by name and can never
+  become a value or a second interval.
+- **Two analytes share a line.** The page midpoint separates the columns; a single-analyte panel draws
+  its value wherever the chart puts it, so with one interval the nearest run wins.
+- **A row may print no interval.** The INR panel prints `INR` / `ratio` / `Value` / `1.06` with no
+  reference interval, and the CRP panel prints `Normal value: <1.0 mg/dL`. These import with the
+  bounds the report itself stated (or null) — a figure is never invented for them.
+- **Narrative pages produce no rows.** The clinician's letter and the auto-generated summary quote real
+  values in passing (`- Hemoglobin (HGB) 10.9 g/dL`); rows are built only from the group structure, so
+  those bullets cannot become observations and cannot double-count a table row.
 
 ## Checking a new layout
 

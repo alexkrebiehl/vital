@@ -155,7 +155,7 @@ function DailyBriefingCard({ units }: { units: 'metric' | 'imperial' }) {
     <section>
       <SectionTitle hint={formatDayKeyLong(REFERENCE_KEY)}>Daily briefing</SectionTitle>
       <Card variant="hero" className="p-6 md:p-8" as="section">
-        <p className="text-[10px] uppercase tracking-[0.15em] font-medium text-hero-muted mb-3">
+        <p className="text-[11px] uppercase tracking-[0.08em] font-medium text-hero-muted mb-3">
           TODAY&rsquo;S BRIEFING
         </p>
         <h2 className="text-[24px] md:text-[30px] font-semibold leading-[1.15] tracking-tight mb-3 text-hero-foreground">

@@ -351,7 +351,7 @@ export function LabChartFacts({
   return (
     <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${className}`}>
       <div className="rounded-control border border-border p-3">
-        <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-1">Latest result</div>
+        <div className="text-[11px] uppercase tracking-[0.06em] font-medium text-text-secondary mb-1">Latest result</div>
         <div className="text-lg font-semibold tnum text-text-primary leading-none">
           {latest ? formatReading(latest) : 'no observation'}
         </div>
@@ -362,7 +362,7 @@ export function LabChartFacts({
         </div>
       </div>
       <div className="rounded-control border border-border p-3">
-        <div className="text-[10px] uppercase tracking-wider text-text-secondary mb-1">Reference range</div>
+        <div className="text-[11px] uppercase tracking-[0.06em] font-medium text-text-secondary mb-1">Reference range</div>
         {band ? (
           <>
             <div className="text-lg font-semibold tnum text-text-primary leading-none">

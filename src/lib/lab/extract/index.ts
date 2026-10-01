@@ -36,6 +36,12 @@ import {
 } from './parse';
 import { assistExtraction, type ModelAssistDeps } from './model-assist';
 import { interpretQuest, isQuestResultsLayout, questDocumentDate, QUEST_KIND_REASON } from './quest';
+import {
+  interpretMyChart,
+  isMyChartResultsLayout,
+  mychartDocumentDate,
+  MYCHART_KIND_REASON,
+} from './mychart';
 
 export { PARSER_VERSION } from './parse';
 export type { ModelAssistDeps } from './model-assist';
@@ -112,13 +118,23 @@ export async function extractLabDocument(
   // columns and no date-header row, so it is routed to its own reader instead of
   // the trend-matrix one. A document with no Quest header takes the LabCorp path
   // exactly as before.
-  const quest = isQuestResultsLayout(layout) ? interpretQuest(layout) : null;
-  const { kind, reason } = quest
-    ? { kind: 'results' as const, reason: QUEST_KIND_REASON }
-    : detectDocumentKind(text, layout);
-  const documentDate = quest
-    ? questDocumentDate(layout) ?? detectDocumentDate({ text, filename: options.filename ?? null, creationDate })
-    : detectDocumentDate({ text, filename: options.filename ?? null, creationDate });
+  // A MyChart (Epic) export prints per-analyte `Normal range:` blocks and no
+  // date-header row, so it is routed to its own reader. Its patient header is
+  // unambiguous, so it is checked before the Quest layout (whose header row it
+  // does not share) and before the trend-matrix path.
+  const mychart = isMyChartResultsLayout(layout) ? interpretMyChart(layout) : null;
+  const quest = mychart ? null : isQuestResultsLayout(layout) ? interpretQuest(layout) : null;
+  const { kind, reason } = mychart
+    ? { kind: 'results' as const, reason: MYCHART_KIND_REASON }
+    : quest
+      ? { kind: 'results' as const, reason: QUEST_KIND_REASON }
+      : detectDocumentKind(text, layout);
+  const documentDate = mychart
+    ? mychartDocumentDate(layout) ??
+      detectDocumentDate({ text, filename: options.filename ?? null, creationDate })
+    : quest
+      ? questDocumentDate(layout) ?? detectDocumentDate({ text, filename: options.filename ?? null, creationDate })
+      : detectDocumentDate({ text, filename: options.filename ?? null, creationDate });
   const labName = detectLabName(text);
 
   const columnsByPage = new Map<number, { date: string | null; dateText: string }[]>();
@@ -127,7 +143,7 @@ export async function extractLabDocument(
     columnsByPage.set(header.page, header.columns.map(column => ({ date: column.date, dateText: column.dateText })));
   }
   for (const page of layout.pages) {
-    if (!quest && kind === 'results' && page.itemCount > 0 && !columnsByPage.has(page.page)) {
+    if (!quest && !mychart && kind === 'results' && page.itemCount > 0 && !columnsByPage.has(page.page)) {
       extraWarnings.push({
         code: 'no_column_header',
         message:
@@ -141,13 +157,15 @@ export async function extractLabDocument(
   // The panel a TREND document covers is only ever what its file name says: the
   // document prints no panel heading of its own (the Quest layout, which does
   // print them, is read by `interpretQuest`). Null when the name states none.
-  const documentPanel = quest ? null : detectPanelFromFilename(options.filename ?? null);
+  const documentPanel = quest || mychart ? null : detectPanelFromFilename(options.filename ?? null);
 
-  const interpreted = quest
-    ? quest
-    : kind === 'results'
-      ? interpretLayout(layout, columnsByPage, { panel: documentPanel })
-      : { observations: [], warnings: layout.warnings, rejections: interpretRejections(layout) };
+  const interpreted = mychart
+    ? mychart
+    : quest
+      ? quest
+      : kind === 'results'
+        ? interpretLayout(layout, columnsByPage, { panel: documentPanel })
+        : { observations: [], warnings: layout.warnings, rejections: interpretRejections(layout) };
 
   let observations = interpreted.observations;
   let pass: ExtractionResult['pass'] = observations.length > 0 ? 'deterministic' : 'none';

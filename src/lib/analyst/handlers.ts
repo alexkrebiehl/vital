@@ -108,8 +108,11 @@ const rhrWeekOverWeek: AnalystHandler = {
       return {
         id: 'rhr-week-over-week',
         title: 'Resting heart rate this week',
+        analysis: '',
+        summary: [],
         observed: ['No resting heart rate summary could be selected for this question.'],
         interpretation: [],
+        recommendations: [],
         uncertainty: ['The metric was not part of the selected context, so nothing can be reported.'],
         evidence: [],
         charts: [],
@@ -145,8 +148,11 @@ const rhrWeekOverWeek: AnalystHandler = {
     return {
       id: 'rhr-week-over-week',
       title: 'Resting heart rate this week against the week before',
+      analysis: '',
+      summary: [],
       observed,
       interpretation,
+      recommendations: [],
       uncertainty,
       evidence: [evidenceFor(rhr), ...(hrv ? [evidenceFor(hrv)] : [])],
       charts: [chartFor(rhr)],
@@ -165,8 +171,11 @@ function sleepAnswer(id: string, days: number, title: string, ctx: HandlerContex
     return {
       id,
       title,
+      analysis: '',
+      summary: [],
       observed: ['No sleep summary could be selected for this question.'],
       interpretation: [],
+      recommendations: [],
       uncertainty: ['Sleep was not part of the selected context, so nothing can be reported.'],
       evidence: [],
       charts: [],
@@ -199,8 +208,11 @@ function sleepAnswer(id: string, days: number, title: string, ctx: HandlerContex
   return {
     id,
     title,
+    analysis: '',
+    summary: [],
     observed,
     interpretation,
+    recommendations: [],
     uncertainty,
     evidence: [evidenceFor(sleep)],
     charts: [chartFor(sleep)],
@@ -243,8 +255,11 @@ const hrvTrend: AnalystHandler = {
       return {
         id: 'hrv-trend',
         title: 'HRV trend',
+        analysis: '',
+        summary: [],
         observed: ['No HRV summary could be selected for this question.'],
         interpretation: [],
+        recommendations: [],
         uncertainty: ['HRV was not part of the selected context, so nothing can be reported.'],
         evidence: [],
         charts: [],
@@ -276,8 +291,11 @@ const hrvTrend: AnalystHandler = {
     return {
       id: 'hrv-trend',
       title: 'HRV across 30 and 90 days',
+      analysis: '',
+      summary: [],
       observed,
       interpretation,
+      recommendations: [],
       uncertainty,
       evidence: [evidenceFor(short), evidenceFor(long)],
       charts: [chartFor(short), chartFor(long)],
@@ -299,8 +317,11 @@ const stepsVsBaseline: AnalystHandler = {
       return {
         id: 'steps-vs-baseline',
         title: 'Steps against your baseline',
+        analysis: '',
+        summary: [],
         observed: ['No step summary could be selected for this question.'],
         interpretation: [],
+        recommendations: [],
         uncertainty: ['Steps were not part of the selected context, so nothing can be reported.'],
         evidence: [],
         charts: [],
@@ -315,6 +336,8 @@ const stepsVsBaseline: AnalystHandler = {
     return {
       id: 'steps-vs-baseline',
       title: 'Steps against your baseline',
+      analysis: '',
+      summary: [],
       observed: [
         `${formatMetricWithUnit('step_count', steps.comparison.current, system)} of steps were recorded across ${steps.lengthLabel} (${windowRangeLabel(steps.window)}), which is ${formatMetricWithUnit('step_count', perDay, system)} per complete day from ${steps.counts.evaluated} complete days.`,
         `The comparison window (${windowRangeLabel(steps.baselineWindow)}) recorded ${formatMetricWithUnit('step_count', steps.comparison.baseline, system)}, which is ${formatMetricWithUnit('step_count', baselinePerDay, system)} per day from ${steps.counts.baseline} days.`,
@@ -326,6 +349,7 @@ const stepsVsBaseline: AnalystHandler = {
           : 'There are not enough complete days on both sides to compare.',
         'Step totals depend on how much the watch was worn as well as on how much you moved, and neither is measured here.',
       ],
+      recommendations: [],
       uncertainty: [
         steps.exclusionNote ??
           'Complete days only: a day that has not finished accumulating is excluded from both sides.',
@@ -354,8 +378,11 @@ const sleepVsRecovery: AnalystHandler = {
       return {
         id: 'sleep-vs-recovery',
         title: 'Sleep and next-morning recovery',
+        analysis: '',
+        summary: [],
         observed: ['The paired comparison could not be selected for this question.'],
         interpretation: [],
+        recommendations: [],
         uncertainty: ['Sleep and HRV were not both part of the selected context, so nothing can be reported.'],
         evidence: [],
         charts: [],
@@ -398,8 +425,11 @@ const sleepVsRecovery: AnalystHandler = {
     return {
       id: 'sleep-vs-recovery',
       title: 'Sleep and next-morning recovery',
+      analysis: '',
+      summary: [],
       observed,
       interpretation,
+      recommendations: [],
       uncertainty,
       evidence: [
         {
@@ -432,8 +462,11 @@ const workoutFrequency: AnalystHandler = {
       return {
         id: 'workout-frequency',
         title: 'Workout frequency',
+        analysis: '',
+        summary: [],
         observed: ['The workout log was not selected for this question.'],
         interpretation: [],
+        recommendations: [],
         uncertainty: ['No workout records were part of the selected context, so nothing can be reported.'],
         evidence: [],
         charts: [],
@@ -451,6 +484,8 @@ const workoutFrequency: AnalystHandler = {
     return {
       id: 'workout-frequency',
       title: 'How often you are working out',
+      analysis: '',
+      summary: [],
       observed,
       interpretation: [
         w.recent === w.prior
@@ -458,6 +493,7 @@ const workoutFrequency: AnalystHandler = {
           : `The most recent 30 days hold ${Math.abs(w.recent - w.prior)} ${w.recent > w.prior ? 'more' : 'fewer'} recorded workouts than the 30 days before.`,
         'A gap in the record means nothing was logged for that day. It does not establish that nothing was done.',
       ],
+      recommendations: [],
       uncertainty: [
         'Workouts are counted only when a session was recorded by a device or logged by hand, so frequency here is recorded frequency.',
         'Duration and calorie figures come from the recording device and are not measured here.',
@@ -492,8 +528,11 @@ const whatChangedThisWeek: AnalystHandler = {
       return {
         id: 'what-changed-this-week',
         title: 'What changed this week',
+        analysis: '',
+        summary: [],
         observed: ['No summaries could be selected for this question.'],
         interpretation: [],
+        recommendations: [],
         uncertainty: ['Nothing was selected from the dataset, so nothing can be reported.'],
         evidence: [],
         charts: [],
@@ -533,8 +572,11 @@ const whatChangedThisWeek: AnalystHandler = {
     return {
       id: 'what-changed-this-week',
       title: 'What changed this week',
+      analysis: '',
+      summary: [],
       observed,
       interpretation,
+      recommendations: [],
       uncertainty,
       evidence: summaries.map(evidenceFor),
       charts: [chartFor(summaries[0])],
@@ -566,10 +608,13 @@ const labResults: AnalystHandler = {
       return {
         id: 'lab-results',
         title: 'Lab results',
+        analysis: '',
+        summary: [],
         observed: [
           'No lab results could be selected for this question, so no lab figure can be reported.',
         ],
         interpretation: [],
+        recommendations: [],
         uncertainty: [
           lab?.reason ??
             'The lab results were not part of the selected context, so nothing about them can be reported.',
@@ -585,10 +630,13 @@ const labResults: AnalystHandler = {
       return {
         id: 'lab-results',
         title: `Lab results for ${lab.requestedName ?? 'that analyte'}`,
+        analysis: '',
+        summary: [],
         observed: [
           `No lab results for "${lab.requestedName}" were found among the ${lab.totalSeries} stored lab series (${lab.documents} document${lab.documents === 1 ? '' : 's'}, ${lab.totalObservations} observations).`,
         ],
         interpretation: [],
+        recommendations: [],
         uncertainty: [
           'The stored documents do not hold this analyte, so no figure is given for it. Nothing is substituted from another analyte.',
         ],
@@ -666,8 +714,11 @@ const labResults: AnalystHandler = {
     return {
       id: 'lab-results',
       title: lab.selection === 'analyte' && lab.requestedName ? `Latest lab results for ${lab.requestedName}` : 'Your most recent lab results',
+      analysis: '',
+      summary: [],
       observed,
       interpretation,
+      recommendations: [],
       uncertainty,
       evidence,
       charts: [],
