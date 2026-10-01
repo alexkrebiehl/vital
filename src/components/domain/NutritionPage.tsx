@@ -18,7 +18,8 @@ import {
   type LoggedDayStats,
 } from '@/lib/analytics';
 import { HeroFigure } from '@/components/art/HeroFigure';
-import { Card, Badge, DataStateNote, InsufficientDataState, SegmentedControl } from '@/components/ui/primitives';
+import { Card, Badge, DataStateNote, InsufficientDataState } from '@/components/ui/primitives';
+import { RangeControl } from '@/components/ui/RangeControl';
 import { MetricChart, TrendFigure } from '@/components/charts';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { DomainHeader, SectionTitle, MetricGrid } from './DomainShared';
@@ -115,6 +116,13 @@ export function NutritionPage() {
         </div>
       </Card>
 
+      {/* ── Date range: always reachable, and it drives every figure on the page ── */}
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-xs font-medium text-text-secondary">Date range</span>
+        <RangeControl value={range} onChange={setRange} ariaLabel="Logged intake date range" />
+        <span className="text-xs text-text-secondary tnum">{windowRangeLabel(window)}</span>
+      </div>
+
       {/* ── Headline intake ─────────────────────────── */}
       {loggedStats.length > 0 && (
         <section>
@@ -134,16 +142,6 @@ export function NutritionPage() {
         <section>
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <h2 className="text-[20px] md:text-[24px] font-semibold text-text-primary">Logged calories timeline</h2>
-            <SegmentedControl
-              options={[
-                { value: '30', label: '30D' },
-                { value: '90', label: '90D' },
-                { value: '180', label: '180D' },
-              ]}
-              value={range}
-              onChange={setRange}
-              ariaLabel="Logged intake date range"
-            />
           </div>
           <Card className="p-4 md:p-6">
             <MetricChart

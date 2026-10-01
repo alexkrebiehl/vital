@@ -44,16 +44,16 @@ import {
 } from '@/lib/analytics';
 import { compareValues, stddev, mean, percentChange } from '@/lib/analytics';
 import {
-  Card, Badge, InsufficientDataState, SegmentedControl, StaleBadge, ChangeCue, DataStateNote,
+  Card, Badge, InsufficientDataState, StaleBadge, ChangeCue, DataStateNote,
 } from '@/components/ui/primitives';
 import { MetricChart, AccessibleDataTable } from '@/components/charts';
 import { useUnits } from '@/components/ui/UnitsProvider';
+import { RangeControl } from '@/components/ui/RangeControl';
+import { rangeDays } from '@/lib/ranges';
 import { useDatasetMeta } from '@/components/data/DatasetProvider';
 
-const RANGE_OPTIONS = [
-  { value: '7d', label: '7D' },
-  { value: '30d', label: '30D' },
-  { value: '90d', label: '90D' },
+/** After the shared 7/30/90 presets and Custom: the long views this page also offers. */
+const RANGE_EXTRAS = [
   { value: '1y', label: '1Y' },
   { value: 'all', label: 'All' },
 ];
@@ -86,7 +86,12 @@ export function MetricDetailPage() {
   return <MetricDetailContent metaId={metricId} />;
 }
 
-const RANGE_TOKENS = ['7d', '30d', '90d', '1y', 'all'];
+const RANGE_TOKENS = ['1y', 'all'];
+
+/** A ?range= value the page can open at: a day count such as 45d, 1y, or all. */
+function isKnownRange(token: string | null): token is string {
+  return token !== null && (RANGE_TOKENS.includes(token) || rangeDays(token, 'token') !== null);
+}
 
 function MetricDetailContent({ metaId }: { metaId: string }) {
   const units = useUnits().units;
@@ -97,7 +102,7 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
   // at the period the insight was computed over.
   const requestedRange = searchParams.get('range');
   const [range, setRange] = useState<string>(
-    requestedRange && RANGE_TOKENS.includes(requestedRange) ? requestedRange : meta.defaultRange || '30d'
+    isKnownRange(requestedRange) ? requestedRange : meta.defaultRange || '30d'
   );
   const [showBaseline, setShowBaseline] = useState(true);
   const [view, setView] = useState<'chart' | 'table'>('chart');
@@ -365,10 +370,11 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
 
           {/* ── Controls ───────────────────────────── */}
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <SegmentedControl
-              options={RANGE_OPTIONS}
+            <RangeControl
               value={range}
               onChange={setRange}
+              format="token"
+              extraOptions={RANGE_EXTRAS}
               ariaLabel="Chart range"
             />
             <div className="flex items-center gap-2">

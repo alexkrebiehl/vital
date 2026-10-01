@@ -23,15 +23,9 @@ import {
   Card, Badge, Button, DataStateNote, Dialog, EmptyState, InsufficientDataState, Select,
 } from '@/components/ui/primitives';
 import { MetricChart } from '@/components/charts';
+import { RangeControl } from '@/components/ui/RangeControl';
 import { DomainHeader, SectionTitle } from './DomainShared';
 import { useUnits } from '@/components/ui/UnitsProvider';
-
-const RANGE_OPTIONS = [
-  { value: '30', label: 'Last 30 days' },
-  { value: '90', label: 'Last 90 days' },
-  { value: '180', label: 'Last 180 days' },
-  { value: '365', label: 'All recorded (365 days)' },
-];
 
 const SORT_OPTIONS: { value: WorkoutSort; label: string }[] = [
   { value: 'date-desc', label: 'Newest first' },
@@ -91,12 +85,7 @@ export function WorkoutsPage() {
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-3">
             <span className="text-xs font-medium text-text-secondary">Date range</span>
-            <Select
-              value={days}
-              onChange={setDays}
-              options={RANGE_OPTIONS}
-              aria-label="Workout date range"
-            />
+            <RangeControl value={days} onChange={setDays} ariaLabel="Workout date range" />
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs font-medium text-text-secondary">Sort</span>
@@ -172,7 +161,7 @@ export function WorkoutsPage() {
                   ? `${filtered.window.label} contains no recorded workout. A window with no session means nothing was logged, which is not the same as no activity.`
                   : `${filtered.inWindowCount} sessions are recorded in ${filtered.window.label.toLowerCase()}, but none of type ${type}. Widen the activity filter or the date range.`
               }
-              action={<Button variant="secondary" onClick={() => { setType('all'); setDays('180'); }}>Reset filters</Button>}
+              action={<Button variant="secondary" onClick={() => { setType('all'); setDays('30'); }}>Reset filters</Button>}
             />
           </Card>
         ) : (

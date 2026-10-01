@@ -54,17 +54,16 @@ import {
   ErrorState,
   InsufficientDataState,
   LoadingState,
-  SegmentedControl,
-} from '@/components/ui/primitives';
+  } from '@/components/ui/primitives';
+import { RangeControl } from '@/components/ui/RangeControl';
 import { LabChart, LabChartFacts, LabObservationTable } from '@/components/charts';
 import { LabNotices, LabStatusBadge, LabAnalyteDescription, needsSexNotice, observationRows } from './LabShared';
 
-const RANGE_OPTIONS = [
-  { value: 'all', label: 'All' },
-  { value: '1825', label: '5Y' },
+/** After the shared 7/30/90 presets and Custom: lab results are years apart, so the long views stay. */
+const RANGE_EXTRAS = [
   { value: '365', label: '1Y' },
-  { value: '90', label: '90D' },
-  { value: '30', label: '30D' },
+  { value: '1825', label: '5Y' },
+  { value: 'all', label: 'All' },
 ];
 
 interface LoadedLab {
@@ -370,7 +369,7 @@ function AnalyteHistory({
 
       {/* ── Range control ──────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <SegmentedControl options={RANGE_OPTIONS} value={range} onChange={setRange} ariaLabel="Observation range" />
+        <RangeControl value={range} onChange={setRange} extraOptions={RANGE_EXTRAS} ariaLabel="Observation range" />
         <div className="flex rounded-control overflow-hidden border border-border">
           <button
             type="button"

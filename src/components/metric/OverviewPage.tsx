@@ -44,7 +44,7 @@ import {
   metricUnit,
 } from '@/lib/metrics/format';
 import {
-  Card, Badge, ChangeCue, SegmentedControl, DataStateNote,
+  Card, Badge, ChangeCue, DataStateNote,
 } from '@/components/ui/primitives';
 import { TrendFigure } from '@/components/charts';
 import { useUnits } from '@/components/ui/UnitsProvider';
@@ -52,17 +52,13 @@ import { useAnalystConfig } from '@/components/analyst/useAnalystConfig';
 import { useBriefing } from '@/components/analyst/useBriefing';
 import { COMPUTED_ATTRIBUTION, BRIEFING_BOUNDARY_NOTE } from '@/lib/briefing/attribution';
 import { briefingSchedule, briefingTimeLabel } from '@/lib/briefing/schedule';
+import { RangeControl } from '@/components/ui/RangeControl';
 import { useProfile } from '@/components/profile/ProfileProvider';
 import { greetingLine } from '@/lib/profile/types';
 import { ContourField } from '@/components/art/ContourField';
 import { Spark } from '@/components/art/Spark';
 import { CATEGORY_VAR, type ArtCategory } from '@/components/art/categories';
 import { useDatasetMeta } from '@/components/data/DatasetProvider';
-
-const STORY_RANGE_OPTIONS = [
-  { value: '30', label: '30D' },
-  { value: '90', label: '90D' },
-];
 
 const USED_BRIEFING_METRICS = ['resting_heart_rate', 'heart_rate_variability', 'sleep_analysis', 'step_count'] as const;
 
@@ -489,12 +485,7 @@ export function OverviewPage({ initialGreeting }: { initialGreeting: string }) {
           <h2 className="text-[20px] md:text-[24px] font-semibold tracking-[-0.03em] text-text-primary">
             Your health story
           </h2>
-          <SegmentedControl
-            options={STORY_RANGE_OPTIONS}
-            value={storyDays}
-            onChange={setStoryDays}
-            ariaLabel="Health story period"
-          />
+          <RangeControl value={storyDays} onChange={setStoryDays} ariaLabel="Health story period" />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">

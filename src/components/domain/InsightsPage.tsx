@@ -25,6 +25,7 @@ import {
   Card, Badge, ChangeCue, DataStateNote, EmptyState, SegmentedControl, Tabs,
 } from '@/components/ui/primitives';
 import { TrendFigure } from '@/components/charts';
+import { RangeControl } from '@/components/ui/RangeControl';
 import { DomainHeader, SectionTitle } from './DomainShared';
 import { useUnits } from '@/components/ui/UnitsProvider';
 
@@ -361,12 +362,7 @@ function HealthStory({ units }: { units: 'metric' | 'imperial' }) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-[20px] md:text-[24px] font-semibold text-text-primary">Your health story</h2>
-        <SegmentedControl
-          options={[
-            { value: '30', label: '30D' },
-            { value: '90', label: '90D' },
-            { value: '180', label: '180D' },
-          ]}
+        <RangeControl
           value={days}
           onChange={setDays}
           ariaLabel="Health story period"
