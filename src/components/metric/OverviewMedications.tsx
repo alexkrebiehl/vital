@@ -34,7 +34,6 @@ import { formatDayKeyLong } from '@/lib/analytics/windows';
 import { fetchMedications, type MedicationReadResponse } from '@/lib/medications/client-data';
 import {
   MEDICATIONS_LOOKBACK_DAYS,
-  coverageLabel,
   formatUnits,
   groupMedications,
   hasNoRecords,
@@ -110,7 +109,6 @@ export function MedicationsOverviewBody({
   const records = data.records;
   const groups = useMemo(() => groupMedications(records), [records]);
   const undated = useMemo(() => undatedRecords(records), [records]);
-  const covered = coverageLabel(data.covered);
   const empty = hasNoRecords(records);
 
   return (
@@ -125,7 +123,7 @@ export function MedicationsOverviewBody({
         <EmptyState
           icon={<Pill size={26} aria-hidden="true" />}
           title="No medication records in this window"
-          description={`There are no medication records in the last ${MEDICATIONS_LOOKBACK_DAYS} days. This block reports what your Health Auto Export history logged, and this window logged nothing. Nothing is shown in place of it: no zeroes, no empty chart.`}
+          description={`There are no medication records in the last ${MEDICATIONS_LOOKBACK_DAYS} days. No dose was logged in this window. Nothing is shown in place of it: no zeroes, no empty chart.`}
         />
       ) : (
         <ul className="list-none p-0 m-0 divide-y divide-border" data-medications-list>
@@ -157,11 +155,6 @@ export function MedicationsOverviewBody({
         </div>
       )}
 
-      {/* Source / freshness line, stated in words the way the app describes provenance. */}
-      <div className="border-t border-border pt-3 flex items-start gap-2">
-        <Info size={13} className="text-text-secondary shrink-0 mt-0.5" aria-hidden="true" />
-        <DataStateNote>{sourceSentence(data, covered, referenceKey)}</DataStateNote>
-      </div>
     </div>
   );
 }
@@ -210,26 +203,4 @@ export function undatedSentence(count: number): string {
     return '1 record carries no scheduled date, so it falls inside no day and is attributed to none. It is listed here rather than dropped or counted into a day.';
   }
   return `${count} records carry no scheduled date, so they fall inside no day and are attributed to none. They are listed here rather than dropped or counted into a day.`;
-}
-
-/**
- * The source and the window actually covered, in words. Never a host, a token or
- * a path; and a missing day is stated as missing rather than counted as zero.
- */
-export function sourceSentence(
-  data: MedicationReadResponse,
-  covered: string | null,
-  referenceKey: string
-): string {
-  const requested =
-    data.window === null
-      ? 'no window was echoed back'
-      : `${formatDayKeyLong(data.window.from)} to ${formatDayKeyLong(data.window.to)} requested`;
-  const head = `${data.source}, read server-side for ${formatDayKeyLong(
-    referenceKey
-  )}: ${requested}.`;
-  if (covered === null) {
-    return `${head} Nothing attributable was returned for it, so the span the records cover cannot be stated. A day with no record is not counted as zero.`;
-  }
-  return `${head} The records returned cover ${covered}. Days with no record are missing rather than counted as zero.`;
 }

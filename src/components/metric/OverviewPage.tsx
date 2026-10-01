@@ -59,7 +59,6 @@ import { ContourField } from '@/components/art/ContourField';
 import { Spark } from '@/components/art/Spark';
 import { CATEGORY_VAR, type ArtCategory } from '@/components/art/categories';
 import { useDatasetMeta } from '@/components/data/DatasetProvider';
-import { datasetProvenanceSentence } from '@/lib/adapters/dataset';
 
 const STORY_RANGE_OPTIONS = [
   { value: '30', label: '30D' },
@@ -614,7 +613,7 @@ export function OverviewPage({ initialGreeting }: { initialGreeting: string }) {
 
       {/* Screen-reader-only statement of what this page is */}
       <p className="sr-only">
-        This page summarizes {USED_BRIEFING_METRICS.length} tracked metrics. {datasetProvenanceSentence()}{' '}
+        This page summarizes {USED_BRIEFING_METRICS.length} tracked metrics.{' '}
         Comparisons use the last 7 days against the prior 30 days unless a window is stated.
         {dataMeta.live ? ` Newest observation ${dataMeta.dataAsOf.slice(0, 10)}.` : ''}
       </p>

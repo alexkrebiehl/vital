@@ -121,20 +121,6 @@ export function InsightsPage({
             )}
           </section>
 
-          <Card className="p-5">
-            <div className="flex items-start gap-2">
-              <Info size={14} className="mt-0.5 shrink-0 text-text-secondary" aria-hidden="true" />
-              <div className="text-xs text-text-secondary leading-relaxed space-y-1">
-                <p>
-                  <span className="text-text-primary font-medium">How these are generated.</span> Every observation on
-                  this page is computed from the committed fixture dataset at render time using the same analytics as the
-                  rest of the app. Nothing is written by hand: an observation is emitted only when both sides carry at
-                  least five observations, the change is at least 5%, or a paired series clears ten paired days — and none
-                  of them implies a cause.
-                </p>
-              </div>
-            </div>
-          </Card>
         </div>
       )}
 

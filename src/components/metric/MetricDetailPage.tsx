@@ -20,7 +20,6 @@ import {
   REFERENCE_KEY,
   WINDOW_START_KEY,
   canonicalDayKey,
-  datasetProvenanceSentence,
   metricHasData,
   seriesFor,
   sleepSeries,
@@ -510,45 +509,6 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
 
           <RelatedMetricsList metrics={relatedMetrics} />
 
-          {/* ── Provenance ─────────────────────────── */}
-          {coverage && (
-            <Card className="p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <Info size={14} className="text-text-secondary" aria-hidden="true" />
-                <h3 className="text-sm font-semibold text-text-primary">Data provenance</h3>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                <div>
-                  <span className="text-text-secondary">First observed</span>
-                  <p className="text-text-primary tnum font-medium">
-                    {formatDayKeyLong(canonicalDayKey(coverage.firstObservation))}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-text-secondary">Last observed</span>
-                  <p className="text-text-primary tnum font-medium">
-                    {formatDayKeyLong(canonicalDayKey(coverage.lastObservation))}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-text-secondary">Coverage</span>
-                  <p className="text-text-primary tnum font-medium">
-                    {coverage.observedDays}/{coverage.expectedDays} days ({coverage.samplingFrequency})
-                  </p>
-                </div>
-                <div>
-                  <span className="text-text-secondary">Sources</span>
-                  <p className="text-text-primary font-medium">{coverage.sourceNames.join(', ')}</p>
-                </div>
-              </div>
-              <div className="mt-3">
-                <DataStateNote>
-                  {datasetProvenanceSentence()} Missing days are excluded rather than treated as zero,
-                  and the latest reading may differ from the day you are viewing.
-                </DataStateNote>
-              </div>
-            </Card>
-          )}
         </>
       )}
     </div>

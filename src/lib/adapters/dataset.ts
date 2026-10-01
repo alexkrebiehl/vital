@@ -416,20 +416,11 @@ export function metricObservationCount(metricId: string): number {
 export function unavailableReasonFor(metricId: string): string {
   const meta = getMetric(metricId);
   if (MODE === 'live') {
-    return 'Not recorded in your Health Auto Export history.';
+    return 'No readings of this metric are recorded.';
   }
   return meta?.unavailableReason ?? 'No observations of this metric are present in the dataset.';
 }
 
 export function metaFor(metricId: string): MetricDefinition | undefined {
   return getMetric(metricId);
-}
-
-/** One sentence naming where the active numbers come from. */
-export function datasetProvenanceSentence(): string {
-  const meta = META;
-  if (meta.live) {
-    return `Values are read from the Health Auto Export API on the server and cover ${meta.windowStartKey} to ${meta.referenceKey} in ${meta.timezone}.`;
-  }
-  return `Source records are the committed demo dataset ending ${meta.referenceKey}.`;
 }

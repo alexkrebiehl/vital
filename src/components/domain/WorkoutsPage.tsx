@@ -122,7 +122,7 @@ export function WorkoutsPage() {
               sub={`${filtered.totals.sessions ? formatDurationHm(filtered.totals.minutesPerSession) : '0:00'} per session`}
               title={`${Math.round(filtered.totals.minutes)} min recorded in total`}
             />
-            <TotalCard label="Active calories" value={String(Math.round(filtered.totals.calories))} sub="recorded by the source" />
+            <TotalCard label="Active calories" value={String(Math.round(filtered.totals.calories))} sub="recorded per session" />
             <TotalCard
               label="Distance"
               value={
@@ -201,7 +201,6 @@ export function WorkoutsPage() {
                       <span className="text-[11px] text-text-secondary">no heart rate</span>
                     )}
                     <span className="flex-1" />
-                    <span className="text-[11px] text-text-secondary">{w.source}</span>
                   </button>
                 </li>
               ))}
@@ -349,22 +348,6 @@ export function WorkoutsPage() {
         </section>
       )}
 
-      <Card className="p-5">
-        <div className="flex items-start gap-2">
-          <Info size={14} className="mt-0.5 shrink-0 text-text-secondary" aria-hidden="true" />
-          <div className="text-xs text-text-secondary leading-relaxed space-y-1">
-            <p>
-              <span className="text-text-primary font-medium">What is not here.</span> The dataset contains no GPS
-              traces, routes, maps, elevation, cadence or heart-rate series within a session, so none is drawn or
-              invented. Heart rate is a per-session average and maximum only, and {views.length - views.filter(v => v.hasHeartRate).length} of {views.length} recorded sessions have no heart rate at all.
-            </p>
-            <Link href="/activity" className="inline-flex items-center gap-1 text-primary hover:underline min-h-[24px]">
-              See workout frequency alongside daily activity <ArrowUpDown size={12} aria-hidden="true" />
-            </Link>
-          </div>
-        </div>
-      </Card>
-
       {/* ── Detail dialog ───────────────────────────── */}
       <Dialog open={selected !== null} onClose={() => setSelected(null)} title={selected ? `${selected.workout_type} detail` : 'Workout detail'}>
         {selected && <WorkoutDetail view={selected} units={units} allViews={views} />}
@@ -433,7 +416,6 @@ function WorkoutDetail({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="default" className="text-[10px]">{view.source}</Badge>
         <span className="text-xs text-text-secondary">{workoutWhenLabel(view)}</span>
       </div>
 
@@ -446,7 +428,6 @@ function WorkoutDetail({
         <DetailRow label="Average heart rate" value={view.hasHeartRate ? `${view.avg_heart_rate} bpm` : 'Not recorded for this session'} />
         <DetailRow label="Maximum heart rate" value={view.hasHeartRate ? `${view.max_heart_rate} bpm` : 'Not recorded for this session'} />
         <DetailRow label="Active calories" value={`${view.calories_burned} kcal`} />
-        <DetailRow label="Source" value={view.source} />
         <DetailRow label="Record id" value={view.id} />
       </dl>
 

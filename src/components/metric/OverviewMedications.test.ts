@@ -88,18 +88,14 @@ describe('the Overview medications block (§ renders real records in words)', ()
     expect(html).toContain('1 recorded as skipped');
   });
 
-  it('states the window the records actually cover, and the requested window', () => {
+  it('carries no source or coverage footer', () => {
+    // The owner asked for the data source and the "coverage" footer to be removed
+    // from the pages; the source is named in Settings only.
     const html = render(read(records));
-    expect(html).toContain('Aug 30, 2026');
-    expect(html).toContain('Sep 29, 2026');
-    // The covered span is named, not a bare endpoint.
-    expect(html).toContain('The records returned cover Aug 30, 2026');
-    expect(html).toContain('Days with no record are missing rather than counted as zero.');
-  });
-
-  it('names the source in words and never a host or a path', () => {
-    const html = render(read(records));
-    expect(html).toContain('Health Auto Export');
+    expect(html).not.toContain('Health Auto Export');
+    expect(html).not.toContain('The records returned cover');
+    expect(html).not.toContain('read server-side');
+    expect(html).not.toContain('Coverage for this page');
   });
 });
 

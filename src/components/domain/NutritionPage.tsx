@@ -249,45 +249,7 @@ export function NutritionPage() {
           hint="Discovered from the metric registry, not hard-coded"
           days={days}
         />
-      ) : (
-        <Card className="p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <Info size={14} className="text-text-secondary" aria-hidden="true" />
-            <h3 className="text-sm font-semibold text-text-primary">Additional nutrients</h3>
-          </div>
-          <DataStateNote>
-            The registry is read at render time: {getMetricsByCategory('nutrition').length} nutrition metrics are
-            registered and {HEADLINE.length} of them are shown above. The dataset contains no other nutrient, so
-            nothing further is listed — no nutrient is invented to fill the space.
-          </DataStateNote>
-        </Card>
-      )}
-
-      {/* ── Sources ─────────────────────────────────── */}
-      <Card className="p-5">
-        <h3 className="text-sm font-semibold text-text-primary mb-3">Where these entries come from</h3>
-        <ul className="list-none p-0 m-0 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-          {[...HEADLINE, ...extraNutrients.map(m => m.id)].map(id => {
-            const cov = coverageFor(id);
-            const meta = getMetric(id);
-            if (!cov) return null;
-            return (
-              <li key={id} className="flex items-center justify-between gap-3">
-                <span className="text-text-primary">{meta?.displayName ?? id}</span>
-                <span className="text-text-secondary tnum text-right">
-                  {cov.observedDays}/{cov.expectedDays} logged days · {cov.sourceNames.join(', ')}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-        <div className="mt-3">
-          <DataStateNote>
-            Entries are manual logs or third-party food logs. They record what was entered, which may differ from what
-            was eaten, and no intake figure is inferred for a day without an entry.
-          </DataStateNote>
-        </div>
-      </Card>
+      ) : null}
     </div>
   );
 }
