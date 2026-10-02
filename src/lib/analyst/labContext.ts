@@ -72,6 +72,26 @@ async function readLabSource(client: SqlClient): Promise<LabSourceInput> {
 }
 
 /**
+ * The stored lab series themselves, for the on-demand tools: the same read the
+ * overview block is built from, with the failure stated rather than hidden.
+ */
+export async function loadLabSource(deps: { env?: NodeJS.ProcessEnv; client?: SqlClient | null } = {}): Promise<LabSourceInput> {
+  const none = (reason: string): LabSourceInput => ({ available: false, reason, documents: 0, totalObservations: 0, collisions: 0, series: [] });
+  let client: SqlClient | null;
+  try {
+    client = deps.client ?? storeClient(deps.env ?? process.env);
+  } catch {
+    return none('The Postgres configuration is invalid, so the stored lab results cannot be read.');
+  }
+  if (!client) return none(NO_DATABASE_REASON);
+  try {
+    return await readLabSource(client);
+  } catch {
+    return none('The stored lab results could not be read, so no lab data is in this context.');
+  }
+}
+
+/**
  * Build the bounded lab block for one analyst question.
  *
  * `deps.client` lets a test inject a fake database; in production the process

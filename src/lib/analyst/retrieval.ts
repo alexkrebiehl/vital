@@ -30,7 +30,7 @@ interface SummarySpec {
   days: number;
 }
 
-interface PairSpec {
+export interface PairSpec {
   x: string;
   y: string;
   alignment: 'same-day' | 'lagged';
@@ -303,6 +303,12 @@ function buildBundle(handlerId: string, spec: RetrievalSpec, refKey: string): Re
   return { handlerId, refKey, summaries, pairs, workouts, lab: null, recordsRead, note };
 }
 
+// The same builders the fixed selection uses, offered to the on-demand tools, so a
+// summary fetched mid-question is exactly the summary the bundle would have carried.
+export const summaryFor = buildSummary;
+export const pairFor = buildPair;
+export const workoutsFor = (days: number, refKey: string = REFERENCE_KEY) => buildWorkouts({ days }, refKey);
+
 /** "a, b and c" — the list wording the selection note has always used. */
 function joinSentences(items: string[]): string {
   if (items.length <= 1) return items[0] ?? '';
@@ -329,6 +335,18 @@ export function retrieve(handlerId: string, refKey: string = REFERENCE_KEY): Ret
  */
 export function retrieveGeneral(refKey: string = REFERENCE_KEY): RetrievalBundle {
   return buildBundle(GENERAL_HANDLER_ID, GENERAL_BUNDLE_SPEC, refKey);
+}
+
+/**
+ * The bundle for an on-demand question: nothing pre-selected. Whatever the model
+ * fetches is merged in afterwards (dataAccess.ts), so the answer is validated
+ * against exactly what it was shown.
+ */
+export function retrieveNone(handlerId: string, refKey: string = REFERENCE_KEY): RetrievalBundle {
+  return {
+    ...buildBundle(handlerId, {}, refKey),
+    note: 'No health data was pre-loaded for this question; it is fetched on demand with the data tools.',
+  };
 }
 
 /** Bounded series for one metric inside a bundle. */

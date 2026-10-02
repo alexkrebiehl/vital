@@ -38,6 +38,21 @@ speaks the OpenAI chat-completions shape works, which is what makes a local mode
 Plus request tuning: `ANALYST_MAX_TOKENS` (1200), `ANALYST_TEMPERATURE` (0.2),
 `ANALYST_TIMEOUT_MS` (60000), `ANALYST_JSON_MODE` (`auto`).
 
+**Stopping a model that cannot stop.** A reasoning model can fail to end: it keeps thinking, or
+keeps writing, with no answer. `ANALYST_MAX_TOKENS` is far too high to catch that in time, so
+a streamed question also has three guards. Hitting one stops the question, closes the
+connection to the model, produces no answer, and shows a message that names the limit and the setting.
+
+| Setting | Default | Stops the question when |
+|---|---|---|
+| `ANALYST_MAX_REASONING_CHARS` | `40000` (about 10k tokens) | one model turn streams more reasoning than this |
+| `ANALYST_MAX_ANSWER_CHARS` | `30000` | one model turn streams more reply text than this |
+| `ANALYST_QUESTION_TIMEOUT_MS` | `300000` (5 minutes) | the whole question, tool rounds included, takes longer; also catches a stream that goes silent |
+
+The reasoning and reply limits count each model turn separately, so a question that fetches data
+in several rounds is not penalised for it. The analyst page also has a **Stop** button while a
+question is running: it closes the model connection at once and nothing is stored for that question.
+
 Rules worth knowing:
 
 - **Loopback endpoints need no key.** `127.0.0.1`, `localhost`, `[::1]` and
@@ -174,6 +189,34 @@ assessment, the stage map, cues and checks, and recovery indicators.
   `./data/training-plans.json`, with a revision per change.
 - `ANALYST_TOOLS=off` keeps a configured model from calling tools (for servers without tool calling);
   a server that rejects tool definitions is answered without them automatically.
+
+### How the analyst gets your health data
+
+`ANALYST_CONTEXT` chooses between two ways of giving the model what a question needs.
+
+| `ANALYST_CONTEXT` | What is sent with a question | Use it when |
+|---|---|---|
+| `full` (default) | The selection for that question: metric summaries, the lab block and the medication log, in one message. | The model has no tool calling, or a small context window you have sized for. |
+| `ondemand` | The question, the earlier turns and a short **index** of what exists — metric names with their date ranges, lab series by category with the dates panels were measured. No values. The model fetches what it needs. | The model supports tool calling. It is the better choice as the lab history grows. |
+
+In `ondemand` mode the model has seven read-only tools: `get_metrics`, `compare_periods`,
+`get_metric_relationship`, `get_workouts`, `get_lab_results`, `compare_lab_panels` and
+`get_medications`. They read what the fixed context is built from, so a figure has the same
+formatting, units and reference interval either way. Each result is capped (about 12,000
+characters); a result that would be bigger is narrowed in a stated way — series left out are named
+— never cut in the middle. Every figure the answer quotes is checked against what was fetched, and
+the answer can link only to a metric or lab series that was fetched. The Analyst page shows
+"Looking up your lab results…" while it works, and the answer lists which tools it used.
+
+Both modes only read. Nothing fetched is stored: health data is read at request time and held for
+the life of the question.
+
+`ANALYST_CONTEXT_MAX_CHARS` (default 60,000, about 15,000 tokens) bounds the `full` message. Over
+the limit, whole parts are removed — the daily series, then the less relevant blocks — and the
+message states what was left out, so the model says "I was not given X" instead of "X is not
+recorded". Nothing is cut mid-value. A model server that has a smaller window than the message
+may drop the middle of it silently, which is where the data sits; set this below what yours holds.
+When tools are off or refused, `ondemand` falls back to `full`.
 
 ## The daily briefing on `/`
 

@@ -25,11 +25,15 @@ import { loadExerciseTemplates } from '../../workout-sources/store';
 import { nameKey } from '../../routine/records';
 import type { ToolSpec } from '../provider';
 import { checkArgs, type Schema } from './args';
+import type { DataAccess } from '../dataAccess';
+import { DATA_TOOLS } from './data';
 
 export const MAX_TOOL_RESULT_CHARS = 14_000;
 export const MAX_WRITES_PER_QUESTION = 3;
 
 export interface ToolContext {
+  /** The on-demand data readers; absent when the question is answered from the fixed context. */
+  data?: DataAccess;
   system: UnitSystem;
   deps: RoutineDeps;
   /** Changes made during this question, in order. */
@@ -433,15 +437,21 @@ export const ANALYST_TOOLS: AnalystTool[] = [
   },
 ];
 
+/** The tools offered for a question: the training plan, plus the health data when it is fetched on demand. */
+export function availableTools(ctx: Pick<ToolContext, 'data'>): AnalystTool[] {
+  return ctx.data ? [...DATA_TOOLS, ...ANALYST_TOOLS] : ANALYST_TOOLS;
+}
+
 export function toolSpecs(tools: AnalystTool[] = ANALYST_TOOLS): ToolSpec[] {
   return tools.map(t => ({ name: t.name, description: t.description, parameters: t.parameters as Record<string, unknown> }));
 }
 
 /** Run one call: unknown tools and bad arguments come back as errors the model can fix. */
 export async function runTool(name: string, args: Record<string, unknown>, ctx: ToolContext): Promise<{ content: string; isError: boolean }> {
-  const tool = ANALYST_TOOLS.find(t => t.name === name);
+  const offered = availableTools(ctx);
+  const tool = offered.find(t => t.name === name);
   let outcome: ToolOutcome;
-  if (!tool) outcome = { isError: true, content: { error: `There is no tool "${name}". Tools: ${ANALYST_TOOLS.map(t => t.name).join(', ')}.` } };
+  if (!tool) outcome = { isError: true, content: { error: `There is no tool "${name}". Tools: ${offered.map(t => t.name).join(', ')}.` } };
   else if ('__unparseable' in args) outcome = { isError: true, content: { error: 'The arguments were not valid JSON.' } };
   else {
     const problems = checkArgs(tool.parameters, args);

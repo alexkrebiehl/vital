@@ -26,14 +26,21 @@ import {
   DEFAULT_LAB_SPEC,
   GENERAL_HANDLER_ID,
   labSpecOf,
+  retrieveNone,
   retrieve,
   retrieveGeneral,
 } from './retrieval';
 import { loadLabSnapshot, type LabLoader } from './labContext';
 import { loadMedicationSnapshot, type MedicationLoader } from './medicationsContext';
+import { unavailableMedicationSnapshot } from './medicationSnapshot';
 import { AnalystProviderError, createProvider, DEMO_LABEL, supportsStreaming, supportsTools, type ToolCallingProvider } from './provider';
 import { parseAnalystSse } from './stream';
-import { buildAnalystUserMessage, TRAINING_TOOLS_PROMPT } from './systemPrompt';
+import { StreamGuard, type GuardLimits } from './guard';
+import { buildAnalystUserMessage, buildOnDemandUserMessage, DATA_TOOLS_PROMPT, TRAINING_TOOLS_PROMPT } from './systemPrompt';
+import { fitToBudget } from './budget';
+import { createDataAccess, mergeFetched, type DataAccess } from './dataAccess';
+import { buildDataIndex, renderDataIndex } from './dataIndex';
+import type { LabSourceInput } from './labSnapshot';
 import { runToolLoop, type ToolLoopHooks } from './tool-loop';
 import { combineChanges, type ToolContext } from './tools';
 import { demoPlanAnswer, PLAN_PROMPTS } from './demo-plan';
@@ -200,6 +207,8 @@ export interface AnalystDeps {
   env?: NodeJS.ProcessEnv;
   labLoader?: LabLoader;
   medicationLoader?: MedicationLoader;
+  /** The stored lab series, for the on-demand tools and the data index. */
+  labSource?: () => Promise<LabSourceInput>;
   /** Where the training plan is read and written (plan tools, page context). */
   routine?: RoutineDeps;
 }
@@ -217,9 +226,76 @@ interface Prepared {
   routineDeps: RoutineDeps;
   /** The page the question was asked from, resolved; undefined when none or unreadable. */
   pageContext?: ResolvedPageContext;
+  /**
+   * Set when the health data is fetched on demand: the readers the tools use and the
+   * index the model is given in place of the data. `bundle` is then empty, and the
+   * full context is only built if the tools are refused (see `withFullContext`).
+   */
+  onDemand?: { access: DataAccess; index: string; full: () => Promise<RetrievalBundle> };
+  /** What the size budget removed from the fixed context, if anything. */
+  budgetDropped?: string[];
 }
 
 type Preparation = Prepared | { ok: false; response: AnalystResponse };
+
+/**
+ * The fixed context for a question: the handler's selection (or the general one), the
+ * lab block and the medication block, as they have always been assembled. Used on its
+ * own in full mode, and as the fallback when on-demand tools are refused.
+ */
+async function loadFullBundle(query: string, matchedId: string | null, deps: AnalystDeps): Promise<RetrievalBundle> {
+  let bundle: RetrievalBundle = matchedId ? retrieve(matchedId, REFERENCE_KEY) : retrieveGeneral(REFERENCE_KEY);
+  const handlerId = matchedId ?? GENERAL_HANDLER_ID;
+
+  const labSpec = labSpecOf(handlerId) ?? DEFAULT_LAB_SPEC;
+  let lab: LabContextSnapshot | null = null;
+  try {
+    lab = await (deps.labLoader ?? loadLabSnapshot)(query, labSpec);
+  } catch {
+    lab = null;
+  }
+  if (lab) {
+    bundle = {
+      ...bundle,
+      lab,
+      recordsRead: bundle.recordsRead + (lab.available ? lab.totalObservations : 0),
+      note: `${bundle.note}${labSentence(lab)}`,
+    };
+  }
+
+  // The medication records live upstream, not in the metric dataset, so they are
+  // read separately and attached the same way the lab block is. A failed read
+  // yields an `available: false` block whose reason is stated — it never becomes
+  // "no medications were taken".
+  let medications: MedicationContextSnapshot | null = null;
+  try {
+    medications = await (deps.medicationLoader ?? loadMedicationSnapshot)(query, {
+      ...(deps.env ? { env: deps.env } : {}),
+    });
+  } catch {
+    medications = null;
+  }
+  if (medications) {
+    bundle = {
+      ...bundle,
+      medications,
+      recordsRead: bundle.recordsRead + (medications.available ? medications.totalRecords : 0),
+      note: `${bundle.note}${medicationSentence(medications)}`,
+    };
+  }
+  return bundle;
+}
+
+/**
+ * A prepared question that was set up for on-demand fetching, turned back into one
+ * that carries the fixed context — for when the server refuses the tool definitions.
+ */
+async function withFullContext(prep: Prepared): Promise<Prepared> {
+  if (!prep.onDemand) return prep;
+  const full = await prep.onDemand.full();
+  const fitted = fitToBudget(full, prep.system, prep.config.contextMaxChars, prep.query);
+  return { ...prep, bundle: fitted.bundle, onDemand: undefined, budgetDropped: fitted.dropped.length ? fitted.dropped : undefined };
+}
 
 /**
  * Everything both the non-streaming and the streaming path need before a
@@ -291,50 +367,41 @@ async function prepareAnalyst(
     };
   }
 
-  let bundle: RetrievalBundle;
-  try {
-    bundle = matched ? retrieve(matched.id, REFERENCE_KEY) : retrieveGeneral(REFERENCE_KEY);
-  } catch (error) {
-    if (error instanceof AnalysisNotAvailable) return { ok: false, response: base('error', { message: error.message }) };
-    throw error;
-  }
   const handlerId = matched?.id ?? GENERAL_HANDLER_ID;
+  const onDemandMode = !isDemo && config.context === 'ondemand' && config.tools === 'auto';
+  const fullBundle = () => loadFullBundle(validated.query, matched?.id ?? null, deps);
 
-  const labSpec = labSpecOf(handlerId) ?? DEFAULT_LAB_SPEC;
-  let lab: LabContextSnapshot | null = null;
-  try {
-    lab = await (deps.labLoader ?? loadLabSnapshot)(validated.query, labSpec);
-  } catch {
-    lab = null;
-  }
-  if (lab) {
-    bundle = {
-      ...bundle,
-      lab,
-      recordsRead: bundle.recordsRead + (lab.available ? lab.totalObservations : 0),
-      note: `${bundle.note}${labSentence(lab)}`,
-    };
-  }
-
-  // The medication records live upstream, not in the metric dataset, so they are
-  // read separately and attached the same way the lab block is. A failed read
-  // yields an `available: false` block whose reason is stated — it never becomes
-  // "no medications were taken".
-  let medications: MedicationContextSnapshot | null = null;
-  try {
-    medications = await (deps.medicationLoader ?? loadMedicationSnapshot)(validated.query, {
-      ...(deps.env ? { env: deps.env } : {}),
+  let bundle: RetrievalBundle;
+  let onDemand: Prepared['onDemand'];
+  let budgetDropped: string[] | undefined;
+  if (onDemandMode) {
+    // Nothing is pre-loaded: the model gets an index of what exists and fetches what
+    // the question needs. The full context is built only if the tools are refused.
+    bundle = retrieveNone(handlerId, REFERENCE_KEY);
+    const access = createDataAccess({
+      system,
+      refKey: REFERENCE_KEY,
+      env: deps.env,
+      ...(deps.labSource ? { labSource: deps.labSource } : {}),
+      medications: async days =>
+        ((await (deps.medicationLoader ?? loadMedicationSnapshot)(validated.query, {
+          ...(deps.env ? { env: deps.env } : {}),
+          lookbackDays: days,
+        })) ?? unavailableMedicationSnapshot('The medication records could not be read.')),
     });
-  } catch {
-    medications = null;
-  }
-  if (medications) {
-    bundle = {
-      ...bundle,
-      medications,
-      recordsRead: bundle.recordsRead + (medications.available ? medications.totalRecords : 0),
-      note: `${bundle.note}${medicationSentence(medications)}`,
-    };
+    const index = renderDataIndex(buildDataIndex(REFERENCE_KEY, await access.labSource()));
+    onDemand = { access, index, full: fullBundle };
+  } else {
+    try {
+      bundle = await fullBundle();
+    } catch (error) {
+      if (error instanceof AnalysisNotAvailable) return { ok: false, response: base('error', { message: error.message }) };
+      throw error;
+    }
+    // The fixed context never exceeds what was measured to fit; what is left out is named.
+    const fitted = fitToBudget(bundle, system, config.contextMaxChars, validated.query);
+    bundle = fitted.bundle;
+    if (fitted.dropped.length > 0) budgetDropped = fitted.dropped;
   }
 
   const history = boundedHistory(request?.history);
@@ -350,7 +417,12 @@ async function prepareAnalyst(
     }
   }
 
-  return { ok: true, config, query: validated.query, notes, notesEcho, bundle, handlerId, system, history, routineDeps, pageContext };
+  return { ok: true, config, query: validated.query, notes, notesEcho, bundle, handlerId, system, history, routineDeps, pageContext, onDemand, budgetDropped };
+}
+
+/** The runaway limits from the configuration. */
+function guardLimits(config: AnalystConfig): GuardLimits {
+  return { maxReasoningChars: config.maxReasoningChars, maxAnswerChars: config.maxAnswerChars, questionTimeoutMs: config.questionTimeoutMs };
 }
 
 /** Numbers quoted from the page context are grounded, like tool results. */
@@ -394,21 +466,31 @@ async function answerWithTools(
   provider: ToolCallingProvider,
   hooks?: ToolLoopHooks
 ): Promise<{ response: AnalystResponse } | { rejected: string }> {
-  const { config, bundle, handlerId, notesEcho } = prep;
+  const { config, handlerId, notesEcho } = prep;
   const base = (status: AnalystStatus, fields: Partial<AnalystResponse> = {}) =>
     baseResponse(config, status, { untrustedNotes: notesEcho, ...fields });
-  const withContext = { handlerId, retrieval: retrievalSummary(bundle) };
-  const toolCtx: ToolContext = { system: prep.system, deps: prep.routineDeps, changes: [] };
-  const user = buildAnalystUserMessage({
-    question: prep.query,
-    bundle,
-    system: prep.system,
-    notes: prep.notes.text.length > 0 ? prep.notes.text : undefined,
-    history: prep.history,
-    pageContext: prep.pageContext,
-  });
+  const onDemand = prep.onDemand;
+  // In on-demand mode the bundle the answer is checked against is the (empty) start plus
+  // whatever the model fetched; it is rebuilt from the fetch record each time it is read.
+  const currentBundle = (): RetrievalBundle => (onDemand ? mergeFetched(prep.bundle, onDemand.access) : prep.bundle);
+  const withContext = () => ({ handlerId, retrieval: retrievalSummary(currentBundle()) });
+  const toolCtx: ToolContext = { system: prep.system, deps: prep.routineDeps, changes: [], ...(onDemand ? { data: onDemand.access } : {}) };
+  const notes = prep.notes.text.length > 0 ? prep.notes.text : undefined;
+  const user = onDemand
+    ? buildOnDemandUserMessage({ question: prep.query, index: onDemand.index, notes, history: prep.history, pageContext: prep.pageContext })
+    : buildAnalystUserMessage({
+        question: prep.query,
+        bundle: prep.bundle,
+        system: prep.system,
+        notes,
+        history: prep.history,
+        pageContext: prep.pageContext,
+      });
+  const systemPrompt = `${config.systemPrompt}${onDemand ? DATA_TOOLS_PROMPT : ''}${TRAINING_TOOLS_PROMPT}`;
   try {
-    const looped = await runToolLoop(provider, `${config.systemPrompt}${TRAINING_TOOLS_PROMPT}`, user, toolCtx, hooks);
+    const guard = new StreamGuard(guardLimits(config));
+    const looped = await runToolLoop(provider, systemPrompt, user, toolCtx, hooks, guard);
+    const bundle = currentBundle();
     const planChange = combineChanges(toolCtx.changes);
     let parsed = parseAnalystReply(looped.text, { bundle });
     if ((!parsed.ok || !parsed.answer) && looped.draft) {
@@ -419,7 +501,7 @@ async function answerWithTools(
     if (!parsed.ok || !parsed.answer) {
       return {
         response: base('error', {
-          ...withContext,
+          ...withContext(),
           planChange,
           toolsUsed: looped.toolsUsed,
           message: `${parsed.reason ?? "The model's reply could not be read as an answer."}${planChange ? ' The plan change it made was saved and can be undone below.' : ''}`,
@@ -428,7 +510,7 @@ async function answerWithTools(
     }
     return {
       response: base('ok', {
-        ...withContext,
+        ...withContext(),
         model: looped.model ?? config.model,
         answer: parsed.answer,
         grounding: checkGrounding(parsed.answer, bundle, prep.system, [...pageGrounding(prep), ...looped.toolOutputs]),
@@ -443,7 +525,7 @@ async function answerWithTools(
     const rejectedTools = error instanceof AnalystProviderError && error.statusCode === 400 && !planChange;
     if (rejectedTools) return { rejected: toolsUnavailableNote(error.message) };
     if (error instanceof AnalystProviderError) {
-      return { response: base('error', { ...withContext, planChange, message: error.message }) };
+      return { response: base('error', { ...withContext(), planChange, message: error.message }) };
     }
     throw error;
   }
@@ -471,13 +553,18 @@ export async function askAnalyst(
 
   // A configured model may use the training-plan tools (ANALYST_TOOLS=off disables them).
   let toolsUnavailable: string | null = null;
+  let ready = prep;
   if (usesTools(prep.config, provider.provider)) {
     const outcome = await answerWithTools(prep, provider.provider);
     if ('response' in outcome) return outcome.response;
     // Answered without tools below — but say so, so a refusal cannot hide.
     toolsUnavailable = outcome.rejected;
+    // The data was going to be fetched with tools; with none, it is sent instead.
+    ready = await withFullContext(prep);
+  } else if (prep.onDemand) {
+    ready = await withFullContext(prep);
   }
-  return answerWithoutTools(prep, provider.provider, toolsUnavailable);
+  return answerWithoutTools(ready, provider.provider, toolsUnavailable);
 }
 
 /** The configured provider, or the finished response saying why it cannot be created. */
@@ -630,7 +717,6 @@ export function streamAnalyst(
       return;
     }
 
-    const { config, bundle, handlerId, notesEcho } = prep;
     const created = providerFor(prep);
     if ('response' in created) {
       yield { kind: 'result', response: created.response };
@@ -639,7 +725,8 @@ export function streamAnalyst(
     const provider = created.provider;
 
     let toolsUnavailable: string | null = null;
-    if (usesTools(config, provider)) {
+    let ready: Prepared = prep;
+    if (usesTools(prep.config, provider)) {
       const outcome = yield* relay(emit =>
         answerWithTools(prep, provider, {
           onReasoning: text => emit({ kind: 'reasoning', text }),
@@ -655,7 +742,12 @@ export function streamAnalyst(
         return;
       }
       toolsUnavailable = outcome.rejected;
+      ready = await withFullContext(prep);
+    } else if (prep.onDemand) {
+      ready = await withFullContext(prep);
     }
+    // From here the question is answered from the fixed context (`ready`), never an empty one.
+    const { config, bundle, handlerId, notesEcho } = ready;
     const noTools = toolsUnavailable ? { toolsUnavailable } : {};
     const base = (status: AnalystStatus, fields: Partial<AnalystResponse> = {}) =>
       baseResponse(config, status, { untrustedNotes: notesEcho, ...noTools, ...fields });
@@ -664,11 +756,11 @@ export function streamAnalyst(
     // A provider that cannot stream still gets an answer; it just arrives in one
     // chunk. Nothing is faked about it.
     if (!supportsStreaming(provider)) {
-      yield { kind: 'result', response: await answerWithoutTools(prep, provider, toolsUnavailable) };
+      yield { kind: 'result', response: await answerWithoutTools(ready, provider, toolsUnavailable) };
       return;
     }
 
-    const context = providerContext(prep);
+    const context = providerContext(ready);
     const { system, user } = provider.messagesFor(context);
     let handle;
     try {
@@ -681,6 +773,11 @@ export function streamAnalyst(
       throw error;
     }
     abortUpstream = handle.abort;
+    const guard = new StreamGuard(guardLimits(config));
+    const deadline = setTimeout(() => {
+      guard.markExpired();
+      handle.abort();
+    }, guard.remainingMs());
 
     let assembled = '';
     let model: string | null = null;
@@ -690,8 +787,10 @@ export function streamAnalyst(
     try {
       for await (const event of parseAnalystSse(handle.response.body as ReadableStream<Uint8Array>)) {
         if (event.kind === 'reasoning') {
+          guard.reasoning(event.text);
           yield { kind: 'reasoning', text: event.text };
         } else if (event.kind === 'answer') {
+          guard.answer(event.text);
           assembled += event.text;
           yield { kind: 'answer', text: event.text };
         } else if (event.kind === 'done') {
@@ -705,12 +804,14 @@ export function streamAnalyst(
       // client falls back to the non-streaming endpoint from here.
       handle.abort();
       const detail =
-        error instanceof AnalystProviderError
+        guard.reason ??
+        (error instanceof AnalystProviderError
           ? error.message
-          : `The provider at ${config.endpointHost ?? 'the configured endpoint'} ended the stream early.`;
+          : `The provider at ${config.endpointHost ?? 'the configured endpoint'} ended the stream early.`);
       yield { kind: 'result', response: base('error', { ...withContext, message: detail }) };
       return;
     } finally {
+      clearTimeout(deadline);
       abortUpstream = null;
     }
 
@@ -750,7 +851,7 @@ export function streamAnalyst(
         ...withContext,
         answer: parsed.answer,
         message: null,
-        grounding: checkGrounding(parsed.answer, bundle, prep.system, pageGrounding(prep)),
+        grounding: checkGrounding(parsed.answer, bundle, ready.system, pageGrounding(ready)),
         // The streaming path reports the model the provider named, so the
         // attribution line matches what the answer view shows.
         model: model ?? config.model,

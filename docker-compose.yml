@@ -119,6 +119,19 @@ services:
       ANALYST_TEMPERATURE: "${ANALYST_TEMPERATURE:-0.2}"
       ANALYST_TIMEOUT_MS: "${ANALYST_TIMEOUT_MS:-60000}"
       ANALYST_JSON_MODE: "${ANALYST_JSON_MODE:-auto}"
+      # `auto` lets the model call tools; `off` for a server without tool calling.
+      ANALYST_TOOLS: "${ANALYST_TOOLS:-auto}"
+      # How health data reaches the model: `full` sends the selection with every
+      # question (within ANALYST_CONTEXT_MAX_CHARS); `ondemand` sends an index and the
+      # model fetches only what the question needs. See docs/configuration.md.
+      ANALYST_CONTEXT: "${ANALYST_CONTEXT:-full}"
+      ANALYST_CONTEXT_MAX_CHARS: "${ANALYST_CONTEXT_MAX_CHARS:-60000}"
+      # The runaway guard: one model turn may stream this many characters of reasoning or
+      # of reply, and one whole question (tool rounds included) this many milliseconds,
+      # before it is stopped. See docs/configuration.md.
+      ANALYST_MAX_REASONING_CHARS: "${ANALYST_MAX_REASONING_CHARS:-40000}"
+      ANALYST_MAX_ANSWER_CHARS: "${ANALYST_MAX_ANSWER_CHARS:-30000}"
+      ANALYST_QUESTION_TIMEOUT_MS: "${ANALYST_QUESTION_TIMEOUT_MS:-300000}"
       # Bounded reasoning effort for a reasoning model, or empty to send none.
       # One of max|xhigh|high|medium|low|minimal|none. An unbounded reasoning
       # model can spend the whole completion budget reasoning and emit no answer.
