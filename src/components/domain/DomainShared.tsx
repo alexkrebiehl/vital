@@ -67,6 +67,21 @@ export function SectionTitle({ children, hint }: { children: React.ReactNode; hi
   );
 }
 
+// ── Total card ─────────────────────────────────────────
+
+/** One figure in a connected band of totals (a Card split with dividers). */
+export function TotalCard({ label, value, sub, title }: { label: string; value: string; sub?: string; title?: string }) {
+  return (
+    <div className="p-5">
+      <div className="mb-2 text-[12px] font-medium text-text-secondary">{label}</div>
+      <div className="mb-1.5 text-[26px] font-semibold leading-none tnum tracking-[-0.03em] text-text-primary" title={title}>
+        {value}
+      </div>
+      {sub && <div className="text-[11px] text-text-secondary">{sub}</div>}
+    </div>
+  );
+}
+
 // ── Headline series card ───────────────────────────────
 
 /**
