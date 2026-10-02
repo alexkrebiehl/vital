@@ -4,6 +4,11 @@ Where Vital reads your health and workout data from, how demo and live modes dif
 
 [← Back to the README](../README.md)
 
+> **Trademarks.** Health Auto Export, Apple Health, Hevy and every other source named here are
+> trademarks of their respective owners and are mentioned only to describe compatibility. Vital is not
+> affiliated with or endorsed by any of them, and this applies equally to sources added later. See
+> [Trademarks and affiliations](../README.md#trademarks-and-affiliations).
+
 ---
 
 # Data sources
