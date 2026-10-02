@@ -35,6 +35,7 @@ import {
 } from './provider';
 import { availableTools, runTool, toolSpecs, type ToolContext } from './tools';
 import { hasAnswerContent } from './validate';
+import type { StreamGuard } from './guard';
 
 export const MAX_TOOL_ROUNDS = 6;
 export const MAX_TOOL_CALLS = 12;
@@ -69,11 +70,12 @@ function takeTurn(
   messages: LoopMessage[],
   specs: ToolSpec[],
   choice: 'auto' | 'none',
-  hooks: ToolLoopHooks | undefined
+  hooks: ToolLoopHooks | undefined,
+  guard: StreamGuard | undefined
 ): Promise<ModelTurn> {
   if (hooks?.signal?.aborted) throw new AnalystProviderError('The question was cancelled.');
   return hooks && provider.converseStreamed
-    ? provider.converseStreamed(system, messages, specs, choice, hooks)
+    ? provider.converseStreamed(system, messages, specs, choice, { ...hooks, guard })
     : provider.converse(system, messages, specs, choice);
 }
 
@@ -82,7 +84,8 @@ export async function runToolLoop(
   system: string,
   user: string,
   ctx: ToolContext,
-  hooks?: ToolLoopHooks
+  hooks?: ToolLoopHooks,
+  guard?: StreamGuard
 ): Promise<ToolLoopResult> {
   const specs = toolSpecs(availableTools(ctx));
   const messages: LoopMessage[] = [{ role: 'user', content: user }];
@@ -96,7 +99,9 @@ export async function runToolLoop(
 
   for (let round = 0; round < MAX_TOOL_ROUNDS + 1; round++) {
     const final = repairing || round >= MAX_TOOL_ROUNDS - 1 || calls >= MAX_TOOL_CALLS;
-    const turn = await takeTurn(provider, system, messages, specs, final ? 'none' : 'auto', hooks);
+    // A question past its deadline stops here, between rounds, as well as inside a stream.
+    guard?.beginTurn();
+    const turn = await takeTurn(provider, system, messages, specs, final ? 'none' : 'auto', hooks, guard);
     model = turn.model ?? model;
     if (turn.toolCalls.length === 0 || final) {
       if (!turn.text) throw new AnalystProviderError('The model kept calling tools and never answered.');

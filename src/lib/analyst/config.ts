@@ -69,6 +69,13 @@ function contextModeOf(env: NodeJS.ProcessEnv): 'ondemand' | 'full' {
   const v = env.ANALYST_CONTEXT?.trim().toLowerCase();
   return v === 'full' || v === 'ondemand' ? v : DEFAULT_CONTEXT_MODE;
 }
+/**
+ * The runaway guard (guard.ts). About 10k tokens of reasoning, and a reply twelve times
+ * the length of a real answer, in one model turn; and five minutes for the whole question.
+ */
+export const DEFAULT_MAX_REASONING_CHARS = 40_000;
+export const DEFAULT_MAX_ANSWER_CHARS = 30_000;
+export const DEFAULT_QUESTION_TIMEOUT_MS = 300_000;
 export const DEFAULT_TEMPERATURE = 0.2;
 export const DEFAULT_TIMEOUT_MS = 60000;
 
@@ -114,6 +121,12 @@ export interface AnalystConfig {
   context: 'ondemand' | 'full';
   /** The most the fixed (full) context may weigh, in characters, before the least relevant parts are dropped and named. */
   contextMaxChars: number;
+  /** Characters of reasoning one model turn may stream before the question is stopped. */
+  maxReasoningChars: number;
+  /** Characters of reply text one model turn may stream before the question is stopped. */
+  maxAnswerChars: number;
+  /** The wall clock for one whole question, tool rounds included. */
+  questionTimeoutMs: number;
   /** Reasoning effort to request, or null when the endpoint is not told one. */
   reasoningEffort: ReasoningEffort | null;
   sendingCategories: string[];
@@ -290,6 +303,9 @@ function demoConfig(env: NodeJS.ProcessEnv, prompt: SystemPromptResolution): Ana
     tools: env.ANALYST_TOOLS?.trim().toLowerCase() === 'off' ? 'off' : 'auto',
     context: contextModeOf(env),
     contextMaxChars: numberOr(env, 'ANALYST_CONTEXT_MAX_CHARS', DEFAULT_CONTEXT_MAX_CHARS, 8000, 2000000),
+    maxReasoningChars: numberOr(env, 'ANALYST_MAX_REASONING_CHARS', DEFAULT_MAX_REASONING_CHARS, 1000, 2_000_000),
+    maxAnswerChars: numberOr(env, 'ANALYST_MAX_ANSWER_CHARS', DEFAULT_MAX_ANSWER_CHARS, 1000, 2_000_000),
+    questionTimeoutMs: numberOr(env, 'ANALYST_QUESTION_TIMEOUT_MS', DEFAULT_QUESTION_TIMEOUT_MS, 1000, 1_800_000),
     reasoningEffort: reasoningEffortOr(env),
     sendingCategories: [],
     misconfiguredReason: null,
@@ -332,6 +348,9 @@ export function readAnalystConfig(env: NodeJS.ProcessEnv = process.env): Analyst
     tools: env.ANALYST_TOOLS?.trim().toLowerCase() === 'off' ? 'off' : 'auto',
     context: contextModeOf(env),
     contextMaxChars: numberOr(env, 'ANALYST_CONTEXT_MAX_CHARS', DEFAULT_CONTEXT_MAX_CHARS, 8000, 2000000),
+    maxReasoningChars: numberOr(env, 'ANALYST_MAX_REASONING_CHARS', DEFAULT_MAX_REASONING_CHARS, 1000, 2_000_000),
+    maxAnswerChars: numberOr(env, 'ANALYST_MAX_ANSWER_CHARS', DEFAULT_MAX_ANSWER_CHARS, 1000, 2_000_000),
+    questionTimeoutMs: numberOr(env, 'ANALYST_QUESTION_TIMEOUT_MS', DEFAULT_QUESTION_TIMEOUT_MS, 1000, 1_800_000),
     reasoningEffort: reasoningEffortOr(env),
     sendingCategories: REMOTE_SENDING_CATEGORIES,
     misconfiguredReason: null,

@@ -34,6 +34,7 @@ import { HANDLERS } from './handlers';
 import { buildAnalystUserMessage } from './systemPrompt';
 import { hostOf, safeExcerpt, scrubText } from './scrub';
 import { parseAnalystSse } from './stream';
+import type { StreamGuard } from './guard';
 import type {
   AnalystAnswer,
   AnalystProvider,
@@ -195,6 +196,8 @@ export interface TurnStreamHooks {
   onAnswer?: (text: string) => void;
   /** The upstream request is open; call `abort` to cancel it. */
   onOpen?: (abort: () => void) => void;
+  /** Stops a stream that reasons or writes without end, or outlives the question's deadline. */
+  guard?: StreamGuard;
 }
 
 /** A provider that can hold a multi-turn, tool-calling exchange. */
@@ -511,8 +514,17 @@ export class OpenAICompatibleProvider extends RemoteAnalystProviderBase {
     toolChoice: 'auto' | 'none',
     hooks: TurnStreamHooks
   ): Promise<ModelTurn> {
+    const guard = hooks.guard;
+    guard?.beginTurn();
     const handle = await this.openStream(this.converseBody(system, messages, tools, toolChoice, true));
     hooks.onOpen?.(handle.abort);
+    // The deadline also covers a stream that goes quiet: nothing arrives to trip a counter.
+    const deadline = guard
+      ? setTimeout(() => {
+          guard.markExpired();
+          handle.abort();
+        }, guard.remainingMs())
+      : null;
     let text = '';
     let reasoned = false;
     let model: string | null = null;
@@ -523,8 +535,10 @@ export class OpenAICompatibleProvider extends RemoteAnalystProviderBase {
       for await (const event of parseAnalystSse(handle.response.body as ReadableStream<Uint8Array>)) {
         if (event.kind === 'reasoning') {
           reasoned = true;
+          guard?.reasoning(event.text);
           hooks.onReasoning?.(event.text);
         } else if (event.kind === 'answer') {
+          guard?.answer(event.text);
           text += event.text;
           hooks.onAnswer?.(event.text);
         } else if (event.kind === 'tool_call') {
@@ -541,8 +555,11 @@ export class OpenAICompatibleProvider extends RemoteAnalystProviderBase {
       }
     } catch (error) {
       handle.abort();
+      if (guard?.reason) throw new AnalystProviderError(guard.reason);
       if (error instanceof AnalystProviderError) throw error;
       throw new AnalystProviderError(`The provider at ${this.destination ?? 'the configured endpoint'} ended the stream early.`);
+    } finally {
+      if (deadline) clearTimeout(deadline);
     }
     const toolCalls: ToolCall[] = [...calls.entries()]
       .sort(([a], [b]) => a - b)

@@ -38,6 +38,21 @@ speaks the OpenAI chat-completions shape works, which is what makes a local mode
 Plus request tuning: `ANALYST_MAX_TOKENS` (1200), `ANALYST_TEMPERATURE` (0.2),
 `ANALYST_TIMEOUT_MS` (60000), `ANALYST_JSON_MODE` (`auto`).
 
+**Stopping a model that cannot stop.** A reasoning model can fail to end: it keeps thinking, or
+keeps writing, with no answer. `ANALYST_MAX_TOKENS` is far too high to catch that in time, so
+a streamed question also has three guards. Hitting one stops the question, closes the
+connection to the model, produces no answer, and shows a message that names the limit and the setting.
+
+| Setting | Default | Stops the question when |
+|---|---|---|
+| `ANALYST_MAX_REASONING_CHARS` | `40000` (about 10k tokens) | one model turn streams more reasoning than this |
+| `ANALYST_MAX_ANSWER_CHARS` | `30000` | one model turn streams more reply text than this |
+| `ANALYST_QUESTION_TIMEOUT_MS` | `300000` (5 minutes) | the whole question, tool rounds included, takes longer; also catches a stream that goes silent |
+
+The reasoning and reply limits count each model turn separately, so a question that fetches data
+in several rounds is not penalised for it. The analyst page also has a **Stop** button while a
+question is running: it closes the model connection at once and nothing is stored for that question.
+
 Rules worth knowing:
 
 - **Loopback endpoints need no key.** `127.0.0.1`, `localhost`, `[::1]` and

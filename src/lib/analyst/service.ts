@@ -35,6 +35,7 @@ import { loadMedicationSnapshot, type MedicationLoader } from './medicationsCont
 import { unavailableMedicationSnapshot } from './medicationSnapshot';
 import { AnalystProviderError, createProvider, DEMO_LABEL, supportsStreaming, supportsTools, type ToolCallingProvider } from './provider';
 import { parseAnalystSse } from './stream';
+import { StreamGuard, type GuardLimits } from './guard';
 import { buildAnalystUserMessage, buildOnDemandUserMessage, DATA_TOOLS_PROMPT, TRAINING_TOOLS_PROMPT } from './systemPrompt';
 import { fitToBudget } from './budget';
 import { createDataAccess, mergeFetched, type DataAccess } from './dataAccess';
@@ -419,6 +420,11 @@ async function prepareAnalyst(
   return { ok: true, config, query: validated.query, notes, notesEcho, bundle, handlerId, system, history, routineDeps, pageContext, onDemand, budgetDropped };
 }
 
+/** The runaway limits from the configuration. */
+function guardLimits(config: AnalystConfig): GuardLimits {
+  return { maxReasoningChars: config.maxReasoningChars, maxAnswerChars: config.maxAnswerChars, questionTimeoutMs: config.questionTimeoutMs };
+}
+
 /** Numbers quoted from the page context are grounded, like tool results. */
 function pageGrounding(prep: Prepared): string[] {
   return prep.pageContext ? [prep.pageContext.json] : [];
@@ -482,7 +488,8 @@ async function answerWithTools(
       });
   const systemPrompt = `${config.systemPrompt}${onDemand ? DATA_TOOLS_PROMPT : ''}${TRAINING_TOOLS_PROMPT}`;
   try {
-    const looped = await runToolLoop(provider, systemPrompt, user, toolCtx, hooks);
+    const guard = new StreamGuard(guardLimits(config));
+    const looped = await runToolLoop(provider, systemPrompt, user, toolCtx, hooks, guard);
     const bundle = currentBundle();
     const planChange = combineChanges(toolCtx.changes);
     let parsed = parseAnalystReply(looped.text, { bundle });
@@ -766,6 +773,11 @@ export function streamAnalyst(
       throw error;
     }
     abortUpstream = handle.abort;
+    const guard = new StreamGuard(guardLimits(config));
+    const deadline = setTimeout(() => {
+      guard.markExpired();
+      handle.abort();
+    }, guard.remainingMs());
 
     let assembled = '';
     let model: string | null = null;
@@ -775,8 +787,10 @@ export function streamAnalyst(
     try {
       for await (const event of parseAnalystSse(handle.response.body as ReadableStream<Uint8Array>)) {
         if (event.kind === 'reasoning') {
+          guard.reasoning(event.text);
           yield { kind: 'reasoning', text: event.text };
         } else if (event.kind === 'answer') {
+          guard.answer(event.text);
           assembled += event.text;
           yield { kind: 'answer', text: event.text };
         } else if (event.kind === 'done') {
@@ -790,12 +804,14 @@ export function streamAnalyst(
       // client falls back to the non-streaming endpoint from here.
       handle.abort();
       const detail =
-        error instanceof AnalystProviderError
+        guard.reason ??
+        (error instanceof AnalystProviderError
           ? error.message
-          : `The provider at ${config.endpointHost ?? 'the configured endpoint'} ended the stream early.`;
+          : `The provider at ${config.endpointHost ?? 'the configured endpoint'} ended the stream early.`);
       yield { kind: 'result', response: base('error', { ...withContext, message: detail }) };
       return;
     } finally {
+      clearTimeout(deadline);
       abortUpstream = null;
     }
 
