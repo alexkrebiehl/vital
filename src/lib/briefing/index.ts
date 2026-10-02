@@ -297,7 +297,7 @@ export function computedBriefing(
   schedule: BriefingSchedule,
   options: { reason?: string | null; engineDetail?: string | null; adjustments?: string[] } = {}
 ): BriefingPayload {
-  const briefing = buildBriefing(REFERENCE_KEY);
+  const briefing = buildBriefing(REFERENCE_KEY, context.profile?.goals ?? null);
   return {
     kind: 'computed',
     headline: briefing.headline,

@@ -26,7 +26,7 @@ import { Card, Badge, DataStateNote } from '@/components/ui/primitives';
 import { MetricChart, TrendFigure } from '@/components/charts';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import {
-  DomainHeader, SectionTitle, SeriesCard, MetricGrid, CoverageNote, metricsForCategories,
+  DomainHeader, SectionTitle, SeriesCard, MetricGrid, metricsForCategories,
 } from './DomainShared';
 
 const DAYS = 30;
@@ -285,7 +285,6 @@ export function HealthPage() {
         days={DAYS}
       />
 
-      <CoverageNote metricIds={['resting_heart_rate', 'heart_rate_variability', 'vo2max', 'blood_oxygen_saturation', 'blood_pressure']} />
     </div>
   );
 }

@@ -124,7 +124,7 @@ export function AnalystPage() {
         eyebrow="AI Analyst"
         category="overview"
         seed={42}
-        subtitle="Explore patterns in your Apple Health history."
+        subtitle="Ask about the patterns in your health data."
         aside={
           <Badge variant={providerReady ? 'accent' : 'default'} className="text-xs">
             {providerBadge(configState)}

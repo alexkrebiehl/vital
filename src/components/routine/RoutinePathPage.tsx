@@ -155,7 +155,7 @@ function SessionTable({ path }: { path: PathProgress }) {
       <Card className="p-5">
         <p className="text-sm text-text-secondary">
           {path.tracked
-            ? `No sessions logged for ${path.stage.name.toLowerCase()} yet. Sessions are matched by exercise name or template id from your workout source (or by Apple Health workout type).`
+            ? `No sessions logged for ${path.stage.name.toLowerCase()} yet. Sessions are matched by exercise name or template id from your workout source (or by workout type).`
             : `Sessions of ${path.stage.name.toLowerCase()} come from a workout source, and none is connected, so none can be shown here.`}
         </p>
       </Card>

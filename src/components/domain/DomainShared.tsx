@@ -6,7 +6,6 @@ import { getMetric, getAllMetrics, getMetricsByCategory } from '@/lib/metrics';
 import { formatMetricWithUnit } from '@/lib/metrics/format';
 import {
   REFERENCE_KEY,
-  datasetProvenanceSentence,
   seriesInWindow,
   seriesFor,
   coverageFor,
@@ -241,43 +240,6 @@ export function MetricTile({ metric, days }: { metric: MetricDefinition; days: n
       <Link href={`/metric/${metric.id}`} className="mt-2 text-xs font-medium text-primary hover:underline">
         View detail
       </Link>
-    </Card>
-  );
-}
-
-// ── Coverage footer ────────────────────────────────────
-
-export function CoverageNote({ metricIds }: { metricIds: string[] }) {
-  const dataMeta = useDatasetMeta();
-  const rows = metricIds
-    .map(id => ({ id, meta: getMetric(id), cov: coverageFor(id) }))
-    .filter(r => r.cov);
-  if (rows.length === 0) return null;
-  const provenance = dataMeta.live
-    ? `${datasetProvenanceSentence()} Newest observation ${dataMeta.dataAsOfKey || '—'}; one device per metric per day after splitting composite sources.`
-    : datasetProvenanceSentence();
-  return (
-    <Card className="p-5">
-      <div className="flex items-center gap-2 mb-3">
-        <Info size={14} className="text-text-secondary" aria-hidden="true" />
-        <h3 className="text-sm font-semibold text-text-primary">Coverage for this page</h3>
-      </div>
-      <ul className="list-none p-0 m-0 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-        {rows.map(({ id, meta, cov }) => (
-          <li key={id} className="flex items-center justify-between gap-3">
-            <span className="text-text-primary">{meta?.displayName ?? id}</span>
-            <span className="text-text-secondary tnum">
-              {cov!.observedDays}/{cov!.expectedDays} days · {cov!.samplingFrequency}
-            </span>
-          </li>
-        ))}
-      </ul>
-      <div className="mt-3">
-        <DataStateNote>
-          {provenance}
-          Missing days are excluded rather than counted as zero.
-        </DataStateNote>
-      </div>
     </Card>
   );
 }

@@ -88,8 +88,7 @@ export default async function RootLayout({
         host: error.host,
         hint:
           'Vital is running in live mode (VITAL_DATA_MODE=live), so no demo data is shown in its place. ' +
-          'Check that the Health Auto Export server is reachable from this host and that HAE_API_URL and ' +
-          'HAE_API_KEY are set, then retry.',
+          'Check the data connection in Settings and that the server is reachable from this host, then retry.',
       };
     } else {
       throw error;

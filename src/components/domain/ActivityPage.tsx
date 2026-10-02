@@ -23,7 +23,7 @@ import { Card, DataStateNote } from '@/components/ui/primitives';
 import { MetricChart } from '@/components/charts';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import {
-  DomainHeader, SectionTitle, SeriesCard, MetricGrid, CoverageNote, metricsForCategories,
+  DomainHeader, SectionTitle, SeriesCard, MetricGrid, metricsForCategories,
 } from './DomainShared';
 
 const DAYS = 30;
@@ -196,7 +196,6 @@ export function ActivityPage() {
         days={DAYS}
       />
 
-      <CoverageNote metricIds={HEADLINE} />
     </div>
   );
 }

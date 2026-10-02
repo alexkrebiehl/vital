@@ -29,7 +29,7 @@ import { Card, Badge, DataStateNote, InsufficientDataState } from '@/components/
 import { MetricChart, TrendFigure, SleepStageChart, SleepStageTable, SLEEP_STAGE_META } from '@/components/charts';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import {
-  DomainHeader, SectionTitle, SeriesCard, CoverageNote, MetricGrid, metricsForCategories,
+  DomainHeader, SectionTitle, SeriesCard, MetricGrid, metricsForCategories,
 } from './DomainShared';
 
 const DAYS = 30;
@@ -432,7 +432,6 @@ export function SleepPage() {
         days={DAYS}
       />
 
-      <CoverageNote metricIds={['sleep_analysis', 'sleep_in_bed', 'heart_rate_variability']} />
     </div>
   );
 }

@@ -41,7 +41,7 @@ export function ConnectionErrorState({ title, message, host, hint }: ConnectionE
         <div className="flex items-center gap-2 mb-2">
           <Badge variant="warning" className="text-[10px]">Live source unreachable</Badge>
           <span className="text-[11px] text-text-secondary">
-            {host ? `Source: ${host}` : 'No source configured'}
+            {host ? 'Configured in Settings' : 'No source configured'}
           </span>
         </div>
         <h1 className="text-xl font-semibold text-text-primary mb-2">{title}</h1>
