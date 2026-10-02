@@ -47,6 +47,28 @@ function stripFences(text: string): string {
     .replace(/```/g, '');
 }
 
+/** The fields a reply may carry its answer in; at least one must hold text. */
+const ANSWER_FIELDS = ['analysis', 'observed', 'interpretation', 'recommendations', 'summary', 'uncertainty'] as const;
+
+/**
+ * True when `text` holds a JSON object with real content in at least one answer field.
+ * A model that fetched data may reply with a well-formed object of its own invention
+ * ({"comparison_dates": …}); that parses, but there is no answer in it to show.
+ */
+export function hasAnswerContent(text: string): boolean {
+  const json = extractJsonObject(text);
+  if (!json) return false;
+  try {
+    const obj = JSON.parse(json) as Record<string, unknown>;
+    return ANSWER_FIELDS.some(f => {
+      const v = obj[f];
+      return typeof v === 'string' ? v.trim().length > 0 : Array.isArray(v) && v.some(x => typeof x === 'string' && x.trim().length > 0);
+    });
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Find the first balanced JSON object in a string.
  *

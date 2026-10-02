@@ -219,6 +219,25 @@ describe('runToolLoop limits', () => {
     expect(model.seen).toHaveLength(1);
   });
 
+  it('repairs a well-formed object that has none of the answer fields', async () => {
+    // What a model did after fetching two lab panels: valid JSON under keys of its own.
+    const OWN_KEYS = JSON.stringify({ comparison_dates: { panel_A: '2026-09-29' }, what_changed: [{ group: 'CBC' }], unchanged_or_trivial_shifts: [] });
+    const model = new ScriptedModel(n =>
+      n === 0
+        ? { text: null, toolCalls: [{ id: 'a', name: 'get_training_plan', args: {} }], model: 'x' }
+        : n === 1
+          ? { text: OWN_KEYS, toolCalls: [], model: 'x' }
+          : { text: FINAL, toolCalls: [], model: 'x' }
+    );
+    const result = await runToolLoop(model, 'sys', 'q', ctx());
+    expect(result).toMatchObject({ text: FINAL, repaired: true });
+    // The rejected object is kept as the draft, in case the repair had failed too.
+    expect(result.draft).toBe(OWN_KEYS);
+    expect(model.seen.map(s => s.choice)).toEqual(['auto', 'auto', 'none']);
+    // The repair turn is shown the object it is replacing.
+    expect(model.seen[2].messages).toBe(model.seen[1].messages + 2);
+  });
+
   it('reports a model that never answers', async () => {
     const model = new ScriptedModel(() => ({ text: null, toolCalls: [{ id: 'a', name: 'get_training_plan', args: {} }], model: 'x' }));
     await expect(runToolLoop(model, 'sys', 'q', ctx())).rejects.toThrow(/never answered/);

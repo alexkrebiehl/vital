@@ -167,7 +167,7 @@ export function buildOnDemandUserMessage({
     `${noteBlock ? `${noteBlock.trim()}\n` : ''}${index}`,
     UNTRUSTED_END,
     '',
-    'Fetch the data this question needs, then return the single JSON object described in your instructions.'
+    'Fetch the data this question needs. Then reply with ONE JSON object using exactly these keys: "title", "analysis" (the answer, as paragraphs), "recommendations", "summary", "uncertainty", "evidence", "followUps". Do not invent other keys, and do not put the answer anywhere but "analysis".'
   );
   return parts.join('\n');
 }

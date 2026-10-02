@@ -34,7 +34,7 @@ import {
   type TurnStreamHooks,
 } from './provider';
 import { availableTools, runTool, toolSpecs, type ToolContext } from './tools';
-import { extractJsonObject } from './validate';
+import { hasAnswerContent } from './validate';
 
 export const MAX_TOOL_ROUNDS = 6;
 export const MAX_TOOL_CALLS = 12;
@@ -100,9 +100,10 @@ export async function runToolLoop(
     model = turn.model ?? model;
     if (turn.toolCalls.length === 0 || final) {
       if (!turn.text) throw new AnalystProviderError('The model kept calling tools and never answered.');
-      if (extractJsonObject(turn.text)) return { text: turn.text, model, toolsUsed, toolOutputs, repaired: repairing, ...(draft ? { draft } : {}) };
+      if (hasAnswerContent(turn.text)) return { text: turn.text, model, toolsUsed, toolOutputs, repaired: repairing, ...(draft ? { draft } : {}) };
       if (repairing) return { text: turn.text, model, toolsUsed, toolOutputs, repaired: true, draft: draft ?? turn.text };
-      // Prose instead of the JSON object: ask once for the same answer in the required shape.
+      // Prose, or a JSON object with none of the answer fields (a model that fetched data may
+      // invent its own keys): ask once for the same answer in the required shape.
       draft = turn.text;
       messages.push({ role: 'assistant', text: turn.text, toolCalls: [] });
       messages.push({ role: 'user', content: REPAIR_INSTRUCTION });

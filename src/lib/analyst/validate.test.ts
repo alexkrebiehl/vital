@@ -7,6 +7,7 @@ import {
   proseAnswerText,
   checkGrounding,
   extractJsonObject,
+  hasAnswerContent,
   extractNumericTokens,
   normalizeCitation,
   parseAnalystReply,
@@ -415,5 +416,20 @@ describe('proseAnswerText', () => {
 
   it('returns null when nothing readable is left', () => {
     expect(proseAnswerText('<tool_call>{"name":"get_training_plan"}')).toBeNull();
+  });
+});
+
+describe('hasAnswerContent', () => {
+  it('accepts an object with text in an answer field, in prose or in a list', () => {
+    expect(hasAnswerContent('{"analysis":"Sleep held steady."}')).toBe(true);
+    expect(hasAnswerContent('Here:\n{"observed":["one line"],"analysis":""}')).toBe(true);
+  });
+  it('refuses valid JSON under keys of its own, and objects whose answer fields are empty', () => {
+    expect(hasAnswerContent('{"comparison_dates":{"a":"2026-09-29"},"what_changed":[]}')).toBe(false);
+    expect(hasAnswerContent('{"title":"x","analysis":"  ","observed":[],"summary":[""]}')).toBe(false);
+  });
+  it('refuses prose and broken JSON', () => {
+    expect(hasAnswerContent('No object here.')).toBe(false);
+    expect(hasAnswerContent('{"analysis":"cut off')).toBe(false);
   });
 });
