@@ -22,17 +22,14 @@
 // the presentation over them.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Info, Pill } from 'lucide-react';
+import { Pill } from 'lucide-react';
 import { Badge, Card, DataStateNote, EmptyState, ErrorState, LoadingState } from '@/components/ui/primitives';
-import { MedicationDoseChart } from '@/components/charts';
 import { useDatasetMeta } from '@/components/data/DatasetProvider';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { formatDayKeyLong, addDays } from '@/lib/analytics/windows';
 import { fetchMedications, type MedicationReadResponse } from '@/lib/medications/client-data';
 import {
   MEDICATIONS_LOOKBACK_DAYS,
-  coverageLabel,
-  dailyStatusSeries,
   formatUnits,
   groupMedications,
   hasNoRecords,
@@ -81,7 +78,7 @@ export function MedicationsPage() {
       <div className="space-y-6">
         <DomainHeader
           title="Medications"
-          subtitle="Doses recorded in your Health Auto Export history — what was logged, and when."
+          subtitle="The doses you logged, and when."
         />
         <LoadingState label="Reading the recorded medication doses" />
       </div>
@@ -93,7 +90,7 @@ export function MedicationsPage() {
       <div className="space-y-6">
         <DomainHeader
           title="Medications"
-          subtitle="Doses recorded in your Health Auto Export history — what was logged, and when."
+          subtitle="The doses you logged, and when."
         />
         <ErrorState
           title="The medication records could not be read"
@@ -124,19 +121,20 @@ function MedicationsContent({
 
   const today = useMemo(() => recordsOnDay(records, referenceKey), [records, referenceKey]);
   const groups = useMemo(() => groupMedications(records), [records]);
-  const series = useMemo(() => dailyStatusSeries(records), [records]);
   const undated = useMemo(() => undatedRecords(records), [records]);
-  const covered = coverageLabel(data.covered, timezone);
 
   return (
     <div className="space-y-8">
       <DomainHeader
         title="Medications"
-        subtitle={`Doses recorded in your Health Auto Export history over the last ${MEDICATIONS_LOOKBACK_DAYS} days.`}
+        subtitle={`The doses you logged over the last ${MEDICATIONS_LOOKBACK_DAYS} days.`}
       >
         <Badge variant="default" className="text-[10px]">
           {records.length} record{records.length === 1 ? '' : 's'}
         </Badge>
+        <button type="button" onClick={onRefresh} className="text-xs text-primary hover:underline">
+          Refresh
+        </button>
       </DomainHeader>
 
       {/* ── Source not configured, or a genuine read failure ───────── */}
@@ -154,11 +152,8 @@ function MedicationsContent({
           <EmptyState
             icon={<Pill size={26} aria-hidden="true" />}
             title="No medication records in this window"
-            description={`There are no medication records in the last ${MEDICATIONS_LOOKBACK_DAYS} days. This surface reports what your Health Auto Export history logged, and this window logged nothing. Nothing is shown in place of it: no zeroes, no empty chart.`}
+            description={`There are no medication records in the last ${MEDICATIONS_LOOKBACK_DAYS} days. No dose was logged in this window. Nothing is shown in place of it: no zeroes, no empty chart.`}
           />
-          <div className="mt-6 border-t border-border pt-4">
-            <DataStateNote>{coverageSentence(data, covered)}</DataStateNote>
-          </div>
         </Card>
       )}
 
@@ -199,18 +194,6 @@ function MedicationsContent({
         </section>
       )}
 
-      {/* ── Doses per recorded day (only when there is something to plot) ─ */}
-      {!empty && series.length > 0 && (
-        <section>
-          <SectionTitle hint={`${series.length} day${series.length === 1 ? '' : 's'} with records`}>
-            Doses per recorded day
-          </SectionTitle>
-          <Card className="p-5">
-            <MedicationDoseChart rows={series} />
-          </Card>
-        </section>
-      )}
-
       {/* ── Records with no scheduled date (undated, listed not dropped) ─ */}
       {undated.length > 0 && (
         <section>
@@ -235,34 +218,8 @@ function MedicationsContent({
         </section>
       )}
 
-      {/* ── Provenance / coverage ──────────────────────────────────── */}
-      <Card className="p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <Info size={14} className="text-text-secondary" aria-hidden="true" />
-          <h3 className="text-sm font-semibold text-text-primary">Coverage for this page</h3>
-        </div>
-        <DataStateNote>{coverageSentence(data, covered)}</DataStateNote>
-        <button
-          type="button"
-          onClick={onRefresh}
-          className="mt-3 text-xs text-primary hover:underline"
-        >
-          Refresh
-        </button>
-      </Card>
     </div>
   );
-}
-
-function coverageSentence(data: MedicationReadResponse, covered: string | null): string {
-  const window =
-    data.window === null
-      ? 'no window was echoed back'
-      : `${formatDayKeyLong(data.window.from)} to ${formatDayKeyLong(data.window.to)} requested`;
-  if (covered === null) {
-    return `${data.source}, server-side: ${window}. Nothing attributable was returned for it, so the span the records cover cannot be stated. A day with no record is not counted as zero.`;
-  }
-  return `${data.source}, server-side: ${window}; the returned records cover ${covered}. Days with no record are missing rather than counted as zero.`;
 }
 
 // ── Pieces ──────────────────────────────────────────────────────────────────

@@ -108,7 +108,7 @@ function meaning(routine: RoutineOverview): string {
     case 'ok':
       return 'Every signal the plan checks is inside its limits, so paths move on as soon as their performance says so.';
     case 'unknown':
-      return 'None of the signals the plan checks has enough recent readings, so nothing is held back. Readings come from Apple Health; wear your watch overnight and weigh in regularly to have them checked.';
+      return 'None of the signals the plan checks has enough recent readings, so nothing is held back. Wear your watch overnight and weigh in regularly to have them checked.';
   }
 }
 
@@ -264,7 +264,7 @@ function Signals({ indicators }: { indicators: RecoveryIndicator[] }) {
         Signals
       </h2>
       <p className="text-[11px] text-text-secondary mt-0.5 mb-3">
-        The last 7 days against the 4 weeks before them, from Apple Health and your logged sessions.
+        The last 7 days against the 4 weeks before them, from your recorded readings and logged sessions.
       </p>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {indicators.map(i => (

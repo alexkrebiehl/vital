@@ -48,9 +48,10 @@ import {
 import { formatMetricWithUnit, formatPercent } from '../metrics/format';
 import type { UnitSystem } from '../prefs';
 import { ageInYears, type VitalProfile } from '../profile/types';
+import { goalFocus } from './goals';
 
 /** Bumped when the context shape changes, so a cached briefing is not reused. */
-export const BRIEFING_CONTEXT_VERSION = 2;
+export const BRIEFING_CONTEXT_VERSION = 3;
 
 export const BRIEFING_EVALUATED_DAYS = 7;
 export const BRIEFING_PRIOR_DAYS = 7;
@@ -160,16 +161,23 @@ export interface BriefingContext {
   unitSystem: UnitSystem;
   /**
    * What the person told us about themselves, and nothing else: a name, an age
-   * derived from the date of birth, and their own note. `null` when the profile
-   * carries none of them. The note is UNTRUSTED DATA — the prompt is told, in
-   * the same place as every other rule, never to follow an instruction inside
-   * it.
+   * derived from the date of birth, and their goals. `null` when the profile
+   * carries none of them. The goals text decides what the briefing is ABOUT; it is
+   * still UNTRUSTED DATA, so the prompt is told never to follow an instruction
+   * inside it.
    */
   profile: {
     name: string | null;
     ageYears: number | null;
-    notes: string | null;
+    goals: string | null;
   } | null;
+  /**
+   * What the goals ask the briefing to be about: the names of the metrics that bear
+   * on them (already placed first in `metrics`), and whether sleep is itself a goal.
+   * Empty/false when no goals are set or none was recognised, in which case the
+   * briefing is the usual all-round summary.
+   */
+  goalFocus: { metricNames: string[]; sleepIsAGoal: boolean; recognised: boolean } | null;
   windows: {
     evaluatedDays: number;
     priorDays: number;
@@ -483,10 +491,10 @@ export function estimateContextTokens(context: BriefingContext): number {
 function profileBlock(profile: VitalProfile | null): BriefingContext['profile'] {
   if (!profile) return null;
   const name = profile.name?.trim() || null;
-  const notes = profile.notes?.trim() || null;
+  const goals = profile.notes?.trim() || null;
   const ageYears = ageInYears(profile.dateOfBirth);
-  if (!name && !notes && ageYears === null) return null;
-  return { name, ageYears, notes };
+  if (!name && !goals && ageYears === null) return null;
+  return { name, ageYears, goals };
 }
 
 /**
@@ -517,8 +525,14 @@ export function buildBriefingContext(
   const evaluated = trailingWindow(REFERENCE_KEY, BRIEFING_EVALUATED_DAYS, `Last ${BRIEFING_EVALUATED_DAYS} days`);
   const prior = previousWindow(evaluated, BRIEFING_PRIOR_DAYS, `Prior ${BRIEFING_PRIOR_DAYS} days`);
 
+  // The goals decide what comes first. The metrics that bear on them lead the list
+  // (so they survive the token bound and the model reads them first); the usual core
+  // metrics follow. With no goals this is exactly the old order.
+  const focus = goalFocus(profile?.notes ?? null);
+  const metricOrder = [...focus.metricIds, ...CORE_BRIEFING_METRICS.filter(id => !focus.metricIds.includes(id))];
+
   const withData: BriefingMetricFact[] = [];
-  for (const metricId of CORE_BRIEFING_METRICS) {
+  for (const metricId of metricOrder) {
     if (withData.length >= MAX_BRIEFING_METRICS) break;
     const fact = metricFact(metricId, system);
     if (fact) withData.push(fact);
@@ -531,6 +545,15 @@ export function buildBriefingContext(
     timezone: meta.timezone,
     unitSystem: system,
     profile: profileBlock(profile),
+    goalFocus: focus.recognised
+      ? {
+          metricNames: facts
+            .filter(f => focus.metricIds.includes(f.metricId))
+            .map(f => f.name),
+          sleepIsAGoal: focus.sleepIsAGoal,
+          recognised: true,
+        }
+      : null,
     windows: {
       evaluatedDays: BRIEFING_EVALUATED_DAYS,
       priorDays: BRIEFING_PRIOR_DAYS,
@@ -546,7 +569,10 @@ export function buildBriefingContext(
     // A row that did not fit is reported as a count in `missing`, never dropped
     // in silence: the model is told what it is not being shown.
     metricsOmitted: withData.length - facts.length,
-    sleep: sleepFact(system),
+    // When the goals are about something else, the sleep block is left out: it is the
+    // block that kept pulling every briefing back to sleep and recovery. It stays
+    // whenever there are no goals, or sleep is itself a goal.
+    sleep: focus.recognised && !focus.sleepIsAGoal ? null : sleepFact(system),
     workouts: workoutFact(),
     missing: missingNotes(new Set(facts.map(f => f.metricId)), withData),
   });

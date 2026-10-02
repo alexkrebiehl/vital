@@ -6,6 +6,7 @@
 // "concerning", "safe", no implied diagnosis, no causal language.
 
 import { getMetric } from '../metrics/registry';
+import { goalFocus } from '../briefing/goals';
 import type { MetricDefinition } from '../metrics/types';
 import {
   formatMetricWithUnit, formatMetricValue, formatPercent, describeChange, formatDeltaWithUnit,
@@ -33,7 +34,8 @@ export const BRIEFING_BASELINE_DAYS = 30;
 export const STORY_WINDOW_DAYS = 30;
 
 export interface CategoryBriefing {
-  key: 'sleep' | 'recovery' | 'activity' | 'cardiovascular';
+  /** 'sleep' | 'recovery' | 'activity' | 'cardiovascular', or a metric id when the goals chose it. */
+  key: string;
   label: string;
   metricId: string;
   status: BaselineStatus;
@@ -53,7 +55,7 @@ export interface Briefing {
 }
 
 const CATEGORY_DEFS: Array<{
-  key: CategoryBriefing['key'];
+  key: string;
   label: string;
   metricId: string;
   withinWord: WithinWord;
@@ -64,6 +66,11 @@ const CATEGORY_DEFS: Array<{
   { key: 'activity', label: 'Activity', metricId: 'step_count', withinWord: 'Within baseline', band: 5 },
   { key: 'cardiovascular', label: 'Cardiovascular', metricId: 'resting_heart_rate', withinWord: 'Within baseline', band: 3 },
 ];
+
+/** A label inside a sentence: lower-cased, except an acronym such as BMI or VO2. */
+function inlineLabel(label: string): string {
+  return label === label.toUpperCase() && /[A-Z]{2,}/.test(label) ? label : label.toLowerCase();
+}
 
 function lowerFirst(s: string): string {
   return s.charAt(0).toLowerCase() + s.slice(1);
@@ -86,15 +93,47 @@ function sidePhrase(status: BaselineStatus): string {
   return 'within your recent baseline';
 }
 
+/** How many goal-chosen metrics the briefing leads with. */
+const GOAL_CATEGORY_LIMIT = 4;
+
+/**
+ * The categories the briefing reports on. By default the fixed four (sleep,
+ * recovery, activity, cardiovascular). When the person's goals name something the
+ * app measures, those measurements REPLACE them, so the briefing is about what the
+ * person is working toward rather than always about sleep and recovery. Only
+ * metrics that actually have data are chosen; if none do, or no goals are set, the
+ * default four are used.
+ */
+function categoryDefsFor(goals: string | null | undefined): typeof CATEGORY_DEFS {
+  const focus = goalFocus(goals);
+  const ids = [...(focus.sleepIsAGoal ? ['sleep_analysis'] : []), ...focus.metricIds];
+  const chosen: typeof CATEGORY_DEFS = [];
+  for (const id of ids) {
+    if (chosen.length >= GOAL_CATEGORY_LIMIT) break;
+    if (chosen.some(c => c.metricId === id)) continue;
+    const meta = getMetric(id);
+    if (!meta || seriesForMetric(id).length === 0) continue;
+    chosen.push({
+      key: id,
+      label: meta.displayName,
+      metricId: id,
+      withinWord: id === 'heart_rate_variability' ? 'Stable' : 'Within baseline',
+      band: id === 'resting_heart_rate' ? 3 : 5,
+    });
+  }
+  return chosen.length > 0 ? chosen : CATEGORY_DEFS;
+}
+
 /**
  * The single briefing computation: headline, body and category chips all read
- * from the same StatusResult objects.
+ * from the same StatusResult objects. `goals` is the person's own goals text from
+ * Settings; it only chooses WHICH measurements the briefing reports on.
  */
-export function buildBriefing(refKey: string): Briefing {
+export function buildBriefing(refKey: string, goals?: string | null): Briefing {
   const evaluatedWindow = trailingWindow(refKey, BRIEFING_EVALUATED_DAYS, `Last ${BRIEFING_EVALUATED_DAYS} days`);
   const baselineWindow = previousWindow(evaluatedWindow, BRIEFING_BASELINE_DAYS, `Prior ${BRIEFING_BASELINE_DAYS} days`);
 
-  const categories: CategoryBriefing[] = CATEGORY_DEFS.map(def => {
+  const categories: CategoryBriefing[] = categoryDefsFor(goals).map(def => {
     const meta = getMetric(def.metricId);
     const evaluated = seriesForMetric(def.metricId).filter(p => p.key >= evaluatedWindow.startKey && p.key <= evaluatedWindow.endKey);
     const baseline = seriesForMetric(def.metricId).filter(p => p.key >= baselineWindow.startKey && p.key <= baselineWindow.endKey);
@@ -134,14 +173,14 @@ export function buildBriefing(refKey: string): Briefing {
   const bodyParts: string[] = [];
   if (within.length > 0) {
     bodyParts.push(
-      `${sentenceCase(listPhrase(within.map(c => c.label.toLowerCase())))} ${
+      `${sentenceCase(listPhrase(within.map(c => inlineLabel(c.label))))} ${
         within.length === 1 ? 'is' : 'are'
       } within your recent baseline`
     );
   }
   if (outside.length > 0) {
     bodyParts.push(
-      listPhrase(outside.map(c => `${c.label.toLowerCase()} is ${sidePhrase(c.status)}`))
+      listPhrase(outside.map(c => `${inlineLabel(c.label)} is ${sidePhrase(c.status)}`))
     );
   }
   const body =

@@ -121,7 +121,7 @@ export function FreshnessIndicator() {
                   confirmed, and it is the correct state for every upstream stage in demo mode.
                 </p>
                 <p>
-                  Dataset: {report.dataset.source === 'live' ? 'live Health Auto Export history' : 'committed demo fixtures'} ·{' '}
+                  Dataset: {report.dataset.source === 'live' ? 'live history' : 'demo data'} ·{' '}
                   {report.dataset.observationCount} daily observations across {report.dataset.metricCount} metrics ·{' '}
                   coverage {report.dataset.windowStartKey} → {report.dataset.referenceKey} · newest observation{' '}
                   {report.dataset.lastObservationAt ?? 'unknown'} · checked {report.checkedAt}. Imported records are

@@ -51,7 +51,8 @@ const CONTEXT: BriefingContext = {
   asOfLabel: 'Thursday, September 17',
   timezone: 'America/Chicago',
   unitSystem: 'metric',
-  profile: { name: 'Test Person', ageYears: 47, notes: null },
+  profile: { name: 'Test Person', ageYears: 47, goals: null },
+  goalFocus: null,
   windows: {
     evaluatedDays: 7,
     priorDays: 7,

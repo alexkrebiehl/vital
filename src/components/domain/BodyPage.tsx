@@ -22,7 +22,7 @@ import { HeroFigure } from '@/components/art/HeroFigure';
 import { CompositionBar } from '@/components/art/CompositionBar';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import {
-  DomainHeader, SectionTitle, SeriesCard, MetricGrid, CoverageNote, metricsForCategories,
+  DomainHeader, SectionTitle, SeriesCard, MetricGrid, metricsForCategories,
 } from './DomainShared';
 
 const DAYS = 90;
@@ -196,7 +196,6 @@ export function BodyPage() {
         />
       ) : null}
 
-      <CoverageNote metricIds={['weight_body_mass', 'body_fat_percentage', 'lean_body_mass', 'waist_circumference']} />
     </div>
   );
 }

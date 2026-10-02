@@ -44,7 +44,7 @@ import {
   metricUnit,
 } from '@/lib/metrics/format';
 import {
-  Card, Badge, ChangeCue, SegmentedControl, DataStateNote,
+  Card, Badge, ChangeCue, DataStateNote,
 } from '@/components/ui/primitives';
 import { TrendFigure } from '@/components/charts';
 import { useUnits } from '@/components/ui/UnitsProvider';
@@ -52,19 +52,13 @@ import { useAnalystConfig } from '@/components/analyst/useAnalystConfig';
 import { useBriefing } from '@/components/analyst/useBriefing';
 import { COMPUTED_ATTRIBUTION, BRIEFING_BOUNDARY_NOTE } from '@/lib/briefing/attribution';
 import { briefingSchedule, briefingTimeLabel } from '@/lib/briefing/schedule';
-import { OverviewMedications } from './OverviewMedications';
+import { RangeControl } from '@/components/ui/RangeControl';
 import { useProfile } from '@/components/profile/ProfileProvider';
 import { greetingLine } from '@/lib/profile/types';
 import { ContourField } from '@/components/art/ContourField';
 import { Spark } from '@/components/art/Spark';
 import { CATEGORY_VAR, type ArtCategory } from '@/components/art/categories';
 import { useDatasetMeta } from '@/components/data/DatasetProvider';
-import { datasetProvenanceSentence } from '@/lib/adapters/dataset';
-
-const STORY_RANGE_OPTIONS = [
-  { value: '30', label: '30D' },
-  { value: '90', label: '90D' },
-];
 
 const USED_BRIEFING_METRICS = ['resting_heart_rate', 'heart_rate_variability', 'sleep_analysis', 'step_count'] as const;
 
@@ -103,7 +97,7 @@ export function OverviewPage({ initialGreeting }: { initialGreeting: string }) {
   // Both times are stated absolutely — when it was written and when it was due —
   // instead of hedging about whether the schedule ran on time.
 
-  const briefing = useMemo(() => buildBriefing(REFERENCE_KEY), []);
+  const briefing = useMemo(() => buildBriefing(REFERENCE_KEY, profile.notes), [profile.notes]);
   const watch = useMemo(() => buildWatchItem(briefing, units), [briefing, units]);
   const story = useMemo(() => buildStorySummary(REFERENCE_KEY, Number(storyDays), units), [storyDays, units]);
 
@@ -437,12 +431,6 @@ export function OverviewPage({ initialGreeting }: { initialGreeting: string }) {
         </Card>
       </div>
 
-      {/* ── B2. Medications (app-rendered, independent of the briefing) ─── */}
-      {/* The model's briefing context holds no medications, so this block is
-          NOT derived from briefing text: it reads its own data over the network
-          and renders regardless of the hero's state. */}
-      <OverviewMedications />
-
       {/* ── C. Core health signals ─────────────────── */}
       {/* Owner request 2: a signal with no observation in the 30-day window is
           not rendered, and the section disappears with its last card. */}
@@ -497,12 +485,7 @@ export function OverviewPage({ initialGreeting }: { initialGreeting: string }) {
           <h2 className="text-[20px] md:text-[24px] font-semibold tracking-[-0.03em] text-text-primary">
             Your health story
           </h2>
-          <SegmentedControl
-            options={STORY_RANGE_OPTIONS}
-            value={storyDays}
-            onChange={setStoryDays}
-            ariaLabel="Health story period"
-          />
+          <RangeControl value={storyDays} onChange={setStoryDays} ariaLabel="Health story period" />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -614,7 +597,7 @@ export function OverviewPage({ initialGreeting }: { initialGreeting: string }) {
 
       {/* Screen-reader-only statement of what this page is */}
       <p className="sr-only">
-        This page summarizes {USED_BRIEFING_METRICS.length} tracked metrics. {datasetProvenanceSentence()}{' '}
+        This page summarizes {USED_BRIEFING_METRICS.length} tracked metrics.{' '}
         Comparisons use the last 7 days against the prior 30 days unless a window is stated.
         {dataMeta.live ? ` Newest observation ${dataMeta.dataAsOf.slice(0, 10)}.` : ''}
       </p>
