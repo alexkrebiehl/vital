@@ -60,6 +60,15 @@ export const LOOPBACK_HOSTS = new Set([
 ]);
 
 export const DEFAULT_MAX_TOKENS = 1200;
+/** About 15k tokens: what a small local model can hold beside the instructions and the tool definitions. */
+export const DEFAULT_CONTEXT_MAX_CHARS = 60_000;
+/** The mode used when ANALYST_CONTEXT is unset. */
+export const DEFAULT_CONTEXT_MODE: 'ondemand' | 'full' = 'full';
+
+function contextModeOf(env: NodeJS.ProcessEnv): 'ondemand' | 'full' {
+  const v = env.ANALYST_CONTEXT?.trim().toLowerCase();
+  return v === 'full' || v === 'ondemand' ? v : DEFAULT_CONTEXT_MODE;
+}
 export const DEFAULT_TEMPERATURE = 0.2;
 export const DEFAULT_TIMEOUT_MS = 60000;
 
@@ -96,6 +105,15 @@ export interface AnalystConfig {
   jsonMode: JsonMode;
   /** Whether a remote model may call the training-plan tools (ANALYST_TOOLS=off for servers without tool calling). */
   tools: 'auto' | 'off';
+  /**
+   * How the health data reaches the model. `ondemand`: a short index of what exists,
+   * and the model fetches what the question needs with read tools. `full`: the whole
+   * selection is sent with every question (also the fallback when tools are off or
+   * refused). ANALYST_CONTEXT=full|ondemand.
+   */
+  context: 'ondemand' | 'full';
+  /** The most the fixed (full) context may weigh, in characters, before the least relevant parts are dropped and named. */
+  contextMaxChars: number;
   /** Reasoning effort to request, or null when the endpoint is not told one. */
   reasoningEffort: ReasoningEffort | null;
   sendingCategories: string[];
@@ -270,6 +288,8 @@ function demoConfig(env: NodeJS.ProcessEnv, prompt: SystemPromptResolution): Ana
     timeoutMs: numberOr(env, 'ANALYST_TIMEOUT_MS', DEFAULT_TIMEOUT_MS, 100, 600000),
     jsonMode: env.ANALYST_JSON_MODE?.trim().toLowerCase() === 'off' ? 'off' : 'auto',
     tools: env.ANALYST_TOOLS?.trim().toLowerCase() === 'off' ? 'off' : 'auto',
+    context: contextModeOf(env),
+    contextMaxChars: numberOr(env, 'ANALYST_CONTEXT_MAX_CHARS', DEFAULT_CONTEXT_MAX_CHARS, 8000, 2000000),
     reasoningEffort: reasoningEffortOr(env),
     sendingCategories: [],
     misconfiguredReason: null,
@@ -310,6 +330,8 @@ export function readAnalystConfig(env: NodeJS.ProcessEnv = process.env): Analyst
     timeoutMs: numberOr(env, 'ANALYST_TIMEOUT_MS', DEFAULT_TIMEOUT_MS, 100, 600000),
     jsonMode: env.ANALYST_JSON_MODE?.trim().toLowerCase() === 'off' ? 'off' : 'auto',
     tools: env.ANALYST_TOOLS?.trim().toLowerCase() === 'off' ? 'off' : 'auto',
+    context: contextModeOf(env),
+    contextMaxChars: numberOr(env, 'ANALYST_CONTEXT_MAX_CHARS', DEFAULT_CONTEXT_MAX_CHARS, 8000, 2000000),
     reasoningEffort: reasoningEffortOr(env),
     sendingCategories: REMOTE_SENDING_CATEGORIES,
     misconfiguredReason: null,

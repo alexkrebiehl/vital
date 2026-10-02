@@ -252,6 +252,8 @@ function localConfig(env: NodeJS.ProcessEnv, baseUrl: string, model: string): An
     timeoutMs: numberOr(env, 'BRIEFING_TIMEOUT_MS', DEFAULT_BRIEFING_TIMEOUT_MS, 100, 600_000),
     jsonMode: 'auto',
     tools: 'off',
+    context: 'full',
+    contextMaxChars: 60_000,
     // The briefing keeps its own policy: it never sends a reasoning-effort field.
     reasoningEffort: null,
     sendingCategories: REMOTE_SENDING_CATEGORIES,
@@ -394,6 +396,8 @@ export function resolveBriefingFallback(deps: EngineDeps = {}): BriefingEngine {
       timeoutMs: numberOr(env, 'BRIEFING_TIMEOUT_MS', DEFAULT_BRIEFING_TIMEOUT_MS, 100, 600_000),
       jsonMode: 'auto',
       tools: 'off',
+      context: 'full',
+      contextMaxChars: 60_000,
       reasoningEffort: null,
       sendingCategories: REMOTE_SENDING_CATEGORIES,
       misconfiguredReason: null,

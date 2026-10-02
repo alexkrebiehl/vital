@@ -175,6 +175,34 @@ assessment, the stage map, cues and checks, and recovery indicators.
 - `ANALYST_TOOLS=off` keeps a configured model from calling tools (for servers without tool calling);
   a server that rejects tool definitions is answered without them automatically.
 
+### How the analyst gets your health data
+
+`ANALYST_CONTEXT` chooses between two ways of giving the model what a question needs.
+
+| `ANALYST_CONTEXT` | What is sent with a question | Use it when |
+|---|---|---|
+| `full` (default) | The selection for that question: metric summaries, the lab block and the medication log, in one message. | The model has no tool calling, or a small context window you have sized for. |
+| `ondemand` | The question, the earlier turns and a short **index** of what exists — metric names with their date ranges, lab series by category with the dates panels were measured. No values. The model fetches what it needs. | The model supports tool calling. It is the better choice as the lab history grows. |
+
+In `ondemand` mode the model has seven read-only tools: `get_metrics`, `compare_periods`,
+`get_metric_relationship`, `get_workouts`, `get_lab_results`, `compare_lab_panels` and
+`get_medications`. They read what the fixed context is built from, so a figure has the same
+formatting, units and reference interval either way. Each result is capped (about 12,000
+characters); a result that would be bigger is narrowed in a stated way — series left out are named
+— never cut in the middle. Every figure the answer quotes is checked against what was fetched, and
+the answer can link only to a metric or lab series that was fetched. The Analyst page shows
+"Looking up your lab results…" while it works, and the answer lists which tools it used.
+
+Both modes only read. Nothing fetched is stored: health data is read at request time and held for
+the life of the question.
+
+`ANALYST_CONTEXT_MAX_CHARS` (default 60,000, about 15,000 tokens) bounds the `full` message. Over
+the limit, whole parts are removed — the daily series, then the less relevant blocks — and the
+message states what was left out, so the model says "I was not given X" instead of "X is not
+recorded". Nothing is cut mid-value. A model server that has a smaller window than the message
+may drop the middle of it silently, which is where the data sits; set this below what yours holds.
+When tools are off or refused, `ondemand` falls back to `full`.
+
 ## The daily briefing on `/`
 
 The Overview hero (*"Today's briefing"*) is written by the same provider stack described above —

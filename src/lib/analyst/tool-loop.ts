@@ -33,7 +33,7 @@ import {
   type ToolSpec,
   type TurnStreamHooks,
 } from './provider';
-import { runTool, toolSpecs, type ToolContext } from './tools';
+import { availableTools, runTool, toolSpecs, type ToolContext } from './tools';
 import { extractJsonObject } from './validate';
 
 export const MAX_TOOL_ROUNDS = 6;
@@ -84,7 +84,7 @@ export async function runToolLoop(
   ctx: ToolContext,
   hooks?: ToolLoopHooks
 ): Promise<ToolLoopResult> {
-  const specs = toolSpecs();
+  const specs = toolSpecs(availableTools(ctx));
   const messages: LoopMessage[] = [{ role: 'user', content: user }];
   const toolsUsed: string[] = [];
   const toolOutputs: string[] = [];
