@@ -150,6 +150,11 @@ export interface RetrievalBundle {
    * Optional so a hand-assembled bundle (a test double) stays valid.
    */
   medications?: MedicationContextSnapshot | null;
+  /**
+   * Metric ids the model fetched on demand that have no summary in this bundle (a
+   * period comparison, say). They are real and were seen, so evidence may cite them.
+   */
+  citable?: string[];
   /** How many records were read out of the dataset for this question. */
   recordsRead: number;
   /** Human sentence describing what was selected. */

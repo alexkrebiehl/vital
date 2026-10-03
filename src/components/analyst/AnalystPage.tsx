@@ -54,7 +54,7 @@ export function AnalystPage() {
     },
     [refreshConversations]
   );
-  const { exchanges, pending, activeId, ask, replace, reset } = useAnalystChat({ onConversation: handleConversation });
+  const { exchanges, pending, activeId, ask, replace, stop, reset } = useAnalystChat({ onConversation: handleConversation });
 
   /** Start fresh: an empty view. The server creates the conversation on the
    *  first question, so it is named after that question rather than "New". */
@@ -215,7 +215,7 @@ export function AnalystPage() {
           />
 
           {/* ── Composer ─────────────────────────────── */}
-          <ChatComposer onSend={q => void ask(q)} pending={pending} providerReady={providerReady} />
+          <ChatComposer onSend={q => void ask(q)} onStop={stop} pending={pending} providerReady={providerReady} />
         </div>
 
       </div>

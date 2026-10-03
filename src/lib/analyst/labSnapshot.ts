@@ -207,7 +207,7 @@ export function readingText(reading: LabSnapshotReading): string {
   return formatReading({ value: reading.value, valueText: reading.valueText, unit: reading.unit });
 }
 
-function toReading(point: LabSeriesObservationInput): LabSnapshotReading {
+export function toReading(point: LabSeriesObservationInput): LabSnapshotReading {
   const prov = intervalProvenance(point.interval);
   const printed = point.printedRefText !== null && point.printedRefText.trim().length > 0 ? point.printedRefText.trim() : null;
   return {
@@ -228,7 +228,7 @@ function toReading(point: LabSeriesObservationInput): LabSnapshotReading {
 }
 
 /** The change between two readings, or the words that say it cannot be given. */
-function changeText(previous: LabSnapshotReading, latest: LabSnapshotReading): string {
+export function changeText(previous: LabSnapshotReading, latest: LabSnapshotReading): string {
   if (previous.value === null || latest.value === null) return 'no numeric change (one reading is not a number)';
   const delta = latest.value - previous.value;
   const unit = latest.unit && latest.unit.trim().length > 0 ? ` ${latest.unit}` : previous.unit ? ` ${previous.unit}` : '';
@@ -248,7 +248,7 @@ function lineFor(series: LabSeriesInput, latest: LabSnapshotReading, previous: L
   return `${series.displayName}: latest ${readingText(latest)} on ${latest.on} — ${latest.statusLabel}${interval}${qualitative}${prev}`;
 }
 
-function seriesSnapshot(input: LabSeriesInput, mode: 'overview' | 'analyte', maxPoints: number): LabSnapshotSeries {
+export function seriesSnapshot(input: LabSeriesInput, mode: 'overview' | 'analyte', maxPoints: number): LabSnapshotSeries {
   const points = input.points;
   const latestPoint = points.length > 0 ? points[points.length - 1]! : null;
   const previousPoint = points.length > 1 ? points[points.length - 2]! : null;

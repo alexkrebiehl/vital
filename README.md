@@ -32,6 +32,29 @@ substitute for a clinician.
 
 ---
 
+## A look inside
+
+Screenshots of the running app, with names and other personal details removed.
+
+<p align="center">
+  <img src="docs/screenshots/overview.png" alt="The Overview: a daily briefing, core health signals and what changed this week" width="49%">
+  <img src="docs/screenshots/sleep.png" alt="The Sleep page: the latest night, stage breakdown and sleep stages by night" width="49%">
+</p>
+<p align="center">
+  <img src="docs/screenshots/health.png" alt="The Health page in the light theme: signals mapped on a body figure, with cardiovascular cards" width="49%">
+  <img src="docs/screenshots/health-dark.png" alt="The same Health page in the dark theme" width="49%">
+</p>
+<p align="center">
+  <img src="docs/screenshots/trends.png" alt="Trends: compare periods with a 7, 30, 90 or custom date range" width="49%">
+  <img src="docs/screenshots/activity.png" alt="The Activity page: steps, exercise minutes, distance, calories and stand hours" width="49%">
+</p>
+<p align="center">
+  <img src="docs/screenshots/body.png" alt="The Body page: weight, composition and a weight trajectory" width="49%">
+  <img src="docs/screenshots/themes.png" alt="Themes: five light and nine dark colour themes" width="49%">
+</p>
+
+---
+
 ## What Vital can do
 
 ### A daily briefing built around your goals
@@ -178,6 +201,39 @@ For development without Docker, `npm install && npm run dev` serves on port 3000
 
 ---
 
+## License
+
+Vital is free software, licensed under the **[GNU Affero General Public License v3.0](LICENSE)**
+(`AGPL-3.0-only`).
+
+In plain terms: you may use, study, change and share it, including at work. If you distribute a
+modified version, or let other people use a modified version over a network (for example by hosting
+it), you must offer them the corresponding source code under the same license. The license text in
+[`LICENSE`](LICENSE) is the only authoritative statement of your rights and obligations; this
+summary is not legal advice.
+
+Copyright (C) 2026 the Vital contributors.
+
+## Trademarks and affiliations
+
+Vital is an independent project. It is **not affiliated with, endorsed by, sponsored by, or
+otherwise connected to** any company or product it can read from or talk to.
+
+All product names, service names, logos and trademarks that appear in this repository, its
+documentation or the application — including, without limitation, **Apple**, **Apple Health**,
+**Apple Watch** and **iPhone** (Apple Inc.); **Health Auto Export**; **Hevy**; **Quest Diagnostics**;
+**MyChart** and **Epic** (Epic Systems Corporation); and the names of AI providers and models such as
+**OpenAI**, **Anthropic**, **OpenRouter**, **LM Studio**, **Ollama** and **llama.cpp** — are the
+property of their respective owners. They are used only to describe what Vital is compatible with.
+
+The same applies to every data source, workout source, lab format or AI provider that is added to
+Vital in future: each name belongs to its owner, and mentioning it implies no relationship, approval
+or partnership. Vital reads data you already have the right to access, through interfaces those
+services make available to you; using them remains subject to their own terms of service. Vital is
+not a medical device and is not provided by, or on behalf of, any of the parties named above.
+
+---
+
 ## Learn more
 
 | | |
@@ -193,6 +249,8 @@ For development without Docker, `npm install && npm run dev` serves on port 3000
 
 - There is **no built-in login or TLS**. Run Vital on a private network or behind an authenticating
   reverse proxy.
+- Licensed under the [AGPL-3.0](LICENSE); third-party names are trademarks of their owners, see
+  [Trademarks and affiliations](#trademarks-and-affiliations).
 - It is a personal project, **not a medical device**. It interprets your own recorded data; it does
   not diagnose, treat or rule anything out.
 - Quality checks: `npm run typecheck`, `npm run lint`, `npm run test`, `npm run build`.

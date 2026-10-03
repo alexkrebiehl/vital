@@ -84,9 +84,19 @@ export function ReasoningBlock({ reasoning }: { reasoning: string }) {
   );
 }
 
-/** A plan tool as a status line: "get_routine_progress" → "Using the plan tool: get routine progress…". */
+const DATA_LOOKUPS: Record<string, string> = {
+  get_metrics: 'Looking up your metrics…',
+  compare_periods: 'Comparing two periods…',
+  get_metric_relationship: 'Checking how two metrics move together…',
+  get_workouts: 'Looking up your workouts…',
+  get_lab_results: 'Looking up your lab results…',
+  compare_lab_panels: 'Comparing your lab panels…',
+  get_medications: 'Looking up your medication log…',
+};
+
+/** A tool as a status line: a data lookup in plain words, a plan tool as "Using the plan tool: get routine progress…". */
 export function toolStatus(tool: string): string {
-  return `Using the plan tool: ${tool.replace(/_/g, ' ')}…`;
+  return DATA_LOOKUPS[tool] ?? `Using the plan tool: ${tool.replace(/_/g, ' ')}…`;
 }
 
 /**
