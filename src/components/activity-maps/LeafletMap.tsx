@@ -73,6 +73,9 @@ export interface LeafletMapProps {
  */
 export const MAP_ASPECT = 3 / 2;
 
+/** How far one +/- press zooms while framing an area: a quarter level. */
+export const FRAME_ZOOM_STEP = 0.25;
+
 /** The least margin round the frame, as a share of the container on each side. */
 export const FRAME_MARGIN = 0.08;
 
@@ -190,21 +193,31 @@ export function LeafletMap({
     if (!L || !el) return;
     const map = L.map(el, {
       zoomControl: true,
-      scrollWheelZoom: false,
+      // A card sits in a scrolling page, so the wheel zooms only after a click.
+      // The framing dialog has no page to scroll, and the wheel is the finest
+      // control there is for choosing an area, so it is on from the start.
+      scrollWheelZoom: frame,
       attributionControl: true,
       maxZoom: MAX_ZOOM,
       // No snapping: a whole-level zoom can show up to twice the framed area,
-      // so the box is fitted exactly. The +/- buttons still step whole levels.
+      // so the box is fitted exactly.
       zoomSnap: 0,
-      zoomDelta: 1,
+      // A whole level doubles or halves the area. That is fine for looking
+      // around a card, too coarse for framing one: there the buttons and keys
+      // step a quarter level (~19% in width) and the wheel moves at half its
+      // usual rate.
+      zoomDelta: frame ? FRAME_ZOOM_STEP : 1,
+      wheelPxPerZoomLevel: frame ? 120 : 60,
     });
     map.attributionControl.setPrefix(false);
     rendererRef.current = L.canvas({ padding: 0.5, tolerance: 6 });
     mapRef.current = map;
     fit(L, map, initialBox.current, frame);
 
-    map.on('click', () => map.scrollWheelZoom.enable());
-    map.on('mouseout', () => map.scrollWheelZoom.disable());
+    if (!frame) {
+      map.on('click', () => map.scrollWheelZoom.enable());
+      map.on('mouseout', () => map.scrollWheelZoom.disable());
+    }
 
     const report = () => {
       const cb = frameCb.current;
