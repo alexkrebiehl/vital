@@ -1,0 +1,33 @@
+import { describe, expect, it } from 'vitest';
+import { pathMetric, percentile, rampColor, scaleFor, scalePosition } from './metrics';
+
+describe('scales', () => {
+  const freq = pathMetric('frequency');
+  const hr = pathMetric('heart_rate');
+
+  it('spans frequency from 1 to the busiest path on a log scale', () => {
+    const scale = scaleFor(freq, [1, 3, 100])!;
+    expect(scale).toEqual({ min: 1, max: 100 });
+    expect(scalePosition(freq, scale, 10)).toBeCloseTo(0.5);
+  });
+
+  it('clamps heart rate to the 5th-95th percentile so one outlier cannot flatten the rest', () => {
+    const values = [...Array.from({ length: 98 }, (_, i) => 100 + i * 0.5), 30, 230];
+    const scale = scaleFor(hr, values)!;
+    expect(scale.min).toBeGreaterThan(100);
+    expect(scale.max).toBeLessThan(150);
+    expect(scalePosition(hr, scale, 230)).toBe(1);
+    expect(scalePosition(hr, scale, 30)).toBe(0);
+  });
+
+  it('has no scale with nothing to show', () => {
+    expect(scaleFor(hr, [])).toBeNull();
+  });
+
+  it('interpolates percentiles and ramp colours', () => {
+    expect(percentile([0, 10], 50)).toBe(5);
+    expect(rampColor(['#000000', '#ffffff'], 0)).toBe('#000000');
+    expect(rampColor(['#000000', '#ffffff'], 1)).toBe('#ffffff');
+    expect(rampColor(['#000000', '#ffffff'], 0.5)).toBe('#808080');
+  });
+});
