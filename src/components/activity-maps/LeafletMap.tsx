@@ -153,6 +153,45 @@ function seamlessTileLayer(L: LeafletModule, url: string, options: Leaflet.TileL
   return new Seamless(url, options);
 }
 
+type PolylineClass = new (latlngs: Leaflet.LatLngExpression[] | Leaflet.LatLngExpression[][], options?: Leaflet.PolylineOptions) => Leaflet.Polyline;
+const exactPolylines = new WeakMap<LeafletModule, PolylineClass>();
+
+/**
+ * A polyline drawn at its true sub-pixel position. Leaflet rounds every vertex
+ * to a whole CSS pixel before drawing (latLngToLayerPoint), which on a 2x
+ * canvas snaps a dense GPS track onto a two-device-pixel grid: lines zigzag
+ * and their edges look aliased, plainest as dark lines on a light map. This
+ * projects the same way without the rounding.
+ */
+function exactPolyline(
+  L: LeafletModule,
+  latlngs: Leaflet.LatLngExpression[] | Leaflet.LatLngExpression[][],
+  options: Leaflet.PolylineOptions
+): Leaflet.Polyline {
+  let Exact = exactPolylines.get(L);
+  if (!Exact) {
+    Exact = L.Polyline.extend({
+      _projectLatlngs(
+        this: Leaflet.Polyline & { _map: Leaflet.Map; _projectLatlngs: (...a: unknown[]) => void },
+        latlngs: unknown[],
+        result: Leaflet.Point[][],
+        projectedBounds: Leaflet.Bounds
+      ) {
+        if (latlngs[0] instanceof L.LatLng) {
+          const origin = this._map.getPixelOrigin();
+          const ring = (latlngs as Leaflet.LatLng[]).map(ll => this._map.project(ll).subtract(origin));
+          for (const p of ring) projectedBounds.extend(p);
+          result.push(ring);
+        } else {
+          for (const part of latlngs) this._projectLatlngs(part, result, projectedBounds);
+        }
+      },
+    }) as unknown as PolylineClass;
+    exactPolylines.set(L, Exact);
+  }
+  return new Exact(latlngs, options);
+}
+
 function latLngs(flat: number[]): [number, number][] {
   const out: [number, number][] = [];
   for (let i = 0; i + 1 < flat.length; i += 2) out.push([flat[i], flat[i + 1]]);
@@ -366,8 +405,8 @@ export function LeafletMap({
       if (!path.values) {
         const w = lineWidth(m, path.count, maxCount);
         const color = scale ? rampColor(ramp, scalePosition(m, scale, path.count)) : ramp[ramp.length - 1];
-        L.polyline(pts, { renderer, color: HALO[tone], weight: w + 3, opacity: 1, interactive: false, lineCap: 'round', lineJoin: 'round' }).addTo(halos);
-        const line = L.polyline(pts, { renderer, color, weight: w, opacity: 1, lineCap: 'round', lineJoin: 'round' });
+        exactPolyline(L, pts, { renderer, color: HALO[tone], weight: w + 3, opacity: 1, interactive: false, lineCap: 'round', lineJoin: 'round' }).addTo(halos);
+        const line = exactPolyline(L, pts, { renderer, color, weight: w, opacity: 1, lineCap: 'round', lineJoin: 'round' });
         (line.options as { meta?: string }).meta = describe(path, null);
         line.addTo(lines);
         continue;
@@ -394,8 +433,8 @@ export function LeafletMap({
         const t = runStep < 0 ? 0 : runStep / (STEPS - 1);
         const color = runStep < 0 ? MISSING_COLOR : rampColor(ramp, t);
         const w = widthAt(m, t);
-        L.polyline(segment, { renderer, color: HALO[tone], weight: w + 3, opacity: 1, interactive: false, lineCap: 'round', lineJoin: 'round' }).addTo(halos);
-        const line = L.polyline(segment, { renderer, color, weight: w, opacity: 1, lineCap: 'round', lineJoin: 'round' });
+        exactPolyline(L, segment, { renderer, color: HALO[tone], weight: w + 3, opacity: 1, interactive: false, lineCap: 'round', lineJoin: 'round' }).addTo(halos);
+        const line = exactPolyline(L, segment, { renderer, color, weight: w, opacity: 1, lineCap: 'round', lineJoin: 'round' });
         (line.options as { meta?: string }).meta = describe(path, mean == null ? 'No reading here' : `~${m.format(mean)}`);
         line.addTo(lines);
       };
@@ -437,8 +476,8 @@ export function LeafletMap({
     const tone = base.tone;
     const lines = emphasis.map(latLngs).filter(l => l.length >= 2);
     const group = L.layerGroup([
-      L.polyline(lines, { renderer, color: HALO[tone], weight: 11, opacity: 1, interactive: false, lineCap: 'round' }),
-      L.polyline(lines, { renderer, color: EMPHASIS[tone], weight: 6, opacity: 1, interactive: false, lineCap: 'round', dashArray: '1 9' }),
+      exactPolyline(L, lines, { renderer, color: HALO[tone], weight: 11, opacity: 1, interactive: false, lineCap: 'round' }),
+      exactPolyline(L, lines, { renderer, color: EMPHASIS[tone], weight: 6, opacity: 1, interactive: false, lineCap: 'round', dashArray: '1 9' }),
     ]);
     group.addTo(map);
     return () => {
