@@ -133,7 +133,7 @@ squiggle per session.
 - **Your choice of map underneath**: CARTO (light, dark, or following your theme; needs a free key),
   OpenStreetMap or OpenTopoMap terrain, chosen per map. Settings → Connections shows which are ready.
 - **Highlights beside the map**: workouts, time and distance in the area, distinct and new ground,
-  your favourite stretch and your hardest one — hover one to see it on the map.
+  your longest session there and your hardest stretch — hover one to see it on the map.
 
 ### Training routines that follow your progress
 Workouts is a routine dashboard rather than a log: your current phase, the next session, recovery

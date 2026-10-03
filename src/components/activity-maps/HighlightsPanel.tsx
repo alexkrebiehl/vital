@@ -1,8 +1,8 @@
 'use client';
 
 // The figures beside a map, all for the selected activities and date range
-// inside the map's area: totals, coverage, the favourite stretch and effort.
-// Hovering (or focusing) a stretch lights it up on the map.
+// inside the map's area: totals, coverage, the longest session and effort.
+// Hovering (or focusing) a session or a stretch lights it up on the map.
 
 import type { ReactNode } from 'react';
 import type { CoverageHighlights, Stretch } from '@/lib/activity-maps/coverage';
@@ -31,14 +31,15 @@ function Figure({ label, value, sub }: { label: string; value: string; sub?: str
   );
 }
 
-function StretchRow({
+/** A highlight drawn on the map while hovered or focused: a session's track or a stretch. */
+function TrackRow({
   label,
-  stretch,
+  track,
   detail,
   onEmphasis,
 }: {
   label: string;
-  stretch: Stretch;
+  track: { lines: number[][] };
   detail: string;
   onEmphasis: (lines: number[][] | null) => void;
 }) {
@@ -46,11 +47,11 @@ function StretchRow({
     <button
       type="button"
       className="w-full rounded-control border border-border px-3 py-2 text-left hover:border-border-strong hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-accent"
-      onMouseEnter={() => onEmphasis(stretch.lines)}
+      onMouseEnter={() => onEmphasis(track.lines)}
       onMouseLeave={() => onEmphasis(null)}
-      onFocus={() => onEmphasis(stretch.lines)}
+      onFocus={() => onEmphasis(track.lines)}
       onBlur={() => onEmphasis(null)}
-      onClick={() => onEmphasis(stretch.lines)}
+      onClick={() => onEmphasis(track.lines)}
     >
       <span className="block text-xs text-text-primary">{label}</span>
       <span className="block text-[11px] text-text-secondary tnum">{detail}</span>
@@ -67,7 +68,7 @@ export function HighlightsPanel({
   units: UnitSystem;
   onEmphasis: (lines: number[][] | null) => void;
 }) {
-  const { totals, coverage, favourite, visits, effort } = highlights;
+  const { totals, coverage, longest, visits, effort } = highlights;
   if (totals.workouts === 0) {
     return <p className="text-sm text-text-secondary">No route of the selected activities enters this area in the selected range.</p>;
   }
@@ -92,6 +93,12 @@ export function HighlightsPanel({
             ))}
           </ul>
         )}
+        {visits.first && visits.last && (
+          <p className="text-[11px] text-text-secondary">
+            First here {formatDayKeyLong(visits.first)}
+            {visits.last !== visits.first ? `; most recently ${formatDayKeyLong(visits.last)}` : ''}.
+          </p>
+        )}
       </Group>
 
       <Group title="Coverage">
@@ -105,22 +112,16 @@ export function HighlightsPanel({
         </div>
       </Group>
 
-      <Group title="Favourite stretch">
-        {favourite ? (
-          <StretchRow
-            label={`${formatDistance(favourite.lengthM, units)}, every part travelled ${favourite.count}× or more`}
-            detail={span(favourite)}
-            stretch={favourite}
+      <Group title="Longest session">
+        {longest ? (
+          <TrackRow
+            label={`${formatDistance(longest.distanceM, units)} · ${longest.type}`}
+            detail={`${formatDayKeyLong(longest.dayKey)} · ${formatSeconds(longest.seconds)} here`}
+            track={longest}
             onEmphasis={onEmphasis}
           />
         ) : (
-          <p className="text-xs text-text-secondary">No stretch stands out yet.</p>
-        )}
-        {visits.first && visits.last && (
-          <p className="text-[11px] text-text-secondary">
-            First here {formatDayKeyLong(visits.first)}
-            {visits.last !== visits.first ? `; most recently ${formatDayKeyLong(visits.last)}` : ''}.
-          </p>
+          <p className="text-xs text-text-secondary">No session in this range yet.</p>
         )}
       </Group>
 
@@ -133,10 +134,10 @@ export function HighlightsPanel({
               sub={effort.measuredShare < 0.95 ? `Measured for ${Math.round(effort.measuredShare * 100)}% of the time here` : undefined}
             />
             {effort.hardest && effort.hardest.meanHeartRate != null && (
-              <StretchRow
+              <TrackRow
                 label={`Hardest stretch: ~${effort.hardest.meanHeartRate} bpm`}
                 detail={`${formatDistance(effort.hardest.lengthM, units)} · ${span(effort.hardest)}`}
-                stretch={effort.hardest}
+                track={effort.hardest}
                 onEmphasis={onEmphasis}
               />
             )}
