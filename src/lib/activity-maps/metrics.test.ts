@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LINE_WIDTH, lineWidth, pathMetric, percentile, rampColor, scaleFor, scalePosition } from './metrics';
+import { LINE_WIDTH, lineWidth, pathMetric, widthAt, percentile, rampColor, scaleFor, scalePosition } from './metrics';
 
 describe('scales', () => {
   const freq = pathMetric('frequency');
@@ -40,5 +40,11 @@ describe('lineWidth', () => {
     expect(lineWidth(freq, 100, 100)).toBe(LINE_WIDTH.max);
     expect(lineWidth(hr, 1, 100)).toBe(LINE_WIDTH.fixed);
     expect(lineWidth(hr, 100, 100)).toBe(LINE_WIDTH.fixed);
+  });
+
+  it('reads a shaded run\'s width from its place on the scale', () => {
+    expect(widthAt(pathMetric('frequency'), 0)).toBe(LINE_WIDTH.min);
+    expect(widthAt(pathMetric('frequency'), 0.5)).toBeCloseTo((LINE_WIDTH.min + LINE_WIDTH.max) / 2);
+    expect(widthAt(pathMetric('heart_rate'), 0.9)).toBe(LINE_WIDTH.fixed);
   });
 });

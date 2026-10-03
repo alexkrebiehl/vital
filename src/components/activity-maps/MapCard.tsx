@@ -168,7 +168,13 @@ export function MapCard({
     ...selected.filter(t => !present.some(p => p.type === t)).map(type => ({ type, workouts: 0 })),
   ];
   const paths = coverage?.available ? coverage.paths ?? [] : null;
-  const maxCount = (paths ?? []).reduce((a, p) => Math.max(a, p.count), 0);
+  // Widths follow the smoothed values when the paths carry them, so the legend
+  // quotes the same top as the colour key rather than one raw peak.
+  const smoothedPaths = (paths ?? []).some(p => p.values);
+  const maxCount =
+    smoothedPaths && coverage?.scale
+      ? Math.round(coverage.scale.max)
+      : (paths ?? []).reduce((a, p) => Math.max(a, p.count), 0);
   const drawn = resolveTiles(settings.basemap, tiles.keys, scheme);
   const tone = drawn.tone;
   const rangeLabel = coverage?.range

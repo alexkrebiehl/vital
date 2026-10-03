@@ -90,8 +90,13 @@ export const LINE_WIDTH = { fixed: 4, min: 2, max: 5 };
 
 /** A path's line width under a metric, given the busiest path on the map. */
 export function lineWidth(metric: PathMetric, count: number, maxCount: number): number {
-  if (metric.width === 'fixed') return LINE_WIDTH.fixed;
   const t = maxCount <= 1 ? 1 : Math.log(Math.max(1, count)) / Math.log(maxCount);
+  return widthAt(metric, t);
+}
+
+/** Line width at a position on the metric's scale (0..1): what a shaded run is drawn at. */
+export function widthAt(metric: PathMetric, t: number): number {
+  if (metric.width === 'fixed') return LINE_WIDTH.fixed;
   return LINE_WIDTH.min + (LINE_WIDTH.max - LINE_WIDTH.min) * Math.min(1, Math.max(0, t));
 }
 
