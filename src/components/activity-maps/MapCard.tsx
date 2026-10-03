@@ -177,10 +177,7 @@ export function MapCard({
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="truncate text-[17px] font-semibold tracking-[-0.02em] text-text-primary">{map.name}</h2>
-          <p className="text-xs text-text-secondary">
-            {rangeLabel}
-            {loading && coverage ? ' · Updating…' : ''}
-          </p>
+          <p className="text-xs text-text-secondary">{rangeLabel}</p>
         </div>
         <CardMenu onEdit={onEdit} onMoveUp={onMoveUp} onMoveDown={onMoveDown} onDelete={() => setConfirmDelete(true)} />
       </div>
@@ -255,6 +252,7 @@ export function MapCard({
             scale={coverage?.scale ?? null}
             emphasis={emphasis}
             focus={focus}
+            busy={loading ? (coverage ? 'Updating routes…' : 'Reading routes…') : null}
             ariaLabel={`Map of ${map.name}`}
             overlay={
               <Button size="sm" onClick={() => setFocus(f => nextFocus(f, bbox))} aria-label="Reset view">
