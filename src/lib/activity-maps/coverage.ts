@@ -78,6 +78,19 @@ export interface Stretch {
   meanHeartRate: number | null;
 }
 
+/** The workout that went farthest inside the area, by distance travelled there. */
+export interface LongestSession {
+  workoutId: string;
+  type: string;
+  dayKey: string;
+  /** Distance travelled inside the area (gaps over a minute left out, as in the totals). */
+  distanceM: number;
+  /** Time spent inside the area. */
+  seconds: number;
+  /** Its track inside the area, as polylines of flat [lat, lon, …], broken where it left. */
+  lines: number[][];
+}
+
 export interface TypeTotals {
   type: string;
   workouts: number;
@@ -88,7 +101,7 @@ export interface TypeTotals {
 export interface CoverageHighlights {
   totals: { workouts: number; seconds: number; distanceM: number; byType: TypeTotals[] };
   coverage: { uniqueDistanceM: number; newDistanceM: number; newSinceKey: string };
-  favourite: Stretch | null;
+  longest: LongestSession | null;
   visits: { first: string | null; last: string | null };
   effort: {
     /** Time-weighted mean over in-box time with a reading. */
@@ -183,8 +196,46 @@ interface Aggregation {
   types: Map<string, Set<string>>;
   totals: Map<string, TypeTotals>;
   visits: { first: string | null; last: string | null };
+  longest: LongestSession | null;
   hr: { sum: number; weight: number };
   inBoxSeconds: number;
+}
+
+/**
+ * A route's track inside the box, as polylines broken wherever it left the box
+ * or went quiet for longer than MAX_GAP_SECONDS (the same rule the distance is
+ * counted by, so an exit and re-entry is never joined by a straight line).
+ * Thinned to a vertex every `thinM` metres, keeping each line's last point.
+ */
+function inBoxTrack(route: CompactRoute, s: number, n: number, w: number, e: number, thinM: number): number[][] {
+  const lines: number[][] = [];
+  let line: number[] = [];
+  let kept: [number, number] | null = null;
+  let tail: [number, number] | null = null;
+  const flush = () => {
+    if (tail && kept && (tail[0] !== kept[0] || tail[1] !== kept[1])) line.push(round6(tail[0]), round6(tail[1]));
+    if (line.length >= 4) lines.push(line);
+    line = [];
+    kept = null;
+    tail = null;
+  };
+  for (let i = 0; i < route.lat.length; i++) {
+    const la = route.lat[i];
+    const lo = route.lon[i];
+    if (la < s || la > n || lo < w || lo > e) {
+      flush();
+      continue;
+    }
+    if (line.length > 0 && route.t[i] - route.t[i - 1] > MAX_GAP_SECONDS) flush();
+    const p: [number, number] = [la / MICRO, lo / MICRO];
+    tail = p;
+    if (!kept || haversineM(kept[0], kept[1], p[0], p[1]) >= thinM) {
+      line.push(round6(p[0]), round6(p[1]));
+      kept = p;
+    }
+  }
+  flush();
+  return lines;
 }
 
 function edgeKey(a: number, b: number): string {
@@ -213,6 +264,7 @@ function aggregate(routes: CompactRoute[], q: CoverageQuery, toleranceM: number,
     types: new Map(),
     totals: new Map(),
     visits: { first: null, last: null },
+    longest: null,
     hr: { sum: 0, weight: 0 },
     inBoxSeconds: 0,
   };
@@ -315,6 +367,19 @@ function aggregate(routes: CompactRoute[], q: CoverageQuery, toleranceM: number,
       agg.totals.set(route.workoutType, t);
       if (!agg.visits.first || route.dayKey < agg.visits.first) agg.visits.first = route.dayKey;
       if (!agg.visits.last || route.dayKey > agg.visits.last) agg.visits.last = route.dayKey;
+      // The longest session by distance here; a tie goes to the more recent day.
+      // Its track is built only when it takes the lead.
+      const best = agg.longest;
+      if (distance > 0 && (!best || distance > best.distanceM || (distance === best.distanceM && route.dayKey > best.dayKey))) {
+        agg.longest = {
+          workoutId: route.workoutId,
+          type: route.workoutType,
+          dayKey: route.dayKey,
+          distanceM: distance,
+          seconds,
+          lines: inBoxTrack(route, s, n, w, e, toleranceM),
+        };
+      }
     }
   }
   return agg;
@@ -538,7 +603,7 @@ function emptyResult(q: CoverageQuery, toleranceM: number): CoverageResult {
     highlights: {
       totals: { workouts: 0, seconds: 0, distanceM: 0, byType: [] },
       coverage: { uniqueDistanceM: 0, newDistanceM: 0, newSinceKey: q.newSinceKey },
-      favourite: null,
+      longest: null,
       visits: { first: null, last: null },
       effort: { meanHeartRate: null, measuredShare: 0, hardest: null },
     },
@@ -684,7 +749,6 @@ function finish(
       meanHeartRate: hrLen > 0 ? Math.round(hrSum / hrLen) : null,
     };
   };
-  const favourite = toStretch(strongestStretch(drawn, e => e.count, e => lengths.get(e)!));
   const hardest = toStretch(strongestStretch(drawn, edgeHr, e => lengths.get(e)!));
 
   const byType = [...agg.totals.values()].sort((a, b) => b.workouts - a.workouts || a.type.localeCompare(b.type));
@@ -724,7 +788,7 @@ function finish(
     highlights: {
       totals: { ...totals, byType },
       coverage: { uniqueDistanceM, newDistanceM, newSinceKey: q.newSinceKey },
-      favourite,
+      longest: agg.longest,
       visits: agg.visits,
       effort: {
         meanHeartRate: agg.hr.weight > 0 ? Math.round(agg.hr.sum / agg.hr.weight) : null,

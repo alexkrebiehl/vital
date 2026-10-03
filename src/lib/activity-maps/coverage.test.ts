@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { autoTolerance, computeCoverage, haversineM, smoothOverGraph, type CoverageQuery } from './coverage';
+import { autoTolerance, computeCoverage, haversineM, smoothOverGraph, strongestStretch, type CoverageQuery } from './coverage';
 import { compactRoute, type CompactRoute, type HeartRateSample } from './route-data';
 import { M_PER_DEG_LAT, bboxAround } from './types';
 
@@ -127,19 +127,6 @@ describe('computeCoverage', () => {
     expect(unmeasured.highlights.effort.meanHeartRate).toBeNull();
   });
 
-  it('finds the busiest connected stretch even when scatter breaks it into short chains', () => {
-    // A 400 m street walked 5 times, each pass on a different sidewalk offset so
-    // the snapped tracks braid into many short chains of differing counts; and a
-    // 1 km path walked once.
-    const busy = [0, 2, 4, 6, 8].map(dy => route(line(0, 400, dy + (dy % 4 === 0 ? 0 : 3)), { day: '2026-09-02' }));
-    const long = route(line(-1000, 0, 600));
-    const out = computeCoverage([...busy, long], query());
-    const fav = out.highlights.favourite!;
-    expect(fav.count).toBeGreaterThan(1);
-    expect(fav.lengthM).toBeGreaterThanOrEqual(200);
-    expect(fav.lines.flat().every((v, i) => i % 2 === 1 || v < at(0, 300)[0])).toBe(true);
-  });
-
   it('smooths frequency along the street, so a short busier strand does not stripe it', () => {
     // Four passes along the street; a fifth covers only 20 m in the middle.
     const four = [0, 1, 2, 3].map(() => route(line(0, 500)));
@@ -155,14 +142,44 @@ describe('computeCoverage', () => {
     expect(Math.max(...out.paths.map(p => p.count))).toBe(5);
   });
 
-  it('picks the most-travelled stretch as the favourite', () => {
-    const out = computeCoverage(
-      [route(line(0, 500)), route(line(0, 500)), route(line(0, 500)), route(line(0, 500, 300))],
-      query()
-    );
-    expect(out.highlights.favourite?.count).toBe(3);
-    expect(out.highlights.favourite!.lines.length).toBeGreaterThan(0);
-    expect(out.highlights.favourite!.lengthM).toBeGreaterThan(400);
+  it('picks the session that went farthest inside the area, not the longest overall', () => {
+    // A 4 km route that only clips the area (about 500 m inside it) against an
+    // 800 m walk wholly inside.
+    const clipping = route(line(1000, 5000, 100), { day: '2026-09-02' });
+    const inside = route(line(0, 800), { day: '2026-09-01' });
+    const out = computeCoverage([clipping, inside], query());
+    const longest = out.highlights.longest!;
+    expect(longest.workoutId).toBe(inside.workoutId);
+    expect(longest.distanceM).toBeGreaterThan(780);
+    expect(longest.distanceM).toBeLessThan(820);
+    expect(longest.seconds).toBeGreaterThan(0);
+    expect(longest.lines.length).toBe(1);
+  });
+
+  it('breaks a tie towards the more recent session', () => {
+    const older = route(line(0, 500), { day: '2026-09-01' });
+    const newer = route(line(0, 500), { day: '2026-09-05' });
+    expect(computeCoverage([older, newer], query()).highlights.longest?.workoutId).toBe(newer.workoutId);
+    expect(computeCoverage([newer, older], query()).highlights.longest?.workoutId).toBe(newer.workoutId);
+  });
+
+  it('counts only the selected activities and the date range', () => {
+    const walk = route(line(0, 1000), { type: 'Walk', day: '2026-09-02' });
+    const run = route(line(0, 300), { type: 'Run', day: '2026-09-02' });
+    const old = route(line(0, 1200), { type: 'Run', day: '2026-08-01' });
+    const out = computeCoverage([walk, run, old], query({ types: ['Run'], range: { fromKey: '2026-09-01', toKey: '2026-09-30' } }));
+    expect(out.highlights.longest?.workoutId).toBe(run.workoutId);
+  });
+
+  it('draws the session\'s track in pieces where it leaves the area and comes back', () => {
+    // Out past the east edge (1500 m) and back, along the same street.
+    const outAndBack = route([...line(0, 2000), ...line(2000, 0, 0)]);
+    const longest = computeCoverage([outAndBack], query()).highlights.longest!;
+    expect(longest.lines.length).toBe(2);
+    const edge = at(1500, 0)[1];
+    for (const l of longest.lines) for (let i = 1; i < l.length; i += 2) expect(l[i]).toBeLessThanOrEqual(edge + 1e-6);
+    // Thinned: far fewer vertices than the 5 m GPS points.
+    expect(longest.lines.flat().length / 2).toBeLessThan(600);
   });
 
   it('drops the least-travelled paths when the vertex budget is pinned', () => {
@@ -197,6 +214,29 @@ describe('autoTolerance', () => {
     expect(autoTolerance(bboxAround(LAT, LON, 500))).toBe(5);
     expect(autoTolerance(bboxAround(LAT, LON, 10_000))).toBe(14);
     expect(autoTolerance(bboxAround(LAT, LON, 200_000))).toBe(50);
+  });
+});
+
+describe('strongestStretch', () => {
+  // Cells 10 m apart. A 300 m street (cells 0..30) walked often, but GPS scatter
+  // splits its counts into short runs of 5, 3 and 4; a separate 1 km path
+  // (cells 100..200) walked once.
+  const edge = (a: number, count: number) => ({
+    a, b: a + 1, count, types: new Set<string>(), firstEver: '', firstInRange: '', lastInRange: '',
+  });
+  const busy = Array.from({ length: 30 }, (_, i) => edge(i, [5, 3, 4][Math.floor(i / 2) % 3]));
+  const once = Array.from({ length: 100 }, (_, i) => edge(100 + i, 1));
+
+  it('finds the busiest connected stretch even when scatter breaks it into short runs', () => {
+    const stretch = strongestStretch([...busy, ...once], e => e.count, () => 10)!;
+    const length = stretch.length * 10;
+    expect(length).toBeGreaterThanOrEqual(200);
+    expect(Math.min(...stretch.map(e => e.count))).toBe(3);
+    expect(stretch.every(e => e.a < 100)).toBe(true);
+  });
+
+  it('returns nothing when no edge has a value', () => {
+    expect(strongestStretch(busy, () => null, () => 10)).toBeNull();
   });
 });
 
