@@ -176,16 +176,18 @@ export function ActivityMapsPage() {
 
   return (
     <TileConfigProvider value={tiles}>
-      <div className="space-y-6">
+      <div className="space-y-8">
         <DomainHeader
           title="Activity maps"
           eyebrow="Activity"
           category="activity"
           subtitle="Where your outdoor workouts went. Each map is an area you frame, drawn from the GPS routes your workouts recorded, with the streets you travel most standing out."
-        />
+        >
+          {maps && maps.length > 0 && addButton}
+        </DomainHeader>
 
         {notice && (
-          <Card variant="muted" className="flex items-start justify-between gap-3 p-3">
+          <Card className="flex items-start justify-between gap-3 p-5">
             <DataStateNote tone="attention">{notice}</DataStateNote>
             <Button size="sm" variant="ghost" onClick={() => setNotice(null)}>
               Dismiss
@@ -194,13 +196,13 @@ export function ActivityMapsPage() {
         )}
 
         {loadError ? (
-          <Card>
+          <Card className="p-6">
             <ErrorState title="The maps could not be loaded" message={loadError} onRetry={() => void reload()} />
           </Card>
         ) : maps === null ? (
           <LoadingState label="Loading maps" />
         ) : maps.length === 0 ? (
-          <Card>
+          <Card className="p-6">
             <EmptyState
               icon={<MapIcon size={28} aria-hidden="true" />}
               title="No maps yet"
@@ -210,7 +212,6 @@ export function ActivityMapsPage() {
           </Card>
         ) : (
           <>
-            <div className="flex justify-end">{addButton}</div>
             {maps.map((map, i) => (
               <MapCard
                 key={map.id}
