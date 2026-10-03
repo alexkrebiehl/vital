@@ -180,7 +180,9 @@ export function MapCard({
       >
         {map.name}
       </SectionTitle>
-      <Card className="p-4 md:p-6">
+      <Card className="relative overflow-hidden p-4 md:p-6">
+        {/* The activity accent along the top edge, as on the headline series cards. */}
+        <span className="absolute inset-x-0 top-0 h-[3px] bg-category-activity" aria-hidden="true" />
         {confirmDelete && (
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-control border border-border bg-surface-muted px-3 py-2" role="alert">
             <span className="text-sm text-text-primary">Delete &ldquo;{map.name}&rdquo;? Your workouts are not affected.</span>
