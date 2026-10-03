@@ -109,6 +109,13 @@ export function frameRect(width: number, height: number): { x: number; y: number
 
 const HALO = { light: 'rgba(255,255,255,0.85)', dark: 'rgba(12,13,17,0.7)' };
 const EMPHASIS = { light: '#14161C', dark: '#F2F3F6' };
+/**
+ * Behind the tiles, close to their own ground in each rendering, in place of
+ * Leaflet's light grey #ddd. Safari clips the tile layer to the rounded box a
+ * device pixel inside its top and left edges, and a grey sliver there reads as
+ * a heavier border on those two sides, plainest on a dark map.
+ */
+const TILE_GROUND = { light: '#f4f4f2', dark: '#0b0b0c' };
 /** Colour steps a shaded line is quantised into. */
 const STEPS = 32;
 
@@ -204,6 +211,24 @@ export function LeafletMap({
   frameCb.current = onFrameChange;
   const initialBox = useRef(bbox);
   const [frameBox, setFrameBox] = useState<ReturnType<typeof frameRect> | null>(null);
+
+  // The bordered box is sized in whole pixels. Its slot is usually fractional
+  // (a 3:2 card 692 px wide is 461.33 px tall), and Safari, which draws the
+  // map as its own GPU layer, then smears the bottom and right border across
+  // two pixels, so they read fainter than the crisp top and left.
+  const sizeRef = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState<{ width: number; height: number } | null>(null);
+  useEffect(() => {
+    const el = sizeRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(([entry]) => {
+      const width = Math.floor(entry.contentRect.width);
+      const height = Math.floor(entry.contentRect.height);
+      setBox(prev => (prev && prev.width === width && prev.height === height ? prev : { width, height }));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Load Leaflet once the map is near the viewport.
   useEffect(() => {
@@ -461,41 +486,52 @@ export function LeafletMap({
   }, [L, ready, focus, frame]);
 
   return (
-    <div className={`relative isolate overflow-hidden rounded-card border border-border bg-surface-muted ${className}`}>
-      <div ref={containerRef} className="absolute inset-0" role="region" aria-label={ariaLabel} />
-      {!ready && (
-        <div className="absolute inset-0 flex items-center justify-center text-xs text-text-secondary">Loading map…</div>
-      )}
-      {frame && ready && frameBox && (
+    <div ref={sizeRef} className={`relative ${className}`}>
+      <div
+        className="absolute left-0 top-0 isolate overflow-hidden rounded-card border border-border bg-surface-muted"
+        style={box ? { width: box.width, height: box.height } : { right: 0, bottom: 0 }}
+      >
         <div
-          aria-hidden="true"
-          className="pointer-events-none absolute z-[1000] rounded-md border-2 border-primary shadow-[0_0_0_9999px_rgba(0,0,0,0.18)]"
-          style={{ left: frameBox.x, top: frameBox.y, width: frameBox.width, height: frameBox.height }}
+          ref={containerRef}
+          className="absolute inset-0"
+          style={{ background: TILE_GROUND[base.tone] }}
+          role="region"
+          aria-label={ariaLabel}
         />
-      )}
-      {busy && ready && (
-        <div role="status" className="map-busy pointer-events-none absolute inset-0 z-[1000]">
-          <div className="absolute inset-x-0 top-0 h-[3px] overflow-hidden">
-            <div className="map-busy-bar h-full rounded-full" />
-          </div>
-          {frame ? (
-            <span className="sr-only">{busy}</span>
-          ) : (
-            <div className="map-busy-scrim absolute inset-0 flex items-center justify-center">
-              <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface-elevated px-3 py-1.5 text-xs text-text-primary shadow-pop">
-                <Loader2 size={14} className="animate-spin text-primary" aria-hidden="true" />
-                {busy}
-              </span>
+        {!ready && (
+          <div className="absolute inset-0 flex items-center justify-center text-xs text-text-secondary">Loading map…</div>
+        )}
+        {frame && ready && frameBox && (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute z-[1000] rounded-md border-2 border-primary shadow-[0_0_0_9999px_rgba(0,0,0,0.18)]"
+            style={{ left: frameBox.x, top: frameBox.y, width: frameBox.width, height: frameBox.height }}
+          />
+        )}
+        {busy && ready && (
+          <div role="status" className="map-busy pointer-events-none absolute inset-0 z-[1000]">
+            <div className="absolute inset-x-0 top-0 h-[3px] overflow-hidden">
+              <div className="map-busy-bar h-full rounded-full" />
             </div>
-          )}
-        </div>
-      )}
-      {overlay && <div className="absolute right-2 top-2 z-[1000] flex gap-1">{overlay}</div>}
-      {notice && (
-        <div className="absolute inset-x-2 bottom-6 z-[1000] rounded-control border border-border bg-surface-elevated px-3 py-2 text-xs text-text-primary shadow-pop">
-          {notice}
-        </div>
-      )}
+            {frame ? (
+              <span className="sr-only">{busy}</span>
+            ) : (
+              <div className="map-busy-scrim absolute inset-0 flex items-center justify-center">
+                <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface-elevated px-3 py-1.5 text-xs text-text-primary shadow-pop">
+                  <Loader2 size={14} className="animate-spin text-primary" aria-hidden="true" />
+                  {busy}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+        {overlay && <div className="absolute right-2 top-2 z-[1000] flex gap-1">{overlay}</div>}
+        {notice && (
+          <div className="absolute inset-x-2 bottom-6 z-[1000] rounded-control border border-border bg-surface-elevated px-3 py-2 text-xs text-text-primary shadow-pop">
+            {notice}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
