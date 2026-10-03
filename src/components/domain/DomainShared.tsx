@@ -58,11 +58,23 @@ export function DomainHeader({
   );
 }
 
-export function SectionTitle({ children, hint }: { children: React.ReactNode; hint?: string }) {
+export function SectionTitle({
+  children, hint, action,
+}: {
+  children: React.ReactNode;
+  hint?: string;
+  /** A control for the section (a menu, say), after the hint. */
+  action?: React.ReactNode;
+}) {
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
       <h2 className="text-[19px] md:text-[22px] font-semibold tracking-[-0.025em] text-text-primary">{children}</h2>
-      {hint && <span className="text-xs text-text-secondary">{hint}</span>}
+      {(hint || action) && (
+        <span className="flex items-center gap-2">
+          {hint && <span className="text-xs text-text-secondary">{hint}</span>}
+          {action}
+        </span>
+      )}
     </div>
   );
 }
