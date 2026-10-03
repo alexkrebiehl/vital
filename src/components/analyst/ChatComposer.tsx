@@ -6,7 +6,7 @@
 // Shared by the AI Analyst page and the "Discuss with analyst" dialog.
 
 import { useEffect, useId, useRef, useState } from 'react';
-import { Loader2, Send } from 'lucide-react';
+import { Loader2, Send, Square } from 'lucide-react';
 import { Button } from '@/components/ui/primitives';
 
 /** QUERY_MAX_CHARS in lib/analyst/service.ts, which is server-only. */
@@ -14,12 +14,15 @@ const QUERY_MAX_CHARS = 400;
 
 export function ChatComposer({
   onSend,
+  onStop,
   pending,
   providerReady,
   placeholder,
   autoFocus,
 }: {
   onSend: (question: string) => void;
+  /** Stops the question being answered. While one is pending, this replaces Send. */
+  onStop?: () => void;
   pending: boolean;
   providerReady: boolean;
   placeholder?: string;
@@ -69,21 +72,30 @@ export function ChatComposer({
             ref={inputRef}
           />
         </label>
-        <Button
-          variant="primary"
-          size="md"
-          onClick={send}
-          disabled={!input.trim() || pending}
-          aria-label={pending ? 'Sending your question' : 'Send your question'}
-        >
-          {pending ? <Loader2 size={15} className="animate-spin" aria-hidden="true" /> : <Send size={15} aria-hidden="true" />}
-          <span className="ml-1.5">{pending ? 'Working' : 'Send'}</span>
-        </Button>
+        {pending && onStop ? (
+          <Button variant="danger" size="md" onClick={onStop} aria-label="Stop answering this question">
+            <Square size={13} fill="currentColor" aria-hidden="true" />
+            <span className="ml-1.5">Stop</span>
+          </Button>
+        ) : (
+          <Button
+            variant="primary"
+            size="md"
+            onClick={send}
+            disabled={!input.trim() || pending}
+            aria-label={pending ? 'Sending your question' : 'Send your question'}
+          >
+            {pending ? <Loader2 size={15} className="animate-spin" aria-hidden="true" /> : <Send size={15} aria-hidden="true" />}
+            <span className="ml-1.5">{pending ? 'Working' : 'Send'}</span>
+          </Button>
+        )}
       </div>
       <p id={stateId} className="text-[11px] text-text-secondary">
         {pending
           ? providerReady
-            ? 'Waiting for the configured provider to answer…'
+            ? onStop
+              ? 'Waiting for the configured provider to answer. Press Stop to cancel; nothing is saved.'
+              : 'Waiting for the configured provider to answer…'
             : 'Answering from your dataset…'
           : input.trim()
             ? 'Press Send or Enter to ask.'

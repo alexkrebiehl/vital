@@ -39,6 +39,8 @@ export type ChatExchange = ConversationExchange & {
   streamingText?: string;
   /** The plan tool the model is running now, while the answer is pending. */
   tool?: string | null;
+  /** The reader stopped this question before it was answered. */
+  stopped?: boolean;
 };
 
 export interface AnalystChatOptions {
@@ -57,6 +59,8 @@ export interface AnalystChat {
   ask: (question: string) => Promise<void>;
   /** Show a stored conversation (or none) in place of the current thread. */
   replace: (id: number | null, exchanges: ConversationExchange[]) => void;
+  /** Stop the question being answered. The server is told, so the model stops too; nothing is saved. */
+  stop: () => void;
   /** Start fresh: an empty thread and no conversation. */
   reset: () => void;
 }
@@ -121,7 +125,11 @@ export function useAnalystChat({ context, onConversation, onPlanChange }: Analys
           }
         );
       } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          // Stop pressed (the unmount abort is harmless: nothing is mounted to update).
+          update(e => ({ ...e, pending: false, streamingText: '', tool: null, stopped: true }));
+          return;
+        }
         update(e => ({
           ...e,
           pending: false,
@@ -142,7 +150,12 @@ export function useAnalystChat({ context, onConversation, onPlanChange }: Analys
     setExchanges(next);
   }, []);
 
-  const reset = useCallback(() => replace(null, []), [replace]);
+  const stop = useCallback(() => abortRef.current?.abort(), []);
 
-  return { exchanges, pending, activeId, ask, replace, reset };
+  const reset = useCallback(() => {
+    abortRef.current?.abort();
+    replace(null, []);
+  }, [replace]);
+
+  return { exchanges, pending, activeId, ask, replace, stop, reset };
 }

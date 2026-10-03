@@ -33,7 +33,7 @@ import type { MedicationContextSnapshot } from './types';
 /** The shape the service injects in tests; the real one reads the live API. */
 export type MedicationLoader = (
   question: string,
-  deps?: { env?: NodeJS.ProcessEnv }
+  deps?: { env?: NodeJS.ProcessEnv; lookbackDays?: number }
 ) => Promise<MedicationContextSnapshot | null>;
 
 const NOT_CONFIGURED_REASON =
@@ -58,13 +58,14 @@ function reasonFrom(error: unknown): string {
  */
 export async function loadMedicationSnapshot(
   _question: string,
-  deps: { env?: NodeJS.ProcessEnv; fetchImpl?: RequestDeps['fetchImpl']; timezone?: string } = {}
+  deps: { env?: NodeJS.ProcessEnv; fetchImpl?: RequestDeps['fetchImpl']; timezone?: string; lookbackDays?: number } = {}
 ): Promise<MedicationContextSnapshot> {
   const now = deps.env?.VITAL_REFERENCE_NOW ?? new Date().toISOString();
   // Days are attributed in the profile's timezone, as on the Medications page.
   const timezone = deps.timezone ?? (await readProfile(deps.env)).timezone;
   const referenceDay = dayKey(new Date(now), timezone);
-  const window = medicationsWindow(referenceDay, MEDICATIONS_LOOKBACK_DAYS);
+  const lookbackDays = deps.lookbackDays ?? MEDICATIONS_LOOKBACK_DAYS;
+  const window = medicationsWindow(referenceDay, lookbackDays);
 
   let records: MedicationRecord[];
   let from: string | null = window.from;
@@ -88,6 +89,6 @@ export async function loadMedicationSnapshot(
 
   return buildMedicationSnapshot(
     { records, from, to, readAt: now },
-    { lookbackDays: MEDICATIONS_LOOKBACK_DAYS, referenceDay }
+    { lookbackDays, referenceDay }
   );
 }

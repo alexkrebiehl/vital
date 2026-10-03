@@ -58,6 +58,17 @@ export function ChatThread({
             </>
           )}
 
+          {!ex.pending && ex.stopped && !ex.response && (
+            <Card className="p-4">
+              <p className="text-sm text-text-secondary">
+                You stopped this question before it was answered. Nothing was saved.{' '}
+                <button type="button" className="underline hover:text-text-primary" onClick={() => onAsk(ex.question)}>
+                  Ask it again
+                </button>
+              </p>
+            </Card>
+          )}
+
           {!ex.pending && ex.failed && (
             <Card className="p-4">
               <ErrorState

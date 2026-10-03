@@ -66,7 +66,7 @@ function DiscussChat({ context, subject, suggestions, onPlanChange }: DiscussPro
   const misconfigured = configState?.misconfigured === true;
 
   const handlePlanChange = useCallback((change: PlanChange) => onPlanChange?.(change), [onPlanChange]);
-  const { exchanges, pending, activeId, ask } = useAnalystChat({ context, onPlanChange: handlePlanChange });
+  const { exchanges, pending, activeId, ask, stop } = useAnalystChat({ context, onPlanChange: handlePlanChange });
 
   return (
     <div className="flex flex-col flex-1 min-h-0 gap-3">
@@ -123,6 +123,7 @@ function DiscussChat({ context, subject, suggestions, onPlanChange }: DiscussPro
       <div className="shrink-0">
         <ChatComposer
           onSend={q => void ask(q)}
+          onStop={stop}
           pending={pending}
           providerReady={providerReady}
           placeholder={`Ask about ${subject}…`}

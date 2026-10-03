@@ -20,6 +20,9 @@
 // message that is already safe to show.
 
 import {
+  DEFAULT_MAX_ANSWER_CHARS,
+  DEFAULT_MAX_REASONING_CHARS,
+  DEFAULT_QUESTION_TIMEOUT_MS,
   REMOTE_SENDING_CATEGORIES,
   normalizeEndpoint,
   readAnalystConfig,
@@ -252,6 +255,11 @@ function localConfig(env: NodeJS.ProcessEnv, baseUrl: string, model: string): An
     timeoutMs: numberOr(env, 'BRIEFING_TIMEOUT_MS', DEFAULT_BRIEFING_TIMEOUT_MS, 100, 600_000),
     jsonMode: 'auto',
     tools: 'off',
+    context: 'full',
+    contextMaxChars: 60_000,
+    maxReasoningChars: DEFAULT_MAX_REASONING_CHARS,
+    maxAnswerChars: DEFAULT_MAX_ANSWER_CHARS,
+    questionTimeoutMs: DEFAULT_QUESTION_TIMEOUT_MS,
     // The briefing keeps its own policy: it never sends a reasoning-effort field.
     reasoningEffort: null,
     sendingCategories: REMOTE_SENDING_CATEGORIES,
@@ -394,6 +402,11 @@ export function resolveBriefingFallback(deps: EngineDeps = {}): BriefingEngine {
       timeoutMs: numberOr(env, 'BRIEFING_TIMEOUT_MS', DEFAULT_BRIEFING_TIMEOUT_MS, 100, 600_000),
       jsonMode: 'auto',
       tools: 'off',
+      context: 'full',
+      contextMaxChars: 60_000,
+      maxReasoningChars: DEFAULT_MAX_REASONING_CHARS,
+      maxAnswerChars: DEFAULT_MAX_ANSWER_CHARS,
+      questionTimeoutMs: DEFAULT_QUESTION_TIMEOUT_MS,
       reasoningEffort: null,
       sendingCategories: REMOTE_SENDING_CATEGORIES,
       misconfiguredReason: null,

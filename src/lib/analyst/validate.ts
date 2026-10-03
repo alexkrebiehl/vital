@@ -47,6 +47,28 @@ function stripFences(text: string): string {
     .replace(/```/g, '');
 }
 
+/** The fields a reply may carry its answer in; at least one must hold text. */
+const ANSWER_FIELDS = ['analysis', 'observed', 'interpretation', 'recommendations', 'summary', 'uncertainty'] as const;
+
+/**
+ * True when `text` holds a JSON object with real content in at least one answer field.
+ * A model that fetched data may reply with a well-formed object of its own invention
+ * ({"comparison_dates": …}); that parses, but there is no answer in it to show.
+ */
+export function hasAnswerContent(text: string): boolean {
+  const json = extractJsonObject(text);
+  if (!json) return false;
+  try {
+    const obj = JSON.parse(json) as Record<string, unknown>;
+    return ANSWER_FIELDS.some(f => {
+      const v = obj[f];
+      return typeof v === 'string' ? v.trim().length > 0 : Array.isArray(v) && v.some(x => typeof x === 'string' && x.trim().length > 0);
+    });
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Find the first balanced JSON object in a string.
  *
@@ -158,6 +180,7 @@ function coerceFollowUps(raw: unknown): string[] {
 export function citableMetricIds(bundle: RetrievalBundle): Set<string> {
   const ids = new Set<string>();
   for (const s of bundle.summaries) ids.add(s.metricId);
+  for (const id of bundle.citable ?? []) ids.add(id);
   for (const p of bundle.pairs) {
     ids.add(p.xMetricId);
     ids.add(p.yMetricId);
@@ -481,7 +504,7 @@ export function normalizeCitation(text: string): string {
 }
 
 /**
- * Audit the numeric claims in observed + interpretation against the bundle.
+ * Audit the numeric claims in analysis + observed + interpretation against the bundle.
  *
  * A claim is accepted when either
  *
@@ -513,7 +536,9 @@ export function checkGrounding(
     // invented unit conversion must not become a match, so no ×1000 for "1.7K".
     ...displays.flatMap(display => extractNumericTokens(display).map(token => token.value)),
   ].flatMap(derivations);
-  const text = [...answer.observed, ...answer.interpretation].join(' ');
+  // The prose `analysis` is the body of the answer, so a figure written there is audited like
+  // one in the lists. (It was not, until the prose became the answer.)
+  const text = [answer.analysis ?? '', ...answer.observed, ...answer.interpretation].join(' ');
   const tokens = extractNumericTokens(text);
 
   const unmatched: string[] = [];
