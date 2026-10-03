@@ -5,13 +5,19 @@
 // labels the lines from the entry, so adding a metric (pace, recency, …) is one
 // entry here plus, for a per-point value, a sampler in the route store.
 //
-// Colour ramps are single-hue and ordinal-validated against the basemap surfaces
-// with the dataviz validator (light: CARTO Positron ~#f2f2f0, dark: CARTO Dark
-// Matter ~#262626): lightness is monotone, adjacent steps are >= 0.06 apart and
-// the faint end still clears 2:1 against the map, so a one-off path never
-// vanishes into the streets under it. Dark mode is its own selection, not a
-// flip: the faint end is the dark step and the strong end the light one.
-// Frequency is blue and heart rate orange, so the two never read as one scale.
+// Frequency is a single-hue blue ramp, ordinal-validated against the basemap
+// surfaces with the dataviz validator (light ~#f2f2f0, dark ~#262626): lightness
+// is monotone, adjacent steps are >= 0.06 apart and the faint end still clears
+// 2:1 against the map, so a one-off path never vanishes into the streets. Dark
+// mode is its own selection, not a flip: the faint end is the dark step.
+//
+// Heart rate is a cool-to-hot spectrum instead (navy → blue → teal → gold →
+// red-orange), the one the Home Assistant coverage cards used, because "blue is
+// easy, red is hard" is how effort is read at a glance. It is a deliberate
+// exception to the single-hue rule, so it is checked differently: every stop
+// clears 2:1 against the basemap it is drawn on (the original yellow sat at
+// 1.5:1 on a light map and is darkened to gold; the dark-mode navy and blue are
+// lightened), and none is the grey that means "no reading".
 //
 // Pure: shared by the server (scales) and the browser (colours, legends).
 
@@ -31,6 +37,12 @@ export interface PathMetric {
   /** Per-point channel the route store must provide. */
   sample?: 'heart_rate';
   scale: 'log' | 'linear';
+  /**
+   * Line width: 'count' also widens a line with how often it was travelled;
+   * 'fixed' draws every line at one width so the colour alone carries the value
+   * (a width that also varied would compete with it).
+   */
+  width: 'count' | 'fixed';
   /** Percentiles the colour scale is clamped to, so one outlier cannot flatten the rest. */
   clamp?: [number, number];
   ramp: { light: string[]; dark: string[] };
@@ -48,6 +60,7 @@ export const PATH_METRICS: readonly PathMetric[] = [
     unit: '×',
     source: 'edge-count',
     scale: 'log',
+    width: 'count',
     ramp: {
       light: ['#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b'],
       dark: ['#1c5cab', '#2a78d6', '#5598e7', '#86b6ef', '#b7d3f6'],
@@ -62,14 +75,25 @@ export const PATH_METRICS: readonly PathMetric[] = [
     source: 'vertex-mean',
     sample: 'heart_rate',
     scale: 'linear',
+    width: 'fixed',
     clamp: [5, 95],
     ramp: {
-      light: ['#fd8453', '#e06b39', '#c5521c', '#a93800', '#8e1c00'],
-      dark: ['#9a4825', '#bb6543', '#dd8461', '#ffa37f', '#ffc39f'],
+      light: ['#2b3a67', '#2a7fa8', '#2f9e7e', '#c99a14', '#e8503a'],
+      dark: ['#5a74c4', '#3a9ccc', '#46b894', '#e0c341', '#f0603f'],
     },
     format: v => `${Math.round(v)} bpm`,
   },
 ];
+
+/** Line width in px: the fixed width, and the range a count-scaled width spans. */
+export const LINE_WIDTH = { fixed: 4, min: 2, max: 5 };
+
+/** A path's line width under a metric, given the busiest path on the map. */
+export function lineWidth(metric: PathMetric, count: number, maxCount: number): number {
+  if (metric.width === 'fixed') return LINE_WIDTH.fixed;
+  const t = maxCount <= 1 ? 1 : Math.log(Math.max(1, count)) / Math.log(maxCount);
+  return LINE_WIDTH.min + (LINE_WIDTH.max - LINE_WIDTH.min) * Math.min(1, Math.max(0, t));
+}
 
 export const DEFAULT_PATH_METRIC: PathMetricId = 'frequency';
 

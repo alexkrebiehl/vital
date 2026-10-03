@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pathMetric, percentile, rampColor, scaleFor, scalePosition } from './metrics';
+import { LINE_WIDTH, lineWidth, pathMetric, percentile, rampColor, scaleFor, scalePosition } from './metrics';
 
 describe('scales', () => {
   const freq = pathMetric('frequency');
@@ -29,5 +29,16 @@ describe('scales', () => {
     expect(rampColor(['#000000', '#ffffff'], 0)).toBe('#000000');
     expect(rampColor(['#000000', '#ffffff'], 1)).toBe('#ffffff');
     expect(rampColor(['#000000', '#ffffff'], 0.5)).toBe('#808080');
+  });
+});
+
+describe('lineWidth', () => {
+  it('widens frequency lines with use, and keeps heart rate at one width so colour carries it', () => {
+    const freq = pathMetric('frequency');
+    const hr = pathMetric('heart_rate');
+    expect(lineWidth(freq, 1, 100)).toBe(LINE_WIDTH.min);
+    expect(lineWidth(freq, 100, 100)).toBe(LINE_WIDTH.max);
+    expect(lineWidth(hr, 1, 100)).toBe(LINE_WIDTH.fixed);
+    expect(lineWidth(hr, 100, 100)).toBe(LINE_WIDTH.fixed);
   });
 });

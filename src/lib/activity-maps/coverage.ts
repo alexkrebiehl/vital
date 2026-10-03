@@ -100,6 +100,8 @@ export interface CoverageResult {
   paths: CoveragePath[];
   scale: MetricScale | null;
   toleranceM: number;
+  /** σ of the smoothing applied to drawn per-vertex values, or null when none was. */
+  smoothingM: number | null;
   /** True when the least-travelled paths were dropped to fit the vertex budget. */
   truncated: boolean;
   /** Every activity type with a route in the box inside the range, whatever the filter. */
@@ -118,6 +120,14 @@ export const DEFAULT_MAX_CELLS = 400_000;
 export const MAX_GAP_SECONDS = 60;
 /** A highlighted stretch is at least this long, when the map has one that long. */
 export const MIN_STRETCH_M = 200;
+/**
+ * Smoothing for the drawn per-vertex values: a Gaussian over distance along the
+ * street network, σ = max(MIN, cells × tolerance), cut off at 3σ. About the
+ * distance a walk covers between two once-a-minute heart-rate samples, so it
+ * removes cell-to-cell noise without moving a real change by more than a block.
+ */
+export const SMOOTHING_MIN_SIGMA_M = 20;
+export const SMOOTHING_SIGMA_CELLS = 4;
 
 const EARTH_RADIUS_M = 6_371_008.8;
 
@@ -446,6 +456,68 @@ export function strongestStretch(
   return null;
 }
 
+// ── Smoothing ───────────────────────────────────────────
+
+/**
+ * Smooth a per-cell value over the street network: each cell's result is the
+ * Gaussian-weighted mean of the measured cells within 3σ along the drawn edges
+ * (path distance, not straight-line, so a parallel street does not bleed in).
+ *
+ * Per-cell means are noisy: neighbouring cells along one street can alternate
+ * between two values, and shading that as-is draws a street in blocks of
+ * alternating colour. Smoothing over the GRAPH rather than along each drawn
+ * line matters because a busy street is braided by GPS scatter into many short
+ * chains; within one chain there is too little to average.
+ *
+ * A cell with no measured cell in reach stays null ("no reading").
+ */
+export function smoothOverGraph(
+  edges: { a: number; b: number }[],
+  value: (cell: number) => number | null,
+  length: (a: number, b: number) => number,
+  sigmaM: number
+): Map<number, number | null> {
+  const adjacency = new Map<number, { to: number; d: number }[]>();
+  for (const { a, b } of edges) {
+    const d = length(a, b);
+    (adjacency.get(a) ?? adjacency.set(a, []).get(a)!).push({ to: b, d });
+    (adjacency.get(b) ?? adjacency.set(b, []).get(b)!).push({ to: a, d });
+  }
+  const reach = 3 * sigmaM;
+  const twoSigma2 = 2 * sigmaM * sigmaM;
+  const out = new Map<number, number | null>();
+  for (const start of adjacency.keys()) {
+    // Shortest path distances within reach. Neighbourhoods are small, so a
+    // relaxing queue is simpler than a heap and just as fast here.
+    const dist = new Map<number, number>([[start, 0]]);
+    const queue = [start];
+    for (let i = 0; i < queue.length; i++) {
+      const at = queue[i];
+      const base = dist.get(at)!;
+      for (const { to, d } of adjacency.get(at)!) {
+        const nd = base + d;
+        if (nd > reach) continue;
+        const known = dist.get(to);
+        if (known === undefined || nd < known) {
+          dist.set(to, nd);
+          queue.push(to);
+        }
+      }
+    }
+    let sum = 0;
+    let weight = 0;
+    for (const [cell, d] of dist) {
+      const v = value(cell);
+      if (v == null) continue;
+      const w = Math.exp((-d * d) / twoSigma2);
+      sum += v * w;
+      weight += w;
+    }
+    out.set(start, weight > 0 ? sum / weight : null);
+  }
+  return out;
+}
+
 // ── Output ──────────────────────────────────────────────
 
 function round6(v: number): number {
@@ -457,6 +529,7 @@ function emptyResult(q: CoverageQuery, toleranceM: number): CoverageResult {
     paths: [],
     scale: null,
     toleranceM,
+    smoothingM: null,
     truncated: false,
     types: [],
     highlights: {
@@ -531,6 +604,9 @@ function finish(
     return haversineM(la1, lo1, la2, lo2);
   };
   const byKey = new Map(drawn.map(e => [edgeKey(e.a, e.b), e]));
+  // What is DRAWN is smoothed; the highlights below read the raw cell means.
+  const smoothingM = metric.source === 'vertex-mean' ? Math.max(SMOOTHING_MIN_SIGMA_M, SMOOTHING_SIGMA_CELLS * toleranceM) : null;
+  const smoothed = smoothingM == null ? null : smoothOverGraph(drawn, hrAt, edgeLength, smoothingM);
 
   interface Built {
     chain: number[];
@@ -545,7 +621,7 @@ function finish(
       first: stats.reduce((m, s) => (s.firstInRange < m ? s.firstInRange : m), stats[0].firstInRange),
       last: stats.reduce((m, s) => (s.lastInRange > m ? s.lastInRange : m), stats[0].lastInRange),
     };
-    if (metric.source === 'vertex-mean') path.values = chain.map(hrAt).map(v => (v == null ? null : Math.round(v)));
+    if (smoothed) path.values = chain.map(c => smoothed.get(c) ?? null).map(v => (v == null ? null : Math.round(v)));
     return { chain, path };
   });
 
@@ -622,6 +698,7 @@ function finish(
     paths,
     scale: scaleFor(metric, scaleValues),
     toleranceM,
+    smoothingM,
     truncated,
     types: [...agg.types.entries()]
       .map(([type, ids]) => ({ type, workouts: ids.size }))

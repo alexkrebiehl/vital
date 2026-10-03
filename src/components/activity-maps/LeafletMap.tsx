@@ -27,6 +27,7 @@ import type { BBox, BasemapId } from '@/lib/activity-maps/types';
 import type { CoveragePath } from '@/lib/activity-maps/coverage';
 import {
   MISSING_COLOR,
+  lineWidth,
   pathMetric,
   rampColor,
   scalePosition,
@@ -263,15 +264,13 @@ export function LeafletMap({
     const tone = base.followsTheme ? scheme : 'light';
     const ramp = m.ramp[tone];
     const maxCount = paths.reduce((a, p) => Math.max(a, p.count), 1);
-    const countPos = (c: number) => (maxCount <= 1 ? 1 : Math.log(Math.max(1, c)) / Math.log(maxCount));
-    const width = (c: number) => 2 + 3 * countPos(c);
 
     const halos = L.layerGroup();
     const lines = L.featureGroup();
     for (const path of paths) {
       const pts = latLngs(path.coords);
       if (pts.length < 2) continue;
-      const w = width(path.count);
+      const w = lineWidth(m, path.count, maxCount);
       L.polyline(pts, { renderer, color: HALO[tone], weight: w + 3, opacity: 1, interactive: false, lineCap: 'round', lineJoin: 'round' }).addTo(halos);
 
       if (m.source === 'edge-count' || !path.values) {
