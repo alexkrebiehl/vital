@@ -2,7 +2,9 @@
 
 // The figures beside a map, all for the selected activities and date range
 // inside the map's area: totals, coverage, the longest session and effort.
-// Hovering (or focusing) a session or a stretch lights it up on the map.
+// Pointing at a session or a stretch with a mouse previews it on the map; a
+// click or tap pins it there until it is clicked or tapped again. Touch has no
+// hover to end, so only a mouse previews.
 
 import type { ReactNode } from 'react';
 import type { CoverageHighlights, Stretch } from '@/lib/activity-maps/coverage';
@@ -31,27 +33,40 @@ function Figure({ label, value, sub }: { label: string; value: string; sub?: str
   );
 }
 
-/** A highlight drawn on the map while hovered or focused: a session's track or a stretch. */
+/** The highlights that can be drawn on the map. */
+export type HighlightId = 'longest' | 'hardest';
+
+/** The track a highlight draws, as polylines of flat [lat, lon, …]; null when it has none. */
+export function highlightLines(highlights: CoverageHighlights, id: HighlightId | null): number[][] | null {
+  if (id === 'longest') return highlights.longest?.lines ?? null;
+  if (id === 'hardest') return highlights.effort.hardest?.lines ?? null;
+  return null;
+}
+
+/** A highlight that can be drawn on the map: a session's track or a stretch. */
 function TrackRow({
+  id,
   label,
-  track,
   detail,
-  onEmphasis,
+  pinned,
+  onHover,
+  onToggle,
 }: {
+  id: HighlightId;
   label: string;
-  track: { lines: number[][] };
   detail: string;
-  onEmphasis: (lines: number[][] | null) => void;
+  pinned: boolean;
+  onHover: (id: HighlightId | null) => void;
+  onToggle: (id: HighlightId) => void;
 }) {
   return (
     <button
       type="button"
-      className="w-full rounded-control border border-border px-3 py-2 text-left hover:border-border-strong hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-accent"
-      onMouseEnter={() => onEmphasis(track.lines)}
-      onMouseLeave={() => onEmphasis(null)}
-      onFocus={() => onEmphasis(track.lines)}
-      onBlur={() => onEmphasis(null)}
-      onClick={() => onEmphasis(track.lines)}
+      aria-pressed={pinned}
+      className="w-full rounded-control border border-border px-3 py-2 text-left hover:border-border-strong hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-accent aria-pressed:border-accent aria-pressed:bg-accent-tint"
+      onPointerEnter={e => e.pointerType === 'mouse' && onHover(id)}
+      onPointerLeave={e => e.pointerType === 'mouse' && onHover(null)}
+      onClick={() => onToggle(id)}
     >
       <span className="block text-xs text-text-primary">{label}</span>
       <span className="block text-[11px] text-text-secondary tnum">{detail}</span>
@@ -62,12 +77,18 @@ function TrackRow({
 export function HighlightsPanel({
   highlights,
   units,
-  onEmphasis,
+  pinned,
+  onHover,
+  onToggle,
 }: {
   highlights: CoverageHighlights;
   units: UnitSystem;
-  onEmphasis: (lines: number[][] | null) => void;
+  /** The highlight clicked or tapped on, drawn until it is clicked or tapped again. */
+  pinned: HighlightId | null;
+  onHover: (id: HighlightId | null) => void;
+  onToggle: (id: HighlightId) => void;
 }) {
+  const row = (id: HighlightId) => ({ id, pinned: pinned === id, onHover, onToggle });
   const { totals, coverage, longest, visits, effort } = highlights;
   if (totals.workouts === 0) {
     return <p className="text-sm text-text-secondary">No route of the selected activities enters this area in the selected range.</p>;
@@ -115,10 +136,9 @@ export function HighlightsPanel({
       <Group title="Longest session">
         {longest ? (
           <TrackRow
+            {...row('longest')}
             label={`${formatDistance(longest.distanceM, units)} · ${longest.type}`}
             detail={`${formatDayKeyLong(longest.dayKey)} · ${formatSeconds(longest.seconds)} here`}
-            track={longest}
-            onEmphasis={onEmphasis}
           />
         ) : (
           <p className="text-xs text-text-secondary">No session in this range yet.</p>
@@ -135,10 +155,9 @@ export function HighlightsPanel({
             />
             {effort.hardest && effort.hardest.meanHeartRate != null && (
               <TrackRow
+                {...row('hardest')}
                 label={`Hardest stretch: ~${effort.hardest.meanHeartRate} bpm`}
                 detail={`${formatDistance(effort.hardest.lengthM, units)} · ${span(effort.hardest)}`}
-                track={effort.hardest}
-                onEmphasis={onEmphasis}
               />
             )}
           </>

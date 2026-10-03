@@ -21,7 +21,7 @@ import { fetchCoverage, type CoverageResponse } from '@/lib/activity-maps/client
 import { formatDaySpan } from '@/lib/activity-maps/format';
 import { resolveTiles } from './basemaps';
 import { useTileConfig } from './TileConfigContext';
-import { HighlightsPanel } from './HighlightsPanel';
+import { HighlightsPanel, highlightLines, type HighlightId } from './HighlightsPanel';
 import { LeafletMap, nextFocus, type MapFocus } from './LeafletMap';
 import { MapLegend } from './MapLegend';
 import { useColorScheme } from './useColorScheme';
@@ -112,7 +112,10 @@ export function MapCard({
   const [coverage, setCoverage] = useState<CoverageResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [emphasis, setEmphasis] = useState<number[][] | null>(null);
+  // A highlight from the panel drawn over the routes: the one under the mouse,
+  // else the one clicked or tapped on.
+  const [hovered, setHovered] = useState<HighlightId | null>(null);
+  const [pinned, setPinned] = useState<HighlightId | null>(null);
   const [focus, setFocus] = useState<MapFocus | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -125,7 +128,8 @@ export function MapCard({
     fetchCoverage({ bbox, types: settings.activityTypes, range: settings.range, metric: settings.metric }, controller.signal)
       .then(res => {
         setCoverage(res);
-        setEmphasis(null);
+        setHovered(null);
+        setPinned(null);
       })
       .catch(e => {
         if (!controller.signal.aborted) setError(e instanceof Error ? e.message : 'The map could not be read.');
@@ -152,6 +156,7 @@ export function MapCard({
     ...selected.filter(t => !present.some(p => p.type === t)).map(type => ({ type, workouts: 0 })),
   ];
   const paths = coverage?.available ? coverage.paths ?? [] : null;
+  const emphasis = coverage?.available && coverage.highlights ? highlightLines(coverage.highlights, hovered ?? pinned) : null;
   // Widths follow the smoothed values when the paths carry them, so the legend
   // quotes the same top as the colour key rather than one raw peak.
   const smoothedPaths = (paths ?? []).some(p => p.values);
@@ -315,7 +320,13 @@ export function MapCard({
           </div>
           <div className="border-t border-border pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
             {coverage?.available && coverage.highlights ? (
-              <HighlightsPanel highlights={coverage.highlights} units={units} onEmphasis={setEmphasis} />
+              <HighlightsPanel
+                highlights={coverage.highlights}
+                units={units}
+                pinned={pinned}
+                onHover={setHovered}
+                onToggle={id => setPinned(p => (p === id ? null : id))}
+              />
             ) : loading ? (
               <div role="status" aria-live="polite" className="space-y-3">
                 <span className="sr-only">Reading routes</span>
