@@ -18,7 +18,7 @@ import { useUnits } from '@/components/ui/UnitsProvider';
 import { PATH_METRICS, type PathMetricId } from '@/lib/activity-maps/metrics';
 import type { ActivityMap, MapSettings } from '@/lib/activity-maps/types';
 import { fetchCoverage, type CoverageResponse } from '@/lib/activity-maps/client';
-import { formatDayKeyShort } from '@/lib/analytics/windows';
+import { formatDaySpan } from '@/lib/activity-maps/format';
 import { resolveTiles } from './basemaps';
 import { useTileConfig } from './TileConfigContext';
 import { HighlightsPanel } from './HighlightsPanel';
@@ -161,9 +161,16 @@ export function MapCard({
       : (paths ?? []).reduce((a, p) => Math.max(a, p.count), 0);
   const drawn = resolveTiles(settings.basemap, tiles.keys, scheme);
   const tone = drawn.tone;
+  // The days the map covers: a fixed range's own dates, or with All from the
+  // first drawn route up to today, whether or not anything was recorded today.
+  // The reference day (the app's today) reads "Today".
+  const today = coverage?.referenceKey ?? null;
+  const first = coverage?.available ? coverage.highlights?.visits.first : null;
   const rangeLabel = coverage?.range
-    ? `${formatDayKeyShort(coverage.range.fromKey)} – ${formatDayKeyShort(coverage.range.toKey)}`
-    : 'All recorded workouts';
+    ? formatDaySpan(coverage.range.fromKey, coverage.range.toKey, today)
+    : first && today
+      ? formatDaySpan(first, today, today)
+      : 'All recorded workouts';
 
   return (
     <section aria-label={map.name}>

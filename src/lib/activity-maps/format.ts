@@ -1,6 +1,7 @@
 // ── Formatting for the maps' figures (pure) ─────────────
 
 import type { UnitSystem } from '@/lib/prefs/types';
+import { formatDayKeyShort } from '@/lib/analytics/windows';
 
 const M_PER_MI = 1609.344;
 const M_PER_FT = 0.3048;
@@ -35,4 +36,14 @@ export function formatSeconds(seconds: number): string {
   const h = Math.floor(total / 60);
   const m = total % 60;
   return h > 0 ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`;
+}
+
+/** A day, as "Today" when it is the reference day (the app's today), else "Sep 4". */
+export function formatDay(key: string, todayKey: string | null): string {
+  return key === todayKey ? 'Today' : formatDayKeyShort(key);
+}
+
+/** A span of days, "Sep 4 – Today"; a single day is shown once. */
+export function formatDaySpan(fromKey: string, toKey: string, todayKey: string | null): string {
+  return fromKey === toKey ? formatDay(fromKey, todayKey) : `${formatDay(fromKey, todayKey)} – ${formatDay(toKey, todayKey)}`;
 }
