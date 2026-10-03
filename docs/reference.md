@@ -14,6 +14,7 @@ Routes, what is still demo or unwired in this build, and the quality commands.
 | `/trends` | Compare periods; explore how two metrics move together |
 | `/health` | Heart, blood pressure and other health signals |
 | `/activity` | Steps, exercise and movement |
+| `/activity/maps` | Maps of where outdoor workouts went, with highlights |
 | `/sleep` | Nights, stages, consistency |
 | `/body` | Weight, body composition |
 | `/nutrition` | Logged dietary intake |
@@ -30,9 +31,9 @@ Routes, what is still demo or unwired in this build, and the quality commands.
 | `/settings` | Account (profile and goals), preferences, data and coverage, connections, AI privacy |
 | `/metric/[metricId]` | One metric in detail |
 
-The API lives under `/api/*`: `analyst` (with `conversations` and `stream`), `briefing`, `lab`,
-`medications`, `pipeline/status`, `preferences`, `profile`, `routine`, `workout-sources` and a
-`health` liveness probe.
+The API lives under `/api/*`: `activity-coverage`, `activity-maps`, `analyst` (with `conversations`
+and `stream`), `briefing`, `geocode`, `lab`, `medications`, `pipeline/status`, `preferences`,
+`profile`, `routine`, `workout-sources` and a `health` liveness probe.
 
 ---
 

@@ -1,0 +1,307 @@
+'use client';
+
+// ── One map on Activity → Maps ──────────────────────────
+//
+// Its own controls (activities, colour metric, basemap, date range) saved with
+// the map, the map itself, the key, and the highlights for what is drawn. The
+// coverage is read from /api/activity-coverage whenever a control changes; the
+// last answer stays on screen while the next one loads.
+
+import { useEffect, useRef, useState } from 'react';
+import { ArrowDown, ArrowUp, MoreHorizontal, Pencil, RotateCcw, Trash2 } from 'lucide-react';
+import { Button, Card, DataStateNote, SegmentedControl } from '@/components/ui/primitives';
+import { RangeControl } from '@/components/ui/RangeControl';
+import { useUnits } from '@/components/ui/UnitsProvider';
+import { PATH_METRICS, type PathMetricId } from '@/lib/activity-maps/metrics';
+import { BASEMAP_IDS, type ActivityMap, type BasemapId, type MapSettings } from '@/lib/activity-maps/types';
+import { fetchCoverage, type CoverageResponse } from '@/lib/activity-maps/client';
+import { formatDayKeyShort } from '@/lib/analytics/windows';
+import { BASEMAP_LABELS, basemap as basemapOf } from './basemaps';
+import { useTileConfig } from './TileConfigContext';
+import { HighlightsPanel } from './HighlightsPanel';
+import { LeafletMap, nextFocus, type MapFocus } from './LeafletMap';
+import { MapLegend } from './MapLegend';
+import { useColorScheme } from './useColorScheme';
+
+const RANGE_EXTRAS = [
+  { value: '365', label: '1Y' },
+  { value: 'all', label: 'All' },
+];
+
+function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={`min-h-[32px] rounded-full border px-3 py-1 text-xs transition-colors ${
+        active
+          ? 'border-primary bg-accent-tint text-text-primary'
+          : 'border-border bg-surface text-text-secondary hover:text-text-primary'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function CardMenu({
+  onEdit,
+  onMoveUp,
+  onMoveDown,
+  onDelete,
+}: {
+  onEdit: () => void;
+  onMoveUp: (() => void) | null;
+  onMoveDown: (() => void) | null;
+  onDelete: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent ? e.key === 'Escape' : !ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    window.addEventListener('mousedown', close);
+    window.addEventListener('keydown', close);
+    return () => {
+      window.removeEventListener('mousedown', close);
+      window.removeEventListener('keydown', close);
+    };
+  }, [open]);
+  const item = (label: string, icon: React.ReactNode, action: (() => void) | null, danger = false) =>
+    action && (
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => {
+          setOpen(false);
+          action();
+        }}
+        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-muted ${
+          danger ? 'text-category-attention' : 'text-text-primary'
+        }`}
+      >
+        {icon}
+        {label}
+      </button>
+    );
+  return (
+    <div className="relative" ref={ref}>
+      <Button variant="ghost" size="sm" aria-label="Map options" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(o => !o)}>
+        <MoreHorizontal size={16} aria-hidden="true" />
+      </Button>
+      {open && (
+        <div role="menu" className="absolute right-0 z-20 mt-1 w-48 overflow-hidden rounded-control border border-border bg-surface-elevated py-1 shadow-pop">
+          {item('Edit area and name', <Pencil size={14} aria-hidden="true" />, onEdit)}
+          {item('Move up', <ArrowUp size={14} aria-hidden="true" />, onMoveUp)}
+          {item('Move down', <ArrowDown size={14} aria-hidden="true" />, onMoveDown)}
+          {item('Delete', <Trash2 size={14} aria-hidden="true" />, onDelete, true)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function MapCard({
+  map,
+  onSettings,
+  onEdit,
+  onMoveUp,
+  onMoveDown,
+  onDelete,
+}: {
+  map: ActivityMap;
+  onSettings: (settings: MapSettings) => void;
+  onEdit: () => void;
+  onMoveUp: (() => void) | null;
+  onMoveDown: (() => void) | null;
+  onDelete: () => Promise<void>;
+}) {
+  const { units } = useUnits();
+  const scheme = useColorScheme();
+  const tiles = useTileConfig();
+  const { settings, bbox } = map;
+  const [coverage, setCoverage] = useState<CoverageResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [emphasis, setEmphasis] = useState<number[][] | null>(null);
+  const [focus, setFocus] = useState<MapFocus | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const typesKey = settings.activityTypes ? settings.activityTypes.join('\u0000') : '';
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setError(null);
+    fetchCoverage({ bbox, types: settings.activityTypes, range: settings.range, metric: settings.metric }, controller.signal)
+      .then(res => {
+        setCoverage(res);
+        setEmphasis(null);
+      })
+      .catch(e => {
+        if (!controller.signal.aborted) setError(e instanceof Error ? e.message : 'The map could not be read.');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+    // The types are compared by value, not by array identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bbox.south, bbox.west, bbox.north, bbox.east, typesKey, settings.range, settings.metric]);
+
+  const update = (patch: Partial<MapSettings>) => onSettings({ ...settings, ...patch });
+  const toggleType = (type: string) => {
+    const current = settings.activityTypes ?? [];
+    const next = current.includes(type) ? current.filter(t => t !== type) : [...current, type];
+    update({ activityTypes: next.length > 0 ? next.sort() : null });
+  };
+
+  const present = coverage?.types ?? [];
+  const selected = settings.activityTypes ?? [];
+  const chips = [
+    ...present,
+    ...selected.filter(t => !present.some(p => p.type === t)).map(type => ({ type, workouts: 0 })),
+  ];
+  const paths = coverage?.available ? coverage.paths ?? [] : null;
+  const maxCount = (paths ?? []).reduce((a, p) => Math.max(a, p.count), 0);
+  const tone = basemapOf(settings.basemap, tiles).followsTheme ? scheme : 'light';
+  const rangeLabel = coverage?.range
+    ? `${formatDayKeyShort(coverage.range.fromKey)} – ${formatDayKeyShort(coverage.range.toKey)}`
+    : 'All recorded workouts';
+
+  return (
+    <Card as="section" className="p-4 md:p-5" aria-label={map.name}>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="truncate text-[17px] font-semibold tracking-[-0.02em] text-text-primary">{map.name}</h2>
+          <p className="text-xs text-text-secondary">
+            {rangeLabel}
+            {loading && coverage ? ' · Updating…' : ''}
+          </p>
+        </div>
+        <CardMenu onEdit={onEdit} onMoveUp={onMoveUp} onMoveDown={onMoveDown} onDelete={() => setConfirmDelete(true)} />
+      </div>
+
+      {confirmDelete && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-control border border-border bg-surface-muted px-3 py-2" role="alert">
+          <span className="text-sm text-text-primary">Delete &ldquo;{map.name}&rdquo;? Your workouts are not affected.</span>
+          <span className="flex gap-2">
+            <Button size="sm" onClick={() => setConfirmDelete(false)} disabled={deleting}>
+              Keep
+            </Button>
+            <Button
+              size="sm"
+              variant="danger"
+              disabled={deleting}
+              onClick={async () => {
+                setDeleting(true);
+                try {
+                  await onDelete();
+                } finally {
+                  setDeleting(false);
+                  setConfirmDelete(false);
+                }
+              }}
+            >
+              {deleting ? 'Deleting…' : 'Delete'}
+            </Button>
+          </span>
+        </div>
+      )}
+
+      <div className="mb-3 flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Activities">
+          <Chip active={settings.activityTypes === null} onClick={() => update({ activityTypes: null })}>
+            All activities
+          </Chip>
+          {chips.map(t => (
+            <Chip key={t.type} active={selected.includes(t.type)} onClick={() => toggleType(t.type)}>
+              {t.type} <span className="tnum opacity-70">{t.workouts}</span>
+            </Chip>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-start gap-2">
+          <SegmentedControl
+            ariaLabel="Colour by"
+            options={PATH_METRICS.map(m => ({ value: m.id, label: m.label }))}
+            value={settings.metric}
+            onChange={v => update({ metric: v as PathMetricId })}
+          />
+          <SegmentedControl
+            ariaLabel="Basemap"
+            options={BASEMAP_IDS.map(id => ({ value: id, label: BASEMAP_LABELS[id] }))}
+            value={settings.basemap}
+            onChange={v => update({ basemap: v as BasemapId })}
+          />
+          <RangeControl
+            value={String(settings.range)}
+            extraOptions={RANGE_EXTRAS}
+            onChange={v => update({ range: v === 'all' ? 'all' : Number(v) })}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <div className="space-y-2 lg:col-span-2">
+          <LeafletMap
+            className="aspect-[3/2] w-full"
+            bbox={bbox}
+            basemap={settings.basemap}
+            paths={paths}
+            metric={settings.metric}
+            scale={coverage?.scale ?? null}
+            emphasis={emphasis}
+            focus={focus}
+            ariaLabel={`Map of ${map.name}`}
+            overlay={
+              <Button size="sm" onClick={() => setFocus(f => nextFocus(f, bbox))} aria-label="Reset view">
+                <RotateCcw size={14} aria-hidden="true" />
+              </Button>
+            }
+          />
+          {paths && paths.length > 0 && (
+            <MapLegend metric={settings.metric} scale={coverage?.scale ?? null} tone={tone} maxCount={maxCount} />
+          )}
+          <div className="space-y-1">
+            {error && <DataStateNote tone="attention">{error}</DataStateNote>}
+            {coverage && !coverage.available && (
+              <DataStateNote tone="attention">
+                Routes are unavailable: {coverage.reason} Nothing is drawn in their place.
+              </DataStateNote>
+            )}
+            {coverage?.available && paths?.length === 0 && (
+              <DataStateNote>No recorded route enters this area for the selected activities and range.</DataStateNote>
+            )}
+            {coverage?.unreadWorkouts ? (
+              <DataStateNote tone="attention">
+                {coverage.unreadWorkouts} workout{coverage.unreadWorkouts === 1 ? '' : 's'}&rsquo; routes could not be read
+                this time and are missing from the map; they are retried on the next load.
+              </DataStateNote>
+            ) : null}
+            {coverage?.truncated && (
+              <DataStateNote>
+                The least-travelled paths are left off so the map stays responsive. Frame a smaller area to see every one.
+              </DataStateNote>
+            )}
+            {coverage?.available && coverage.toleranceM != null && paths && paths.length > 0 && (
+              <DataStateNote>
+                Tracks within about {coverage.toleranceM} m of each other are merged, so both sides of a street, or a
+                route walked both ways, count as one path.
+              </DataStateNote>
+            )}
+          </div>
+        </div>
+        <div>
+          {coverage?.available && coverage.highlights ? (
+            <HighlightsPanel highlights={coverage.highlights} units={units} onEmphasis={setEmphasis} />
+          ) : loading ? (
+            <p className="text-sm text-text-secondary">Reading routes…</p>
+          ) : null}
+        </div>
+      </div>
+    </Card>
+  );
+}
