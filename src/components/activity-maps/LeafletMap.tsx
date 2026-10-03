@@ -14,6 +14,8 @@
 //     stays legible over busy streets and terrain.
 //   * The page does not lose its scroll to the map: wheel zoom turns on when the
 //     map is clicked and off when the pointer leaves it.
+//   * While paths are read (`busy`), a bar sweeps the top edge. It fades in after
+//     a moment, so an answer from the route cache never flashes it.
 //   * The container is `isolate`d, so Leaflet's pane z-indices (400-1000) stay
 //     inside the map instead of floating over the top bar and dialogs.
 //
@@ -23,6 +25,7 @@
 import 'leaflet/dist/leaflet.css';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type * as Leaflet from 'leaflet';
+import { Loader2 } from 'lucide-react';
 import type { BBox, BasemapId } from '@/lib/activity-maps/types';
 import type { CoveragePath } from '@/lib/activity-maps/coverage';
 import {
@@ -64,6 +67,11 @@ export interface LeafletMapProps {
   className?: string;
   /** Extra controls laid over the map's top-right corner. */
   overlay?: ReactNode;
+  /**
+   * What the map is waiting for, while its paths are read: a bar sweeps the top
+   * edge and, outside the framing dialog, a scrim and this label sit over it.
+   */
+  busy?: string | null;
   ariaLabel: string;
 }
 
@@ -138,6 +146,7 @@ export function LeafletMap({
   outline,
   className = '',
   overlay,
+  busy = null,
   ariaLabel,
 }: LeafletMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -412,6 +421,23 @@ export function LeafletMap({
           className="pointer-events-none absolute z-[1000] rounded-md border-2 border-primary shadow-[0_0_0_9999px_rgba(0,0,0,0.18)]"
           style={{ left: frameBox.x, top: frameBox.y, width: frameBox.width, height: frameBox.height }}
         />
+      )}
+      {busy && ready && (
+        <div role="status" className="map-busy pointer-events-none absolute inset-0 z-[1000]">
+          <div className="absolute inset-x-0 top-0 h-[3px] overflow-hidden">
+            <div className="map-busy-bar h-full rounded-full" />
+          </div>
+          {frame ? (
+            <span className="sr-only">{busy}</span>
+          ) : (
+            <div className="map-busy-scrim absolute inset-0 flex items-center justify-center">
+              <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface-elevated px-3 py-1.5 text-xs text-text-primary shadow-pop">
+                <Loader2 size={14} className="animate-spin text-primary" aria-hidden="true" />
+                {busy}
+              </span>
+            </div>
+          )}
+        </div>
       )}
       {overlay && <div className="absolute right-2 top-2 z-[1000] flex gap-1">{overlay}</div>}
     </div>

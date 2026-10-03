@@ -72,6 +72,7 @@ export function MapAreaDialog({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [preview, setPreview] = useState<CoverageResponse | null>(null);
+  const [previewing, setPreviewing] = useState(false);
 
   // Every opening starts fresh.
   useEffect(() => {
@@ -85,6 +86,7 @@ export function MapAreaDialog({
     setFindError(null);
     setSaveError(null);
     setPreview(null);
+    setPreviewing(false);
   }, [open, initial]);
 
   const canLocate = typeof window !== 'undefined' && window.isSecureContext && 'geolocation' in navigator;
@@ -148,12 +150,19 @@ export function MapAreaDialog({
 
   // Preview what is already recorded inside the frame, once it settles.
   useEffect(() => {
-    if (step !== 'frame' || !frameBox || !check?.ok) return;
+    if (step !== 'frame' || !frameBox || !check?.ok) {
+      setPreviewing(false);
+      return;
+    }
     const controller = new AbortController();
     const timer = setTimeout(() => {
+      setPreviewing(true);
       fetchCoverage({ bbox: check.value, types: null, range: 'all', metric: 'frequency' }, controller.signal)
         .then(setPreview)
-        .catch(() => undefined);
+        .catch(() => undefined)
+        .finally(() => {
+          if (!controller.signal.aborted) setPreviewing(false);
+        });
     }, 500);
     return () => {
       clearTimeout(timer);
@@ -250,6 +259,7 @@ export function MapAreaDialog({
               frame
               onFrameChange={setFrameBox}
               outline={initial?.bbox ?? null}
+              busy={previewing ? 'Reading routes in the frame…' : null}
               ariaLabel="Frame the map's area"
             />
           )}
