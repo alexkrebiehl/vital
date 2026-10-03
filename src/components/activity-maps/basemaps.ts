@@ -1,10 +1,12 @@
-// ── Basemap tile providers ──────────────────────────────
+// ── Resolving a map's tiles ─────────────────────────────
 //
-// Almost nothing about the two providers is interchangeable (subdomains, a
-// retina suffix on one and not the other, zoom ceilings of 20 against 17), so
-// each is a descriptor rather than a URL swap. Above a provider's native
-// ceiling Leaflet upscales its last real tile instead of requesting tiles the
-// server does not have.
+// A map saves a provider, a style and an appearance (see
+// lib/activity-maps/providers.ts); this turns that into the tile layer to draw
+// and the tone the routes are coloured for. Auto follows the loaded theme on a
+// style that has a dark rendering; a light-only style is always light. A
+// provider whose key is not configured is still requested, without a key: it
+// may serve tiles anyway, or refuse them ("API key required"), so the result
+// flags the missing key for the map to say so.
 //
 // Tiles load straight from the provider into the browser, which tells the
 // provider which area is on screen and, through the Referer, which site asked
@@ -14,71 +16,48 @@
 // Attribution is always shown: every provider requires it, and OpenTopoMap's
 // CC-BY-SA licence also requires crediting the map style.
 
-import type { BasemapId } from '@/lib/activity-maps/types';
+import {
+  mapProvider,
+  mapStyle,
+  type BasemapChoice,
+  type MapProvider,
+} from '@/lib/activity-maps/providers';
 import type { TileConfig } from '@/lib/activity-maps/tiles';
-
-export interface BasemapDescriptor {
-  id: BasemapId;
-  label: string;
-  url: { light: string; dark: string };
-  subdomains: string;
-  maxNativeZoom: number;
-  attribution: string;
-  /** False when the tiles have no dark rendering: the light ramps are used on them. */
-  followsTheme: boolean;
-}
+import type { Scheme } from './useColorScheme';
 
 export const TILE_REFERRER_POLICY = 'strict-origin-when-cross-origin' as const;
 
-const OSM = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors';
+export const MAX_ZOOM = 19;
 
-function street(config: TileConfig): BasemapDescriptor {
-  if (config.cartoKey) {
-    const key = encodeURIComponent(config.cartoKey);
-    return {
-      id: 'street',
-      label: 'Street',
-      url: {
-        light: `https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=${key}`,
-        dark: `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${key}`,
-      },
-      subdomains: 'abcd',
-      maxNativeZoom: 20,
-      attribution: `${OSM} &copy; <a href="https://carto.com/attributions" target="_blank" rel="noreferrer">CARTO</a>`,
-      followsTheme: true,
-    };
-  }
+export interface ResolvedTiles {
+  url: string;
+  subdomains: string;
+  maxNativeZoom: number;
+  attribution: string;
+  /** The rendering drawn: picks the route colours and halos that read on it. */
+  tone: Scheme;
+  /** Set when the provider needs a key and none is configured: its tiles are requested without one. */
+  missingKey: MapProvider | null;
+}
+
+/** True when the provider can draw: it needs no key, or its key is configured. */
+export function providerReady(provider: MapProvider, keys: TileConfig['keys']): boolean {
+  return provider.key === null || Boolean(keys[provider.id]);
+}
+
+export function resolveTiles(choice: BasemapChoice, keys: TileConfig['keys'], scheme: Scheme): ResolvedTiles {
+  const provider = mapProvider(choice.provider);
+  const style = mapStyle(provider, choice.style) ?? provider.styles[0];
+  const tone: Scheme = style.url.dark ? (choice.appearance === 'auto' ? scheme : choice.appearance) : 'light';
+  let url = tone === 'dark' && style.url.dark ? style.url.dark : style.url.light;
+  const key = provider.key ? keys[provider.id] : undefined;
+  if (provider.key && key) url += `${url.includes('?') ? '&' : '?'}${provider.key.param}=${encodeURIComponent(key)}`;
   return {
-    id: 'street',
-    label: 'Street',
-    url: {
-      light: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-      dark: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    },
-    subdomains: '',
-    maxNativeZoom: 19,
-    attribution: OSM,
-    followsTheme: false,
+    url,
+    subdomains: provider.subdomains,
+    maxNativeZoom: provider.maxNativeZoom,
+    attribution: provider.attribution,
+    tone,
+    missingKey: providerReady(provider, keys) ? null : provider,
   };
 }
-
-const TOPO: BasemapDescriptor = {
-  id: 'topo',
-  label: 'Terrain',
-  url: {
-    light: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-    dark: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-  },
-  subdomains: 'abc',
-  maxNativeZoom: 17,
-  attribution: `Map data: ${OSM}, SRTM | Map style: &copy; <a href="https://opentopomap.org" target="_blank" rel="noreferrer">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noreferrer">CC-BY-SA</a>)`,
-  followsTheme: false,
-};
-
-export function basemap(id: BasemapId, config: TileConfig): BasemapDescriptor {
-  return id === 'topo' ? TOPO : street(config);
-}
-
-export const BASEMAP_LABELS: Record<BasemapId, string> = { street: 'Street', topo: 'Terrain' };
-
-export const MAX_ZOOM = 19;

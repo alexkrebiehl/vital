@@ -37,12 +37,22 @@ describe('validateBBox', () => {
 describe('validateMapSettings', () => {
   it('fills defaults and de-duplicates types', () => {
     const r = validateMapSettings({ activityTypes: ['Walk', ' Walk '] });
-    expect(r).toEqual({ ok: true, value: { activityTypes: ['Walk'], metric: 'frequency', basemap: 'street', range: 'all' } });
+    expect(r).toEqual({ ok: true, value: {
+        activityTypes: ['Walk'],
+        metric: 'frequency',
+        basemap: { provider: 'carto', style: 'positron', appearance: 'auto' },
+        range: 'all',
+      },
+    });
   });
 
   it('rejects unknown ids and fields on the way in', () => {
     expect(validateMapSettings({ metric: 'pace' }).ok).toBe(false);
     expect(validateMapSettings({ basemap: 'satellite' }).ok).toBe(false);
+    expect(validateMapSettings({ basemap: { provider: 'mapbox', style: 'streets', appearance: 'auto' } }).ok).toBe(false);
+    expect(validateMapSettings({ basemap: { provider: 'carto', style: 'terrain', appearance: 'auto' } }).ok).toBe(false);
+    expect(validateMapSettings({ basemap: { provider: 'carto', style: 'positron', appearance: 'dim' } }).ok).toBe(false);
+    expect(validateMapSettings({ basemap: { provider: 'osm', style: 'standard', appearance: 'auto', x: 1 } }).ok).toBe(false);
     expect(validateMapSettings({ range: 0 }).ok).toBe(false);
     expect(validateMapSettings({ range: 2.5 }).ok).toBe(false);
     expect(validateMapSettings({ colour: 'red' }).ok).toBe(false);
@@ -54,10 +64,11 @@ describe('readStoredSettings', () => {
     expect(readStoredSettings({ metric: 'pace', basemap: 'topo', range: 30, activityTypes: ['Walk'] })).toEqual({
       activityTypes: ['Walk'],
       metric: 'frequency',
-      basemap: 'topo',
+      basemap: { provider: 'opentopomap', style: 'terrain', appearance: 'auto' },
       range: 30,
     });
     expect(readStoredSettings(null).metric).toBe('frequency');
+    expect(readStoredSettings({ basemap: 'street' }).basemap).toEqual({ provider: 'carto', style: 'positron', appearance: 'auto' });
   });
 });
 

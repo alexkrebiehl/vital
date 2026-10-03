@@ -28,8 +28,9 @@ What Vital does and does not do with your data, and what to put in front of it b
   is passed via the environment, and the token is only ever sent as an upstream HTTP header —
   never written into a file, a URL, a log line or the report.
 - **Maps talk to two outside services, and say so.** On Activity → Maps:
-  - **Basemap tiles** load straight from the tile provider into the browser (OpenStreetMap, or
-    CARTO when `MAP_TILES_CARTO_KEY` is set, and OpenTopoMap for the terrain map). A tile request
+  - **Basemap tiles** load straight from the tile provider into the browser (each map chooses
+    CARTO, OpenStreetMap or OpenTopoMap; CARTO's key comes from `MAP_TILES_CARTO_KEY` and is sent in
+    its tile URLs). A tile request
     tells the provider which area is on screen. Vital pages send no `Referer`; tile requests opt
     back in to the **origin only** (`strict-origin-when-cross-origin`), because OpenStreetMap's
     tile policy requires one — the provider learns your Vital host name, never a page path. Your

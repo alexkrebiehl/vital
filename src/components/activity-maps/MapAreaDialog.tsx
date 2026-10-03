@@ -10,10 +10,12 @@
 // the frame are previewed, so the reader can see what they are framing.
 //
 // Editing a map opens straight on the framing step at its saved area, with the
-// old box outlined.
+// old box outlined. The framing step also chooses what the map is drawn on
+// (provider, tile style, light or dark), previewed live in the frame.
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Crosshair, MapPin, Search } from 'lucide-react';
+import Link from 'next/link';
 import { Button, DataStateNote, Dialog } from '@/components/ui/primitives';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { useDatasetMeta } from '@/components/data/DatasetProvider';
@@ -30,11 +32,16 @@ import {
 import { DEMO_CENTER } from '@/lib/activity-maps/demo-area';
 import { fetchCoverage, geocodeRequest, type CoverageResponse, type GeocodeResult } from '@/lib/activity-maps/client';
 import { formatBoxSize } from '@/lib/activity-maps/format';
+import { DEFAULT_BASEMAP, KEYLESS_DEFAULT_BASEMAP, mapProvider, type BasemapChoice } from '@/lib/activity-maps/providers';
 import { LeafletMap } from './LeafletMap';
+import { BasemapPicker } from './BasemapPicker';
+import { providerReady } from './basemaps';
+import { useTileConfig } from './TileConfigContext';
 
 export interface MapAreaDraft {
   name: string;
   bbox: BBox;
+  basemap: BasemapChoice;
 }
 
 /** The box a found point opens on: a neighbourhood, about 3 km across. */
@@ -64,6 +71,13 @@ export function MapAreaDialog({
   const [startBox, setStartBox] = useState<BBox | null>(initial?.bbox ?? null);
   const [name, setName] = useState(initial?.name ?? '');
   const [frameBox, setFrameBox] = useState<BBox | null>(initial?.bbox ?? null);
+  const tiles = useTileConfig();
+  // A new map starts on CARTO when its key is configured, OpenStreetMap otherwise.
+  const startBasemap = useMemo(
+    () => initial?.basemap ?? (providerReady(mapProvider(DEFAULT_BASEMAP.provider), tiles.keys) ? DEFAULT_BASEMAP : KEYLESS_DEFAULT_BASEMAP),
+    [initial, tiles.keys]
+  );
+  const [basemap, setBasemap] = useState<BasemapChoice>(startBasemap);
 
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -81,13 +95,14 @@ export function MapAreaDialog({
     setStartBox(initial?.bbox ?? null);
     setFrameBox(initial?.bbox ?? null);
     setName(initial?.name ?? '');
+    setBasemap(startBasemap);
     setQuery('');
     setResults(null);
     setFindError(null);
     setSaveError(null);
     setPreview(null);
     setPreviewing(false);
-  }, [open, initial]);
+  }, [open, initial, startBasemap]);
 
   const canLocate = typeof window !== 'undefined' && window.isSecureContext && 'geolocation' in navigator;
 
@@ -175,7 +190,7 @@ export function MapAreaDialog({
     setSaving(true);
     setSaveError(null);
     try {
-      await onSave({ name: name.trim() || 'My area', bbox: check.value });
+      await onSave({ name: name.trim() || 'My area', bbox: check.value, basemap });
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'The map could not be saved.');
     } finally {
@@ -183,6 +198,8 @@ export function MapAreaDialog({
     }
   }
 
+  const chosen = mapProvider(basemap.provider);
+  const missingKey = providerReady(chosen, tiles.keys) ? null : chosen;
   const title = initial ? 'Edit map' : 'Add a map';
   return (
     <Dialog open={open} onClose={onClose} title={title} size="lg">
@@ -252,7 +269,7 @@ export function MapAreaDialog({
             <LeafletMap
               className="min-h-[260px] flex-1"
               bbox={startBox}
-              basemap="street"
+              basemap={basemap}
               paths={preview?.paths ?? null}
               metric="frequency"
               scale={preview?.scale ?? null}
@@ -260,9 +277,20 @@ export function MapAreaDialog({
               onFrameChange={setFrameBox}
               outline={initial?.bbox ?? null}
               busy={previewing ? 'Reading routes in the frame…' : null}
+              notice={missingKey?.key && (
+                <>
+                  {missingKey.label} needs an API key and none is configured, so its tiles are requested without one and
+                  may not load. Set <code>{missingKey.key.envVar}</code> (see{' '}
+                  <Link href="/settings?tab=connections" className="underline">
+                    Settings → Connections
+                  </Link>
+                  ).
+                </>
+              )}
               ariaLabel="Frame the map's area"
             />
           )}
+          <BasemapPicker value={basemap} onChange={setBasemap} />
           <div className="flex flex-wrap items-end gap-3">
             <label className="flex min-w-[200px] flex-1 flex-col gap-1 text-xs text-text-secondary">
               Name
