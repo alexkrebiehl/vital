@@ -40,7 +40,7 @@ export function ActivityMapsPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [dialog, setDialog] = useState<{ mode: 'add' } | { mode: 'edit'; id: string; initial: MapAreaDraft } | null>(null);
-  const [tiles, setTiles] = useState<TileConfig>({ cartoKey: null });
+  const [tiles, setTiles] = useState<TileConfig>({ keys: {} });
   const mapsRef = useRef<ActivityMap[]>([]);
   const saves = useRef(new Map<string, SaveState>());
 
@@ -123,10 +123,15 @@ export function ActivityMapsPage() {
   async function saveArea(draft: MapAreaDraft) {
     if (!dialog) return;
     if (dialog.mode === 'add') {
-      const created = await createMapRequest({ name: draft.name, bbox: draft.bbox, settings: defaultMapSettings() });
+      const created = await createMapRequest({
+        name: draft.name,
+        bbox: draft.bbox,
+        settings: { ...defaultMapSettings(), basemap: draft.basemap },
+      });
       commit([...mapsRef.current, created]);
     } else {
-      patch(dialog.id, { name: draft.name, bbox: draft.bbox });
+      const current = mapsRef.current.find(m => m.id === dialog.id);
+      if (current) patch(dialog.id, { name: draft.name, bbox: draft.bbox, settings: { ...current.settings, basemap: draft.basemap } });
       await flush(dialog.id);
     }
     setDialog(null);
@@ -211,7 +216,7 @@ export function ActivityMapsPage() {
                 key={map.id}
                 map={map}
                 onSettings={settings => changeSettings(map.id, settings)}
-                onEdit={() => setDialog({ mode: 'edit', id: map.id, initial: { name: map.name, bbox: map.bbox } })}
+                onEdit={() => setDialog({ mode: 'edit', id: map.id, initial: { name: map.name, bbox: map.bbox, basemap: map.settings.basemap } })}
                 onMoveUp={i > 0 ? () => void move(i, -1) : null}
                 onMoveDown={i < maps.length - 1 ? () => void move(i, 1) : null}
                 onDelete={() => remove(map.id)}

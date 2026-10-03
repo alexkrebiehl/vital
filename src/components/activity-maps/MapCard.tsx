@@ -2,21 +2,23 @@
 
 // ── One map on Activity → Maps ──────────────────────────
 //
-// Its own controls (activities, colour metric, basemap, date range) saved with
-// the map, the map itself, the key, and the highlights for what is drawn. The
+// Its own controls (activities, colour metric, date range) saved with the map,
+// the map itself, the key, and the highlights for what is drawn. What the map is
+// drawn on (provider, style, light or dark) is chosen in the edit dialog. The
 // coverage is read from /api/activity-coverage whenever a control changes; the
 // last answer stays on screen while the next one loads.
 
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, MoreHorizontal, Pencil, RotateCcw, Trash2 } from 'lucide-react';
 import { Button, Card, DataStateNote, SegmentedControl } from '@/components/ui/primitives';
 import { RangeControl } from '@/components/ui/RangeControl';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { PATH_METRICS, type PathMetricId } from '@/lib/activity-maps/metrics';
-import { BASEMAP_IDS, type ActivityMap, type BasemapId, type MapSettings } from '@/lib/activity-maps/types';
+import type { ActivityMap, MapSettings } from '@/lib/activity-maps/types';
 import { fetchCoverage, type CoverageResponse } from '@/lib/activity-maps/client';
 import { formatDayKeyShort } from '@/lib/analytics/windows';
-import { BASEMAP_LABELS, basemap as basemapOf } from './basemaps';
+import { resolveTiles } from './basemaps';
 import { useTileConfig } from './TileConfigContext';
 import { HighlightsPanel } from './HighlightsPanel';
 import { LeafletMap, nextFocus, type MapFocus } from './LeafletMap';
@@ -94,7 +96,7 @@ function CardMenu({
       </Button>
       {open && (
         <div role="menu" className="absolute right-0 z-20 mt-1 w-48 overflow-hidden rounded-control border border-border bg-surface-elevated py-1 shadow-pop">
-          {item('Edit area and name', <Pencil size={14} aria-hidden="true" />, onEdit)}
+          {item('Edit area, name and map style', <Pencil size={14} aria-hidden="true" />, onEdit)}
           {item('Move up', <ArrowUp size={14} aria-hidden="true" />, onMoveUp)}
           {item('Move down', <ArrowDown size={14} aria-hidden="true" />, onMoveDown)}
           {item('Delete', <Trash2 size={14} aria-hidden="true" />, onDelete, true)}
@@ -167,7 +169,8 @@ export function MapCard({
   ];
   const paths = coverage?.available ? coverage.paths ?? [] : null;
   const maxCount = (paths ?? []).reduce((a, p) => Math.max(a, p.count), 0);
-  const tone = basemapOf(settings.basemap, tiles).followsTheme ? scheme : 'light';
+  const drawn = resolveTiles(settings.basemap, tiles.keys, scheme);
+  const tone = drawn.tone;
   const rangeLabel = coverage?.range
     ? `${formatDayKeyShort(coverage.range.fromKey)} – ${formatDayKeyShort(coverage.range.toKey)}`
     : 'All recorded workouts';
@@ -227,12 +230,6 @@ export function MapCard({
             value={settings.metric}
             onChange={v => update({ metric: v as PathMetricId })}
           />
-          <SegmentedControl
-            ariaLabel="Basemap"
-            options={BASEMAP_IDS.map(id => ({ value: id, label: BASEMAP_LABELS[id] }))}
-            value={settings.basemap}
-            onChange={v => update({ basemap: v as BasemapId })}
-          />
           <RangeControl
             value={String(settings.range)}
             extraOptions={RANGE_EXTRAS}
@@ -264,6 +261,16 @@ export function MapCard({
             <MapLegend metric={settings.metric} scale={coverage?.scale ?? null} tone={tone} maxCount={maxCount} smoothingM={coverage?.smoothingM} />
           )}
           <div className="space-y-1">
+            {drawn.missingKey?.key && (
+              <DataStateNote tone="attention">
+                {drawn.missingKey.label} has no API key configured, so its tiles are requested without one and may not
+                load. Set <code>{drawn.missingKey.key.envVar}</code>; see{' '}
+                <Link href="/settings?tab=connections" className="underline">
+                  Settings → Connections
+                </Link>
+                .
+              </DataStateNote>
+            )}
             {error && <DataStateNote tone="attention">{error}</DataStateNote>}
             {coverage && !coverage.available && (
               <DataStateNote tone="attention">

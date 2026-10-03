@@ -9,7 +9,7 @@ const row = (id: string, revision = 1, position = 0) => ({
   position,
   name: 'Home',
   bbox,
-  settings: { metric: 'heart_rate', basemap: 'topo', range: 30, activityTypes: null },
+  settings: { metric: 'heart_rate', basemap: { provider: 'opentopomap', style: 'terrain', appearance: 'auto' }, range: 30, activityTypes: null },
   revision,
   updated_at: '2026-10-03T12:00:00Z',
 });

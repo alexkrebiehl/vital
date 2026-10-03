@@ -26,7 +26,8 @@ import 'leaflet/dist/leaflet.css';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type * as Leaflet from 'leaflet';
 import { Loader2 } from 'lucide-react';
-import type { BBox, BasemapId } from '@/lib/activity-maps/types';
+import type { BBox } from '@/lib/activity-maps/types';
+import type { BasemapChoice } from '@/lib/activity-maps/providers';
 import type { CoveragePath } from '@/lib/activity-maps/coverage';
 import {
   MISSING_COLOR,
@@ -38,7 +39,7 @@ import {
   type PathMetricId,
 } from '@/lib/activity-maps/metrics';
 import { formatDayKeyShort } from '@/lib/analytics/windows';
-import { MAX_ZOOM, TILE_REFERRER_POLICY, basemap as basemapOf } from './basemaps';
+import { MAX_ZOOM, TILE_REFERRER_POLICY, resolveTiles } from './basemaps';
 import { useTileConfig } from './TileConfigContext';
 import { useColorScheme } from './useColorScheme';
 
@@ -52,7 +53,7 @@ export type MapFocus =
 export interface LeafletMapProps {
   /** The area the map opens on and returns to on "reset view". */
   bbox: BBox;
-  basemap: BasemapId;
+  basemap: BasemapChoice;
   paths: CoveragePath[] | null;
   metric: PathMetricId;
   scale: MetricScale | null;
@@ -72,6 +73,8 @@ export interface LeafletMapProps {
    * edge and, outside the framing dialog, a scrim and this label sit over it.
    */
   busy?: string | null;
+  /** A note laid along the map's bottom edge, where it does not change the map's size. */
+  notice?: ReactNode;
   ariaLabel: string;
 }
 
@@ -112,6 +115,29 @@ function fit(L: LeafletModule, map: Leaflet.Map, box: BBox, frame: boolean): voi
   map.fitBounds(bounds(L, box), { animate: false, padding: [r.x, r.y] });
 }
 
+/**
+ * A tile layer whose tiles overlap their neighbours by a pixel. At a fractional
+ * zoom (the maps fit their box exactly, so they rarely sit on a whole level) each
+ * tile is scaled to a sub-pixel size, and the browser leaves hairline gaps where
+ * they meet: the map's light background shows through as a faint grid, plainest
+ * on a dark style. The extra pixel is drawn under the next tile, so nothing
+ * shifts. Leaflet's own answer (tiles blended `plus-lighter`, so the soft edges
+ * of neighbours add up to opaque) leaves a faint grid at these scales, and would
+ * add the overlapping pixels into a lighter one, so these tiles blend normally
+ * (the `vital-tiles` rule in globals.css).
+ */
+function seamlessTileLayer(L: LeafletModule, url: string, options: Leaflet.TileLayerOptions): Leaflet.TileLayer {
+  const Seamless = L.TileLayer.extend({
+    _initTile(this: Leaflet.TileLayer, tile: HTMLElement) {
+      (L.TileLayer.prototype as unknown as { _initTile(t: HTMLElement): void })._initTile.call(this, tile);
+      const size = this.getTileSize();
+      tile.style.width = `${size.x + 1}px`;
+      tile.style.height = `${size.y + 1}px`;
+    },
+  }) as unknown as new (url: string, options: Leaflet.TileLayerOptions) => Leaflet.TileLayer;
+  return new Seamless(url, options);
+}
+
 function latLngs(flat: number[]): [number, number][] {
   const out: [number, number][] = [];
   for (let i = 0; i + 1 < flat.length; i += 2) out.push([flat[i], flat[i + 1]]);
@@ -147,6 +173,7 @@ export function LeafletMap({
   className = '',
   overlay,
   busy = null,
+  notice,
   ariaLabel,
 }: LeafletMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -159,7 +186,12 @@ export function LeafletMap({
   // Memoised: the tile and path layers are rebuilt whenever this changes, and a
   // fresh object on every render (a window focus re-syncs the preferences and
   // re-renders the page) tore down and redrew the whole map each time.
-  const base = useMemo(() => basemapOf(basemap, { cartoKey: tiles.cartoKey }), [basemap, tiles.cartoKey]);
+  // Keyed by value: a new choice object with the same fields is not a change.
+  const key = tiles.keys[basemap.provider];
+  const base = useMemo(
+    () => resolveTiles({ provider: basemap.provider, style: basemap.style, appearance: basemap.appearance }, key ? { [basemap.provider]: key } : {}, scheme),
+    [basemap.provider, basemap.style, basemap.appearance, key, scheme]
+  );
   const frameCb = useRef(onFrameChange);
   frameCb.current = onFrameChange;
   const initialBox = useRef(bbox);
@@ -263,7 +295,8 @@ export function LeafletMap({
     const map = mapRef.current;
     if (!L || !map || !ready) return;
     const d = base;
-    const layer = L.tileLayer(d.followsTheme ? d.url[scheme] : d.url.light, {
+    const layer = seamlessTileLayer(L, d.url, {
+      className: 'vital-tiles',
       ...(d.subdomains ? { subdomains: d.subdomains } : {}),
       referrerPolicy: TILE_REFERRER_POLICY,
       maxNativeZoom: d.maxNativeZoom,
@@ -275,7 +308,7 @@ export function LeafletMap({
     return () => {
       layer.remove();
     };
-  }, [L, ready, base, scheme]);
+  }, [L, ready, base]);
 
   // Coverage paths.
   useEffect(() => {
@@ -283,7 +316,7 @@ export function LeafletMap({
     const renderer = rendererRef.current;
     if (!L || !map || !renderer || !ready || !paths || paths.length === 0) return;
     const m = pathMetric(metric);
-    const tone = base.followsTheme ? scheme : 'light';
+    const tone = base.tone;
     const ramp = m.ramp[tone];
     const maxCount = paths.reduce((a, p) => Math.max(a, p.count), 1);
 
@@ -351,14 +384,14 @@ export function LeafletMap({
       lines.remove();
       halos.remove();
     };
-  }, [L, ready, paths, metric, scale, scheme, base]);
+  }, [L, ready, paths, metric, scale, base]);
 
   // The emphasised stretch, from the highlights panel.
   useEffect(() => {
     const map = mapRef.current;
     const renderer = rendererRef.current;
     if (!L || !map || !renderer || !ready || !emphasis || emphasis.length === 0) return;
-    const tone = base.followsTheme ? scheme : 'light';
+    const tone = base.tone;
     const lines = emphasis.map(latLngs).filter(l => l.length >= 2);
     const group = L.layerGroup([
       L.polyline(lines, { renderer, color: HALO[tone], weight: 11, opacity: 1, interactive: false, lineCap: 'round' }),
@@ -368,14 +401,14 @@ export function LeafletMap({
     return () => {
       group.remove();
     };
-  }, [L, ready, emphasis, scheme, base]);
+  }, [L, ready, emphasis, base]);
 
   // The saved area's outline, while editing it.
   useEffect(() => {
     const map = mapRef.current;
     if (!L || !map || !ready || !outline) return;
     const rect = L.rectangle(bounds(L, outline), {
-      color: EMPHASIS[scheme],
+      color: EMPHASIS[base.tone],
       weight: 1.5,
       dashArray: '4 4',
       fill: false,
@@ -385,7 +418,7 @@ export function LeafletMap({
     return () => {
       rect.remove();
     };
-  }, [L, ready, outline, scheme]);
+  }, [L, ready, outline, base.tone]);
 
   // Follow the area: a box saved from the dialog moves the map to it, without a
   // reload. The first fit happens when the map is created.
@@ -440,6 +473,11 @@ export function LeafletMap({
         </div>
       )}
       {overlay && <div className="absolute right-2 top-2 z-[1000] flex gap-1">{overlay}</div>}
+      {notice && (
+        <div className="absolute inset-x-2 bottom-6 z-[1000] rounded-control border border-border bg-surface-elevated px-3 py-2 text-xs text-text-primary shadow-pop">
+          {notice}
+        </div>
+      )}
     </div>
   );
 }

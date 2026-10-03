@@ -11,6 +11,7 @@
 // the tests share one validator and one set of defaults.
 
 import { isPathMetricId, DEFAULT_PATH_METRIC, type PathMetricId } from './metrics';
+import { DEFAULT_BASEMAP, readStoredBasemap, validateBasemapChoice, type BasemapChoice } from './providers';
 
 export interface BBox {
   south: number;
@@ -19,9 +20,6 @@ export interface BBox {
   east: number;
 }
 
-export type BasemapId = 'street' | 'topo';
-export const BASEMAP_IDS: readonly BasemapId[] = ['street', 'topo'];
-
 /** A trailing window in days, or 'all' for every recorded workout. */
 export type MapRange = 'all' | number;
 
@@ -29,7 +27,8 @@ export interface MapSettings {
   /** Activity types to draw; null means every type with a route in the area. */
   activityTypes: string[] | null;
   metric: PathMetricId;
-  basemap: BasemapId;
+  /** The tile provider, style and light/dark appearance the map is drawn on. */
+  basemap: BasemapChoice;
   range: MapRange;
 }
 
@@ -53,12 +52,12 @@ export interface ActivityMapInput {
 export const DEFAULT_MAP_SETTINGS: MapSettings = {
   activityTypes: null,
   metric: DEFAULT_PATH_METRIC,
-  basemap: 'street',
+  basemap: DEFAULT_BASEMAP,
   range: 'all',
 };
 
 export function defaultMapSettings(): MapSettings {
-  return { ...DEFAULT_MAP_SETTINGS };
+  return { ...DEFAULT_MAP_SETTINGS, basemap: { ...DEFAULT_MAP_SETTINGS.basemap } };
 }
 
 export const MAX_NAME_LENGTH = 80;
@@ -157,14 +156,14 @@ export function validateMapSettings(value: unknown): Validated<MapSettings> {
   }
   const metric = value.metric ?? DEFAULT_MAP_SETTINGS.metric;
   if (!isPathMetricId(metric)) errors.push('settings.metric is not a known path metric.');
-  const basemap = value.basemap ?? DEFAULT_MAP_SETTINGS.basemap;
-  if (!BASEMAP_IDS.includes(basemap as BasemapId)) errors.push('settings.basemap must be street or topo.');
+  const basemap = validateBasemapChoice(value.basemap ?? DEFAULT_MAP_SETTINGS.basemap);
+  if (!basemap.ok) errors.push(basemap.error);
   const range = validateRange(value.range ?? DEFAULT_MAP_SETTINGS.range);
   if (range === null) errors.push(`settings.range must be "all" or a whole number of days, 1-${MAX_RANGE_DAYS}.`);
-  if (errors.length > 0) return { ok: false, errors };
+  if (errors.length > 0 || !basemap.ok) return { ok: false, errors };
   return {
     ok: true,
-    value: { activityTypes, metric: metric as PathMetricId, basemap: basemap as BasemapId, range: range as MapRange },
+    value: { activityTypes, metric: metric as PathMetricId, basemap: basemap.value, range: range as MapRange },
   };
 }
 
@@ -180,7 +179,7 @@ export function readStoredSettings(value: unknown): MapSettings {
     activityTypes:
       Array.isArray(types) && types.every(t => typeof t === 'string') ? (types as string[]) : null,
     metric: isPathMetricId(value.metric) ? value.metric : base.metric,
-    basemap: BASEMAP_IDS.includes(value.basemap as BasemapId) ? (value.basemap as BasemapId) : base.basemap,
+    basemap: readStoredBasemap(value.basemap),
     range: validateRange(value.range) ?? base.range,
   };
 }

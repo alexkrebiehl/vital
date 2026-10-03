@@ -128,9 +128,10 @@ squiggle per session.
 
 - **As many maps as you like**, each an area you frame: search for a place (or type `lat, lon`, or
   use your location), then pan and zoom until the frame holds what you want.
-- **Each map keeps its own view**: which activities to draw, a date range, a street or terrain
-  basemap, and what the line colour means — how often you travelled a stretch, or your average heart
-  rate along it.
+- **Each map keeps its own view**: which activities to draw, a date range, and what the line colour
+  means — how often you travelled a stretch, or your average heart rate along it.
+- **Your choice of map underneath**: CARTO (light, dark, or following your theme; needs a free key),
+  OpenStreetMap or OpenTopoMap terrain, chosen per map. Settings → Connections shows which are ready.
 - **Highlights beside the map**: workouts, time and distance in the area, distinct and new ground,
   your favourite stretch and your hardest one — hover one to see it on the map.
 

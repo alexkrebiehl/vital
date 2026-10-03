@@ -92,6 +92,23 @@ merge into one path with a traversal count, and the paths are dissolved into pol
 draws deterministic synthetic routes around Golden Gate Park for the demo walks, runs and rides,
 and reads nothing.
 
+### Map tiles
+
+Each map is drawn on the provider, tile style and light/dark rendering chosen in its edit dialog.
+Tiles load from the provider straight into the browser.
+
+| Provider | Styles | Light / dark | Key |
+|----------|--------|--------------|-----|
+| CARTO | Positron / Dark Matter (with or without labels), Voyager | Light, Dark or Auto (follows your theme); Voyager is light only | `MAP_TILES_CARTO_KEY` ([free for non-commercial use](https://carto.com/basemaps/apikey)) |
+| OpenStreetMap | Standard | Light | None |
+| OpenTopoMap | Terrain | Light | None |
+
+Every provider can be chosen whether or not its key is set. A map on a provider whose key is
+missing still requests its tiles, without the key (the provider may refuse them), and says the key
+is missing. Keys are read from the
+server environment only; Settings → Connections → Maps shows which providers are ready, never the
+key.
+
 ---
 
 # Data modes
