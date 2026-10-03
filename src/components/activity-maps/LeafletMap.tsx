@@ -62,7 +62,11 @@ export interface LeafletMapProps {
   focus?: MapFocus | null;
   /** Show the selection frame and report the framed area. */
   frame?: boolean;
-  onFrameChange?: (bbox: BBox) => void;
+  /**
+   * The framed area, and the area around it worth drawing routes for: the whole
+   * map with a margin, so routes are seen running out past the frame.
+   */
+  onFrameChange?: (frame: BBox, view: BBox) => void;
   /** Draw the saved area's outline (the dialog, when editing). */
   outline?: BBox | null;
   className?: string;
@@ -86,6 +90,9 @@ export const MAP_ASPECT = 3 / 2;
 
 /** How far one +/- press zooms while framing an area: a quarter level. */
 export const FRAME_ZOOM_STEP = 0.25;
+
+/** How far past the visible map the framing dialog reads routes, as a share of its size on each side. */
+const VIEW_MARGIN = 0.25;
 
 /** The least margin round the frame, as a share of the container on each side. */
 export const FRAME_MARGIN = 0.08;
@@ -267,7 +274,11 @@ export function LeafletMap({
       const r = frameRect(size.x, size.y);
       const nw = map.containerPointToLatLng([r.x, r.y]);
       const se = map.containerPointToLatLng([r.x + r.width, r.y + r.height]);
-      cb({ south: se.lat, west: nw.lng, north: nw.lat, east: se.lng });
+      const view = map.getBounds().pad(VIEW_MARGIN);
+      cb(
+        { south: se.lat, west: nw.lng, north: nw.lat, east: se.lng },
+        { south: view.getSouth(), west: view.getWest(), north: view.getNorth(), east: view.getEast() }
+      );
     };
     map.on('moveend', report);
 

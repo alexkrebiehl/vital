@@ -6,8 +6,10 @@
 // server to the configured geocoder), "lat, lon" typed in (parsed here, never
 // sent anywhere), the browser's location, or the demo area in demo mode.
 // FRAME the area: pan and zoom until the frame holds what the map should show.
-// The framed box is what is saved, with a name. Routes already recorded inside
-// the frame are previewed, so the reader can see what they are framing.
+// The framed box is what is saved, with a name. Routes already recorded are
+// previewed across the whole map and a margin past it, not only inside the
+// frame, so the reader sees how far they run beyond it without panning around;
+// the workout count is for the frame alone.
 //
 // Editing a map opens straight on the framing step at its saved area, with the
 // old box outlined. The framing step also chooses what the map is drawn on
@@ -71,6 +73,7 @@ export function MapAreaDialog({
   const [startBox, setStartBox] = useState<BBox | null>(initial?.bbox ?? null);
   const [name, setName] = useState(initial?.name ?? '');
   const [frameBox, setFrameBox] = useState<BBox | null>(initial?.bbox ?? null);
+  const [viewBox, setViewBox] = useState<BBox | null>(null);
   const tiles = useTileConfig();
   // A new map starts on CARTO when its key is configured, OpenStreetMap otherwise.
   const startBasemap = useMemo(
@@ -85,7 +88,7 @@ export function MapAreaDialog({
   const [findError, setFindError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [preview, setPreview] = useState<CoverageResponse | null>(null);
+  const [preview, setPreview] = useState<{ around: CoverageResponse; inside: CoverageResponse } | null>(null);
   const [previewing, setPreviewing] = useState(false);
 
   // Every opening starts fresh.
@@ -94,6 +97,7 @@ export function MapAreaDialog({
     setStep(initial ? 'frame' : 'find');
     setStartBox(initial?.bbox ?? null);
     setFrameBox(initial?.bbox ?? null);
+    setViewBox(null);
     setName(initial?.name ?? '');
     setBasemap(startBasemap);
     setQuery('');
@@ -163,17 +167,23 @@ export function MapAreaDialog({
   const check = useMemo(() => (frameBox ? validateBBox(frameBox) : null), [frameBox]);
   const size = frameBox ? bboxSizeMeters(frameBox) : null;
 
-  // Preview what is already recorded inside the frame, once it settles.
+  // Preview what is already recorded, once the map settles: the routes across
+  // the map and past it (or just the frame, when the map is too large an area to
+  // read), and the workouts inside the frame.
   useEffect(() => {
     if (step !== 'frame' || !frameBox || !check?.ok) {
       setPreviewing(false);
       return;
     }
+    const view = viewBox ? validateBBox(viewBox) : null;
+    const aroundBox = view?.ok ? view.value : check.value;
     const controller = new AbortController();
+    const read = (bbox: BBox) =>
+      fetchCoverage({ bbox, types: null, range: 'all', metric: 'frequency' }, controller.signal);
     const timer = setTimeout(() => {
       setPreviewing(true);
-      fetchCoverage({ bbox: check.value, types: null, range: 'all', metric: 'frequency' }, controller.signal)
-        .then(setPreview)
+      Promise.all([read(aroundBox), aroundBox === check.value ? null : read(check.value)])
+        .then(([around, inside]) => setPreview({ around, inside: inside ?? around }))
         .catch(() => undefined)
         .finally(() => {
           if (!controller.signal.aborted) setPreviewing(false);
@@ -183,7 +193,7 @@ export function MapAreaDialog({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [step, frameBox, check]);
+  }, [step, frameBox, viewBox, check]);
 
   async function save() {
     if (!check?.ok) return;
@@ -270,13 +280,16 @@ export function MapAreaDialog({
               className="min-h-[260px] flex-1"
               bbox={startBox}
               basemap={basemap}
-              paths={preview?.paths ?? null}
+              paths={preview?.around.paths ?? null}
               metric="frequency"
-              scale={preview?.scale ?? null}
+              scale={preview?.around.scale ?? null}
               frame
-              onFrameChange={setFrameBox}
+              onFrameChange={(frame, view) => {
+                setFrameBox(frame);
+                setViewBox(view);
+              }}
               outline={initial?.bbox ?? null}
-              busy={previewing ? 'Reading routes in the frame…' : null}
+              busy={previewing ? 'Reading routes…' : null}
               notice={missingKey?.key && (
                 <>
                   {missingKey.label} needs an API key and none is configured, so its tiles are requested without one and
@@ -304,8 +317,8 @@ export function MapAreaDialog({
             </label>
             <div className="text-xs text-text-secondary tnum" aria-live="polite">
               {size ? formatBoxSize(size.width, size.height, units) : ''}
-              {preview?.available && preview.highlights
-                ? ` · ${preview.highlights.totals.workouts} workout${preview.highlights.totals.workouts === 1 ? '' : 's'} inside`
+              {preview?.inside.available && preview.inside.highlights
+                ? ` · ${preview.inside.highlights.totals.workouts} workout${preview.inside.highlights.totals.workouts === 1 ? '' : 's'} inside`
                 : ''}
             </div>
           </div>
