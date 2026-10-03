@@ -303,7 +303,10 @@ export function MapAreaDialog({
               ariaLabel="Frame the map's area"
             />
           )}
-          <BasemapPicker value={basemap} onChange={setBasemap} />
+          <div className="flex flex-col gap-1 text-xs text-text-secondary">
+            Map style
+            <BasemapPicker value={basemap} onChange={setBasemap} />
+          </div>
           <div className="flex flex-wrap items-end gap-3">
             <label className="flex min-w-[200px] flex-1 flex-col gap-1 text-xs text-text-secondary">
               Name

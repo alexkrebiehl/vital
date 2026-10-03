@@ -23,7 +23,7 @@ import {
   type WorkoutView,
 } from '@/lib/analytics';
 import {
-  Card, Button, DataStateNote, Dialog, EmptyState, InsufficientDataState, Select,
+  Card, Button, DataStateNote, Dialog, EmptyState, FilterChip, InsufficientDataState, Select,
 } from '@/components/ui/primitives';
 import { MetricChart } from '@/components/charts';
 import { DomainHeader, SectionTitle, TotalCard } from './DomainShared';
@@ -360,23 +360,6 @@ export function AllWorkoutsPage() {
 }
 
 // ── Sub-components ─────────────────────────────────────
-
-function FilterChip({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`px-3 py-2 text-xs rounded-control border transition-colors min-h-[44px] ${
-        active
-          ? 'bg-primary text-primary-text border-primary'
-          : 'bg-surface text-text-secondary border-border hover:text-text-primary'
-      }`}
-    >
-      {label}
-    </button>
-  );
-}
 
 function mixSlices(views: WorkoutView[]): MixSlice[] {
   const byType = new Map<string, { minutes: number; n: number }>();

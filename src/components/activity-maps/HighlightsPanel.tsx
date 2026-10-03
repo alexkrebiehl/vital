@@ -10,10 +10,12 @@ import { formatDistance, formatSeconds } from '@/lib/activity-maps/format';
 import { formatDayKeyLong, formatDayKeyShort } from '@/lib/analytics/windows';
 import type { UnitSystem } from '@/lib/prefs/types';
 
+// The small-caps group label and the figure follow the rest of the app (the
+// routine pages' micro label, Workout history's totals), scaled to a side panel.
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="space-y-2">
-      <h3 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary">{title}</h3>
+    <section className="space-y-3">
+      <h3 className="text-[11px] font-medium uppercase tracking-[0.08em] text-text-secondary">{title}</h3>
       {children}
     </section>
   );
@@ -22,9 +24,9 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
 function Figure({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="min-w-0">
-      <div className="text-[11px] text-text-secondary">{label}</div>
-      <div className="text-lg font-semibold tracking-[-0.02em] text-text-primary tnum">{value}</div>
-      {sub && <div className="text-[11px] text-text-secondary">{sub}</div>}
+      <div className="mb-1.5 text-[12px] font-medium text-text-secondary">{label}</div>
+      <div className="whitespace-nowrap text-[22px] font-semibold leading-none tnum tracking-[-0.03em] text-text-primary">{value}</div>
+      {sub && <div className="mt-1.5 text-[11px] text-text-secondary">{sub}</div>}
     </div>
   );
 }
@@ -71,9 +73,9 @@ export function HighlightsPanel({
   }
   const span = (s: Stretch) => (s.first === s.last ? formatDayKeyShort(s.first) : `${formatDayKeyShort(s.first)} – ${formatDayKeyShort(s.last)}`);
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <Group title="Totals">
-        <div className="grid grid-cols-3 gap-3">
+        <div className="flex flex-wrap gap-x-6 gap-y-3">
           <Figure label="Workouts" value={totals.workouts.toLocaleString()} />
           <Figure label="Time here" value={formatSeconds(totals.seconds)} />
           <Figure label="Travelled" value={formatDistance(totals.distanceM, units)} />

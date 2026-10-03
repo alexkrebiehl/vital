@@ -11,7 +11,8 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, MoreHorizontal, Pencil, RotateCcw, Trash2 } from 'lucide-react';
-import { Button, Card, DataStateNote, SegmentedControl } from '@/components/ui/primitives';
+import { Button, Card, DataStateNote, FilterChip, SegmentedControl, Skeleton } from '@/components/ui/primitives';
+import { SectionTitle } from '@/components/domain/DomainShared';
 import { RangeControl } from '@/components/ui/RangeControl';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { PATH_METRICS, type PathMetricId } from '@/lib/activity-maps/metrics';
@@ -29,23 +30,6 @@ const RANGE_EXTRAS = [
   { value: '365', label: '1Y' },
   { value: 'all', label: 'All' },
 ];
-
-function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={`min-h-[32px] rounded-full border px-3 py-1 text-xs transition-colors ${
-        active
-          ? 'border-primary bg-accent-tint text-text-primary'
-          : 'border-border bg-surface text-text-secondary hover:text-text-primary'
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
 
 function CardMenu({
   onEdit,
@@ -182,137 +166,159 @@ export function MapCard({
     : 'All recorded workouts';
 
   return (
-    <Card as="section" className="p-4 md:p-5" aria-label={map.name}>
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="truncate text-[17px] font-semibold tracking-[-0.02em] text-text-primary">{map.name}</h2>
-          <p className="text-xs text-text-secondary">{rangeLabel}</p>
-        </div>
-        <CardMenu onEdit={onEdit} onMoveUp={onMoveUp} onMoveDown={onMoveDown} onDelete={() => setConfirmDelete(true)} />
-      </div>
-
-      {confirmDelete && (
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-control border border-border bg-surface-muted px-3 py-2" role="alert">
-          <span className="text-sm text-text-primary">Delete &ldquo;{map.name}&rdquo;? Your workouts are not affected.</span>
-          <span className="flex gap-2">
-            <Button size="sm" onClick={() => setConfirmDelete(false)} disabled={deleting}>
-              Keep
-            </Button>
-            <Button
-              size="sm"
-              variant="danger"
-              disabled={deleting}
-              onClick={async () => {
-                setDeleting(true);
-                try {
-                  await onDelete();
-                } finally {
-                  setDeleting(false);
-                  setConfirmDelete(false);
-                }
-              }}
-            >
-              {deleting ? 'Deleting…' : 'Delete'}
-            </Button>
-          </span>
-        </div>
-      )}
-
-      <div className="mb-3 flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Activities">
-          <Chip active={settings.activityTypes === null} onClick={() => update({ activityTypes: null })}>
-            All activities
-          </Chip>
-          {chips.map(t => (
-            <Chip key={t.type} active={selected.includes(t.type)} onClick={() => toggleType(t.type)}>
-              {t.type} <span className="tnum opacity-70">{t.workouts}</span>
-            </Chip>
-          ))}
-        </div>
-        <div className="flex flex-wrap items-start gap-2">
-          <SegmentedControl
-            ariaLabel="Colour by"
-            options={PATH_METRICS.map(m => ({ value: m.id, label: m.label }))}
-            value={settings.metric}
-            onChange={v => update({ metric: v as PathMetricId })}
-          />
-          <RangeControl
-            value={String(settings.range)}
-            extraOptions={RANGE_EXTRAS}
-            onChange={v => update({ range: v === 'all' ? 'all' : Number(v) })}
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-        <div className="space-y-2 lg:col-span-2">
-          <LeafletMap
-            className="aspect-[3/2] w-full"
-            bbox={bbox}
-            basemap={settings.basemap}
-            paths={paths}
-            metric={settings.metric}
-            scale={coverage?.scale ?? null}
-            emphasis={emphasis}
-            focus={focus}
-            busy={loading ? (coverage ? 'Updating routes…' : 'Reading routes…') : null}
-            ariaLabel={`Map of ${map.name}`}
-            overlay={
-              <Button size="sm" onClick={() => setFocus(f => nextFocus(f, bbox))} aria-label="Reset view">
-                <RotateCcw size={14} aria-hidden="true" />
+    <section aria-label={map.name}>
+      <SectionTitle
+        hint={rangeLabel}
+        action={<CardMenu onEdit={onEdit} onMoveUp={onMoveUp} onMoveDown={onMoveDown} onDelete={() => setConfirmDelete(true)} />}
+      >
+        {map.name}
+      </SectionTitle>
+      <Card className="p-4 md:p-6">
+        {confirmDelete && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-control border border-border bg-surface-muted px-3 py-2" role="alert">
+            <span className="text-sm text-text-primary">Delete &ldquo;{map.name}&rdquo;? Your workouts are not affected.</span>
+            <span className="flex gap-2">
+              <Button size="sm" onClick={() => setConfirmDelete(false)} disabled={deleting}>
+                Keep
               </Button>
-            }
-          />
-          {paths && paths.length > 0 && (
-            <MapLegend metric={settings.metric} scale={coverage?.scale ?? null} tone={tone} maxCount={maxCount} smoothingM={coverage?.smoothingM} />
-          )}
-          <div className="space-y-1">
-            {drawn.missingKey?.key && (
-              <DataStateNote tone="attention">
-                {drawn.missingKey.label} has no API key configured, so its tiles are requested without one and may not
-                load. Set <code>{drawn.missingKey.key.envVar}</code>; see{' '}
-                <Link href="/settings?tab=connections" className="underline">
-                  Settings → Connections
-                </Link>
-                .
-              </DataStateNote>
-            )}
-            {error && <DataStateNote tone="attention">{error}</DataStateNote>}
-            {coverage && !coverage.available && (
-              <DataStateNote tone="attention">
-                Routes are unavailable: {coverage.reason} Nothing is drawn in their place.
-              </DataStateNote>
-            )}
-            {coverage?.available && paths?.length === 0 && (
-              <DataStateNote>No recorded route enters this area for the selected activities and range.</DataStateNote>
-            )}
-            {coverage?.unreadWorkouts ? (
-              <DataStateNote tone="attention">
-                {coverage.unreadWorkouts} workout{coverage.unreadWorkouts === 1 ? '' : 's'}&rsquo; routes could not be read
-                this time and are missing from the map; they are retried on the next load.
-              </DataStateNote>
-            ) : null}
-            {coverage?.truncated && (
-              <DataStateNote>
-                The least-travelled paths are left off so the map stays responsive. Frame a smaller area to see every one.
-              </DataStateNote>
-            )}
-            {coverage?.available && coverage.toleranceM != null && paths && paths.length > 0 && (
-              <DataStateNote>
-                Tracks within about {coverage.toleranceM} m of each other are merged, so both sides of a street, or a
-                route walked both ways, count as one path.
-              </DataStateNote>
-            )}
+              <Button
+                size="sm"
+                variant="danger"
+                disabled={deleting}
+                onClick={async () => {
+                  setDeleting(true);
+                  try {
+                    await onDelete();
+                  } finally {
+                    setDeleting(false);
+                    setConfirmDelete(false);
+                  }
+                }}
+              >
+                {deleting ? 'Deleting…' : 'Delete'}
+              </Button>
+            </span>
+          </div>
+        )}
+
+        {/* The filter rows read like Workout history's: a label, then its controls. */}
+        <div className="mb-5 space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="w-20 text-xs font-medium text-text-secondary">Activity</span>
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Activities">
+              <FilterChip
+              active={settings.activityTypes === null}
+              onClick={() => update({ activityTypes: null })}
+              label={present.length > 0 ? `All (${present.reduce((n, t) => n + t.workouts, 0)})` : 'All'}
+            />
+              {chips.map(t => (
+                <FilterChip
+                  key={t.type}
+                  active={selected.includes(t.type)}
+                  onClick={() => toggleType(t.type)}
+                  label={`${t.type} (${t.workouts})`}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-medium text-text-secondary">Colour by</span>
+              <SegmentedControl
+                ariaLabel="Colour by"
+                options={PATH_METRICS.map(m => ({ value: m.id, label: m.label }))}
+                value={settings.metric}
+                onChange={v => update({ metric: v as PathMetricId })}
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-medium text-text-secondary">Date range</span>
+              <RangeControl
+                value={String(settings.range)}
+                extraOptions={RANGE_EXTRAS}
+                onChange={v => update({ range: v === 'all' ? 'all' : Number(v) })}
+                ariaLabel={`${map.name} date range`}
+              />
+            </div>
           </div>
         </div>
-        <div>
-          {coverage?.available && coverage.highlights ? (
-            <HighlightsPanel highlights={coverage.highlights} units={units} onEmphasis={setEmphasis} />
-          ) : loading ? (
-            <p className="text-sm text-text-secondary">Reading routes…</p>
-          ) : null}
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="space-y-2 lg:col-span-2">
+            <LeafletMap
+              className="aspect-[3/2] w-full"
+              bbox={bbox}
+              basemap={settings.basemap}
+              paths={paths}
+              metric={settings.metric}
+              scale={coverage?.scale ?? null}
+              emphasis={emphasis}
+              focus={focus}
+              busy={loading ? (coverage ? 'Updating routes…' : 'Reading routes…') : null}
+              ariaLabel={`Map of ${map.name}`}
+              overlay={
+                <Button size="sm" onClick={() => setFocus(f => nextFocus(f, bbox))} aria-label="Reset view">
+                  <RotateCcw size={14} aria-hidden="true" />
+                </Button>
+              }
+            />
+            {paths && paths.length > 0 && (
+              <MapLegend metric={settings.metric} scale={coverage?.scale ?? null} tone={tone} maxCount={maxCount} smoothingM={coverage?.smoothingM} />
+            )}
+            <div className="space-y-1">
+              {drawn.missingKey?.key && (
+                <DataStateNote tone="attention">
+                  {drawn.missingKey.label} has no API key configured, so its tiles are requested without one and may not
+                  load. Set <code>{drawn.missingKey.key.envVar}</code>; see{' '}
+                  <Link href="/settings?tab=connections" className="underline">
+                    Settings → Connections
+                  </Link>
+                  .
+                </DataStateNote>
+              )}
+              {error && <DataStateNote tone="attention">{error}</DataStateNote>}
+              {coverage && !coverage.available && (
+                <DataStateNote tone="attention">
+                  Routes are unavailable: {coverage.reason} Nothing is drawn in their place.
+                </DataStateNote>
+              )}
+              {coverage?.available && paths?.length === 0 && (
+                <DataStateNote>No recorded route enters this area for the selected activities and range.</DataStateNote>
+              )}
+              {coverage?.unreadWorkouts ? (
+                <DataStateNote tone="attention">
+                  {coverage.unreadWorkouts} workout{coverage.unreadWorkouts === 1 ? '' : 's'}&rsquo; routes could not be read
+                  this time and are missing from the map; they are retried on the next load.
+                </DataStateNote>
+              ) : null}
+              {coverage?.truncated && (
+                <DataStateNote>
+                  The least-travelled paths are left off so the map stays responsive. Frame a smaller area to see every one.
+                </DataStateNote>
+              )}
+              {coverage?.available && coverage.toleranceM != null && paths && paths.length > 0 && (
+                <DataStateNote>
+                  Tracks within about {coverage.toleranceM} m of each other are merged, so both sides of a street, or a
+                  route walked both ways, count as one path.
+                </DataStateNote>
+              )}
+            </div>
+          </div>
+          <div className="border-t border-border pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+            {coverage?.available && coverage.highlights ? (
+              <HighlightsPanel highlights={coverage.highlights} units={units} onEmphasis={setEmphasis} />
+            ) : loading ? (
+              <div role="status" aria-live="polite" className="space-y-3">
+                <span className="sr-only">Reading routes</span>
+                <Skeleton height={14} width="40%" />
+                <Skeleton height={56} />
+                <Skeleton height={14} width="40%" />
+                <Skeleton height={56} />
+              </div>
+            ) : null}
+          </div>
         </div>
-      </div>
-    </Card>
+      </Card>
+    </section>
   );
 }
