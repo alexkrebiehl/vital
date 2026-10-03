@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import {
-  REFERENCE_KEY,
+  referenceDayKey,
   seriesFor,
   type DayPoint,
 } from '@/lib/adapters/dataset';
@@ -34,16 +34,16 @@ export function ActivityPage() {
   const { units } = useUnits();
   // Owner request 2: only signals with an observation in the window are rendered.
   const summaries = HEADLINE
-    .map(id => buildSeriesSummary(id, REFERENCE_KEY, DAYS, units))
+    .map(id => buildSeriesSummary(id, referenceDayKey(), DAYS, units))
     .filter(s => s.points.length > 0);
 
-  const historyWindow = trailingWindow(REFERENCE_KEY, HISTORY_DAYS);
+  const historyWindow = trailingWindow(referenceDayKey(), HISTORY_DAYS);
   const history = seriesFor('step_count').filter(p => p.key >= historyWindow.startKey && p.key <= historyWindow.endKey);
-  const todayPoint: DayPoint | undefined = history.find(p => p.key === REFERENCE_KEY);
+  const todayPoint: DayPoint | undefined = history.find(p => p.key === referenceDayKey());
   const todayPartial = todayPoint?.partial === true;
 
   const workouts = workoutViews();
-  const last30 = trailingWindow(REFERENCE_KEY, 30);
+  const last30 = trailingWindow(referenceDayKey(), 30);
   const recentWorkouts = workouts
     .filter(w => {
       const key = workoutDayKey(w);
@@ -65,7 +65,7 @@ export function ActivityPage() {
       <DomainHeader
         title="Activity"
         aside={<HeroFigure metricId="step_count" category="activity" days={30} />}
-        subtitle={`Movement, exercise and energy across the last ${DAYS} days ending ${formatDayKeyLong(REFERENCE_KEY)}. Today is still in progress, so it is never compared with a complete day.`}
+        subtitle={`Movement, exercise and energy across the last ${DAYS} days ending ${formatDayKeyLong(referenceDayKey())}. Today is still in progress, so it is never compared with a complete day.`}
       />
 
       {/* ── Headline activity signals ──────────────── */}
@@ -212,7 +212,7 @@ interface WeeklyCount {
 function weeklyWorkoutCounts(workouts: WorkoutView[], weeks: number): WeeklyCount[] {
   const out: WeeklyCount[] = [];
   for (let i = weeks - 1; i >= 0; i--) {
-    const endKey = addDays(REFERENCE_KEY, -i * 7);
+    const endKey = addDays(referenceDayKey(), -i * 7);
     const startKey = addDays(endKey, -6);
     const inWeek = workouts.filter(w => {
       const key = workoutDayKey(w);

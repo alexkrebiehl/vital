@@ -6,7 +6,7 @@
 // to the pure engine in progress.ts. The API routes and the analyst's tools
 // both call it, so they cannot disagree about what the reader's routine is.
 
-import { REFERENCE_KEY, REFERENCE_TZ, seriesFor, workoutList } from '../adapters/dataset';
+import { referenceDayKey, referenceTimezone, seriesFor, workoutList } from '../adapters/dataset';
 import { installDataset } from '../adapters/runtime';
 import { dayKey } from '../analytics/windows';
 import type { UnitSystem } from '../prefs';
@@ -34,8 +34,8 @@ export async function loadRoutineContext(deps: RoutineDeps = {}): Promise<Routin
   await installDataset({ env, fetchImpl: deps.fetchImpl });
   const repo = deps.repo ?? planRepository(env);
   const [stored, training] = await Promise.all([repo.active(), loadTrainingData({ env, fetchImpl: deps.fetchImpl })]);
-  const tz = REFERENCE_TZ;
-  return { stored, training, today: REFERENCE_KEY, dayOf: (iso: string) => dayKey(iso, tz) };
+  const tz = referenceTimezone();
+  return { stored, training, today: referenceDayKey(), dayOf: (iso: string) => dayKey(iso, tz) };
 }
 
 /**

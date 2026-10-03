@@ -14,7 +14,7 @@
 
 import { getMetric } from '../metrics/registry';
 import type { AggregationStrategy, MetricDefinition } from '../metrics/types';
-import { REFERENCE_KEY, excludePartialForSum, isAccumulating, seriesFor } from '../adapters/dataset';
+import { referenceDayKey, excludePartialForSum, isAccumulating, seriesFor } from '../adapters/dataset';
 import { compareValues, type ComparisonResult } from './stats';
 import {
   addDays,
@@ -77,7 +77,7 @@ export interface WindowComparison {
 
 export function compareWindows(
   metricId: string,
-  refKey: string = REFERENCE_KEY,
+  refKey: string = referenceDayKey(),
   days = 7,
   options: WindowComparisonOptions = {}
 ): WindowComparison {
@@ -94,8 +94,8 @@ export function compareWindows(
   // compared over the same number of complete days. Days whose sample is flagged
   // partial are dropped as well.
   const inProgressDays: string[] = [];
-  if (accumulating && containsDay(requestedWindow, REFERENCE_KEY)) {
-    for (let k = REFERENCE_KEY; k <= requestedWindow.endKey; k = addDays(k, 1)) {
+  if (accumulating && containsDay(requestedWindow, referenceDayKey())) {
+    for (let k = referenceDayKey(); k <= requestedWindow.endKey; k = addDays(k, 1)) {
       inProgressDays.push(k);
     }
   }
@@ -174,7 +174,7 @@ export function exclusionFootnote(comparisons: WindowComparison[]): string | nul
   const affected = comparisons.filter(c => c.exclusionNote);
   if (affected.length === 0) return null;
   const names = affected.map(c => getMetric(c.metricId)?.displayName ?? c.metricId);
-  const excluded = affected[0].excludedDays.filter(k => k === REFERENCE_KEY);
+  const excluded = affected[0].excludedDays.filter(k => k === referenceDayKey());
   const completeDays = affected[0].evaluatedDays;
-  return `${names.join(', ')} accumulate during the day, so today${excluded.length ? ` (${formatDayKeyLong(REFERENCE_KEY)})` : ''} is excluded from both sides and the baseline is shortened to the same number of complete days (${completeDays} vs ${completeDays}). Metrics that are complete for the final day use the full window.`;
+  return `${names.join(', ')} accumulate during the day, so today${excluded.length ? ` (${formatDayKeyLong(referenceDayKey())})` : ''} is excluded from both sides and the baseline is shortened to the same number of complete days (${completeDays} vs ${completeDays}). Metrics that are complete for the final day use the full window.`;
 }

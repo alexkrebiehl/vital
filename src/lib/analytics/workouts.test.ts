@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FIXTURES, REFERENCE_KEY, resetToDemoDataset, setActiveDataset, workoutList } from '@/lib/adapters/dataset';
+import { FIXTURES, referenceDayKey, resetToDemoDataset, setActiveDataset, workoutList } from '@/lib/adapters/dataset';
 import { clockLabel, dayKey } from '@/lib/analytics/windows';
 import {
   filterWorkouts,
@@ -26,7 +26,7 @@ describe('workout day keys (dataset timezone, not UTC slices)', () => {
   it('derives every session key from the shared day-key helper', () => {
     for (const view of workoutViews()) {
       expect(view.key).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-      expect(view.key >= '2026-03-21' && view.key <= REFERENCE_KEY).toBe(true);
+      expect(view.key >= '2026-03-21' && view.key <= referenceDayKey()).toBe(true);
     }
   });
 });
@@ -147,10 +147,10 @@ describe('workout frequency blocks', () => {
     const blocks = weeklyWorkoutCounts(workoutViews(), 4);
     expect(blocks).toHaveLength(4);
     const last = blocks[blocks.length - 1];
-    expect(last.endKey).toBe(REFERENCE_KEY);
+    expect(last.endKey).toBe(referenceDayKey());
     expect(last.startKey).toBe('2026-09-11');
     const total = blocks.reduce((a, b) => a + b.count, 0);
-    const inRange = workoutViews().filter(v => v.key >= blocks[0].startKey && v.key <= REFERENCE_KEY);
+    const inRange = workoutViews().filter(v => v.key >= blocks[0].startKey && v.key <= referenceDayKey());
     expect(total).toBe(inRange.length);
   });
 });

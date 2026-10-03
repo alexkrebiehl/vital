@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { BookOpen, CalendarDays, ChevronRight, Info, Lightbulb } from 'lucide-react';
-import { REFERENCE_KEY, WINDOW_START_KEY, seriesInWindow } from '@/lib/adapters/dataset';
+import { referenceDayKey, windowStartDayKey, seriesInWindow } from '@/lib/adapters/dataset';
 import { formatMetricWithUnit, formatPercent } from '@/lib/metrics/format';
 import { getMetric } from '@/lib/metrics';
 import { formatDayKeyLong, formatDayKeyShort, windowRangeLabel } from '@/lib/analytics/windows';
@@ -50,7 +50,7 @@ export function InsightsPage({
   const [filter, setFilter] = useState<FilterValue>(initialFilter);
   const [tab, setTab] = useState(initialTab);
 
-  const insights = useMemo(() => generateInsights(REFERENCE_KEY, units), [units]);
+  const insights = useMemo(() => generateInsights(referenceDayKey(), units), [units]);
   const counts = useMemo(() => insightCounts(insights), [insights]);
   const shown = useMemo(() => filterInsights(insights, filter), [insights, filter]);
 
@@ -135,12 +135,12 @@ export function InsightsPage({
 // ── Daily briefing ─────────────────────────────────────
 
 function DailyBriefingCard({ units }: { units: 'metric' | 'imperial' }) {
-  const briefing = useMemo(() => buildBriefing(REFERENCE_KEY), []);
+  const briefing = useMemo(() => buildBriefing(referenceDayKey()), []);
   const watch = useMemo(() => buildWatchItem(briefing, units), [briefing, units]);
 
   return (
     <section>
-      <SectionTitle hint={formatDayKeyLong(REFERENCE_KEY)}>Daily briefing</SectionTitle>
+      <SectionTitle hint={formatDayKeyLong(referenceDayKey())}>Daily briefing</SectionTitle>
       <Card variant="hero" className="p-6 md:p-8" as="section">
         <p className="text-[11px] uppercase tracking-[0.08em] font-medium text-hero-muted mb-3">
           TODAY&rsquo;S BRIEFING
@@ -237,7 +237,7 @@ function InsightCard({ insight, units }: { insight: Insight; units: 'metric' | '
 // ── Report archive ─────────────────────────────────────
 
 function ReportArchive({ units }: { units: 'metric' | 'imperial' }) {
-  const archive = useMemo(() => buildReportArchive(REFERENCE_KEY, { weeks: 12, months: 7, system: units }), [units]);
+  const archive = useMemo(() => buildReportArchive(referenceDayKey(), { weeks: 12, months: 7, system: units }), [units]);
 
   return (
     <div className="space-y-6">
@@ -249,7 +249,7 @@ function ReportArchive({ units }: { units: 'metric' | 'imperial' }) {
             <p className="text-text-secondary leading-relaxed">
               Each report below is composed at render time from the same aggregations the rest of the app uses: the
               period, the coverage and every figure come from the dataset. A period that is clipped by the dataset
-              window (the data begins {formatDayKeyShort(WINDOW_START_KEY)} and ends {formatDayKeyLong(REFERENCE_KEY)}) says
+              window (the data begins {formatDayKeyShort(windowStartDayKey())} and ends {formatDayKeyLong(referenceDayKey())}) says
               so and states how many days it covers.
             </p>
           </div>
@@ -349,8 +349,8 @@ function ReportCard({ report }: { report: PeriodReport }) {
 
 function HealthStory({ units }: { units: 'metric' | 'imperial' }) {
   const [days, setDays] = useState('30');
-  const story = useMemo(() => buildStorySummary(REFERENCE_KEY, Number(days), units), [days, units]);
-  const figure = useMemo(() => buildTrendFigure('resting_heart_rate', REFERENCE_KEY, Number(days), units), [days, units]);
+  const story = useMemo(() => buildStorySummary(referenceDayKey(), Number(days), units), [days, units]);
+  const figure = useMemo(() => buildTrendFigure('resting_heart_rate', referenceDayKey(), Number(days), units), [days, units]);
   // Owner request 2: an observation for a metric with no reading in this window
   // is not rendered at all.
   const observations = useMemo(

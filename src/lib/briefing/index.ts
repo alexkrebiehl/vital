@@ -57,7 +57,7 @@
 // The computed text can never be labelled as model output, and vice versa.
 
 import { buildBriefing } from '../analytics/narrative';
-import { REFERENCE_KEY } from '../adapters/dataset';
+import { referenceDayKey } from '../adapters/dataset';
 import type { UnitSystem } from '../prefs';
 import { ageInYears, defaultProfile, type VitalProfile } from '../profile/types';
 import { briefingSchedule, briefingTimeLabel, type BriefingSchedule } from './schedule';
@@ -297,7 +297,7 @@ export function computedBriefing(
   schedule: BriefingSchedule,
   options: { reason?: string | null; engineDetail?: string | null; adjustments?: string[] } = {}
 ): BriefingPayload {
-  const briefing = buildBriefing(REFERENCE_KEY, context.profile?.goals ?? null);
+  const briefing = buildBriefing(referenceDayKey(), context.profile?.goals ?? null);
   return {
     kind: 'computed',
     headline: briefing.headline,

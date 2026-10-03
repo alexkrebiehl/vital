@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { REFERENCE_KEY, WINDOW_START_KEY, seriesInWindow } from '@/lib/adapters/dataset';
+import { referenceDayKey, windowStartDayKey, seriesInWindow } from '@/lib/adapters/dataset';
 import { addDays, dayKey, windowDays, windowRangeLabel } from '@/lib/analytics/windows';
 import {
   buildMonthlyReports,
@@ -10,16 +10,16 @@ import {
 } from '@/lib/analytics';
 
 describe('weekly reports (SPEC §7 report archive)', () => {
-  const weeks = buildWeeklyReports(REFERENCE_KEY, 12);
+  const weeks = buildWeeklyReports(referenceDayKey(), 12);
 
   it('covers complete weeks of 7 days, the latest ending yesterday', () => {
     expect(weeks).toHaveLength(12);
-    expect(weeks[0].window.endKey).toBe(addDays(REFERENCE_KEY, -1));
+    expect(weeks[0].window.endKey).toBe(addDays(referenceDayKey(), -1));
     expect(windowDays(weeks[0].window)).toBe(7);
     for (const report of weeks) {
       expect(report.coveredDays).toBe(7);
       expect(report.partial).toBe(false);
-      expect(report.window.endKey < REFERENCE_KEY).toBe(true);
+      expect(report.window.endKey < referenceDayKey()).toBe(true);
     }
     // Weeks do not overlap and run backwards contiguously.
     for (let i = 1; i < weeks.length; i++) {
@@ -76,33 +76,33 @@ describe('weekly reports (SPEC §7 report archive)', () => {
   });
 
   it('is deterministic', () => {
-    const again = buildWeeklyReports(REFERENCE_KEY, 3);
-    expect(again.map(r => r.id)).toEqual(buildWeeklyReports(REFERENCE_KEY, 3).map(r => r.id));
-    expect(again[0].paragraphs).toEqual(buildWeeklyReports(REFERENCE_KEY, 3)[0].paragraphs);
+    const again = buildWeeklyReports(referenceDayKey(), 3);
+    expect(again.map(r => r.id)).toEqual(buildWeeklyReports(referenceDayKey(), 3).map(r => r.id));
+    expect(again[0].paragraphs).toEqual(buildWeeklyReports(referenceDayKey(), 3)[0].paragraphs);
   });
 
   it('never reaches before the dataset begins', () => {
-    for (const win of weeklyReportWindows(REFERENCE_KEY, 40)) {
-      expect(win.startKey >= WINDOW_START_KEY).toBe(true);
+    for (const win of weeklyReportWindows(referenceDayKey(), 40)) {
+      expect(win.startKey >= windowStartDayKey()).toBe(true);
     }
   });
 });
 
 describe('monthly reports (SPEC §7 report archive)', () => {
-  const months = buildMonthlyReports(REFERENCE_KEY, 7);
+  const months = buildMonthlyReports(referenceDayKey(), 7);
 
   it('covers calendar months, clipped to the dataset and the reference day', () => {
     expect(months).toHaveLength(7);
     const september = months[0];
     expect(september.window.startKey).toBe('2026-09-01');
-    expect(september.window.endKey).toBe(REFERENCE_KEY);
+    expect(september.window.endKey).toBe(referenceDayKey());
     expect(september.days).toBe(30);
     expect(september.coveredDays).toBe(17);
     expect(september.partial).toBe(true);
     expect(september.coverageNote).toContain('the period is incomplete');
 
     const march = months[months.length - 1];
-    expect(march.window.startKey).toBe(WINDOW_START_KEY);
+    expect(march.window.startKey).toBe(windowStartDayKey());
     expect(march.coveredDays).toBe(windowDays(march.window));
     expect(march.partial).toBe(true);
   });
@@ -126,13 +126,13 @@ describe('monthly reports (SPEC §7 report archive)', () => {
     for (let i = 1; i < months.length; i++) {
       expect(months[i].window.endKey < months[i - 1].window.startKey).toBe(true);
     }
-    expect(monthlyReportWindows(REFERENCE_KEY, 7)).toHaveLength(7);
+    expect(monthlyReportWindows(referenceDayKey(), 7)).toHaveLength(7);
   });
 });
 
 describe('report archive assembly', () => {
   it('returns both series with stable identifiers', () => {
-    const archive = buildReportArchive(REFERENCE_KEY, { weeks: 4, months: 3 });
+    const archive = buildReportArchive(referenceDayKey(), { weeks: 4, months: 3 });
     expect(archive.weekly).toHaveLength(4);
     expect(archive.monthly).toHaveLength(3);
     expect(archive.weekly[0].id).toBe(`weekly-${archive.weekly[0].window.endKey}`);

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { goalFocus } from './goals';
 import { buildBriefingContext } from './context';
 import { buildBriefing } from '../analytics/narrative';
-import { REFERENCE_KEY } from '../adapters/dataset';
+import { referenceDayKey } from '../adapters/dataset';
 import { defaultProfile } from '../profile/types';
 import { BRIEFING_SYSTEM_PROMPT } from './prompt';
 
@@ -79,9 +79,9 @@ describe('the briefing context follows the goals', () => {
   });
 
   it('the computed briefing reports on the goal metrics, not the fixed four', () => {
-    const def = buildBriefing(REFERENCE_KEY).categories.map(c => c.key);
+    const def = buildBriefing(referenceDayKey()).categories.map(c => c.key);
     expect(def).toEqual(['sleep', 'recovery', 'activity', 'cardiovascular']);
-    const goal = buildBriefing(REFERENCE_KEY, 'bring my resting heart rate down').categories.map(c => c.metricId);
+    const goal = buildBriefing(referenceDayKey(), 'bring my resting heart rate down').categories.map(c => c.metricId);
     expect(goal).toContain('resting_heart_rate');
     expect(goal).not.toContain('sleep_analysis');
   });
@@ -101,7 +101,7 @@ describe('the briefing prompt', () => {
 
 describe('the computed briefing sentence', () => {
   it('keeps an acronym upper-case inside the sentence', () => {
-    const b = buildBriefing(REFERENCE_KEY, 'lose weight and reduce body fat');
+    const b = buildBriefing(referenceDayKey(), 'lose weight and reduce body fat');
     expect(b.body).not.toMatch(/\bbmi\b/);
   });
 });

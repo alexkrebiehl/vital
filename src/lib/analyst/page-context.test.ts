@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { REFERENCE_KEY } from '../adapters/dataset';
+import { referenceDayKey } from '../adapters/dataset';
 import { startFromReference } from '../routine/actions';
 import { FilePlanRepository } from '../routine/store';
 import { resolvePageContext } from './page-context';
@@ -79,7 +79,7 @@ describe('resolvePageContext', () => {
 });
 
 describe('the page context in the model message', () => {
-  const bundle = retrieveGeneral(REFERENCE_KEY);
+  const bundle = retrieveGeneral(referenceDayKey());
 
   it('travels inside the untrusted delimiters, before the question', () => {
     const message = buildAnalystUserMessage({

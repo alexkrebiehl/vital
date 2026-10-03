@@ -4,7 +4,7 @@
 // needs. A handler never reads the dataset directly: everything it may cite
 // arrives in the bundle, and the bundle records how many records were read.
 
-import { REFERENCE_KEY, seriesFor, workoutList } from '../adapters/dataset';
+import { referenceDayKey, seriesFor, workoutList } from '../adapters/dataset';
 import { getMetric } from '../metrics/registry';
 import { compareWindows, type WindowComparison } from '../analytics/comparisons';
 import { coverageSentence } from '../analytics/coverage';
@@ -307,7 +307,7 @@ function buildBundle(handlerId: string, spec: RetrievalSpec, refKey: string): Re
 // summary fetched mid-question is exactly the summary the bundle would have carried.
 export const summaryFor = buildSummary;
 export const pairFor = buildPair;
-export const workoutsFor = (days: number, refKey: string = REFERENCE_KEY) => buildWorkouts({ days }, refKey);
+export const workoutsFor = (days: number, refKey: string = referenceDayKey()) => buildWorkouts({ days }, refKey);
 
 /** "a, b and c" — the list wording the selection note has always used. */
 function joinSentences(items: string[]): string {
@@ -324,7 +324,7 @@ export function labSpecOf(handlerId: string): LabSpec | null {
 }
 
 /** Select the summaries and bounded windows a handler is allowed to see. */
-export function retrieve(handlerId: string, refKey: string = REFERENCE_KEY): RetrievalBundle {
+export function retrieve(handlerId: string, refKey: string = referenceDayKey()): RetrievalBundle {
   const spec = RETRIEVAL_SPECS[handlerId] ?? { summaries: [] };
   return buildBundle(handlerId, spec, refKey);
 }
@@ -333,7 +333,7 @@ export function retrieve(handlerId: string, refKey: string = REFERENCE_KEY): Ret
  * The general (free-form) selection. Used only when a real provider is
  * configured: the demo analyst never routes here, so its behaviour is unchanged.
  */
-export function retrieveGeneral(refKey: string = REFERENCE_KEY): RetrievalBundle {
+export function retrieveGeneral(refKey: string = referenceDayKey()): RetrievalBundle {
   return buildBundle(GENERAL_HANDLER_ID, GENERAL_BUNDLE_SPEC, refKey);
 }
 
@@ -342,7 +342,7 @@ export function retrieveGeneral(refKey: string = REFERENCE_KEY): RetrievalBundle
  * fetches is merged in afterwards (dataAccess.ts), so the answer is validated
  * against exactly what it was shown.
  */
-export function retrieveNone(handlerId: string, refKey: string = REFERENCE_KEY): RetrievalBundle {
+export function retrieveNone(handlerId: string, refKey: string = referenceDayKey()): RetrievalBundle {
   return {
     ...buildBundle(handlerId, {}, refKey),
     note: 'No health data was pre-loaded for this question; it is fetched on demand with the data tools.',

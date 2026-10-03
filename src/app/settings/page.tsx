@@ -22,7 +22,7 @@ import { getAllMetrics, getMetric } from '@/lib/metrics';
 import { convertValue, displayUnit, formatMetricWithUnit, hasConversion } from '@/lib/metrics/format';
 import { coverageFact, coverageSentence } from '@/lib/analytics/coverage';
 import { formatDayKeyLong } from '@/lib/analytics/windows';
-import { REFERENCE_KEY, unavailableReasonFor } from '@/lib/adapters/dataset';
+import { referenceDayKey, unavailableReasonFor } from '@/lib/adapters/dataset';
 import {
   applyTheme, clearPreferences, getPreferencesState, loadPreferences,
   savePreferencesResult, subscribePreferences, syncPreferences,

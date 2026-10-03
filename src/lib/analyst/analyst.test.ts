@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PLAN_PROMPTS } from '@/lib/analyst/demo-plan';
-import { REFERENCE_KEY, availableMetricIds, seriesFor, workoutList } from '@/lib/adapters/dataset';
+import { referenceDayKey, availableMetricIds, seriesFor, workoutList } from '@/lib/adapters/dataset';
 import { getAllMetrics } from '@/lib/metrics';
 import { askAnalyst, EDUCATIONAL_NOTICE, NOTES_MAX_CHARS, QUERY_MAX_CHARS, sanitizeUntrustedNotes, validateQuery } from '@/lib/analyst/service';
 import { HANDLERS, selectHandler, selectHandlerStrict, unsupportedHandlerIds } from '@/lib/analyst/handlers';
@@ -21,7 +21,7 @@ const TOTAL_DATASET_RECORDS =
 function bundleFor(handler: { id: string; prompt: string }) {
   return handler.id === 'lab-results'
     ? labBundleFor(handler.id, handler.prompt)
-    : retrieve(handler.id, REFERENCE_KEY);
+    : retrieve(handler.id, referenceDayKey());
 }
 
 describe('analyst handlers (SPEC §8)', () => {
@@ -38,7 +38,7 @@ describe('analyst handlers (SPEC §8)', () => {
   it('separates observed measurements, interpretation and uncertainty in every answer', () => {
     for (const handler of HANDLERS) {
       const bundle = bundleFor(handler);
-      const answer = handler.run({ bundle, system: 'metric', refKey: REFERENCE_KEY });
+      const answer = handler.run({ bundle, system: 'metric', refKey: referenceDayKey() });
       expect(answer.observed.length).toBeGreaterThan(0);
       expect(answer.interpretation.length).toBeGreaterThan(0);
       expect(answer.uncertainty.length).toBeGreaterThan(0);
@@ -51,7 +51,7 @@ describe('analyst handlers (SPEC §8)', () => {
   it('carries metric, window, aggregation, sample count and a link on every evidence card', () => {
     for (const handler of HANDLERS) {
       const bundle = bundleFor(handler);
-      const answer = handler.run({ bundle, system: 'metric', refKey: REFERENCE_KEY });
+      const answer = handler.run({ bundle, system: 'metric', refKey: referenceDayKey() });
       for (const ev of answer.evidence) {
         expect(ev.metricId).toBeTruthy();
         expect(ev.metricName).toBeTruthy();
@@ -66,7 +66,7 @@ describe('analyst handlers (SPEC §8)', () => {
   it('puts a number and its unit in every observed line that makes a numeric claim', () => {
     for (const handler of HANDLERS) {
       const bundle = bundleFor(handler);
-      const answer = handler.run({ bundle, system: 'metric', refKey: REFERENCE_KEY });
+      const answer = handler.run({ bundle, system: 'metric', refKey: referenceDayKey() });
       for (const line of answer.observed) {
         if (!/\d/.test(line)) continue;
         // A figure must be accompanied by a unit, a count, or an explicit window.
@@ -81,8 +81,8 @@ describe('analyst handlers (SPEC §8)', () => {
 
   it('refuses to guess when a handler has no selected context', () => {
     for (const handler of HANDLERS) {
-      const empty = { handlerId: handler.id, refKey: REFERENCE_KEY, summaries: [], pairs: [], workouts: null, recordsRead: 0, note: '' };
-      const answer = handler.run({ bundle: empty, system: 'metric', refKey: REFERENCE_KEY });
+      const empty = { handlerId: handler.id, refKey: referenceDayKey(), summaries: [], pairs: [], workouts: null, recordsRead: 0, note: '' };
+      const answer = handler.run({ bundle: empty, system: 'metric', refKey: referenceDayKey() });
       expect(answer.observed[0]).toMatch(
         /could not be selected|No .* could be selected|not selected|not part of the selected context|Nothing was selected/
       );
@@ -116,17 +116,17 @@ describe('retrieval selects only what the question needs (SPEC §8)', () => {
   });
 
   it('builds paired comparisons only for the handlers that need them', () => {
-    const paired = retrieve('sleep-vs-recovery', REFERENCE_KEY);
+    const paired = retrieve('sleep-vs-recovery', referenceDayKey());
     expect(paired.pairs).toHaveLength(1);
     expect(paired.pairs[0].pairedCount).toBeGreaterThan(0);
-    const single = retrieve('sleep-1-month', REFERENCE_KEY);
+    const single = retrieve('sleep-1-month', referenceDayKey());
     expect(single.pairs).toHaveLength(0);
   });
 });
 
 describe('general retrieval for free-form questions (SPEC §8)', () => {
   it('selects the fixed core metrics over one bounded window, never the whole registry', () => {
-    const bundle = retrieveGeneral(REFERENCE_KEY);
+    const bundle = retrieveGeneral(referenceDayKey());
     expect(bundle.handlerId).toBe(GENERAL_HANDLER_ID);
     expect(bundle.summaries.map(s => s.metricId)).toEqual(GENERAL_RETRIEVAL_METRICS);
     expect(bundle.summaries.length).toBeLessThan(getAllMetrics().length);
@@ -366,7 +366,7 @@ describe('routing a free-form question to the right context (SPEC §8)', () => {
   });
 
   it('carries the nutrition summaries a free-form nutrition question needs', () => {
-    const bundle = retrieveGeneral(REFERENCE_KEY);
+    const bundle = retrieveGeneral(referenceDayKey());
     const ids = bundle.summaries.map(s => s.metricId);
     for (const id of ['dietary_caffeine', 'dietary_energy', 'dietary_carbs', 'dietary_fat_total', 'dietary_protein', 'dietary_water']) {
       expect(ids).toContain(id);

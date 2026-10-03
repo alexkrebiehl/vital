@@ -24,7 +24,7 @@ import {
   metricUnit,
 } from '@/lib/metrics/format';
 import { getMetric } from '@/lib/metrics';
-import { REFERENCE_KEY, seriesFor, sleepSeries } from '@/lib/adapters/dataset';
+import { referenceDayKey, seriesFor, sleepSeries } from '@/lib/adapters/dataset';
 
 describe('window maths (SPEC §6, §9)', () => {
   it('builds an inclusive trailing window of the requested length', () => {
@@ -65,7 +65,7 @@ describe('window maths (SPEC §6, §9)', () => {
 
   it('computes staleness in whole calendar days', () => {
     // Last reading 2026-09-16 against reference date 2026-09-17 => 1 day.
-    expect(diffDays('2026-09-16', REFERENCE_KEY)).toBe(1);
+    expect(diffDays('2026-09-16', referenceDayKey())).toBe(1);
   });
 });
 
@@ -209,7 +209,7 @@ describe('formatting (SPEC §3, defect 2/3/5)', () => {
 
 describe('correlation pairing (SPEC §9 relationship explorer)', () => {
   it('pairs only days present in both series', () => {
-    const window = trailingWindow(REFERENCE_KEY, 90);
+    const window = trailingWindow(referenceDayKey(), 90);
     const result = computeRelationship('sleep_analysis', 'heart_rate_variability', window, 'same-day');
     expect(result.pairedCount).toBe(result.points.length);
     expect(result.points.every(p => Number.isFinite(p.x) && Number.isFinite(p.y))).toBe(true);
@@ -218,7 +218,7 @@ describe('correlation pairing (SPEC §9 relationship explorer)', () => {
   });
 
   it('shifts Y forward by the lag when lagged alignment is chosen', () => {
-    const window = trailingWindow(REFERENCE_KEY, 60);
+    const window = trailingWindow(referenceDayKey(), 60);
     const sameDay = computeRelationship('sleep_analysis', 'heart_rate_variability', window, 'same-day');
     const lagged = computeRelationship('sleep_analysis', 'heart_rate_variability', window, 'lagged', 1);
     expect(lagged.lagDays).toBe(1);
@@ -228,7 +228,7 @@ describe('correlation pairing (SPEC §9 relationship explorer)', () => {
   });
 
   it('refuses to show a coefficient from too few paired days', () => {
-    const tiny = { startKey: REFERENCE_KEY, endKey: REFERENCE_KEY, label: 'One day' };
+    const tiny = { startKey: referenceDayKey(), endKey: referenceDayKey(), label: 'One day' };
     const result = computeRelationship('sleep_analysis', 'heart_rate_variability', tiny, 'same-day');
     expect(result.valid).toBe(false);
     expect(result.pairedCount).toBeLessThan(MIN_PAIRED_OBSERVATIONS);
@@ -253,11 +253,11 @@ describe('dataset integrity', () => {
     const nights = sleepSeries();
     expect(nights.length).toBeGreaterThan(0);
     expect(nights.every(n => n.inBedMinutes >= n.asleepMinutes)).toBe(true);
-    expect(nights[nights.length - 1].key).toBe(REFERENCE_KEY);
+    expect(nights[nights.length - 1].key).toBe(referenceDayKey());
   });
 
   it('detects the in-progress day from hourly coverage', () => {
-    const today = seriesFor('step_count').find(p => p.key === REFERENCE_KEY);
+    const today = seriesFor('step_count').find(p => p.key === referenceDayKey());
     expect(today?.partial).toBe(true);
   });
 });

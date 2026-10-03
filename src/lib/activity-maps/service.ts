@@ -12,7 +12,7 @@
 import { liveCacheTtlMs } from '@/lib/adapters/cache';
 import { HaeError } from '@/lib/adapters/hae';
 import { LiveDataUnavailableError, installDataset } from '@/lib/adapters/runtime';
-import { REFERENCE_KEY, workoutList } from '@/lib/adapters/dataset';
+import { referenceDayKey, workoutList } from '@/lib/adapters/dataset';
 import { addDays } from '@/lib/analytics/windows';
 import { computeCoverage, type CoverageQuery, type CoverageResult } from './coverage';
 import { isPathMetricId } from './metrics';
@@ -108,7 +108,7 @@ export async function readCoverage(req: CoverageRequest): Promise<CoverageRespon
     return { available: false, reason, unreadWorkouts: 0, referenceKey: null, range: null, mode: null };
   }
 
-  const referenceKey = REFERENCE_KEY;
+  const referenceKey = referenceDayKey();
   const query = coverageQuery(req, referenceKey);
   try {
     const load = await loadRoutes(workoutList(), mode);

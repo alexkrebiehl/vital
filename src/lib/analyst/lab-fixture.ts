@@ -10,7 +10,7 @@
 // Imported only by *.test.ts files; no application module imports it. It mirrors
 // the convention of `test-doubles.ts`.
 
-import { REFERENCE_KEY } from '@/lib/adapters/dataset';
+import { referenceDayKey } from '@/lib/adapters/dataset';
 import { scoreResult } from '@/lib/lab/status';
 import { buildLabSnapshot, type LabSeriesInput, type LabSeriesObservationInput, type LabSourceInput } from './labSnapshot';
 import { retrieve, type LabSpec } from './retrieval';
@@ -142,7 +142,7 @@ export function labSnapshotFor(question: string, spec: LabSpec | null = null): L
  * declares.
  */
 export function labBundleFor(handlerId: string, question: string, spec: LabSpec | null = { mode: 'analyte' }): RetrievalBundle {
-  const bundle = retrieve(handlerId, REFERENCE_KEY);
+  const bundle = retrieve(handlerId, referenceDayKey());
   const lab = labSnapshotFor(question, spec);
   return { ...bundle, lab, recordsRead: bundle.recordsRead + lab.totalObservations };
 }

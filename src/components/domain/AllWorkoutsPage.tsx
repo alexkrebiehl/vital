@@ -8,7 +8,7 @@
 import { MixBar, type MixSlice } from '@/components/art/MixBar';
 import { useMemo, useState } from 'react';
 import { Dumbbell, Info } from 'lucide-react';
-import { REFERENCE_KEY } from '@/lib/adapters/dataset';
+import { referenceDayKey } from '@/lib/adapters/dataset';
 import { formatDurationHm, formatMetricWithUnit } from '@/lib/metrics/format';
 import {
   filterWorkouts,
@@ -324,7 +324,7 @@ export function AllWorkoutsPage() {
                 <DataStateNote>
                   Weekly duration is hours:minutes (the exact minutes are in each row&rsquo;s tooltip). A blank
                   week means nothing was logged, which is not the same as no activity. Weeks are 7-day blocks
-                  ending {formatDayKeyLong(REFERENCE_KEY)}.
+                  ending {formatDayKeyLong(referenceDayKey())}.
                 </DataStateNote>
               </div>
             </Card>
