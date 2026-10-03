@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { autoTolerance, computeCoverage, haversineM, type CoverageQuery } from './coverage';
+import { autoTolerance, computeCoverage, haversineM, smoothOverGraph, type CoverageQuery } from './coverage';
 import { compactRoute, type CompactRoute, type HeartRateSample } from './route-data';
 import { M_PER_DEG_LAT, bboxAround } from './types';
 
@@ -182,5 +182,38 @@ describe('autoTolerance', () => {
     expect(autoTolerance(bboxAround(LAT, LON, 500))).toBe(5);
     expect(autoTolerance(bboxAround(LAT, LON, 10_000))).toBe(14);
     expect(autoTolerance(bboxAround(LAT, LON, 200_000))).toBe(50);
+  });
+});
+
+describe('smoothOverGraph', () => {
+  // A line of cells 0..20, 10 m apart.
+  const line = Array.from({ length: 20 }, (_, i) => ({ a: i, b: i + 1 }));
+  const tenMetres = () => 10;
+
+  it('irons out values that alternate cell to cell', () => {
+    const out = smoothOverGraph(line, c => (c % 2 === 0 ? 100 : 140), tenMetres, 20);
+    const middle = [...Array(11).keys()].map(i => out.get(i + 5)!);
+    expect(Math.max(...middle) - Math.min(...middle)).toBeLessThan(5);
+    expect(middle.every(v => v > 115 && v < 125)).toBe(true);
+  });
+
+  it('keeps a real change, softened over tens of metres rather than flattened', () => {
+    const out = smoothOverGraph(line, c => (c < 10 ? 100 : 160), tenMetres, 20);
+    expect(out.get(0)!).toBeLessThan(105);
+    expect(out.get(20)!).toBeGreaterThan(155);
+    expect(out.get(9)!).toBeLessThan(out.get(11)!);
+  });
+
+  it('measures along the network, so an unconnected street does not bleed in', () => {
+    const two = [...line, { a: 100, b: 101 }];
+    const out = smoothOverGraph(two, c => (c >= 100 ? 200 : 100), tenMetres, 20);
+    expect(out.get(5)).toBeCloseTo(100);
+    expect(out.get(100)).toBeCloseTo(200);
+  });
+
+  it('leaves a cell with nothing measured in reach as no reading', () => {
+    const out = smoothOverGraph(line, c => (c === 0 ? 120 : null), tenMetres, 10);
+    expect(out.get(1)).toBeCloseTo(120);
+    expect(out.get(20)).toBeNull();
   });
 });

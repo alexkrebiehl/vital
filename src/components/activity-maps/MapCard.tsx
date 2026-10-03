@@ -263,7 +263,7 @@ export function MapCard({
             }
           />
           {paths && paths.length > 0 && (
-            <MapLegend metric={settings.metric} scale={coverage?.scale ?? null} tone={tone} maxCount={maxCount} />
+            <MapLegend metric={settings.metric} scale={coverage?.scale ?? null} tone={tone} maxCount={maxCount} smoothingM={coverage?.smoothingM} />
           )}
           <div className="space-y-1">
             {error && <DataStateNote tone="attention">{error}</DataStateNote>}

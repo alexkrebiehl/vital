@@ -12,11 +12,14 @@ export function MapLegend({
   scale,
   tone,
   maxCount,
+  smoothingM,
 }: {
   metric: PathMetricId;
   scale: MetricScale | null;
   tone: Scheme;
   maxCount: number;
+  /** σ of the smoothing the colours were drawn with, if any. */
+  smoothingM?: number | null;
 }) {
   const m = pathMetric(metric);
   const ramp = m.ramp[tone];
@@ -42,7 +45,8 @@ export function MapLegend({
           No reading
         </span>
       )}
-      {maxCount > 1 && <span>Thicker lines were travelled more often (up to {maxCount}×)</span>}
+      {m.width === 'count' && maxCount > 1 && <span>Thicker lines were travelled more often (up to {maxCount}×)</span>}
+      {smoothingM != null && <span>Smoothed over about {Math.round(smoothingM)} m along the streets</span>}
       {m.clamp && (
         <span>
           Colours span the {m.clamp[0]}th–{m.clamp[1]}th percentile, so one outlier does not flatten the rest
