@@ -32,6 +32,7 @@ import type { CoveragePath } from '@/lib/activity-maps/coverage';
 import {
   MISSING_COLOR,
   lineWidth,
+  widthAt,
   pathMetric,
   rampColor,
   scalePosition,
@@ -336,18 +337,21 @@ export function LeafletMap({
     for (const path of paths) {
       const pts = latLngs(path.coords);
       if (pts.length < 2) continue;
-      const w = lineWidth(m, path.count, maxCount);
-      L.polyline(pts, { renderer, color: HALO[tone], weight: w + 3, opacity: 1, interactive: false, lineCap: 'round', lineJoin: 'round' }).addTo(halos);
 
-      if (m.source === 'edge-count' || !path.values) {
+      if (!path.values) {
+        const w = lineWidth(m, path.count, maxCount);
         const color = scale ? rampColor(ramp, scalePosition(m, scale, path.count)) : ramp[ramp.length - 1];
+        L.polyline(pts, { renderer, color: HALO[tone], weight: w + 3, opacity: 1, interactive: false, lineCap: 'round', lineJoin: 'round' }).addTo(halos);
         const line = L.polyline(pts, { renderer, color, weight: w, opacity: 1, lineCap: 'round', lineJoin: 'round' });
         (line.options as { meta?: string }).meta = describe(path, null);
         line.addTo(lines);
         continue;
       }
 
-      // Shade along the line: one run per stretch of segments on one colour step.
+      // Shade along the line, from values smoothed along the streets: one run
+      // per stretch of segments on one step, its colour and (for frequency) its
+      // width both read from the step, so neither jumps where GPS scatter split
+      // a street into strands.
       const values = path.values;
       const stepOf = (i: number): number => {
         const a = values[i];
@@ -362,7 +366,10 @@ export function LeafletMap({
         const segment = pts.slice(runStart, end + 1);
         const known = values.slice(runStart, end + 1).filter((v): v is number => v != null);
         const mean = known.length > 0 ? known.reduce((s, v) => s + v, 0) / known.length : null;
-        const color = runStep < 0 ? MISSING_COLOR : rampColor(ramp, runStep / (STEPS - 1));
+        const t = runStep < 0 ? 0 : runStep / (STEPS - 1);
+        const color = runStep < 0 ? MISSING_COLOR : rampColor(ramp, t);
+        const w = widthAt(m, t);
+        L.polyline(segment, { renderer, color: HALO[tone], weight: w + 3, opacity: 1, interactive: false, lineCap: 'round', lineJoin: 'round' }).addTo(halos);
         const line = L.polyline(segment, { renderer, color, weight: w, opacity: 1, lineCap: 'round', lineJoin: 'round' });
         (line.options as { meta?: string }).meta = describe(path, mean == null ? 'No reading here' : `~${m.format(mean)}`);
         line.addTo(lines);

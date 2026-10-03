@@ -140,6 +140,21 @@ describe('computeCoverage', () => {
     expect(fav.lines.flat().every((v, i) => i % 2 === 1 || v < at(0, 300)[0])).toBe(true);
   });
 
+  it('smooths frequency along the street, so a short busier strand does not stripe it', () => {
+    // Four passes along the street; a fifth covers only 20 m in the middle.
+    const four = [0, 1, 2, 3].map(() => route(line(0, 500)));
+    const out = computeCoverage([...four, route(line(240, 260))], query());
+    expect(out.smoothingM).not.toBeNull();
+    const values = out.paths.flatMap(p => p.values ?? []).filter((v): v is number => v != null);
+    expect(values.length).toBeGreaterThan(0);
+    // The blip is softened rather than drawn as a block of 5x, and the
+    // street around it stays at its own 4x.
+    expect(Math.max(...values)).toBeLessThan(5);
+    expect(Math.min(...values)).toBeGreaterThanOrEqual(4);
+    // Highlights keep the raw counts.
+    expect(Math.max(...out.paths.map(p => p.count))).toBe(5);
+  });
+
   it('picks the most-travelled stretch as the favourite', () => {
     const out = computeCoverage(
       [route(line(0, 500)), route(line(0, 500)), route(line(0, 500)), route(line(0, 500, 300))],

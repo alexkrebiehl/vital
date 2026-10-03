@@ -54,7 +54,10 @@ export interface CoveragePath {
   types: string[];
   first: string;
   last: string;
-  /** One value per vertex for a per-vertex metric (null where not measured). */
+  /**
+   * The selected metric at each vertex, smoothed along the streets: heart rate
+   * (null where not measured), or the travel count.
+   */
   values?: (number | null)[];
 }
 
@@ -604,9 +607,27 @@ function finish(
     return haversineM(la1, lo1, la2, lo2);
   };
   const byKey = new Map(drawn.map(e => [edgeKey(e.a, e.b), e]));
-  // What is DRAWN is smoothed; the highlights below read the raw cell means.
-  const smoothingM = metric.source === 'vertex-mean' ? Math.max(SMOOTHING_MIN_SIGMA_M, SMOOTHING_SIGMA_CELLS * toleranceM) : null;
-  const smoothed = smoothingM == null ? null : smoothOverGraph(drawn, hrAt, edgeLength, smoothingM);
+  // What is DRAWN is smoothed; the highlights below read the raw counts and
+  // cell means. Heart rate smooths the per-cell mean. Frequency smooths each
+  // cell's count, the busiest of its edges (a junction takes the street, not the
+  // side road), in log space as its colours are, so a busy street braided by GPS
+  // scatter into strands of 40 and 3 reads as one busy street, not stripes.
+  const smoothingM = Math.max(SMOOTHING_MIN_SIGMA_M, SMOOTHING_SIGMA_CELLS * toleranceM);
+  let sample: (cell: number) => number | null = hrAt;
+  if (metric.source === 'edge-count') {
+    const cellCount = new Map<number, number>();
+    for (const e of drawn) {
+      cellCount.set(e.a, Math.max(cellCount.get(e.a) ?? 0, e.count));
+      cellCount.set(e.b, Math.max(cellCount.get(e.b) ?? 0, e.count));
+    }
+    sample = cell => {
+      const n = cellCount.get(cell);
+      return n ? Math.log(n) : null;
+    };
+  }
+  const smoothed = smoothOverGraph(drawn, sample, edgeLength, smoothingM);
+  const drawnValue = (v: number): number =>
+    metric.source === 'edge-count' ? Math.round(Math.exp(v) * 10) / 10 : Math.round(v);
 
   interface Built {
     chain: number[];
@@ -621,7 +642,7 @@ function finish(
       first: stats.reduce((m, s) => (s.firstInRange < m ? s.firstInRange : m), stats[0].firstInRange),
       last: stats.reduce((m, s) => (s.lastInRange > m ? s.lastInRange : m), stats[0].lastInRange),
     };
-    if (smoothed) path.values = chain.map(c => smoothed.get(c) ?? null).map(v => (v == null ? null : Math.round(v)));
+    path.values = chain.map(c => smoothed.get(c) ?? null).map(v => (v == null ? null : drawnValue(v)));
     return { chain, path };
   });
 
@@ -689,10 +710,7 @@ function finish(
   }
 
   const paths = kept.map(b => b.path);
-  const scaleValues =
-    metric.source === 'edge-count'
-      ? paths.map(p => p.count)
-      : paths.flatMap(p => (p.values ?? []).filter((v): v is number => v != null));
+  const scaleValues = paths.flatMap(p => (p.values ?? []).filter((v): v is number => v != null));
 
   return {
     paths,
