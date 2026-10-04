@@ -30,6 +30,8 @@ import { parsePageContextRef } from '@/lib/analyst/page-context-types';
 import type { AnalystResponse } from '@/lib/analyst/types';
 import type { UnitSystem } from '@/lib/prefs';
 import { LiveDataUnavailableError, installDataset } from '@/lib/adapters/runtime';
+import type { ProvenanceRow } from '@/lib/adapters/normalize';
+import { tagResponse } from '@/lib/sources/tagging';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -72,8 +74,9 @@ export async function POST(request: Request) {
   const system: UnitSystem = raw.system === 'imperial' ? 'imperial' : 'metric';
   const { availability } = resolveConversations();
 
+  let provenance: ProvenanceRow[] = [];
   try {
-    await installDataset();
+    provenance = (await installDataset()).meta.provenance;
   } catch (error) {
     const detail = error instanceof LiveDataUnavailableError ? error.detail : 'The dataset could not be loaded.';
     return new Response(JSON.stringify({ error: `The analyst cannot read the health data source: ${detail}` }), {
@@ -145,7 +148,7 @@ export async function POST(request: Request) {
           conversation: null,
         };
         if (question.ok) {
-          const saved = await appendExchange({}, raw.conversationId, question.query, final);
+          const saved = await appendExchange({}, raw.conversationId, question.query, final, await tagResponse(final, provenance));
           outcome = saved.ok
             ? { persisted: saved.outcome.persisted, persistence: { ...availability, reason: saved.outcome.reason }, conversation: saved.outcome.conversation }
             : { persisted: false, persistence: availability, error: saved.error };

@@ -71,6 +71,7 @@ export class FakeAnalystDb implements SqlClient {
         title,
         message_count: 0,
         archived_at: null,
+        source_ids: [],
         created_at: now,
         updated_at: now,
       };
@@ -97,9 +98,9 @@ export class FakeAnalystDb implements SqlClient {
     if (/INSERT INTO analyst_messages/.test(text)) {
       const p = params as [
         number, string, string, string | null, string | null, string | null,
-        string | null, string | null, string | null, string | null, number, number,
+        string | null, string | null, string | null, string | null, number, number, string[],
       ];
-      const [conversationId, role, content, title, status, provider, model, attribution, handlerId, payload, , cap] = p;
+      const [conversationId, role, content, title, status, provider, model, attribution, handlerId, payload, , cap, tags] = p;
       const conversation = this.conversations.get(Number(conversationId));
       if (!conversation) return { rows: [] };
       const count = this.messages.filter(m => Number(m.conversation_id) === Number(conversationId)).length;
@@ -117,12 +118,15 @@ export class FakeAnalystDb implements SqlClient {
         handler_id: handlerId ?? null,
         // jsonb: the driver hands back an object, so the double stores one too.
         payload: typeof payload === 'string' ? (JSON.parse(payload) as Row) : (payload ?? null),
+        source_ids: [...(tags ?? [])],
         created_at: this.stamp(),
       };
       this.messages.push(row);
       conversation.message_count = count + 1;
       conversation.updated_at = row.created_at;
       conversation.revision = Number(conversation.revision ?? 1) + 1;
+      // The conversation's tags are the union of its turns' tags.
+      conversation.source_ids = [...new Set([...((conversation.source_ids as string[]) ?? []), ...(tags ?? [])])].sort();
       return { rows: [this.messageRow(row)] };
     }
 
@@ -188,6 +192,11 @@ export class FakeAnalystDb implements SqlClient {
 
   messageCountOf(id: number): number {
     return this.messages.filter(m => Number(m.conversation_id) === id).length;
+  }
+
+  /** The source tags a conversation carries. */
+  sourceIdsOf(id: number): string[] {
+    return [...((this.conversations.get(id)?.source_ids as string[] | undefined) ?? [])];
   }
 
   allMessages(): Row[] {

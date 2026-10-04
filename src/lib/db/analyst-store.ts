@@ -77,7 +77,7 @@ const SELECT_RECENT_MESSAGES = `
 
 /**
  * Insert one turn, but only while the conversation exists and holds fewer than
- * the cap. `$12` is the cap; the guard runs in the same statement as the insert,
+ * the cap. `$12` is the cap, `$13` the turn's source tags; the guard runs in the same statement as the insert,
  * so two appends cannot both look under the limit and then both write.
  *
  * `message_count` is advanced from the conversation's own counter rather than
@@ -87,8 +87,8 @@ const SELECT_RECENT_MESSAGES = `
 const INSERT_MESSAGE = `
   WITH inserted AS (
     INSERT INTO analyst_messages
-      (conversation_id, role, content, title, status, provider, model, attribution, handler_id, payload, schema_version)
-    SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11
+      (conversation_id, role, content, title, status, provider, model, attribution, handler_id, payload, schema_version, source_ids)
+    SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $13::text[]
      WHERE EXISTS (SELECT 1 FROM analyst_conversations WHERE id = $1)
        AND (SELECT count(*) FROM analyst_messages WHERE conversation_id = $1) < $12
     RETURNING id, conversation_id, role, content, title, status, provider, model, attribution, handler_id, payload, created_at
@@ -96,7 +96,9 @@ const INSERT_MESSAGE = `
     UPDATE analyst_conversations c
        SET message_count = c.message_count + 1,
            updated_at    = now(),
-           revision      = c.revision + 1
+           revision      = c.revision + 1,
+           -- The conversation's tags are the union of its turns' tags.
+           source_ids    = ARRAY(SELECT DISTINCT s FROM unnest(c.source_ids || $13::text[]) AS s ORDER BY s)
      WHERE c.id = $1 AND EXISTS (SELECT 1 FROM inserted)
     RETURNING c.id
   )
@@ -226,6 +228,8 @@ export interface NewMessage {
   attribution?: string | null;
   handlerId?: string | null;
   payload?: StoredAssistantPayload | null;
+  /** Ids of the data sources whose data entered this turn (tags only). */
+  sourceIds?: string[];
 }
 
 export type InsertMessageResult =
@@ -258,6 +262,7 @@ export async function insertMessage(
     message.payload ? JSON.stringify(message.payload) : null,
     ANALYST_CONVERSATION_SCHEMA_VERSION,
     cap,
+    [...new Set(message.sourceIds ?? [])].sort(),
   ]);
   const row = result.rows[0];
   if (row) return { ok: true, message: toConversationMessage(row) };
