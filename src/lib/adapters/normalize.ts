@@ -30,6 +30,7 @@ import { convertUnit } from './units';
 import {
   dedupeByInterval,
   dedupeSameInstant,
+  deviceNameKey,
   sourceLabel,
   sourceRank,
   sourceRuleFor,
@@ -533,23 +534,86 @@ export function normalizeSleep(records: RawSleepRecord[], ctx: NormalizeContext)
 
 // ── Blood pressure ──────────────────────────────────────
 
-/** Every reading is kept individually: systolic/diastolic is a paired value. */
+/** Two readings this close in time may be one reading synced by two apps. */
+export const BP_SAME_READING_WINDOW_MS = 2 * 60_000;
+/** …and only when systolic and diastolic each differ by no more than this. */
+export const BP_SAME_READING_TOLERANCE_MMHG = 3;
+
+/**
+ * Every reading is kept individually: systolic/diastolic is a paired value.
+ *
+ * The one exception is a reading synced by two apps. Readings from two
+ * different devices within 2 minutes of each other whose systolic and
+ * diastolic each differ by at most 3 mmHg are one reading; the higher-ranked
+ * source under `cuff_first` is kept and the other is dropped, never averaged.
+ * Two readings from the same device are never merged.
+ */
 export function normalizeBloodPressure(
   records: RawBloodPressureRecord[],
   ctx: NormalizeContext
 ): BloodPressureObservation[] {
-  const out: BloodPressureObservation[] = [];
+  return normalizeBloodPressureWithCounts(records, ctx).observations;
+}
+
+export function normalizeBloodPressureWithCounts(
+  records: RawBloodPressureRecord[],
+  ctx: NormalizeContext
+): { observations: BloodPressureObservation[]; dropped: { total: number } } {
+  const rule = sourceRuleFor('blood_pressure');
+  // The instant is kept here, before the day is cut, and does not leave this function.
+  interface Reading {
+    instant: number;
+    deviceKey: string;
+    rank: number;
+    observation: BloodPressureObservation;
+  }
+  const readings: Reading[] = [];
   for (const r of records) {
     if (typeof r.systolic !== 'number' || typeof r.diastolic !== 'number') continue;
-    out.push({
-      date: dayKey(r.date, ctx.tz),
-      systolic: r.systolic,
-      diastolic: r.diastolic,
-      units: 'mmHg',
-      source: sourceLabel(r.source),
+    const source = r.source ?? '';
+    readings.push({
+      instant: Date.parse(r.date),
+      deviceKey: splitSources(source).map(deviceNameKey).sort().join('|'),
+      rank: sourceRank(source, rule),
+      observation: {
+        date: dayKey(r.date, ctx.tz),
+        systolic: r.systolic,
+        diastolic: r.diastolic,
+        units: 'mmHg',
+        source: sourceLabel(r.source),
+      },
     });
   }
-  return out.sort((a, b) => a.date.localeCompare(b.date));
+  readings.sort(
+    (a, b) =>
+      (Number.isFinite(a.instant) ? a.instant : Infinity) - (Number.isFinite(b.instant) ? b.instant : Infinity) ||
+      a.observation.date.localeCompare(b.observation.date)
+  );
+
+  const sameReading = (a: Reading, b: Reading): boolean =>
+    Number.isFinite(a.instant) &&
+    Number.isFinite(b.instant) &&
+    a.deviceKey !== b.deviceKey &&
+    Math.abs(a.instant - b.instant) <= BP_SAME_READING_WINDOW_MS &&
+    Math.abs(a.observation.systolic - b.observation.systolic) <= BP_SAME_READING_TOLERANCE_MMHG &&
+    Math.abs(a.observation.diastolic - b.observation.diastolic) <= BP_SAME_READING_TOLERANCE_MMHG;
+
+  const kept: Reading[] = [];
+  let dropped = 0;
+  for (const reading of readings) {
+    const i = kept.findIndex(k => sameReading(k, reading));
+    if (i === -1) {
+      kept.push(reading);
+      continue;
+    }
+    dropped += 1;
+    // Strictly better rank replaces; a tie keeps the earlier reading.
+    if (reading.rank < kept[i].rank) kept[i] = reading;
+  }
+  return {
+    observations: kept.map(k => k.observation).sort((a, b) => a.date.localeCompare(b.date)),
+    dropped: { total: dropped },
+  };
 }
 
 // ── Workouts ────────────────────────────────────────────
@@ -824,7 +888,8 @@ export function buildLiveDataset(raw: RawMetricBundle, options: BuildOptions): B
   // Blood pressure
   const bpRaw = (raw.metrics[BLOOD_PRESSURE_HAE_METRIC] ?? []) as RawBloodPressureRecord[];
   if (bpRaw.length > 0) {
-    const bp = normalizeBloodPressure(bpRaw, ctx);
+    const { observations: bp, dropped: bpDropped } = normalizeBloodPressureWithCounts(bpRaw, ctx);
+    droppedRecords += bpDropped.total;
     metrics['blood_pressure'] = bp;
     coverage['blood_pressure'] = coverageOf(
       bp.map(b => b.date),

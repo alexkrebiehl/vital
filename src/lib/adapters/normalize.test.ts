@@ -5,6 +5,7 @@ import {
   aggregatePerDay,
   buildLiveDataset,
   normalizeBloodPressure,
+  normalizeBloodPressureWithCounts,
   normalizeHeartRateDaily,
   normalizeSimpleMetric,
   normalizeSleep,
@@ -445,6 +446,70 @@ describe('one sleep episode per wake-up day', () => {
     expect(row.recordsRead).toBe(2);
     expect(row.recordsKept).toBe(1);
     expect(row.dedupeRule).toContain(SLEEP_ONE_PER_NIGHT_RULE);
+  });
+});
+
+// ── One reading synced by two apps (cuff_first) ──────────
+describe('blood pressure from two devices', () => {
+  const CUFF = "Sample's Cuff App";
+  const WATCH = "Sample's Apple Watch";
+  const T0 = Date.parse('2026-09-10T15:00:00.000Z');
+  const at = (minutes: number) => new Date(T0 + minutes * 60_000).toISOString();
+  const reading = (minutes: number, source: string, systolic = 120, diastolic = 80): RawBloodPressureRecord => ({
+    date: at(minutes),
+    source,
+    systolic,
+    diastolic,
+  });
+
+  it('treats two devices one minute apart with the same values as one reading', () => {
+    const { observations, dropped } = normalizeBloodPressureWithCounts(
+      [reading(0, WATCH), reading(1, CUFF)],
+      CTX
+    );
+    expect(observations).toHaveLength(1);
+    // The cuff outranks the watch under cuff_first, whichever arrived first.
+    expect(observations[0].source).toBe(sourceLabel(CUFF));
+    expect(dropped).toEqual({ total: 1 });
+  });
+
+  it('keeps two readings from the same device one minute apart', () => {
+    const { observations, dropped } = normalizeBloodPressureWithCounts(
+      [reading(0, CUFF), reading(1, CUFF)],
+      CTX
+    );
+    expect(observations).toHaveLength(2);
+    expect(dropped.total).toBe(0);
+  });
+
+  it('keeps two devices ten minutes apart as two readings', () => {
+    expect(normalizeBloodPressure([reading(0, CUFF), reading(10, WATCH)], CTX)).toHaveLength(2);
+  });
+
+  it('keeps two devices that disagree by more than 3 mmHg', () => {
+    expect(normalizeBloodPressure([reading(0, CUFF), reading(1, WATCH, 124, 80)], CTX)).toHaveLength(2);
+    expect(normalizeBloodPressure([reading(0, CUFF), reading(1, WATCH, 120, 84)], CTX)).toHaveLength(2);
+    expect(normalizeBloodPressure([reading(0, CUFF), reading(1, WATCH, 123, 77)], CTX)).toHaveLength(1);
+  });
+
+  it('merges at exactly 2 minutes and not at 2 minutes and a second', () => {
+    expect(normalizeBloodPressure([reading(0, CUFF), reading(2, WATCH)], CTX)).toHaveLength(1);
+    const late = { ...reading(2, WATCH), date: new Date(T0 + 2 * 60_000 + 1000).toISOString() };
+    expect(normalizeBloodPressure([reading(0, CUFF), late], CTX)).toHaveLength(2);
+  });
+
+  it('keeps the values as recorded and never averages the pair', () => {
+    const [kept] = normalizeBloodPressure([reading(0, CUFF, 121.5, 79.5), reading(0, WATCH, 123, 78)], CTX);
+    expect([kept.systolic, kept.diastolic]).toEqual([121.5, 79.5]);
+  });
+
+  it('is applied in the assembled stats', () => {
+    const built = buildLiveDataset(
+      { metrics: { blood_pressure: [reading(0, WATCH), reading(1, CUFF)] as unknown[] }, workouts: [] },
+      { tz: TZ, now: '2026-09-17T18:00:00.000Z', referenceKey: REFERENCE }
+    );
+    expect((built.dataset.metrics['blood_pressure'] as unknown[]).length).toBe(1);
+    expect(built.stats.droppedRecords).toBe(1);
   });
 });
 

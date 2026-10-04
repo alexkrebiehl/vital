@@ -44,7 +44,7 @@ import {
   type RawSimpleRecord,
   type RawSleepRecord,
   type RawWorkoutRecord,
-  normalizeBloodPressure,
+  normalizeBloodPressureWithCounts,
   normalizeSimpleMetric,
   normalizeSleep,
   sleepDedupeRule,
@@ -304,7 +304,8 @@ export async function fetchLiveDatasetUncached(deps: LiveDeps = {}): Promise<Liv
 
   // ── Blood pressure ────────────────────────────────────
   if (bpRaw.length > 0) {
-    const bp = normalizeBloodPressure(bpRaw, ctx);
+    const { observations: bp, dropped: bpDropped } = normalizeBloodPressureWithCounts(bpRaw, ctx);
+    droppedRecords += bpDropped.total;
     metrics['blood_pressure'] = bp;
     for (const b of bp) allDayKeys.push(b.date);
     const sources = [...new Set(bpRaw.flatMap(r => splitSources(r.source)))].sort();
