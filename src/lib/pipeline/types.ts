@@ -11,6 +11,7 @@ export type StageStatus = 'healthy' | 'degraded' | 'unknown' | 'unconfigured';
 export type StageId =
   | 'health_auto_export'
   | 'health_api'
+  | 'oura_api'
   | 'intelligence'
   | 'dashboard';
 
@@ -112,6 +113,7 @@ export const STAGE_STATUS_LABEL: Record<StageStatus, string> = {
 export const PIPELINE_ORDER: StageId[] = [
   'health_auto_export',
   'health_api',
+  'oura_api',
   'intelligence',
   'dashboard',
 ];

@@ -16,7 +16,7 @@ import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  Bell, Clock, Database, Dumbbell, Info, Palette, Ruler, Save, Shield, Trash2, TriangleAlert, UserRound,
+  Bell, Clock, Database, Dumbbell, Info, Palette, Plug, Ruler, Save, Shield, Trash2, TriangleAlert, UserRound,
 } from 'lucide-react';
 import { getAllMetrics, getMetric } from '@/lib/metrics';
 import { convertValue, displayUnit, formatMetricWithUnit, hasConversion } from '@/lib/metrics/format';
@@ -37,6 +37,7 @@ import { FreshnessIndicator } from '@/components/shell/FreshnessIndicator';
 import { useProfile } from '@/components/profile/ProfileProvider';
 import { LabUpload } from '@/components/settings/LabUpload';
 import { MapProvidersCard } from '@/components/settings/MapProviders';
+import { OuraConnection } from '@/components/settings/OuraConnection';
 import {
   PROFILE_NAME_MAX,
   PROFILE_NOTES_MAX,
@@ -635,6 +636,8 @@ function DataTab() {
 // ── Connections tab ─────────────────────────────────────
 
 function ConnectionsTab() {
+  const router = useRouter();
+  const ouraNotice = useSearchParams().get('oura');
   const [report, setReport] = useState<PipelineStatusReport | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -751,6 +754,14 @@ function ConnectionsTab() {
             and are never written to the database.
           </DataStateNote>
         </div>
+      </Card>
+
+      <Card className="p-6">
+        <OuraConnection
+          heading={title => <SectionHead icon={<Plug size={18} className="text-text-secondary" />} title={title} />}
+          noticeParam={ouraNotice}
+          onChanged={() => router.refresh()}
+        />
       </Card>
 
       <Card className="p-6">
