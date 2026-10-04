@@ -31,11 +31,16 @@ export interface BodyGoalSummary {
   arrivalAtPaceInUse: { weeks: number; date: string } | null;
   trendNote: string | null;
   maintenanceKcal: { fromWeightTrend: number | null; fromDevice: number | null; used: number | null; agreement: string | null };
+  /** Food logging in the last four weeks. Zero logged days is normal: most people do not log food. */
+  foodLog: { loggedDays: number; completeDays: number; note: string | null };
   intakeKcalPerDay: number | null;
   balanceKcalPerDay: number | null;
+  /** The deficit (negative) or surplus per day the weight trend implies on its own. */
+  balanceFromWeightTrendKcalPerDay: number | null;
   targets: { kcal: [number, number] | null; proteinG: [number, number]; fatFloorG: number; carbsG: [number, number] | null; fiberG: [number, number] | null; checkIn: string } | null;
   flags: string[];
-  logConsistency: string;
+  /** Whether logged macros add up to logged calories; null when nothing is logged to check. */
+  logConsistency: string | null;
 }
 
 export function bodyGoalSummary(report: BodyGoalReport, system: UnitSystem): BodyGoalSummary {
@@ -68,8 +73,16 @@ export function bodyGoalSummary(report: BodyGoalReport, system: UnitSystem): Bod
     arrivalAtPaceInUse: projection?.chosen ? { weeks: r(projection.chosen.weeks, 1)!, date: projection.chosen.arrival } : null,
     trendNote: projection?.trendNote ?? null,
     maintenanceKcal: { fromWeightTrend: r(energy.adaptive, 0), fromDevice: r(energy.device, 0), used: r(energy.maintenance, 0), agreement: energy.agreementText },
+    foodLog: {
+      loggedDays: energy.days.logged.length,
+      completeDays: energy.days.complete.length,
+      note: energy.foodLogged
+        ? null
+        : 'No food is logged. That is normal and not a problem: the goal is read from weigh-ins, and the calorie target (when present) comes from the device estimate of maintenance.',
+    },
     intakeKcalPerDay: r(energy.intake, 0),
     balanceKcalPerDay: r(energy.balance, 0),
+    balanceFromWeightTrendKcalPerDay: r(energy.trendBalance, 0),
     targets: targets
       ? {
           kcal: targets.calories ? [targets.calories.min, targets.calories.max] : null,
@@ -81,6 +94,6 @@ export function bodyGoalSummary(report: BodyGoalReport, system: UnitSystem): Bod
         }
       : null,
     flags,
-    logConsistency: report.consistency.summary,
+    logConsistency: report.consistency.checked > 0 ? report.consistency.summary : null,
   };
 }

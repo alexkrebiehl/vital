@@ -14,7 +14,7 @@ import { Card, DataStateNote, Skeleton } from '@/components/ui/primitives';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { useDatasetMeta } from '@/components/data/DatasetProvider';
 import { SectionTitle } from '@/components/domain/DomainShared';
-import { REFERENCE_KEY, seriesFor } from '@/lib/adapters/dataset';
+import { REFERENCE_KEY, metricHasData, seriesFor } from '@/lib/adapters/dataset';
 import { addDays, formatDayKeyLong } from '@/lib/analytics/windows';
 import { TREND_DAYS } from '@/lib/body-goal/constants';
 import { macroConsistency, type MacroConsistency } from '@/lib/body-goal/consistency';
@@ -44,6 +44,7 @@ export function NutritionGoalPanel() {
     [meta.generatedAt, meta.referenceKey]
   );
   const months = report?.months ?? standalone.months;
+  const foodLogged = metricHasData('dietary_energy');
   const consistency = report?.consistency ?? standalone.consistency;
 
   return (
@@ -63,7 +64,7 @@ export function NutritionGoalPanel() {
               <p className="text-text-secondary leading-relaxed">
                 {active
                   ? report?.phase.reason ?? 'The targets are worked out from your current weight and trend.'
-                  : 'With a target weight or body-fat percentage, this page shows calories, protein, carbs, fat and fiber to aim for, and how many logged days met them.'}
+                  : `With a target weight or body-fat percentage, this page shows calories, protein, carbs, fat and fiber to aim for${foodLogged ? ', and how many logged days met them' : ' — no food log needed'}.`}
               </p>
               <Link href="/body" className="inline-flex items-center gap-1 text-primary hover:underline">
                 {active ? 'Open Body' : 'Set a goal on Body'} <ChevronRight size={14} aria-hidden="true" />
@@ -83,12 +84,15 @@ export function NutritionGoalPanel() {
 function TargetsSection({ report, units }: { report: BodyGoalReport; units: UnitSystem }) {
   const t = report.targets!;
   const a = report.adherence as Adherence;
+  // Most people do not log food: then the targets stand on their own, with no
+  // "logged" or "days" columns to sit empty.
+  const logged = report.energy.foodLogged && a.completeDays > 0;
   const derived = report.consistency.useDerivedFat;
   const fatAvg = derived ? a.averages.derivedFat : a.averages.fat;
   const days = (n: number | null, of: number) => (n === null || of === 0 ? '—' : `${n} of ${of}`);
   const phase = report.phase.phase!;
   const rows = [
-    { label: 'Calories', target: formatRange(t.calories, 'kcal'), logged: formatKcal(a.averages.kcal), met: days(a.caloriesInRange, a.completeDays), metNote: 'in range' },
+    t.calories && { label: 'Calories', target: formatRange(t.calories, 'kcal'), logged: formatKcal(a.averages.kcal), met: days(a.caloriesInRange, a.completeDays), metNote: 'in range' },
     {
       label: 'Protein',
       target: `${formatRange(t.protein, 'g')}${t.proteinPerLeanKg ? ` · ${t.proteinPerLeanKg.min.toFixed(1)}–${t.proteinPerLeanKg.max.toFixed(1)} g per kg lean` : ''}`,
@@ -96,24 +100,34 @@ function TargetsSection({ report, units }: { report: BodyGoalReport; units: Unit
       met: days(a.proteinAtFloor, a.proteinDays),
       metNote: `at ${t.proteinFloor} g or more`,
     },
-    { label: 'Carbs', target: formatRange(t.carbs, 'g'), logged: formatGrams(a.averages.carbs), met: '', metNote: 'the rest of the calories' },
+    t.carbs && { label: 'Carbs', target: formatRange(t.carbs, 'g'), logged: formatGrams(a.averages.carbs), met: '', metNote: 'the rest of the calories' },
     { label: derived ? 'Fat (derived†)' : 'Fat', target: `at least ${t.fatFloor} g${t.fat ? ` · typically ${formatRange(t.fat, 'g')}` : ''}`, logged: formatGrams(fatAvg), met: '', metNote: 'floor for hormone health' },
-    { label: 'Fiber', target: formatRange(t.fiber, 'g'), logged: formatGrams(a.averages.fiber), met: days(a.fiberAtTarget, a.fiberDays), metNote: 'at target' },
-  ];
+    t.fiber && { label: 'Fiber', target: formatRange(t.fiber, 'g'), logged: formatGrams(a.averages.fiber), met: days(a.fiberAtTarget, a.fiberDays), metNote: 'at target' },
+  ].filter((r): r is NonNullable<typeof r> & object => Boolean(r));
   const maintenance = report.energy.maintenance;
+  const calorieNote =
+    maintenance === null
+      ? 'There is no maintenance estimate yet — it needs basal and active energy from a watch, or a few weeks of logged food — so there is no calorie target. The weight trend on Body is the guide.'
+      : phase === 'maintain'
+        ? `Calories are set at maintenance (${formatKcal(maintenance)} a day) to hold the goal.`
+        : `Calories are maintenance (${formatKcal(maintenance)} a day, ${report.energy.maintenanceSource === 'weight-trend' ? 'from your weight trend' : 'your watch’s estimate'}) ${t.dailyEnergyDelta < 0 ? 'minus' : 'plus'} ${formatKcal(Math.abs(t.dailyEnergyDelta))} for ${formatRate(report.pace!.kgPerWeek, units)}.`;
   return (
     <section>
-      <SectionTitle hint={`${PHASE_LABEL[phase]} · logged days ${formatDayKeyLong(a.from)} – ${formatDayKeyLong(a.to)}`}>Daily targets for your goal</SectionTitle>
+      <SectionTitle hint={logged ? `${PHASE_LABEL[phase]} · logged days ${formatDayKeyLong(a.from)} – ${formatDayKeyLong(a.to)}` : PHASE_LABEL[phase]}>
+        Daily targets for your goal
+      </SectionTitle>
       <Card className="p-4 md:p-6">
-        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Daily targets against logged intake">
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label={logged ? 'Daily targets against logged intake' : 'Daily targets'}>
           <table className="w-full text-sm text-left">
-            <caption className="sr-only">Daily targets for the goal beside the average of complete logged days</caption>
+            <caption className="sr-only">
+              {logged ? 'Daily targets for the goal beside the average of complete logged days' : 'Daily targets for the goal'}
+            </caption>
             <thead>
               <tr className="border-b border-border text-xs text-text-secondary">
                 <th scope="col" className="py-2 pr-4 font-medium">Nutrient</th>
                 <th scope="col" className="py-2 pr-4 font-medium">Target per day</th>
-                <th scope="col" className="py-2 pr-4 font-medium">Logged average</th>
-                <th scope="col" className="py-2 font-medium">Days</th>
+                {logged && <th scope="col" className="py-2 pr-4 font-medium">Logged average</th>}
+                {logged && <th scope="col" className="py-2 font-medium">Days</th>}
               </tr>
             </thead>
             <tbody>
@@ -121,10 +135,12 @@ function TargetsSection({ report, units }: { report: BodyGoalReport; units: Unit
                 <tr key={r.label} className="border-b border-border/50 text-text-primary">
                   <td className="py-2.5 pr-4">{r.label}</td>
                   <td className="py-2.5 pr-4 tnum">{r.target}</td>
-                  <td className="py-2.5 pr-4 tnum">{r.logged}</td>
-                  <td className="py-2.5 tnum text-[12px]">
-                    {r.met} <span className="text-text-secondary">{r.metNote}</span>
-                  </td>
+                  {logged && <td className="py-2.5 pr-4 tnum">{r.logged}</td>}
+                  {logged && (
+                    <td className="py-2.5 tnum text-[12px]">
+                      {r.met} <span className="text-text-secondary">{r.metNote}</span>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -132,16 +148,20 @@ function TargetsSection({ report, units }: { report: BodyGoalReport; units: Unit
         </div>
         <div className="mt-3 space-y-1">
           <DataStateNote>
-            {phase === 'maintain'
-              ? `Calories are set at maintenance (${formatKcal(maintenance)} a day) to hold the goal.`
-              : `Calories are maintenance (${formatKcal(maintenance)} a day, ${report.energy.maintenanceSource === 'weight-trend' ? 'from your weight trend' : 'the device estimate'}) ${t.dailyEnergyDelta < 0 ? 'minus' : 'plus'} ${formatKcal(Math.abs(t.dailyEnergyDelta))} for ${formatRate(report.pace!.kgPerWeek, units)}.`}{' '}
-            Protein is set per kg of body weight, higher in a deficit to keep muscle.
+            {calorieNote} Protein is set per kg of body weight, higher in a deficit to keep muscle.
           </DataStateNote>
           <DataStateNote>{t.checkIn}</DataStateNote>
-          <DataStateNote>
-            {a.completeDays} complete logged days{a.partialDays ? `; ${a.partialDays} partial log${a.partialDays === 1 ? '' : 's'} left out` : ''}. Days without a log are not counted.
-          </DataStateNote>
-          {derived && <DataStateNote>† Derived from calories, protein and carbs, because the logged fat does not add up (see Log consistency).</DataStateNote>}
+          {logged ? (
+            <DataStateNote>
+              {a.completeDays} complete logged days{a.partialDays ? `; ${a.partialDays} partial log${a.partialDays === 1 ? '' : 's'} left out` : ''}. Days without a log are not counted.
+            </DataStateNote>
+          ) : (
+            <DataStateNote>
+              No food is logged in the last four weeks, which is fine — these are targets to eat to, not a log to keep. If you
+              log meals in an app that writes to Apple Health, this table also shows how your days compare.
+            </DataStateNote>
+          )}
+          {logged && derived && <DataStateNote>† Derived from calories, protein and carbs, because the logged fat does not add up (see Log consistency).</DataStateNote>}
         </div>
       </Card>
     </section>

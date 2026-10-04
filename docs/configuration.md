@@ -185,6 +185,11 @@ pace. It is set from the Body page and stored in the `body_goals` table (migrati
   four-week weight slope × 7,700 kcal/kg; needs 10 complete logged days and 4 weigh-ins) and from
   the device (basal + active energy). The weight-trend estimate is used when there is one.
   Logged days under 60 % of the window's median are treated as partial logs and left out.
+- **No food log needed.** Most people do not count calories. Without one, the goal is tracked from
+  weigh-ins alone: the weight trend gives the daily deficit or surplus, the watch gives maintenance
+  (so there is still a calorie target), and protein comes from body weight. The logged-intake
+  sections, the month table and the macro check appear only once food is logged. With neither a
+  food log nor basal energy there is no calorie number, and the pages say so.
 - **Projections, not deadlines.** Arrival dates are worked out from a pace. Nothing is ever shown
   as behind or overdue.
 - **Everywhere the goal matters.** The Overview shows a goal tile, the daily briefing leads with

@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { ChevronRight, Info, UtensilsCrossed } from 'lucide-react';
 import { getMetric, getMetricsByCategory } from '@/lib/metrics';
 import { formatMetricWithUnit } from '@/lib/metrics/format';
-import { REFERENCE_KEY, coverageFor, seriesFor, seriesInWindow } from '@/lib/adapters/dataset';
+import { REFERENCE_KEY, coverageFor, metricHasData, seriesFor, seriesInWindow } from '@/lib/adapters/dataset';
 import {
   ASSOCIATION_NOTE,
   computeRelationship,
@@ -92,6 +92,23 @@ export function NutritionPage() {
   const extraNutrients = getMetricsByCategory('nutrition').filter(
     m => !HEADLINE.includes(m.id as (typeof HEADLINE)[number])
   );
+
+  // Most people do not log food. With nothing logged anywhere in the dataset the
+  // logged-intake sections would be empty tables, so the page is the goal's
+  // targets alone and says why.
+  const anyLogged = HEADLINE.some(id => metricHasData(id)) || extraNutrients.some(m => metricHasData(m.id));
+  if (!anyLogged) {
+    return (
+      <div className="space-y-8">
+        <DomainHeader
+          title="Nutrition"
+          eyebrow="Body"
+          subtitle="What to eat for your goal. No food is logged in your data, which is fine: daily targets come from your weight, your weight trend and your watch, not from a food log."
+        />
+        <NutritionGoalPanel />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

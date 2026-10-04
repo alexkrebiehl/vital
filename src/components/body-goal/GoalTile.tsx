@@ -59,11 +59,19 @@ export function GoalTile() {
                 {phase.phase === 'maintain' ? 'At the goal' : projection?.chosen ? formatDayKeyLong(projection.chosen.arrival) : '—'}
               </dd>
             </div>
-            <div>
-              <dt className="text-xs text-text-secondary">Calories to aim for</dt>
-              <dd className="tnum text-text-primary">{targets?.calories ? formatRange(targets.calories, 'kcal') : '—'}</dd>
-              {report.energy.maintenance !== null && <dd className="text-[11px] text-text-secondary">maintenance ≈ {formatKcal(report.energy.maintenance)}</dd>}
-            </div>
+            {targets?.calories ? (
+              <div>
+                <dt className="text-xs text-text-secondary">Calories to aim for</dt>
+                <dd className="tnum text-text-primary">{formatRange(targets.calories, 'kcal')}</dd>
+                {report.energy.maintenance !== null && <dd className="text-[11px] text-text-secondary">maintenance ≈ {formatKcal(report.energy.maintenance)}</dd>}
+              </div>
+            ) : targets ? (
+              <div>
+                <dt className="text-xs text-text-secondary">Protein to aim for</dt>
+                <dd className="tnum text-text-primary">{formatRange(targets.protein, 'g')}</dd>
+                <dd className="text-[11px] text-text-secondary">a day, from body weight</dd>
+              </div>
+            ) : null}
           </dl>
         </>
       )}

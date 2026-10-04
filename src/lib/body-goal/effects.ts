@@ -127,7 +127,8 @@ export function recoveryEffects(
   workoutDays: string[],
   today: string,
   system: UnitSystem,
-  phase: GoalPhase
+  /** True when the weight trend is falling — a deficit in fact, not just in intent. */
+  losing: boolean
 ): (RecoveryIndicator & { goalAdvice: string | null })[] {
   const indicators = recoveryIndicators({ series, trainingDays: workoutDays, today, system }, GOAL_RECOVERY_GATES)
     .filter(i => i.signal === 'resting_hr' || i.signal === 'hrv' || i.signal === 'sleep_hours')
@@ -136,7 +137,7 @@ export function recoveryEffects(
     ...i,
     goalAdvice:
       i.status === 'watch' || i.status === 'warn'
-        ? phase === 'cut'
+        ? losing
           ? `In a deficit this is an early sign to ease off: add ${CHECK_IN_ADJUST_KCAL.min}–${CHECK_IN_ADJUST_KCAL.max} kcal a day or slow the pace for a week or two.`
           : 'Worth watching; it is less often a nutrition signal outside a deficit.'
         : null,

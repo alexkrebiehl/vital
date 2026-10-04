@@ -115,7 +115,11 @@ export function bodyGoalReport(goal: BodyGoal, inputs: BodyGoalInputs): BodyGoal
   if (phase.phase === 'maintain') progress = 1;
 
   const weightKg = weight.current?.value ?? null;
-  const leanShare = observedLeanShare(series, anchor, today);
+  // The lean share of a change only says something about this goal when weight
+  // moved the goal's way: the share measured while gaining says nothing about a cut.
+  const observed = observedLeanShare(series, anchor, today);
+  const goalDirection = phase.phase === 'cut' ? -1 : phase.phase === 'bulk' ? 1 : 0;
+  const leanShare = observed && Math.sign(observed.weightChangeKg) === goalDirection ? observed : null;
   const monthsBase = { months: 6 } as const;
 
   if (!phase.phase || weightKg === null) {
@@ -193,7 +197,7 @@ export function bodyGoalReport(goal: BodyGoal, inputs: BodyGoalInputs): BodyGoal
     effects: {
       rate: rateEffect(phase.phase, weight.ratePct, weight.rateKgPerWeek === null ? null : formatKg(Math.abs(weight.rateKgPerWeek), system)),
       lean: leanEffect(phase.phase, leanShare, kg => formatSignedKg(kg, system)),
-      recovery: recoveryEffects(series, workoutDays, today, system, phase.phase),
+      recovery: recoveryEffects(series, workoutDays, today, system, (weight.rateKgPerWeek ?? 0) < 0),
       activity: activityComparison(series, workoutDays, anchor, today),
       activeShare: activeShareOfMaintenance(series, today, energy.maintenance),
     },

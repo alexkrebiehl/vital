@@ -9,6 +9,11 @@
 //                 basal figure is computed from body weight, so it falls as
 //                 weight falls — that alone is not metabolic slowdown.
 //
+// No food log at all is the common case, not an error: most people do not
+// count calories. Then maintenance comes from the device alone, and the
+// weight trend still says how big the deficit or surplus is
+// (`trendBalance`), because that needs only weigh-ins.
+//
 // Partial logs: a logged day far below the window's median is almost always a
 // day the reader stopped logging, not a day they ate 800 kcal. Those days are
 // left out of the intake mean and listed, so the exclusion is visible. Days
@@ -59,6 +64,8 @@ export interface EnergyBalance {
   from: string;
   to: string;
   days: LoggedDays;
+  /** True when any calories are logged in the window. Most people do not log food. */
+  foodLogged: boolean;
   /** Mean logged calories on complete days. */
   intake: number | null;
   /** Weight slope over the window, kg/week. */
@@ -78,6 +85,8 @@ export interface EnergyBalance {
   maintenanceSource: 'weight-trend' | 'device' | null;
   /** Intake − maintenance, kcal/day. Negative is a deficit. */
   balance: number | null;
+  /** The daily deficit (negative) or surplus the weight trend implies on its own — no food log needed. */
+  trendBalance: number | null;
   agreement: EnergyAgreement | null;
   agreementText: string | null;
 }
@@ -92,7 +101,9 @@ export function energyBalance(series: (id: string) => DayValue[], today: string)
 
   let adaptive: number | null = null;
   let adaptiveReason: string | null = null;
-  if (days.complete.length < MIN_ENERGY_LOGGED_DAYS) {
+  if (days.logged.length === 0) {
+    adaptiveReason = 'No food is logged, so maintenance cannot be worked out from what you eat and how your weight moves.';
+  } else if (days.complete.length < MIN_ENERGY_LOGGED_DAYS) {
     adaptiveReason = `Needs at least ${MIN_ENERGY_LOGGED_DAYS} complete logged days in the last ${TREND_DAYS}; there are ${days.complete.length}.`;
   } else if (weights.length < MIN_ENERGY_WEIGH_INS || slope === null) {
     adaptiveReason = `Needs at least ${MIN_ENERGY_WEIGH_INS} weigh-ins in the last ${TREND_DAYS} days; there are ${weights.length}.`;
@@ -132,6 +143,7 @@ export function energyBalance(series: (id: string) => DayValue[], today: string)
     from,
     to,
     days,
+    foodLogged: days.logged.length > 0,
     intake,
     weightRateKgPerWeek: slope === null ? null : slope * 7,
     weighIns: weights.length,
@@ -145,6 +157,7 @@ export function energyBalance(series: (id: string) => DayValue[], today: string)
     maintenance,
     maintenanceSource: adaptive !== null ? 'weight-trend' : device !== null ? 'device' : null,
     balance: maintenance !== null && intake !== null ? intake - maintenance : null,
+    trendBalance: slope === null ? null : slope * KCAL_PER_KG,
     agreement,
     agreementText,
   };

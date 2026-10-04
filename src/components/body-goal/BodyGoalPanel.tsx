@@ -109,7 +109,7 @@ export function BodyGoalPanel() {
       />
       {dialog}
       <TrajectorySection report={report} units={units} />
-      <EnergySection report={report} />
+      <EnergySection report={report} units={units} />
       <PaceSection report={report} units={units} />
       <DriversSection report={report} />
       <ResponseSection report={report} />
@@ -260,36 +260,55 @@ function TrajectorySection({ report, units }: { report: BodyGoalReport; units: U
 
 // ── Energy balance ──────────────────────────────────────
 
-function EnergySection({ report }: { report: BodyGoalReport }) {
+function EnergySection({ report, units }: { report: BodyGoalReport; units: UnitSystem }) {
   const e = report.energy;
-  if (e.intake === null && e.device === null) return null;
-  const rows: { label: string; value: string; note?: string }[] = [
-    {
-      label: 'Logged intake',
-      value: e.intake !== null ? `${formatKcal(e.intake)}/day` : '—',
-      note: `${e.days.complete.length} complete logged days in the last ${TREND_DAYS}${e.days.partial.length ? `; ${e.days.partial.length} partial log${e.days.partial.length === 1 ? '' : 's'} left out (${e.days.partial.map(d => formatDayKeyLong(d.key)).join(', ')})` : ''}`,
-    },
-    {
-      label: 'Maintenance, from your weight trend',
-      value: e.adaptive !== null ? `${formatKcal(e.adaptive)}/day` : '—',
-      note: e.adaptive !== null ? 'Logged intake minus the weight trend in energy (7,700 kcal per kg).' : e.adaptiveReason ?? undefined,
-    },
-    {
-      label: 'Maintenance, device estimate',
-      value: e.device !== null ? `${formatKcal(e.device)}/day` : '—',
-      note: e.device !== null
-        ? `Basal ${formatKcal(e.deviceBasal)} + active ${formatKcal(e.deviceActive)}, ${e.deviceDays} days. Basal is computed from body weight, so it falls as weight falls.`
-        : e.deviceReason ?? undefined,
-    },
-    {
-      label: 'Daily balance',
-      value: e.balance !== null ? formatSignedKcal(e.balance) : '—',
-      note: e.balance !== null ? (e.balance < 0 ? 'A deficit: eating below maintenance.' : 'A surplus: eating above maintenance.') : undefined,
-    },
-  ];
+  const rows: { label: string; value: string; note?: string }[] = [];
+  const trendRow = e.trendBalance !== null && {
+    label: 'Daily balance, from your weight trend',
+    value: formatSignedKcal(e.trendBalance),
+    note: `${e.trendBalance < 0 ? 'A deficit' : 'A surplus'} of about this much a day is what moving ${formatRate(e.weightRateKgPerWeek!, units)} takes (7,700 kcal per kg). It needs only weigh-ins.`,
+  };
+  const deviceRow = {
+    label: 'Maintenance, device estimate',
+    value: e.device !== null ? `${formatKcal(e.device)}/day` : '—',
+    note: e.device !== null
+      ? `Basal ${formatKcal(e.deviceBasal)} + active ${formatKcal(e.deviceActive)}, ${e.deviceDays} days. Basal is computed from body weight, so it falls as weight falls.`
+      : e.deviceReason ?? undefined,
+  };
+
+  if (!e.foodLogged) {
+    // The common case: no food log. Everything here comes from weigh-ins and the watch.
+    if (trendRow) rows.push(trendRow);
+    if (e.device !== null) rows.push(deviceRow);
+    if (rows.length === 0) return null;
+  } else {
+    rows.push(
+      {
+        label: 'Logged intake',
+        value: e.intake !== null ? `${formatKcal(e.intake)}/day` : '—',
+        note: `${e.days.complete.length} complete logged days in the last ${TREND_DAYS}${e.days.partial.length ? `; ${e.days.partial.length} partial log${e.days.partial.length === 1 ? '' : 's'} left out (${e.days.partial.map(d => formatDayKeyLong(d.key)).join(', ')})` : ''}`,
+      },
+      {
+        label: 'Maintenance, from your weight trend',
+        value: e.adaptive !== null ? `${formatKcal(e.adaptive)}/day` : '—',
+        note: e.adaptive !== null ? 'Logged intake minus the weight trend in energy (7,700 kcal per kg).' : e.adaptiveReason ?? undefined,
+      },
+      deviceRow,
+    );
+    if (e.balance !== null) {
+      rows.push({
+        label: 'Daily balance',
+        value: formatSignedKcal(e.balance),
+        note: e.balance < 0 ? 'A deficit: eating below maintenance.' : 'A surplus: eating above maintenance.',
+      });
+    } else if (trendRow) {
+      rows.push(trendRow);
+    }
+  }
+
   return (
     <section>
-      <SectionTitle hint={`last ${TREND_DAYS} days · logged days only`}>Energy balance</SectionTitle>
+      <SectionTitle hint={`last ${TREND_DAYS} days${e.foodLogged ? ' · logged days only' : ''}`}>Energy balance</SectionTitle>
       <Card className="p-4 md:p-6">
         <dl className="divide-y divide-border">
           {rows.map(r => (
@@ -300,7 +319,15 @@ function EnergySection({ report }: { report: BodyGoalReport }) {
             </div>
           ))}
         </dl>
-        {e.agreementText && <div className="mt-3"><DataStateNote>{e.agreementText}</DataStateNote></div>}
+        <div className="mt-3 space-y-1">
+          {e.agreementText && <DataStateNote>{e.agreementText}</DataStateNote>}
+          {!e.foodLogged && (
+            <DataStateNote>
+              No food is logged, which is fine — the goal is tracked from your weigh-ins. If you do log meals in an app that
+              writes to Apple Health, maintenance is also worked out from what you eat and how your weight moves.
+            </DataStateNote>
+          )}
+        </div>
       </Card>
     </section>
   );
@@ -386,6 +413,7 @@ function DriversSection({ report }: { report: BodyGoalReport }) {
   const t = report.targets;
   const a = report.adherence;
   const activity = report.effects.activity;
+  const logged = report.energy.foodLogged;
   if (!t && activity.rows.length === 0) return null;
   const fmt = (id: string, v: number | null) => {
     if (v === null) return '—';
@@ -399,33 +427,60 @@ function DriversSection({ report }: { report: BodyGoalReport }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {t && (
           <Card className="p-4 md:p-6 flex flex-col">
-            <p className="text-sm font-medium text-text-primary mb-3">Eating, against the targets</p>
-            <dl className="text-sm space-y-2">
-              <div className="flex justify-between gap-3">
-                <dt className="text-text-secondary">Calories</dt>
-                <dd className="tnum text-text-primary text-right">
-                  {formatKcal(a?.averages.kcal ?? null)} <span className="text-text-secondary">· target {formatRange(t.calories, 'kcal')}</span>
-                </dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt className="text-text-secondary">Protein</dt>
-                <dd className="tnum text-text-primary text-right">
-                  {formatGrams(a?.averages.protein ?? null)} <span className="text-text-secondary">· target {formatRange(t.protein, 'g')}</span>
-                </dd>
-              </div>
-              {a && a.completeDays > 0 && (
-                <div className="flex justify-between gap-3">
-                  <dt className="text-text-secondary">Days on target</dt>
-                  <dd className="tnum text-text-primary text-right">
-                    {a.caloriesInRange !== null && `${a.caloriesInRange} of ${a.completeDays} in the calorie range · `}
-                    {a.proteinAtFloor} of {a.proteinDays} at {t.proteinFloor} g protein or more
-                  </dd>
-                </div>
-              )}
-            </dl>
+            {logged ? (
+              <>
+                <p className="text-sm font-medium text-text-primary mb-3">Eating, against the targets</p>
+                <dl className="text-sm space-y-2">
+                  {t.calories && (
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-text-secondary">Calories</dt>
+                      <dd className="tnum text-text-primary text-right">
+                        {formatKcal(a?.averages.kcal ?? null)} <span className="text-text-secondary">· target {formatRange(t.calories, 'kcal')}</span>
+                      </dd>
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-text-secondary">Protein</dt>
+                    <dd className="tnum text-text-primary text-right">
+                      {formatGrams(a?.averages.protein ?? null)} <span className="text-text-secondary">· target {formatRange(t.protein, 'g')}</span>
+                    </dd>
+                  </div>
+                  {a && a.completeDays > 0 && (
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-text-secondary">Days on target</dt>
+                      <dd className="tnum text-text-primary text-right">
+                        {a.caloriesInRange !== null && `${a.caloriesInRange} of ${a.completeDays} in the calorie range · `}
+                        {a.proteinAtFloor} of {a.proteinDays} at {t.proteinFloor} g protein or more
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-medium text-text-primary mb-3">Eating for this pace</p>
+                <dl className="text-sm space-y-2">
+                  {t.calories && (
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-text-secondary">Calories</dt>
+                      <dd className="tnum text-text-primary text-right">{formatRange(t.calories, 'kcal')} a day</dd>
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-text-secondary">Protein</dt>
+                    <dd className="tnum text-text-primary text-right">{formatRange(t.protein, 'g')} a day</dd>
+                  </div>
+                </dl>
+                <p className="mt-3 text-[11px] text-text-secondary leading-relaxed">
+                  {t.calories
+                    ? 'Calories are your watch’s maintenance estimate adjusted for the pace. Nothing needs logging: if the weight trend runs faster or slower than the pace, eat a little more or less.'
+                    : 'Without a food log or basal energy from a watch there is no maintenance estimate, so there is no calorie number — the weight trend above is the guide. Protein is set from body weight.'}
+                </p>
+              </>
+            )}
             <div className="mt-auto pt-3">
               <Link href="/body/nutrition" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
-                All targets and the month-by-month log
+                {logged ? 'All targets and the month-by-month log' : 'All daily targets'}
                 <ChevronRight size={14} aria-hidden="true" />
               </Link>
             </div>

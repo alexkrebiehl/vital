@@ -236,7 +236,7 @@ function GoalForm({
             </p>
           )}
           {!preview.targets?.calories && (
-            <p className="text-[11px] text-text-secondary">A calorie target appears once there are enough logged days and weigh-ins to estimate maintenance.</p>
+            <p className="text-[11px] text-text-secondary">No calorie number yet: that needs a maintenance estimate, from basal and active energy on a watch or a few weeks of logged food. The pace is still tracked from your weigh-ins.</p>
           )}
           {preview.pace.pct > 1 && preview.phase.phase === 'cut' && (
             <p className="text-[11px] text-category-attention">Above about 1 % of body weight a week, more of what is lost tends to be muscle.</p>

@@ -311,6 +311,16 @@ describe('bodyGoalReport', () => {
     expect(report.bodyFatAtGoal).not.toBeNull();
   });
 
+  it('ignores a lean share measured while moving away from the goal', () => {
+    // The cut series is losing weight, so a gain goal set at its start sees the
+    // change run the wrong way: no observed scenario, no lean-mass verdict.
+    const report = bodyGoalReport(goal({ kind: 'body_fat', target: 25 }), { series: lookup(cutSeries()), workoutDays: [], today: TODAY, sex: 'male', system: 'metric' });
+    expect(report.phase.phase).toBe('bulk');
+    expect(report.leanShare).toBeNull();
+    expect(report.scenarios.map(s => s.id)).not.toContain('observed');
+    expect(report.effects.lean).toBeNull();
+  });
+
   it('shows no progress on the day a goal is set', () => {
     const report = bodyGoalReport(goal({ kind: 'weight', target: 85, startedOn: TODAY }), { series: lookup(cutSeries()), workoutDays: [], today: TODAY, sex: null, system: 'metric' });
     expect(report.start.value).toBeCloseTo(report.weight.current!.value, 6);
@@ -330,5 +340,52 @@ describe('bodyGoalReport', () => {
     expect(report.phase.phase).toBeNull();
     expect(report.phase.reason).toMatch(/body-fat reading/);
     expect(report.targets).toBeNull();
+  });
+});
+
+describe('without a food log (most people)', () => {
+  const noFood = () => {
+    const data = cutSeries();
+    for (const id of ['dietary_energy', 'dietary_protein', 'dietary_carbs', 'dietary_fat_total']) delete (data as Record<string, unknown>)[id];
+    return data;
+  };
+
+  it('tracks the goal from weigh-ins, with maintenance from the watch and the balance from the trend', () => {
+    const report = bodyGoalReport(goal(), { series: lookup(noFood()), workoutDays: [], today: TODAY, sex: 'male', system: 'imperial' });
+    expect(report.phase.phase).toBe('cut');
+    expect(report.projection!.chosen).not.toBeNull();
+    expect(report.energy.foodLogged).toBe(false);
+    expect(report.energy.intake).toBeNull();
+    expect(report.energy.balance).toBeNull();
+    expect(report.energy.adaptiveReason).toMatch(/No food is logged/);
+    expect(report.energy.maintenanceSource).toBe('device');
+    // 2 lb/week ≈ 1,000 kcal/day, from weigh-ins alone.
+    expect(report.energy.trendBalance!).toBeLessThan(-900);
+    expect(report.targets!.calories).not.toBeNull();
+    expect(report.months).toEqual([]);
+    expect(report.consistency.checked).toBe(0);
+    expect(report.adherence!.completeDays).toBe(0);
+
+    const summary = bodyGoalSummary(report, 'imperial');
+    expect(summary.foodLog.loggedDays).toBe(0);
+    expect(summary.foodLog.note).toMatch(/normal/);
+    expect(summary.logConsistency).toBeNull();
+    expect(summary.intakeKcalPerDay).toBeNull();
+    expect(summary.balanceFromWeightTrendKcalPerDay!).toBeLessThan(-900);
+  });
+
+  it('still gives protein and fat targets and a pace with no food log and no watch', () => {
+    const data = noFood();
+    delete (data as Record<string, unknown>).basal_energy_burned;
+    delete (data as Record<string, unknown>).active_energy;
+    const report = bodyGoalReport(goal({ kind: 'weight', target: 75 }), { series: lookup(data), workoutDays: [], today: TODAY, sex: null, system: 'metric' });
+    expect(report.energy.maintenance).toBeNull();
+    expect(report.targets!.calories).toBeNull();
+    expect(report.targets!.carbs).toBeNull();
+    expect(report.targets!.fiber).toBeNull();
+    expect(report.targets!.protein.min).toBeGreaterThan(0);
+    expect(report.projection!.rows.length).toBeGreaterThan(0);
+    expect(report.effects.activity.rows.filter(r => r.id !== 'workouts' && r.id !== 'step_count')).toEqual([]);
+    expect(bodyGoalSummary(report, 'metric').targets!.kcal).toBeNull();
   });
 });
