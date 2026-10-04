@@ -9,7 +9,9 @@ import {
   effectivePace,
   energyBalance,
   goalPhase,
+  goalTrack,
   macroConsistency,
+  maintenanceRange,
   monthlyIntake,
   nutritionTargets,
   projectArrival,
@@ -448,5 +450,61 @@ describe('without a goal', () => {
     expect(report.energy).toEqual(reading.energy);
     expect(report.effects.recovery).toEqual(reading.effects.recovery);
     expect(report.effects.activity.beforeLabel).toBe('the four weeks before the goal started');
+  });
+});
+
+describe('at the goal', () => {
+  const inputs = { workoutDays: [], today: TODAY, sex: 'male' as const, system: 'metric' as const };
+
+  it('holds a weight goal within 1 % of body weight of the target', () => {
+    const range = maintenanceRange({ kind: 'weight', target: 80 }, 81, null)!;
+    expect(range.centerKg).toBe(80);
+    expect(range.lowKg).toBeCloseTo(79.19, 2);
+    expect(range.highKg).toBeCloseTo(80.81, 2);
+  });
+
+  it('turns a body-fat goal into the weights at the target ± 0.5 points, lean mass held', () => {
+    const range = maintenanceRange({ kind: 'body_fat', target: 15 }, 80, 68)!;
+    expect(range.centerKg).toBeCloseTo(80, 6);
+    expect(range.lowKg).toBeCloseTo(68 / 0.855, 6);
+    expect(range.highKg).toBeCloseTo(68 / 0.845, 6);
+    expect(maintenanceRange({ kind: 'body_fat', target: 15 }, 80, null)).toBeNull();
+  });
+
+  it('carries the range in the report only while maintaining', () => {
+    const data = cutSeries();
+    const now = bodyGoalReport(goal(), { ...inputs, series: lookup(data) }).weight.current!.value;
+    const holding = bodyGoalReport(goal({ kind: 'weight', target: now }), { ...inputs, series: lookup(data) });
+    expect(holding.phase.phase).toBe('maintain');
+    expect(holding.maintenance!.lowKg).toBeLessThan(now);
+    expect(holding.maintenance!.highKg).toBeGreaterThan(now);
+    expect(holding.projection!.chosen).toBeNull();
+    expect(bodyGoalReport(goal(), { ...inputs, series: lookup(data) }).maintenance).toBeNull();
+  });
+});
+
+describe('on track or not', () => {
+  it('reads the trend against the goal, never against the distance left', () => {
+    expect(goalTrack('cut', 'within', -0.7)).toMatchObject({ status: 'on-track', tone: 'good' });
+    expect(goalTrack('cut', 'faster', -1.3)).toMatchObject({ status: 'fast', tone: 'caution' });
+    expect(goalTrack('bulk', 'faster', 0.8).detail).toMatch(/fat/);
+    expect(goalTrack('cut', 'slower', -0.2)).toMatchObject({ status: 'slow', tone: 'neutral' });
+    expect(goalTrack('cut', 'opposite', 0.4)).toMatchObject({ status: 'away', tone: 'neutral' });
+    expect(goalTrack('bulk', 'steady', 0)).toMatchObject({ status: 'still' });
+    expect(goalTrack('maintain', 'within', 0.1)).toMatchObject({ status: 'holding', tone: 'good' });
+    expect(goalTrack('maintain', 'drifting', -0.4)).toMatchObject({ status: 'drifting', label: 'Drifting down' });
+    expect(goalTrack(null, 'unknown', null).status).toBe('unknown');
+  });
+
+  it('never calls the reader behind', () => {
+    const texts = (['within', 'faster', 'slower', 'steady', 'opposite', 'drifting', 'unknown'] as const).flatMap(fit =>
+      (['cut', 'bulk', 'maintain'] as const).map(phase => goalTrack(phase, fit, phase === 'cut' ? -0.5 : 0.5))
+    );
+    expect(JSON.stringify(texts)).not.toMatch(/behind|overdue|late/i);
+  });
+
+  it('puts the track in the report', () => {
+    const report = bodyGoalReport(goal(), { series: lookup(cutSeries()), workoutDays: [], today: TODAY, sex: 'male', system: 'metric' });
+    expect(report.track.status).toBe('fast');
   });
 });

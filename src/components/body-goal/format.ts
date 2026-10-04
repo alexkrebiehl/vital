@@ -33,6 +33,11 @@ export function formatPct(pct: number, digits = 1): string {
   return `${pct.toFixed(digits)} %`;
 }
 
+/** A body-fat target as the reader set it: "15 %", or "15.5 %" — no trailing ".0". */
+export function formatTargetPct(pct: number): string {
+  return `${Number(pct.toFixed(1))} %`;
+}
+
 export function formatKcal(kcal: number | null): string {
   return kcal === null || !Number.isFinite(kcal) ? '—' : `${Math.round(kcal).toLocaleString('en-US')} kcal`;
 }

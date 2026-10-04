@@ -26,6 +26,7 @@ import type { BodyGoalReport } from '@/lib/body-goal/report';
 import type { EffectStatus } from '@/lib/body-goal/effects';
 import type { UnitSystem } from '@/lib/prefs';
 import { GoalDialog } from './GoalDialog';
+import { GoalTrack } from './GoalTrack';
 import { PaceScale, TrendPaceScale } from './PaceScale';
 import type { useBodyGoal } from './useBodyGoal';
 import {
@@ -37,6 +38,7 @@ import {
   formatRate,
   formatSignedKcal,
   formatSignedKg,
+  formatTargetPct,
   formatWeeks,
   FIT_TEXT,
 } from './format';
@@ -51,7 +53,7 @@ const STATUS_BADGE: Record<EffectStatus | 'warn' | 'unknown', { variant: 'succes
 };
 
 /**
- * The goal card: set a goal, or the goal with its progress, pace and arrival.
+ * The goal card: set a goal, or the goal with whether the trend is on track, its pace and arrival.
  * `goal` and `report` are the page's one read of the goal (the weight chart
  * and the sections below use the same report).
  */
@@ -139,7 +141,7 @@ export function BodyGoalSections({ reading, report }: { reading: BodyReading; re
 // ── Goal card ───────────────────────────────────────────
 
 function goalTitle(report: BodyGoalReport, units: UnitSystem): string {
-  return report.goal.kind === 'weight' ? formatKg(report.goal.target, units) : `${formatPct(report.goal.target)} body fat`;
+  return report.goal.kind === 'weight' ? formatKg(report.goal.target, units) : `${formatTargetPct(report.goal.target)} body fat`;
 }
 
 function goalValue(report: BodyGoalReport, value: number | null, units: UnitSystem): string {
@@ -157,9 +159,8 @@ function GoalCard({
   onEnd: () => void;
   endError: string | null;
 }) {
-  const { phase, weight, pace, band, projection } = report;
+  const { phase, pace, projection } = report;
   const [confirmEnd, setConfirmEnd] = useState(false);
-  const progress = report.progress;
 
   return (
     <Card className="p-5 md:p-6" as="section" aria-label="Your goal">
@@ -196,36 +197,24 @@ function GoalCard({
         <p className="mt-4 text-sm text-text-secondary">{phase.reason}</p>
       ) : (
         <>
-          {progress !== null && (
-            <div className="mt-5">
-              <div className="h-2.5 rounded-full bg-surface-muted overflow-hidden" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)} aria-label="Progress toward the goal">
-                <div className="h-full rounded-full bg-category-body" style={{ width: `${Math.max(2, progress * 100)}%` }} />
-              </div>
-              <div className="mt-1.5 flex justify-between gap-2 text-[11px] text-text-secondary tnum">
-                <span>Start {goalValue(report, report.start.value, units)}</span>
-                <span className="text-text-primary font-medium">Now {goalValue(report, phase.current, units)} · {Math.round(progress * 100)} %</span>
-                <span>Goal {goalTitle(report, units)}</span>
-              </div>
-            </div>
-          )}
+          <div className="mt-5">
+            <GoalTrack report={report} units={units} />
+          </div>
 
           <dl className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
             <div>
-              <dt className="text-xs text-text-secondary">Trend, last four weeks</dt>
-              <dd className="mt-0.5 font-medium tnum text-text-primary">
-                {weight.rateKgPerWeek !== null ? formatRate(weight.rateKgPerWeek, units) : '—'}
-                {weight.ratePct !== null && <span className="text-text-secondary font-normal"> · {formatPct(Math.abs(weight.ratePct), 2)} of body weight</span>}
-              </dd>
+              <dt className="text-xs text-text-secondary">Now</dt>
+              <dd className="mt-0.5 font-medium tnum text-text-primary">{goalValue(report, phase.current, units)}</dd>
               <dd className="text-[11px] text-text-secondary">
-                {FIT_TEXT[report.fit]}
-                {band && phase.phase !== 'maintain' && ` (${band.minPct}–${band.maxPct} % a week)`}
+                {report.goal.kind === 'weight' ? 'Seven-day average' : 'Latest body-fat readings, seven-day average'}
+                {report.start.value !== null && ` · started at ${goalValue(report, report.start.value, units)}`}
               </dd>
             </div>
             <div>
               <dt className="text-xs text-text-secondary">{phase.phase === 'maintain' ? 'Goal' : 'Projected arrival'}</dt>
               <dd className="mt-0.5 font-medium tnum text-text-primary">
                 {phase.phase === 'maintain'
-                  ? 'Reached — holding steady'
+                  ? 'Reached'
                   : projection?.chosen ? formatDayKeyLong(projection.chosen.arrival) : '—'}
               </dd>
               <dd className="text-[11px] text-text-secondary">
@@ -233,17 +222,29 @@ function GoalCard({
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-text-secondary">{report.goal.kind === 'body_fat' ? 'Goal weight, realistic' : 'Weight to go'}</dt>
-              <dd className="mt-0.5 font-medium tnum text-text-primary">
-                {report.goal.kind === 'body_fat'
-                  ? report.goalWeightKg !== null ? formatKg(report.goalWeightKg, units) : '—'
-                  : projection ? formatSignedKg(projection.remainingKg, units) : '—'}
-              </dd>
-              <dd className="text-[11px] text-text-secondary">
-                {report.goal.kind === 'body_fat'
-                  ? 'Depends on how much of the change is lean mass (see below)'
-                  : report.bodyFatAtGoal !== null ? `About ${formatPct(report.bodyFatAtGoal)} body fat there, at a typical lean share` : ''}
-              </dd>
+              {report.maintenance ? (
+                <>
+                  <dt className="text-xs text-text-secondary">Maintenance range</dt>
+                  <dd className="mt-0.5 font-medium tnum text-text-primary">
+                    {formatKg(report.maintenance.lowKg, units)}–{formatKg(report.maintenance.highKg, units)}
+                  </dd>
+                  <dd className="text-[11px] text-text-secondary">{report.maintenance.basis}</dd>
+                </>
+              ) : (
+                <>
+                  <dt className="text-xs text-text-secondary">{report.goal.kind === 'body_fat' ? 'Goal weight, realistic' : 'Weight to go'}</dt>
+                  <dd className="mt-0.5 font-medium tnum text-text-primary">
+                    {report.goal.kind === 'body_fat'
+                      ? report.goalWeightKg !== null ? formatKg(report.goalWeightKg, units) : '—'
+                      : projection ? formatSignedKg(projection.remainingKg, units) : '—'}
+                  </dd>
+                  <dd className="text-[11px] text-text-secondary">
+                    {report.goal.kind === 'body_fat'
+                      ? 'Depends on how much of the change is lean mass (see below)'
+                      : report.bodyFatAtGoal !== null ? `About ${formatPct(report.bodyFatAtGoal)} body fat there, at a typical lean share` : ''}
+                  </dd>
+                </>
+              )}
             </div>
           </dl>
         </>
@@ -352,7 +353,7 @@ function PaceSection({ report, units }: { report: BodyGoalReport; units: UnitSys
         )}
         {scenarios.length > 0 && (
           <Card className="p-4 md:p-6">
-            <p className="text-sm font-medium text-text-primary mb-2">Goal weight for {formatPct(report.goal.target)} body fat</p>
+            <p className="text-sm font-medium text-text-primary mb-2">Goal weight for {formatTargetPct(report.goal.target)} body fat</p>
             <table className="w-full text-sm text-left">
               <thead>
                 <tr className="border-b border-border text-xs text-text-secondary">

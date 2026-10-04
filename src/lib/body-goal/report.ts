@@ -10,14 +10,15 @@
 // the sentences it writes. It runs in the browser on the active dataset and on
 // the server on the same dataset (see `inputsFromDataset`).
 
-import type { UnitSystem } from '../prefs';
 import {
   goalWeightScenarios,
+  maintenanceRange,
   observedLeanShare,
   projectedBodyFat,
   realisticShare,
   type GoalWeightScenario,
   type LeanShare,
+  type MaintenanceRange,
 } from './composition';
 import { activityComparison, leanEffect, rateEffect } from './effects';
 import { adherence, monthlyIntake, type Adherence } from './intake';
@@ -26,6 +27,7 @@ import { goalPhase, type PhaseResult } from './phase';
 import { projectArrival, type Projection } from './projection';
 import { bodyReading, formatKg, formatSignedKg, type BodyGoalInputs, type BodyReading } from './reading';
 import { nutritionTargets, type NutritionTargets } from './targets';
+import { goalTrack, type GoalTrack } from './track';
 import { readingNear, type Reading } from './trend';
 import type { BodyGoal } from './types';
 
@@ -37,8 +39,10 @@ export interface BodyGoalReport extends BodyReading {
   anchor: string;
   phase: PhaseResult;
   start: { weight: Reading | null; bodyFat: Reading | null; value: number | null };
-  /** 0–1 of the way from the start to the target, in the goal's unit. */
+  /** 0–1 of the way from the start to the target, in the goal's unit. Data for the briefing; the pages show `track`. */
   progress: number | null;
+  /** Whether the four-week trend is moving the right way at a sensible pace. */
+  track: GoalTrack;
   band: PaceBand | null;
   pace: EffectivePace | null;
   fit: TrendFit;
@@ -49,6 +53,8 @@ export interface BodyGoalReport extends BodyReading {
   /** For a weight goal with body-fat data: body fat at the goal weight, realistic share. */
   bodyFatAtGoal: number | null;
   projection: Projection | null;
+  /** At the goal: the weights that count as holding it. */
+  maintenance: MaintenanceRange | null;
   /** The lean share since the goal started, when weight moved the goal's way. */
   leanShare: LeanShare | null;
   adherence: Adherence | null;
@@ -88,9 +94,9 @@ export function bodyGoalReport(goal: BodyGoal, inputs: BodyGoalInputs): BodyGoal
   if (!phase.phase || weightKg === null) {
     return {
       ...base,
-      band: null, pace: null, fit: 'unknown', targets: null,
+      band: null, pace: null, fit: 'unknown', track: goalTrack(null, 'unknown', null), targets: null,
       goalWeightKg: goal.kind === 'weight' ? goal.target : null,
-      scenarios: [], bodyFatAtGoal: null, projection: null,
+      scenarios: [], bodyFatAtGoal: null, projection: null, maintenance: null,
       effects: { ...reading.effects, rate: null, lean: null, recovery: [], activity },
       adherence: null,
     };
@@ -136,11 +142,13 @@ export function bodyGoalReport(goal: BodyGoal, inputs: BodyGoalInputs): BodyGoal
     band,
     pace,
     fit,
+    track: goalTrack(phase.phase, fit, weight.ratePct),
     targets,
     goalWeightKg,
     scenarios,
     bodyFatAtGoal,
     projection,
+    maintenance: phase.phase === 'maintain' ? maintenanceRange(goal, weightKg, composition.leanKg) : null,
     effects: {
       ...reading.effects,
       rate: rateEffect(phase.phase, weight.ratePct, weight.rateKgPerWeek === null ? null : formatKg(Math.abs(weight.rateKgPerWeek), system)),

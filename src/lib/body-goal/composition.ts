@@ -14,8 +14,9 @@
 // Scale body-fat readings (bioimpedance) can be off by 3–5 points; the pages
 // say so and suggest judging by the trend and a waist measurement.
 
-import { IDEAL_LEAN_SHARE, MIN_CHANGE_FOR_SHARE_KG, REALISTIC_LEAN_SHARE } from './constants';
+import { AT_GOAL_BODY_FAT_POINTS, AT_GOAL_WEIGHT_SHARE, IDEAL_LEAN_SHARE, MIN_CHANGE_FOR_SHARE_KG, REALISTIC_LEAN_SHARE } from './constants';
 import type { GoalPhase } from './phase';
+import type { BodyGoal } from './types';
 import { currentReading, readingNear, type DayValue, type Reading } from './trend';
 
 export interface CompositionNow {
@@ -126,4 +127,43 @@ export function projectedBodyFat(weightKg: number, fatKg: number, targetWeightKg
 
 export function realisticShare(phase: GoalPhase): number {
   return phase === 'bulk' ? REALISTIC_LEAN_SHARE.bulk : REALISTIC_LEAN_SHARE.cut;
+}
+
+/** The weights that count as holding the goal, once it is reached. */
+export interface MaintenanceRange {
+  centerKg: number;
+  lowKg: number;
+  highKg: number;
+  /** How the range was formed, in one sentence. */
+  basis: string;
+}
+
+/**
+ * The weight band the goal is held in: the same tolerance that puts the goal
+ * in maintenance, in kg. For a weight goal, the target ± 1 % of current
+ * weight. For a body-fat goal, the weights at the target ± 0.5 points with
+ * today's lean mass held — null without a lean-mass figure.
+ */
+export function maintenanceRange(
+  goal: Pick<BodyGoal, 'kind' | 'target'>,
+  weightKg: number,
+  leanKg: number | null
+): MaintenanceRange | null {
+  if (goal.kind === 'weight') {
+    const half = weightKg * AT_GOAL_WEIGHT_SHARE;
+    return {
+      centerKg: goal.target,
+      lowKg: goal.target - half,
+      highKg: goal.target + half,
+      basis: `Within ${AT_GOAL_WEIGHT_SHARE * 100} % of body weight of the target.`,
+    };
+  }
+  if (leanKg === null) return null;
+  const at = (pct: number) => leanKg / (1 - pct / 100);
+  return {
+    centerKg: at(goal.target),
+    lowKg: at(goal.target - AT_GOAL_BODY_FAT_POINTS),
+    highKg: at(goal.target + AT_GOAL_BODY_FAT_POINTS),
+    basis: `The weights at ${goal.target - AT_GOAL_BODY_FAT_POINTS}–${goal.target + AT_GOAL_BODY_FAT_POINTS} % body fat, with today's lean mass.`,
+  };
 }

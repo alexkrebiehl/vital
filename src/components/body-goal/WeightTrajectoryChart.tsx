@@ -4,11 +4,14 @@
 //
 // Weigh-ins as a thin muted line and the seven-day mean as the trend line.
 // With a goal set, also the goal weight as a reference line and — dashed,
-// clearly a projection — where the trend weight goes at the pace in use. The weigh-in line joins
+// clearly a projection — where the trend weight goes at the pace in use. Once
+// the goal is reached, the goal line becomes the maintenance range: the target
+// as a dashed baseline inside the band of weights that count as holding it,
+// drawn like the metric page's baseline band. The weigh-in line joins
 // consecutive weigh-ins; it does not mean weight was measured in between. The
 // trend line is the mean of the weigh-ins in each seven-day span, nothing more.
 
-import { CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { CartesianGrid, ComposedChart, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { addDays, diffDays, formatDayKeyLong, formatDayKeyShort } from '@/lib/analytics/windows';
 import { mean } from '@/lib/analytics/stats';
 import { convertValue } from '@/lib/metrics/format';
@@ -64,12 +67,16 @@ export function WeightTrajectoryChart({
   }
 
   const values = rows.flatMap(r => [r.weighIn, r.trend, r.projected]).filter((v): v is number => v !== undefined);
-  const goal = goalKg !== null ? show(goalKg) : null;
+  const range = report?.maintenance ?? null;
+  const hold = range ? { center: show(range.centerKg), low: show(range.lowKg), high: show(range.highKg) } : null;
+  // At maintenance the range's centre stands in for the goal line.
+  const goal = hold ? null : goalKg !== null ? show(goalKg) : null;
   if (goal !== null) values.push(goal);
+  if (hold) values.push(hold.low, hold.high);
   const { ticks, lo, hi } = niceTicks(Math.min(...values), Math.max(...values));
   const unit = weightUnit(units);
   const axis = { tick: { fontSize: 10, fill: 'var(--color-text-secondary)' }, tickLine: false as const, axisLine: false as const };
-  const summary = `Weight from ${formatDayKeyLong(from)} to ${formatDayKeyLong(today)}: ${history.length} weigh-ins${goal !== null ? `, goal ${goal} ${unit}` : ''}${chosen ? `, projected to reach it around ${formatDayKeyLong(chosen.arrival)} at the pace in use` : ''}.`;
+  const summary = `Weight from ${formatDayKeyLong(from)} to ${formatDayKeyLong(today)}: ${history.length} weigh-ins${goal !== null ? `, goal ${goal} ${unit}` : ''}${hold ? `, maintaining ${hold.center} ${unit} within ${hold.low}–${hold.high} ${unit}` : ''}${chosen ? `, projected to reach it around ${formatDayKeyLong(chosen.arrival)} at the pace in use` : ''}.`;
 
   return (
     <figure className="m-0">
@@ -80,6 +87,20 @@ export function WeightTrajectoryChart({
             <XAxis {...axis} dataKey="date" minTickGap={40} interval="preserveStartEnd" tickFormatter={(v: string) => formatDayKeyShort(v)} />
             <YAxis {...axis} width={40} domain={[lo, hi]} ticks={ticks} allowDecimals={false} />
             <Tooltip cursor={{ stroke: 'var(--color-border)' }} content={<ChartTooltip unit={unit} />} />
+            {/* An array, not a fragment: recharts reads its children with react-is 18,
+                which does not recognise React 19 fragments, and drops what is inside one. */}
+            {hold && [
+              <ReferenceArea key="hold-band" y1={hold.low} y2={hold.high} fill="var(--color-category-body)" fillOpacity={0.12} stroke="none" />,
+              <ReferenceLine
+                key="hold-center"
+                y={hold.center}
+                stroke="var(--color-text-secondary)"
+                strokeDasharray="4 4"
+                strokeWidth={1}
+                opacity={0.8}
+                label={{ value: `Maintain ${hold.center} ${unit}`, position: 'insideTopRight', fontSize: 10, fill: 'var(--color-text-secondary)' }}
+              />,
+            ]}
             {[
               goal !== null && (
                 <ReferenceLine
@@ -103,6 +124,12 @@ export function WeightTrajectoryChart({
         <span><span aria-hidden="true" className="inline-block h-px w-4 mr-1.5 align-middle" style={{ background: 'var(--color-text-secondary)', opacity: 0.6 }} />Weigh-ins</span>
         <span><span aria-hidden="true" className="inline-block h-0.5 w-4 bg-category-body mr-1.5 align-middle" />Seven-day average</span>
         {chosen && <span><span aria-hidden="true" className="inline-block w-4 border-t-2 border-dashed border-category-body mr-1.5 align-middle" />Projection at the pace in use</span>}
+        {hold && (
+          <span title={range!.basis}>
+            <span aria-hidden="true" className="inline-block h-2.5 w-4 rounded-sm mr-1.5 align-middle" style={{ background: 'var(--color-category-body)', opacity: 0.25 }} />
+            Maintenance range {hold.low}–{hold.high} {unit}
+          </span>
+        )}
       </figcaption>
     </figure>
   );

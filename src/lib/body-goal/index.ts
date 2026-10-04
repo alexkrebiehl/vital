@@ -12,5 +12,6 @@ export * from './intake';
 export * from './effects';
 export * from './reading';
 export * from './report';
+export * from './track';
 export * from './summary';
 export * from './dataset';

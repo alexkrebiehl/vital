@@ -50,7 +50,8 @@ export function WeightTrajectory({ report }: { report: BodyGoalReport | null }) 
   const values = inWindow.map(p => p.value);
   const gaps = inWindow.slice(1).map((p, i) => diffDays(inWindow[i].key, p.key));
   const avgGap = gaps.length ? mean(gaps) : NaN;
-  const withGoal = report?.goalWeightKg != null;
+  const projecting = report?.projection?.chosen != null;
+  const holding = report?.maintenance ?? null;
 
   return (
     <section>
@@ -68,7 +69,8 @@ export function WeightTrajectory({ report }: { report: BodyGoalReport | null }) 
             {report?.projection?.trendNote && <DataStateNote>{report.projection.trendNote}</DataStateNote>}
             <DataStateNote>
               The thin line joins consecutive weigh-ins, about {Number.isFinite(avgGap) ? avgGap.toFixed(1) : '—'} days apart; it
-              does not mean weight was measured in between.{withGoal ? ' The dashed line is a projection at the pace in use, not a deadline.' : ''}
+              does not mean weight was measured in between.{projecting ? ' The dashed line is a projection at the pace in use, not a deadline.' : ''}
+              {holding ? ` The shaded band is the maintenance range: ${holding.basis.charAt(0).toLowerCase()}${holding.basis.slice(1)}` : ''}
             </DataStateNote>
           </div>
         </Card>
