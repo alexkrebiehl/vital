@@ -9,7 +9,7 @@
 // window (owner request 2).
 
 import Link from 'next/link';
-import { REFERENCE_KEY, coverageFor, seriesFor } from '@/lib/adapters/dataset';
+import { REFERENCE_KEY, seriesFor } from '@/lib/adapters/dataset';
 import { buildSeriesSummary, diffDays, formatDayKeyLong, mean, trailingWindow, windowRangeLabel } from '@/lib/analytics';
 import { formatMetricValue, formatMetricWithUnit } from '@/lib/metrics/format';
 import type { BodyGoalReport } from '@/lib/body-goal/report';
@@ -50,7 +50,6 @@ export function WeightTrajectory({ report }: { report: BodyGoalReport | null }) 
   const values = inWindow.map(p => p.value);
   const gaps = inWindow.slice(1).map((p, i) => diffDays(inWindow[i].key, p.key));
   const avgGap = gaps.length ? mean(gaps) : NaN;
-  const coverage = coverageFor('weight_body_mass');
   const withGoal = report?.goalWeightKg != null;
 
   return (
@@ -77,7 +76,7 @@ export function WeightTrajectory({ report }: { report: BodyGoalReport | null }) 
         <Card className="p-5 flex flex-col">
           <div className="flex items-start justify-between gap-2 mb-2">
             <span className="text-xs font-medium text-text-secondary">Recorded range</span>
-            <Badge variant="default" className="text-[10px]">{all.length} total</Badge>
+            <Badge variant="default" className="text-[10px]" title="Days with a weigh-in, across all your history">{all.length} all time</Badge>
           </div>
           <dl className="text-sm space-y-1.5 mb-3">
             <div className="flex justify-between gap-3">
@@ -99,8 +98,8 @@ export function WeightTrajectory({ report }: { report: BodyGoalReport | null }) 
               </dd>
             </div>
             <div className="flex justify-between gap-3">
-              <dt className="text-text-secondary">Coverage</dt>
-              <dd className="tnum text-text-primary">{coverage ? `${coverage.observedDays}/${coverage.expectedDays} days` : '—'}</dd>
+              <dt className="text-text-secondary">Weighed in</dt>
+              <dd className="tnum text-text-primary">{inWindow.length} of {DAYS + 1} days</dd>
             </div>
           </dl>
           <div className="mt-auto">
