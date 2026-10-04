@@ -11,6 +11,22 @@ import { createHash, randomInt } from 'node:crypto';
 import { OURA_AUTHORIZE_URL, type OuraConfig } from './config';
 import { timedFetch, TimedFetchError, type OuraHttpDeps } from './http';
 
+/**
+ * Granted scopes from a token reply. Oura's reply may name them space- or
+ * comma-separated, or as a list, and may leave them empty; an empty or missing
+ * answer means "not stated" (null), never "nothing was granted" — a grant of
+ * nothing could not have produced a token.
+ */
+export function parseGrantedScopes(raw: unknown): string[] | null {
+  const parts = Array.isArray(raw)
+    ? raw.filter((x): x is string => typeof x === 'string')
+    : typeof raw === 'string'
+      ? [raw]
+      : [];
+  const scopes = parts.flatMap(p => p.split(/[\s,]+/)).filter(Boolean);
+  return scopes.length ? scopes : null;
+}
+
 /** Expiry is taken this much earlier than Oura states, so a token is never used at its edge. */
 export const ACCESS_EXPIRY_MARGIN_MS = 60_000;
 
@@ -124,7 +140,7 @@ async function postToken(cfg: OuraConfig, form: URLSearchParams, what: string, d
     accessToken: t.access_token,
     refreshToken: t.refresh_token,
     expiresAt: new Date(now + expiresIn * 1000 - ACCESS_EXPIRY_MARGIN_MS),
-    scopes: typeof t.scope === 'string' ? t.scope.split(/\s+/).filter(Boolean) : null,
+    scopes: parseGrantedScopes(t.scope),
   };
 }
 

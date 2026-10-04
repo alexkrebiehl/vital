@@ -174,3 +174,16 @@ describe('revoke', () => {
     expect(err.message).not.toContain('sample-at');
   });
 });
+
+describe('parseGrantedScopes', () => {
+  it('reads space-separated, comma-separated and list forms', async () => {
+    const { parseGrantedScopes } = await import('./oauth');
+    expect(parseGrantedScopes('daily spo2')).toEqual(['daily', 'spo2']);
+    expect(parseGrantedScopes('daily,heartrate, workout')).toEqual(['daily', 'heartrate', 'workout']);
+    expect(parseGrantedScopes(['daily', 'spo2'])).toEqual(['daily', 'spo2']);
+  });
+  it('treats empty or missing as not stated, not as nothing granted', async () => {
+    const { parseGrantedScopes } = await import('./oauth');
+    for (const v of ['', '  ', [], undefined, null, 5]) expect(parseGrantedScopes(v)).toBeNull();
+  });
+});
