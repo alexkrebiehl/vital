@@ -17,7 +17,6 @@ import type { BodyGoalReport } from '@/lib/body-goal/report';
 import type { DayValue } from '@/lib/body-goal/trend';
 import { weightUnit } from './format';
 
-const HISTORY_DAYS = 90;
 /** The projection is drawn at most this far ahead, so a slow pace does not flatten the history. */
 const MAX_PROJECTION_DAYS = 120;
 
@@ -29,16 +28,17 @@ interface Row {
 }
 
 export function WeightTrajectoryChart({
-  weights, today, report, units,
+  weights, from, today, report, units,
 }: {
   weights: DayValue[];
+  /** First day of the history drawn (the section's window). */
+  from: string;
   today: string;
   /** The goal's report, or null when no goal is set (no goal line, no projection). */
   report: BodyGoalReport | null;
   units: UnitSystem;
 }) {
   const show = (kg: number) => Math.round(convertValue(kg, 'kg', units) * 10) / 10;
-  const from = addDays(today, -(HISTORY_DAYS - 1));
   const history = weights.filter(w => w.key >= from && w.key <= today);
   const byDay = new Map(history.map(w => [w.key, w.value]));
 
@@ -69,7 +69,7 @@ export function WeightTrajectoryChart({
   const { ticks, lo, hi } = niceTicks(Math.min(...values), Math.max(...values));
   const unit = weightUnit(units);
   const axis = { tick: { fontSize: 10, fill: 'var(--color-text-secondary)' }, tickLine: false as const, axisLine: false as const };
-  const summary = `Weight over the last ${HISTORY_DAYS} days: ${history.length} weigh-ins${goal !== null ? `, goal ${goal} ${unit}` : ''}${chosen ? `, projected to reach it around ${formatDayKeyLong(chosen.arrival)} at the pace in use` : ''}.`;
+  const summary = `Weight from ${formatDayKeyLong(from)} to ${formatDayKeyLong(today)}: ${history.length} weigh-ins${goal !== null ? `, goal ${goal} ${unit}` : ''}${chosen ? `, projected to reach it around ${formatDayKeyLong(chosen.arrival)} at the pace in use` : ''}.`;
 
   return (
     <figure className="m-0">

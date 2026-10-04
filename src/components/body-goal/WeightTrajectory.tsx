@@ -19,6 +19,7 @@ import { ChangeBadge, SectionTitle } from '@/components/domain/DomainShared';
 import { WeightTrajectoryChart } from './WeightTrajectoryChart';
 import { formatSignedKg } from './format';
 
+/** The window reaches back this many days from today, so its first day is "90 days ago". */
 const DAYS = 90;
 /** The comparison the "Recent change" weight card makes: the last 30 days against the 30 before. */
 const RECENT_DAYS = 30;
@@ -38,7 +39,8 @@ function daysAgo(key: string): string {
 export function WeightTrajectory({ report }: { report: BodyGoalReport | null }) {
   const { units } = useUnits();
   const all = seriesFor('weight_body_mass');
-  const win = trailingWindow(REFERENCE_KEY, DAYS);
+  // DAYS + 1 calendar days: today plus the 90 before it.
+  const win = trailingWindow(REFERENCE_KEY, DAYS + 1);
   const inWindow = all.filter(p => p.key >= win.startKey && p.key <= win.endKey);
   if (inWindow.length === 0) return null;
 
@@ -62,7 +64,7 @@ export function WeightTrajectory({ report }: { report: BodyGoalReport | null }) 
             </span>
             <ChangeBadge summary={recent} days={RECENT_DAYS} />
           </div>
-          <WeightTrajectoryChart weights={all} today={REFERENCE_KEY} report={report} units={units} />
+          <WeightTrajectoryChart weights={all} from={win.startKey} today={REFERENCE_KEY} report={report} units={units} />
           <div className="mt-3 space-y-1">
             {report?.projection?.trendNote && <DataStateNote>{report.projection.trendNote}</DataStateNote>}
             <DataStateNote>
