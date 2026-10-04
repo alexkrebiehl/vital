@@ -14,8 +14,9 @@ import { ChevronRight, Target } from 'lucide-react';
 import { Badge, Button, Card, DataStateNote, EmptyState, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { DiscussButton } from '@/components/analyst/DiscussDialog';
-import { SectionTitle } from '@/components/domain/DomainShared';
-import { seriesFor } from '@/lib/adapters/dataset';
+import { ChangeBadge, SectionTitle } from '@/components/domain/DomainShared';
+import { REFERENCE_KEY, seriesFor } from '@/lib/adapters/dataset';
+import { buildSeriesSummary } from '@/lib/analytics';
 import { formatDayKeyLong } from '@/lib/analytics/windows';
 import { TREND_DAYS } from '@/lib/body-goal/constants';
 import { PHASE_LABEL } from '@/lib/body-goal/phase';
@@ -247,14 +248,24 @@ function suggestions(report: BodyGoalReport): string[] {
 
 // ── Trajectory ──────────────────────────────────────────
 
+/** The comparison the "Recent change" weight card makes: the last 30 days against the 30 before. */
+const RECENT_DAYS = 30;
+
 function TrajectorySection({ report, units, aside }: { report: BodyGoalReport; units: UnitSystem; aside?: ReactNode }) {
   const weights = seriesFor('weight_body_mass');
+  const recent = buildSeriesSummary('weight_body_mass', REFERENCE_KEY, RECENT_DAYS, units);
   if (weights.length === 0) return null;
   return (
     <section>
       <SectionTitle hint="weigh-ins, the seven-day average, and the pace in use">Toward the goal</SectionTitle>
       <div className={`grid grid-cols-1 gap-4 ${aside ? 'lg:grid-cols-3' : ''}`}>
         <Card className={`p-4 md:p-6 ${aside ? 'lg:col-span-2' : ''}`}>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs text-text-secondary">
+              Weight{recent.latest ? ` · ${recent.latestValue} on ${formatDayKeyLong(recent.latest.key)}` : ''}
+            </span>
+            <ChangeBadge summary={recent} days={RECENT_DAYS} />
+          </div>
           <GoalTrajectoryChart report={report} weights={weights} units={units} />
           {report.projection?.trendNote && (
             <div className="mt-3"><DataStateNote>{report.projection.trendNote}</DataStateNote></div>
