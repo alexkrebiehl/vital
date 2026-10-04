@@ -57,7 +57,7 @@ export function PaceScale({ report, units }: { report: BodyGoalReport; units: Un
   const perWeek = (pct: number) => formatKg((pct * weightKg) / 100, units);
 
   const markers: Marker[] = [];
-  if (trend) markers.push({ row: trend, title: 'Your trend, last four weeks', level: 0, tone: 'trend' });
+  if (trend) markers.push({ row: trend, title: 'Current pace, last four weeks', level: 0, tone: 'trend' });
   if (chosen) markers.push({ row: chosen, title: report.pace?.source === 'custom' ? 'Your pace' : 'Recommended pace', level: trend ? 1 : 0, tone: 'plan' });
   const levels = Math.max(1, markers.length);
   const barTop = levels * ROW + 6;
@@ -167,12 +167,17 @@ export function PaceScale({ report, units }: { report: BodyGoalReport; units: Un
               </tr>
             </thead>
             <tbody>
-              {rows.map(r => (
-                <tr key={r.id} className={`border-b border-border/50 text-text-primary ${r.id === 'chosen' ? 'font-medium' : ''}`}>
-                  <td className="py-2 pr-3">{r.label}</td>
+              {/* Slowest first, like the scale reads left to right; the measured current pace stands out. */}
+              {[...rows].sort((a, b) => a.kgPerWeek - b.kgPerWeek).map(r => (
+                <tr
+                  key={r.id}
+                  className={`border-b border-border/50 text-text-primary ${r.id === 'trend' ? 'bg-accent-tint font-medium' : ''}`}
+                  aria-current={r.id === 'trend' ? 'true' : undefined}
+                >
+                  <td className={`py-2 pr-3 ${r.id === 'trend' ? 'pl-2 rounded-l-control' : ''}`}>{r.label}</td>
                   <td className="py-2 pr-3 tnum whitespace-nowrap">{formatKg(r.kgPerWeek, units)} · {formatPct(r.pct, 2)}</td>
                   <td className="py-2 pr-3 tnum">{formatWeeks(r.weeks)}</td>
-                  <td className="py-2 tnum whitespace-nowrap">{formatDayKeyLong(r.arrival)}</td>
+                  <td className={`py-2 tnum whitespace-nowrap ${r.id === 'trend' ? 'pr-2 rounded-r-control' : ''}`}>{formatDayKeyLong(r.arrival)}</td>
                 </tr>
               ))}
             </tbody>

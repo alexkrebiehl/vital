@@ -61,7 +61,7 @@ export function projectArrival(input: {
   const atPace = pace.source === 'custom' ? 'At your pace' : 'At the recommended pace';
   const toward = trendKgPerWeek !== null && Math.sign(trendKgPerWeek) === Math.sign(remainingKg) && Math.abs(trendKgPerWeek) >= 0.05;
   if (toward) {
-    push(row('trend', 'Your trend over the last four weeks', Math.abs(trendKgPerWeek!), weightKg, remainingKg, today));
+    push(row('trend', 'Current pace (your last four weeks)', Math.abs(trendKgPerWeek!), weightKg, remainingKg, today));
   } else if (trendKgPerWeek !== null && chosen) {
     const weeks = Math.round(chosen.weeks);
     trendNote =
