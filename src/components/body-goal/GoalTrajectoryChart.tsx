@@ -2,12 +2,13 @@
 
 // ── Weight toward the goal ──────────────────────────────
 //
-// Weigh-ins as dots, the seven-day mean as the trend line, the goal weight as a
-// reference line, and — dashed, clearly a projection — where the trend weight
-// goes at the pace in use. Days without a weigh-in have no dot: the trend line
-// is the mean of the weigh-ins that exist in each seven-day span, nothing more.
+// Weigh-ins as a thin muted line, the seven-day mean as the trend line, the
+// goal weight as a reference line, and — dashed, clearly a projection — where
+// the trend weight goes at the pace in use. The weigh-in line joins
+// consecutive weigh-ins; it does not mean weight was measured in between. The
+// trend line is the mean of the weigh-ins in each seven-day span, nothing more.
 
-import { CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Scatter, Tooltip, XAxis, YAxis } from 'recharts';
+import { CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { addDays, diffDays, formatDayKeyLong, formatDayKeyShort } from '@/lib/analytics/windows';
 import { mean } from '@/lib/analytics/stats';
 import { convertValue } from '@/lib/metrics/format';
@@ -83,14 +84,14 @@ export function GoalTrajectoryChart({ report, weights, units }: { report: BodyGo
               ),
               <ReferenceLine key="today" x={report.today} stroke="var(--color-border-strong)" strokeWidth={1} />,
             ]}
-            <Scatter dataKey="weighIn" fill="var(--color-text-secondary)" fillOpacity={0.55} isAnimationActive={false} />
+            <Line dataKey="weighIn" stroke="var(--color-text-secondary)" strokeOpacity={0.45} strokeWidth={1.25} dot={false} activeDot={{ r: 3, fill: 'var(--color-text-secondary)', strokeWidth: 0 }} connectNulls isAnimationActive={false} />
             <Line dataKey="trend" stroke="var(--color-category-body)" strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
             <Line dataKey="projected" stroke="var(--color-category-body)" strokeWidth={2} strokeDasharray="5 5" dot={false} connectNulls isAnimationActive={false} />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
       <figcaption className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-text-secondary">
-        <span><span aria-hidden="true" className="inline-block h-2 w-2 rounded-full mr-1.5 align-middle" style={{ background: 'var(--color-text-secondary)', opacity: 0.6 }} />Weigh-in</span>
+        <span><span aria-hidden="true" className="inline-block h-px w-4 mr-1.5 align-middle" style={{ background: 'var(--color-text-secondary)', opacity: 0.6 }} />Weigh-ins</span>
         <span><span aria-hidden="true" className="inline-block h-0.5 w-4 bg-category-body mr-1.5 align-middle" />Seven-day average</span>
         {chosen && <span><span aria-hidden="true" className="inline-block w-4 border-t-2 border-dashed border-category-body mr-1.5 align-middle" />Projection at the pace in use</span>}
       </figcaption>
