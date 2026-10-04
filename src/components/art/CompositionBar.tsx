@@ -6,7 +6,7 @@ import { formatMetricWithUnit } from '@/lib/metrics/format';
 import { useUnits } from '@/components/ui/UnitsProvider';
 
 /**
- * Weight split into fat mass and everything else, from the latest weight and the
+ * Weight split into fat mass and lean mass, from the latest weight and the
  * latest body-fat percentage. Fat mass is weight × body-fat %, so it is a
  * derived figure and is labelled as one. Renders nothing unless both readings
  * exist; the two readings may be from different days, and the dates say so.
@@ -32,7 +32,7 @@ export function CompositionBar() {
         <div>
           <dt className="flex items-center gap-2 text-text-secondary">
             <span className="h-2 w-2 rounded-full" style={{ background: 'var(--color-category-activity)' }} />
-            Not fat
+            Lean mass
           </dt>
           <dd className="mt-0.5 text-lg font-semibold tnum tracking-tight text-text-primary">
             {formatMetricWithUnit('weight_body_mass', rest, units)}
@@ -50,7 +50,7 @@ export function CompositionBar() {
         </div>
       </dl>
       <p className="mt-3 text-[11px] leading-relaxed text-text-secondary">
-        Fat mass is the latest weight multiplied by the latest body-fat percentage, so it is calculated, not measured.{' '}
+        Fat mass is the latest weight multiplied by the latest body-fat percentage, and lean mass is the rest, so both are calculated, not measured.{' '}
         {sameDay
           ? `Both readings are from ${formatDayKeyLong(w.key)}.`
           : `Weight is from ${formatDayKeyLong(w.key)} and body fat from ${formatDayKeyLong(f.key)}.`}
