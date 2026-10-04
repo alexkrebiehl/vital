@@ -15,7 +15,6 @@ import { Badge, Button, Card, DataStateNote, EmptyState, ErrorState, Skeleton } 
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { DiscussButton } from '@/components/analyst/DiscussDialog';
 import { SectionTitle } from '@/components/domain/DomainShared';
-import { LightLabel, useRoutineFetch, type RoutineApiResponse } from '@/components/routine/shared';
 import { seriesFor } from '@/lib/adapters/dataset';
 import { formatDayKeyLong } from '@/lib/analytics/windows';
 import { TREND_DAYS } from '@/lib/body-goal/constants';
@@ -509,13 +508,9 @@ function DriversSection({ report }: { report: BodyGoalReport }) {
 // ── How the body is responding ──────────────────────────
 
 function ResponseSection({ report }: { report: BodyGoalReport }) {
-  const { units } = useUnits();
-  const { state } = useRoutineFetch<RoutineApiResponse>('/api/routine', units);
-  const routine = state.status === 'ok' ? state.data.routine : null;
   const items = [report.effects.rate, report.effects.lean].filter((i): i is NonNullable<typeof i> => i !== null);
   const recovery = report.effects.recovery;
-  const paths = routine?.paths.filter(p => p.tracked) ?? [];
-  if (items.length === 0 && recovery.length === 0 && paths.length === 0) return null;
+  if (items.length === 0 && recovery.length === 0) return null;
 
   return (
     <section>
@@ -527,30 +522,6 @@ function ResponseSection({ report }: { report: BodyGoalReport }) {
         {recovery.map(i => (
           <ResponseCard key={i.signal} label={i.label} status={i.status} text={i.text} advice={i.goalAdvice} rule={i.rule} />
         ))}
-        {paths.length > 0 && (
-          <Card className="p-4 md:p-5">
-            <div className="flex items-start justify-between gap-2 mb-2">
-              <p className="text-sm font-medium text-text-primary">Training</p>
-              <Badge variant={paths.some(p => p.light === 'red') ? 'warning' : 'default'}>{routine!.title}</Badge>
-            </div>
-            <ul className="space-y-1.5">
-              {paths.slice(0, 6).map(p => (
-                <li key={p.pathId} className="flex items-center justify-between gap-3 text-sm">
-                  <span className="text-text-primary truncate">{p.pathName}</span>
-                  <LightLabel light={p.light} tracked={p.tracked} />
-                </li>
-              ))}
-            </ul>
-            <p className="mt-2 text-[11px] text-text-secondary leading-relaxed">
-              {report.phase.phase === 'cut'
-                ? 'In a deficit, strength holding steady is a good result. Paths backing off for two or more sessions are a reason to slow the pace.'
-                : 'In a surplus, strength should climb; if it does not, more of the gain is likely fat.'}
-            </p>
-            <Link href="/workouts" className="mt-2 inline-flex items-center gap-1 text-sm text-primary hover:underline">
-              Open the plan <ChevronRight size={14} aria-hidden="true" />
-            </Link>
-          </Card>
-        )}
       </div>
     </section>
   );

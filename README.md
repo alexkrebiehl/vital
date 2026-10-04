@@ -158,7 +158,7 @@ against it.
   logged, month by month — plus a check that your logged macros add up to your logged calories,
   which catches a food entry with a wrong value.
 - **How long, not how late.** Arrival dates at each pace are projections, and the page shows how
-  your training, recovery and lean mass are holding up at the pace you are on.
+  your recovery and lean mass are holding up at the pace you are on.
 
 ### Comfortable to live in
 - **Themes** — five light and nine dark (Default, Solarized, GitHub, Gruvbox, Catppuccin, Monokai,
