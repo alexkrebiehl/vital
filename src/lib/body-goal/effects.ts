@@ -56,20 +56,23 @@ export interface ActivityComparison {
 }
 
 /**
- * Activity now vs before. "Now" is the time since the goal started (at most
- * four weeks, ending yesterday); "before" is the four weeks before the start.
- * A goal younger than a week compares the last two weeks with the four before.
+ * Activity now vs before. With a goal, "now" is the time since it started (at
+ * most four weeks, ending yesterday) and "before" is the four weeks before the
+ * start. Without one (`startedOn` null), it is the last four weeks against the
+ * four before them. A goal younger than a week compares the last two weeks
+ * with the four before.
  */
 export function activityComparison(
   series: (id: string) => DayValue[],
   workoutDays: string[],
-  startedOn: string,
+  startedOn: string | null,
   today: string
 ): ActivityComparison {
   const recentTo = addDays(today, -1);
-  let recentFrom = startedOn > addDays(today, -TREND_DAYS) ? startedOn : addDays(today, -TREND_DAYS);
-  let beforeTo = addDays(startedOn, -1);
-  let beforeLabel = 'the four weeks before the goal started';
+  const trailingFrom = addDays(today, -TREND_DAYS);
+  let recentFrom = startedOn !== null && startedOn > trailingFrom ? startedOn : trailingFrom;
+  let beforeTo = addDays(startedOn ?? trailingFrom, -1);
+  let beforeLabel = startedOn !== null ? 'the four weeks before the goal started' : 'the four weeks before';
   if (diffDays(recentFrom, recentTo) < 6) {
     recentFrom = addDays(today, -14);
     beforeTo = addDays(recentFrom, -1);
@@ -111,10 +114,16 @@ export function rateEffect(phase: GoalPhase, ratePct: number | null, formatRate:
     : { id: 'rate', label: 'Pace of gain', status: 'ok', text: `Gaining ${formatRate} a week is about ${pct} % of body weight — a pace where a good share can be muscle.` };
 }
 
-export function leanEffect(phase: GoalPhase, lean: LeanShare | null, formatKg: (kg: number) => string): EffectItem | null {
+export function leanEffect(
+  phase: GoalPhase,
+  lean: LeanShare | null,
+  formatKg: (kg: number) => string,
+  /** When the change is measured from, as the sentence opens: "Since the goal started". */
+  since = 'Since the goal started'
+): EffectItem | null {
   if (!lean || phase === 'maintain') return null;
   const pct = Math.round(lean.share * 100);
-  const text = `Since the goal started, weight changed ${formatKg(lean.weightChangeKg)} and lean mass ${formatKg(lean.leanChangeKg)} — about ${pct} % of the change. Scale body-fat readings are noisy (±3–5 points), so read this as a direction, alongside strength and a waist measurement.`;
+  const text = `${since}, weight changed ${formatKg(lean.weightChangeKg)} and lean mass ${formatKg(lean.leanChangeKg)} — about ${pct} % of the change. Scale body-fat readings are noisy (±3–5 points), so read this as a direction, alongside strength and a waist measurement.`;
   if (phase === 'cut') {
     return { id: 'lean', label: 'Lean mass', status: lean.share > 0.3 ? 'watch' : 'ok', text };
   }

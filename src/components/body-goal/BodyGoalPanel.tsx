@@ -2,12 +2,14 @@
 
 // ── Body → Overview: the goal and what bears on it ──────
 //
-// The goal card (set, edit, end), and the goal read through the data: the
-// energy balance, how long each pace would take, what is driving the change
-// and how the body is responding. The Body page puts its weight trajectory
-// (WeightTrajectory) between the two. Every
-// section is shown only when there is data for it, and nothing here measures
-// the reader against a deadline — arrival dates are projections from a pace.
+// The goal card (set, edit, end), and the body read through the data: the
+// energy balance, the pace (and with a goal, how long each pace would take),
+// what is driving the change and how the body is responding. The sections need
+// no goal — they read the weight trend's own direction until one is set. The
+// Body page puts its weight trajectory (WeightTrajectory) between the card and
+// the sections. Every section is shown only when there is data for it, and
+// nothing here measures the reader against a deadline — arrival dates are
+// projections from a pace.
 
 import Link from 'next/link';
 import { useState } from 'react';
@@ -17,13 +19,14 @@ import { useUnits } from '@/components/ui/UnitsProvider';
 import { DiscussButton } from '@/components/analyst/DiscussDialog';
 import { SectionTitle } from '@/components/domain/DomainShared';
 import { formatDayKeyLong } from '@/lib/analytics/windows';
-import { TREND_DAYS } from '@/lib/body-goal/constants';
-import { PHASE_LABEL } from '@/lib/body-goal/phase';
+import { STEADY_PCT, TREND_DAYS } from '@/lib/body-goal/constants';
+import { DIRECTION_LABEL, PHASE_LABEL, type GoalPhase } from '@/lib/body-goal/phase';
+import type { BodyReading } from '@/lib/body-goal/reading';
 import type { BodyGoalReport } from '@/lib/body-goal/report';
 import type { EffectStatus } from '@/lib/body-goal/effects';
 import type { UnitSystem } from '@/lib/prefs';
 import { GoalDialog } from './GoalDialog';
-import { PaceScale } from './PaceScale';
+import { PaceScale, TrendPaceScale } from './PaceScale';
 import type { useBodyGoal } from './useBodyGoal';
 import {
   formatGrams,
@@ -84,7 +87,7 @@ export function BodyGoalCard({ goal, report }: { goal: ReturnType<typeof useBody
           <EmptyState
             icon={<Target size={22} aria-hidden="true" />}
             title="Set a goal"
-            description="Choose a target body weight or body-fat percentage. This page and Nutrition will then show your pace, your maintenance calories, targets for eating, and how your recovery and lean mass are holding up — whether you are cutting, gaining or maintaining."
+            description="Set a goal — body weight or body-fat percentage — to see when you will get there and the nutrition to support it."
             action={<Button variant="primary" size="sm" onClick={() => setEditing(true)}>Set a goal</Button>}
           />
         </Card>
@@ -115,16 +118,20 @@ export function BodyGoalCard({ goal, report }: { goal: ReturnType<typeof useBody
   );
 }
 
-/** The goal read through the data: energy balance, pace, what drives it, how the body responds. */
-export function BodyGoalSections({ report }: { report: BodyGoalReport | null }) {
+/**
+ * The body read through the data: energy balance, pace, what drives it, how
+ * the body responds. `reading` needs no goal; `report` adds the goal's pace,
+ * targets and arrival dates when one is set.
+ */
+export function BodyGoalSections({ reading, report }: { reading: BodyReading; report: BodyGoalReport | null }) {
   const { units } = useUnits();
-  if (!report) return null;
+  const data = report ?? reading;
   return (
     <>
-      <EnergySection report={report} units={units} />
-      <PaceSection report={report} units={units} />
-      <DriversSection report={report} />
-      <ResponseSection report={report} />
+      <EnergySection data={data} hasGoal={report !== null} units={units} />
+      {report ? <PaceSection report={report} units={units} /> : <TrendPaceSection reading={reading} units={units} />}
+      <DriversSection data={data} report={report} />
+      <ResponseSection data={data} />
     </>
   );
 }
@@ -254,8 +261,8 @@ function suggestions(report: BodyGoalReport): string[] {
 
 // ── Energy balance ──────────────────────────────────────
 
-function EnergySection({ report, units }: { report: BodyGoalReport; units: UnitSystem }) {
-  const e = report.energy;
+function EnergySection({ data, hasGoal, units }: { data: BodyReading; hasGoal: boolean; units: UnitSystem }) {
+  const e = data.energy;
   const rows: { label: string; value: string; note?: string }[] = [];
   const trendRow = e.trendBalance !== null && {
     label: 'Daily balance, from your weight trend',
@@ -317,8 +324,9 @@ function EnergySection({ report, units }: { report: BodyGoalReport; units: UnitS
           {e.agreementText && <DataStateNote>{e.agreementText}</DataStateNote>}
           {!e.foodLogged && (
             <DataStateNote>
-              No food is logged, which is fine — the goal is tracked from your weigh-ins. If you do log meals in an app that
-              writes to Apple Health, maintenance is also worked out from what you eat and how your weight moves.
+              No food is logged, which is fine — {hasGoal ? 'the goal is tracked' : 'the balance comes'} from your weigh-ins. If you
+              do log meals in an app that writes to Apple Health, maintenance is also worked out from what you eat and how your
+              weight moves.
             </DataStateNote>
           )}
         </div>
@@ -376,13 +384,46 @@ function PaceSection({ report, units }: { report: BodyGoalReport; units: UnitSys
   );
 }
 
+/** Without a goal: which way weight is going and how fast, against the range for that direction. */
+function TrendPaceSection({ reading, units }: { reading: BodyReading; units: UnitSystem }) {
+  const d = reading.direction;
+  const w = reading.weight;
+  if (!d || w.rateKgPerWeek === null || w.ratePct === null) return null;
+  return (
+    <section>
+      <SectionTitle hint={`last ${TREND_DAYS} days`}>Your current pace</SectionTitle>
+      <Card className="p-4 md:p-6">
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
+          <Badge variant="accent">{DIRECTION_LABEL[d.phase]}</Badge>
+          <span className="font-medium tnum text-text-primary">{formatRate(w.rateKgPerWeek, units)}</span>
+          <span className="text-text-secondary tnum">· {formatPct(Math.abs(w.ratePct), 2)} of body weight</span>
+          {d.phase !== 'maintain' && <span className="text-text-secondary">· {FIT_TEXT[d.fit]}</span>}
+        </div>
+        {d.phase === 'maintain' ? (
+          <p className="text-sm text-text-secondary leading-relaxed">
+            Weight is holding steady: it moved less than {STEADY_PCT} % of body weight a week either way over the last four
+            weeks, from {w.weighIns} weigh-ins.
+          </p>
+        ) : (
+          <TrendPaceScale reading={reading} units={units} />
+        )}
+        <p className="mt-3 text-[12px] text-text-secondary">
+          This reads the trend as it is, without a target. Set a goal to see when you would get there and what to eat for it.
+        </p>
+      </Card>
+    </section>
+  );
+}
+
 // ── What is driving it ──────────────────────────────────
 
-function DriversSection({ report }: { report: BodyGoalReport }) {
-  const t = report.targets;
-  const a = report.adherence;
-  const activity = report.effects.activity;
-  const logged = report.energy.foodLogged;
+function DriversSection({ data, report }: { data: BodyReading; report: BodyGoalReport | null }) {
+  // Targets come with a goal; without one the section is the activity comparison.
+  const t = report?.targets ?? null;
+  const a = report?.adherence ?? null;
+  const activity = data.effects.activity;
+  const logged = data.energy.foodLogged;
+  const way = report ? report.phase.phase : data.direction?.phase ?? null;
   if (!t && activity.rows.length === 0) return null;
   const fmt = (id: string, v: number | null) => {
     if (v === null) return '—';
@@ -484,11 +525,10 @@ function DriversSection({ report }: { report: BodyGoalReport }) {
                 <DataStateNote>There are no daily activity readings from {activity.beforeLabel} to compare with.</DataStateNote>
               </div>
             )}
-            {report.effects.activeShare !== null && (
+            {data.effects.activeShare !== null && (
               <div className="mt-3">
                 <DataStateNote>
-                  Active energy is about {Math.round(report.effects.activeShare * 100)} % of your maintenance calories. Moving
-                  more raises maintenance, so the same intake {report.phase.phase === 'bulk' ? 'gains more slowly' : 'loses faster'}.
+                  Active energy is about {Math.round(data.effects.activeShare * 100)} % of your maintenance calories. {activeShareEffect(way)}
                 </DataStateNote>
               </div>
             )}
@@ -499,11 +539,18 @@ function DriversSection({ report }: { report: BodyGoalReport }) {
   );
 }
 
+/** What moving more does, for the way weight is going. */
+function activeShareEffect(way: GoalPhase | null): string {
+  if (way === 'bulk') return 'Moving more raises maintenance, so the same intake gains more slowly.';
+  if (way === 'cut') return 'Moving more raises maintenance, so the same intake loses faster.';
+  return 'Moving more raises maintenance, so the same weight holds on more food.';
+}
+
 // ── How the body is responding ──────────────────────────
 
-function ResponseSection({ report }: { report: BodyGoalReport }) {
-  const items = [report.effects.rate, report.effects.lean].filter((i): i is NonNullable<typeof i> => i !== null);
-  const recovery = report.effects.recovery;
+function ResponseSection({ data }: { data: BodyReading }) {
+  const items = [data.effects.rate, data.effects.lean].filter((i): i is NonNullable<typeof i> => i !== null);
+  const recovery = data.effects.recovery;
   if (items.length === 0 && recovery.length === 0) return null;
 
   return (

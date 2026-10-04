@@ -10,7 +10,7 @@
 // "faster than recommended" and "slower than recommended" are both just facts
 // about the data, and there is no notion of being behind.
 
-import { BODY_FAT_BANDS, BULK_BAND, CUT_BANDS } from './constants';
+import { BODY_FAT_BANDS, BULK_BAND, CUT_BANDS, STEADY_PCT } from './constants';
 import type { GoalPhase } from './phase';
 
 export type BodyFatLevel = 'lean' | 'moderate' | 'higher' | 'unknown';
@@ -84,11 +84,11 @@ export type TrendFit = 'within' | 'faster' | 'slower' | 'steady' | 'opposite' | 
  * Where the measured trend sits relative to the band. `opposite` means the
  * trend is moving away from the target; `steady` means it is not moving much
  * (under a tenth of the band's lower edge). At maintenance, `drifting` means
- * weight is moving more than a quarter of a percent a week either way.
+ * weight is moving more than STEADY_PCT a week either way.
  */
 export function trendFit(phase: GoalPhase, band: PaceBand, ratePct: number | null): TrendFit {
   if (ratePct === null) return 'unknown';
-  if (phase === 'maintain') return Math.abs(ratePct) <= 0.25 ? 'within' : 'drifting';
+  if (phase === 'maintain') return Math.abs(ratePct) <= STEADY_PCT ? 'within' : 'drifting';
   const toward = phase === 'cut' ? -ratePct : ratePct;
   if (Math.abs(toward) < Math.max(0.05, band.minPct * 0.1)) return 'steady';
   if (toward < 0) return 'opposite';

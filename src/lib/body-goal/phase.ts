@@ -6,7 +6,7 @@
 // guidance turns to maintenance. A body-fat target works the same way against
 // the current body-fat reading.
 
-import { AT_GOAL_BODY_FAT_POINTS, AT_GOAL_WEIGHT_SHARE } from './constants';
+import { AT_GOAL_BODY_FAT_POINTS, AT_GOAL_WEIGHT_SHARE, STEADY_PCT } from './constants';
 import type { BodyGoal } from './types';
 import type { Reading } from './trend';
 
@@ -52,4 +52,23 @@ export const PHASE_LABEL: Record<GoalPhase, string> = {
   cut: 'Cutting',
   bulk: 'Gaining',
   maintain: 'Maintaining',
+};
+
+/**
+ * The direction the weight trend is going, with no goal to measure it against:
+ * losing or gaining more than STEADY_PCT of body weight a week, or holding
+ * steady. Null when there is no trend.
+ */
+export function trendDirection(ratePct: number | null): GoalPhase | null {
+  if (ratePct === null) return null;
+  if (ratePct <= -STEADY_PCT) return 'cut';
+  if (ratePct >= STEADY_PCT) return 'bulk';
+  return 'maintain';
+}
+
+/** Without a goal the intent is unknown, so the trend is named for what it does. */
+export const DIRECTION_LABEL: Record<GoalPhase, string> = {
+  cut: 'Losing',
+  bulk: 'Gaining',
+  maintain: 'Holding steady',
 };

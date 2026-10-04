@@ -10,7 +10,7 @@ import { CompositionBar } from '@/components/art/CompositionBar';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { BodyGoalCard, BodyGoalSections } from '@/components/body-goal/BodyGoalPanel';
 import { WeightTrajectory } from '@/components/body-goal/WeightTrajectory';
-import { useBodyGoal, useGoalReport } from '@/components/body-goal/useBodyGoal';
+import { useBodyGoal, useBodyReading, useGoalReport } from '@/components/body-goal/useBodyGoal';
 import {
   DomainHeader, SectionTitle, SeriesCard, MetricGrid, metricsForCategories,
 } from './DomainShared';
@@ -31,6 +31,7 @@ export function BodyPage() {
   // trajectory (goal line and projection) and the goal sections.
   const goal = useBodyGoal();
   const report = useGoalReport(goal.active);
+  const reading = useBodyReading();
 
   return (
     <div className="space-y-8">
@@ -43,7 +44,7 @@ export function BodyPage() {
 
       <BodyGoalCard goal={goal} report={report} />
       <WeightTrajectory report={report} />
-      <BodyGoalSections report={report} />
+      <BodyGoalSections reading={reading} report={report} />
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_340px]">
       <BodyMap

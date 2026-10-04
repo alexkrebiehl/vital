@@ -3,8 +3,8 @@
 // ── Body goal in the browser ────────────────────────────
 //
 // `useBodyGoal` reads and writes the goal through /api/body-goal.
-// `useBodyGoalReport` turns it into the engine's report over the active
-// dataset, in the reader's units. A failure is shown as the route's own message;
+// `useGoalReport` turns it into the engine's report over the active dataset,
+// in the reader's units, and `useBodyReading` reads the same data with no goal. A failure is shown as the route's own message;
 // nothing is invented in its place.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -12,6 +12,7 @@ import { useDatasetMeta } from '@/components/data/DatasetProvider';
 import { useProfile } from '@/components/profile/ProfileProvider';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { inputsFromDataset } from '@/lib/body-goal/dataset';
+import { bodyReading, type BodyReading } from '@/lib/body-goal/reading';
 import { bodyGoalReport, type BodyGoalReport } from '@/lib/body-goal/report';
 import type { BodyGoal, BodyGoalInput, BodyGoalsState } from '@/lib/body-goal/types';
 
@@ -90,5 +91,18 @@ export function useGoalReport(goal: BodyGoal | null): BodyGoalReport | null {
     // The dataset is module state; its identity changes with the meta.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [goal, units, profile.sex, meta.generatedAt, meta.referenceKey, meta.mode]
+  );
+}
+
+/** What the data says about the body with no goal: the trend's direction, energy balance, activity and recovery. */
+export function useBodyReading(): BodyReading {
+  const { units } = useUnits();
+  const { profile } = useProfile();
+  const meta = useDatasetMeta();
+  return useMemo(
+    () => bodyReading(inputsFromDataset(units, profile.sex)),
+    // The dataset is module state; its identity changes with the meta.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [units, profile.sex, meta.generatedAt, meta.referenceKey, meta.mode]
   );
 }

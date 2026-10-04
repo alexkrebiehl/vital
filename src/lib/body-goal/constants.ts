@@ -29,6 +29,12 @@ export const ENERGY_AGREEMENT_KCAL = 250;
 /** Within this distance of the target the goal is reached and the guidance turns to maintenance. */
 export const AT_GOAL_WEIGHT_SHARE = 0.01; // ±1 % of body weight
 export const AT_GOAL_BODY_FAT_POINTS = 0.5;
+/**
+ * A weight trend smaller than this (% of body weight a week, either way) is
+ * holding steady: without a goal it reads as maintaining, and at a goal it is
+ * inside the maintenance range.
+ */
+export const STEADY_PCT = 0.25;
 
 /**
  * Recommended pace, % of body weight per week.

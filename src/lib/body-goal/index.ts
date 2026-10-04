@@ -10,6 +10,7 @@ export * from './projection';
 export * from './consistency';
 export * from './intake';
 export * from './effects';
+export * from './reading';
 export * from './report';
 export * from './summary';
 export * from './dataset';

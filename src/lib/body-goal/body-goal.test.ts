@@ -3,6 +3,7 @@ import { addDays } from '../analytics/windows';
 import {
   bodyFatLevel,
   bodyGoalReport,
+  bodyReading,
   bodyGoalSummary,
   changeToTarget,
   effectivePace,
@@ -14,6 +15,7 @@ import {
   projectArrival,
   recommendedBand,
   splitLoggedDays,
+  trendDirection,
   trendFit,
   validateBodyGoalInput,
   weightTrend,
@@ -387,5 +389,64 @@ describe('without a food log (most people)', () => {
     expect(report.projection!.rows.length).toBeGreaterThan(0);
     expect(report.effects.activity.rows.filter(r => r.id !== 'workouts' && r.id !== 'step_count')).toEqual([]);
     expect(bodyGoalSummary(report, 'metric').targets!.kcal).toBeNull();
+  });
+});
+
+describe('without a goal', () => {
+  const inputs = (data: Record<string, DayValue[]>) => ({ series: lookup(data), workoutDays: [], today: TODAY, sex: 'male' as const, system: 'imperial' as const });
+
+  it('names the trend for what it does', () => {
+    expect(trendDirection(-0.3)).toBe('cut');
+    expect(trendDirection(0.3)).toBe('bulk');
+    expect(trendDirection(0.1)).toBe('maintain');
+    expect(trendDirection(-0.1)).toBe('maintain');
+    expect(trendDirection(null)).toBeNull();
+  });
+
+  it('reads the direction, energy balance and the pace\'s costs from the data alone', () => {
+    const reading = bodyReading(inputs(cutSeries()));
+    expect(reading.direction).toMatchObject({ phase: 'cut', fit: 'faster', band: { minPct: 0.5, maxPct: 1.0 } });
+    expect(reading.energy.adaptive).not.toBeNull();
+    expect(reading.energy.device).not.toBeNull();
+    expect(reading.effects.rate!.status).toBe('watch');
+    expect(reading.effects.lean!.text).toMatch(/^Over the last 90 days/);
+    expect(reading.effects.activity.beforeLabel).toBe('the four weeks before');
+    expect(reading.months.length).toBeGreaterThan(0);
+    expect(reading).not.toHaveProperty('goal');
+    expect(reading).not.toHaveProperty('projection');
+    expect(JSON.stringify(reading.effects)).not.toMatch(/behind|overdue|goal/i);
+  });
+
+  it('holds steady when weight barely moves', () => {
+    const flat = cutSeries();
+    flat.weight_body_mass = flat.weight_body_mass.map((p, i) => ({ key: p.key, value: 80 + (i % 2 ? 0.1 : -0.1) }));
+    const reading = bodyReading(inputs(flat));
+    expect(reading.direction!.phase).toBe('maintain');
+    expect(reading.effects.rate).toBeNull();
+  });
+
+  it('gives the weigh-in balance with no food log', () => {
+    const data = cutSeries();
+    for (const id of ['dietary_energy', 'dietary_protein', 'dietary_carbs', 'dietary_fat_total']) delete (data as Record<string, unknown>)[id];
+    const reading = bodyReading(inputs(data));
+    expect(reading.energy.foodLogged).toBe(false);
+    expect(reading.energy.trendBalance!).toBeLessThan(-900);
+    expect(reading.direction!.phase).toBe('cut');
+  });
+
+  it('has no direction without weigh-ins', () => {
+    const data = cutSeries();
+    delete (data as Record<string, unknown>).weight_body_mass;
+    expect(bodyReading(inputs(data)).direction).toBeNull();
+  });
+
+  it('keeps the goal report on the same numbers as the reading', () => {
+    const data = cutSeries();
+    const reading = bodyReading(inputs(data));
+    const report = bodyGoalReport(goal(), inputs(data));
+    expect(report.weight).toEqual(reading.weight);
+    expect(report.energy).toEqual(reading.energy);
+    expect(report.effects.recovery).toEqual(reading.effects.recovery);
+    expect(report.effects.activity.beforeLabel).toBe('the four weeks before the goal started');
   });
 });
