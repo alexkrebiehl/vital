@@ -1,11 +1,15 @@
+import { createHash } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import samples from '@/data/hae-samples.json';
 import {
   LiveHealthDataAdapter,
   LIVE_LOOKBACK_DAYS,
+  LiveSourcesFailedError,
+  NoLiveSourceError,
   fetchLiveDatasetUncached,
   liveCacheKey,
   loadLiveDataset,
+  ouraCacheKey,
   upstreamWindow,
   warmLiveDataset,
 } from '@/lib/adapters/live';
@@ -13,6 +17,9 @@ import { HaeError, fetchMetricRecords, probeHae, readHaeConfig } from '@/lib/ada
 import { liveCache, setCacheTtlForTests } from '@/lib/adapters/cache';
 import { resetToDemoDataset, setActiveDataset } from '@/lib/adapters/dataset';
 import { workoutDayKey } from '@/lib/analytics/workouts';
+import { encryptJson, keyId } from '@/lib/secrets/crypto';
+import type { PoolLike } from '@/lib/db/pool';
+import type { SourceContext } from '@/lib/sources/registry';
 
 const TOKEN = 'test-read-token-do-not-log';
 const ENV = {
@@ -224,7 +231,7 @@ describe('live dataset timezone', () => {
     const moved = await loadLiveDataset({ ...deps, timezone: 'America/New_York' });
     expect(moved.timezone).toBe('America/New_York');
     expect(calls.length).toBe(onePass * 2);
-    expect(liveCache.stats().keys).toEqual([liveCacheKey('America/New_York')]);
+    expect(liveCache.stats().keys).toEqual([liveCacheKey('America/New_York', 'hae')]);
   });
 });
 
@@ -289,9 +296,10 @@ describe('stale-while-revalidate (live dataset)', () => {
     const before = liveCache.stats();
     const served = await loadLiveDataset(deps);
     expect(served).toBe(priming); // the exact cached object, served stale
+    // The refresh really did start upstream (after the source set is resolved)...
+    await vi.waitFor(() => expect(upstream.calls.length - passesAfterPriming).toBeGreaterThan(0));
     const startedByRefresh = upstream.calls.length - passesAfterPriming;
-    expect(startedByRefresh).toBeGreaterThan(0); // the refresh really did start upstream
-    expect(startedByRefresh).toBeLessThan(requestsPerPass); // and is still outstanding
+    expect(startedByRefresh).toBeLessThan(requestsPerPass); // ...and is still outstanding
     const during = liveCache.stats();
     expect(during.inFlight).toBe(1); // not awaited
     expect(during.revalidations - before.revalidations).toBe(1);
@@ -370,7 +378,7 @@ describe('stale-while-revalidate (live dataset)', () => {
 });
 
 describe('boot warm-up', () => {
-  it('does nothing in demo mode or when the API is not configured', () => {
+  it('does nothing in demo mode or when no live source is configured', () => {
     liveCache.clear();
     expect(warmLiveDataset({ env: {} as NodeJS.ProcessEnv })).toBeNull();
     expect(
@@ -391,12 +399,13 @@ describe('boot warm-up', () => {
     liveCache.clear();
     setCacheTtlForTests(60_000);
     const upstream = gatedFetch();
+    upstream.close(); // hold the pass open so it can be seen under way
     const deps = { env: ENV, fetchImpl: upstream.impl, now: () => NOW };
 
     const warm = warmLiveDataset(deps);
     expect(warm).not.toBeNull();
     // Returned before the fill finished: the pass is under way in the background.
-    expect(liveCache.stats().inFlight).toBe(1);
+    await vi.waitFor(() => expect(liveCache.stats().inFlight).toBe(1));
 
     upstream.open();
     await expect(warm!).resolves.toEqual({ ok: true });
@@ -479,5 +488,228 @@ describe('LiveHealthDataAdapter', () => {
     const available = await adapter.getAvailableMetrics();
     expect(available).toContain('sleep_analysis');
     expect(available).not.toContain('vo2max');
+  });
+});
+
+describe('HAE-only output is unchanged by the multi-source wiring', () => {
+  it('serialises to the exact bytes the single-source version produced', async () => {
+    const result = await fetchLiveDatasetUncached(DEPS);
+    const text = JSON.stringify(result);
+    expect({ bytes: text.length, sha256: createHash('sha256').update(text).digest('hex') }).toEqual({
+      bytes: 20405,
+      sha256: 'b773953a2b657c2a71111e5090a12acd0d7cb2fc0063e97e97c4c52c7509e739',
+    });
+  });
+});
+
+// ── Two sources: HAE and Oura (all synthetic) ───────────
+
+const OURA_ACCESS = 'sample-oura-access-token';
+const OURA_REFRESH = 'sample-oura-refresh-token';
+const OURA_SECRET = 'sample-oura-client-secret';
+const SECRET_KEY = Buffer.alloc(32, 7);
+const OURA_ONLY_ENV = {
+  VITAL_DATA_MODE: 'live',
+  OURA_CLIENT_ID: 'sample-client',
+  OURA_CLIENT_SECRET: OURA_SECRET,
+  OURA_REDIRECT_URI: 'http://localhost:8080/api/sources/oura/callback',
+  OURA_API_URL: 'http://oura.test',
+  VITAL_SECRET_KEY: SECRET_KEY.toString('base64'),
+} as unknown as NodeJS.ProcessEnv;
+const BOTH_ENV = { ...ENV, ...OURA_ONLY_ENV } as NodeJS.ProcessEnv;
+
+/** A Postgres stand-in that answers only the credential read, from an encrypted row. */
+function credentialPool(scopes = 'daily heartrate workout spo2'): PoolLike {
+  const parts = encryptJson({ access_token: OURA_ACCESS, refresh_token: OURA_REFRESH }, SECRET_KEY);
+  const row = {
+    source_id: 'oura',
+    ciphertext: parts.ciphertext,
+    iv: parts.iv,
+    auth_tag: parts.authTag,
+    key_id: keyId(SECRET_KEY),
+    scopes,
+    access_expires_at: '2099-01-01T00:00:00.000Z',
+    connected_at: '2026-09-01T00:00:00.000Z',
+    updated_at: '2026-09-01T00:00:00.000Z',
+    revision: 1,
+  };
+  return { query: async () => ({ rows: [row] }) };
+}
+
+function sourcesCtx(env: NodeJS.ProcessEnv, connected: boolean): SourceContext {
+  return { env, hasCredential: async id => connected && id === 'oura', labReportCount: async () => 0 };
+}
+
+const OURA_DOCS: Record<string, unknown[]> = {
+  sleep: [
+    {
+      id: 's1',
+      day: '2026-09-17',
+      type: 'long_sleep',
+      bedtime_start: '2026-09-16T23:00:00+00:00',
+      bedtime_end: '2026-09-17T06:30:00+00:00',
+      time_in_bed: 27000,
+      total_sleep_duration: 24000,
+      deep_sleep_duration: 5000,
+      light_sleep_duration: 14000,
+      rem_sleep_duration: 5000,
+      awake_time: 3000,
+      average_breath: 14.5,
+      average_hrv: 48,
+      lowest_heart_rate: 51,
+    },
+  ],
+  daily_activity: [{ day: '2026-09-16', steps: 8123, active_calories: 430 }],
+  daily_readiness: [{ day: '2026-09-16', temperature_deviation: -0.2 }],
+  workout: [
+    {
+      id: 'w1',
+      activity: 'walking',
+      start_datetime: '2026-09-16T17:45:00+00:00',
+      end_datetime: '2026-09-16T18:20:00+00:00',
+      calories: 90,
+    },
+  ],
+};
+
+/** Serves HAE's samples and a few synthetic Oura documents; can fail either side. */
+function twoSourceFetch(opts: { hae?: 'ok' | 'fail'; oura?: 'ok' | 'fail' } = {}) {
+  const haeCalls: string[] = [];
+  const ouraCalls: { url: string; auth: string }[] = [];
+  const impl = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.startsWith('http://oura.test')) {
+      const auth = String((init?.headers as Record<string, string>)?.Authorization ?? '');
+      ouraCalls.push({ url, auth });
+      if (opts.oura === 'fail') return new Response('{}', { status: 500 });
+      const name = /usercollection\/([^?]+)/.exec(url)?.[1] ?? '';
+      return new Response(JSON.stringify({ data: OURA_DOCS[name] ?? [], next_token: null }), { status: 200 });
+    }
+    haeCalls.push(url);
+    if (opts.hae === 'fail') return { ok: false, status: 500, json: async () => [] } as unknown as Response;
+    return { ok: true, status: 200, json: async () => payloadFor(url) } as unknown as Response;
+  }) as unknown as typeof fetch;
+  return { impl, haeCalls, ouraCalls };
+}
+
+function twoSourceDeps(env: NodeJS.ProcessEnv, fetchImpl: typeof fetch, connected = true) {
+  return {
+    env,
+    fetchImpl,
+    now: () => NOW,
+    bypassCache: true,
+    sources: sourcesCtx(env, connected),
+    ouraClient: credentialPool(),
+  };
+}
+
+describe('live dataset from HAE and Oura', () => {
+  it('works with Oura alone and makes no HAE request', async () => {
+    const upstream = twoSourceFetch();
+    const result = await fetchLiveDatasetUncached(twoSourceDeps(OURA_ONLY_ENV, upstream.impl));
+    expect(upstream.haeCalls).toHaveLength(0);
+    expect(upstream.ouraCalls.length).toBeGreaterThan(0);
+    expect(result.sources).toEqual(['Oura Ring']);
+    expect(result.dataset.metrics['hrv_rmssd_sleep']).toHaveLength(1);
+    expect(result.dataset.metrics['sleep_analysis']).toHaveLength(1);
+    expect(result.dataset.metrics['resting_heart_rate']).toBeUndefined();
+    expect(result.dataset.workouts).toHaveLength(1);
+    expect(result.dataset.timezone).toBe('UTC');
+    expect(result.sourceErrors).toBeUndefined();
+  });
+
+  it('merges both sources under the stated rule and quotes it', async () => {
+    const upstream = twoSourceFetch();
+    const haeOnly = await fetchLiveDatasetUncached(twoSourceDeps(ENV, upstream.impl, false));
+    const result = await fetchLiveDatasetUncached(twoSourceDeps(BOTH_ENV, upstream.impl));
+    expect(result.mergeRule).toContain('never added or averaged');
+    // The ring is preferred for sleep by default, so its night wins that day.
+    const night = (result.dataset.metrics['sleep_analysis'] as { date: string; source: string }[]).find(
+      n => n.date === '2026-09-17'
+    );
+    expect(night?.source).toBe('Oura Ring');
+    // A ring-only measure appears next to the watch's own.
+    expect(result.dataset.metrics['hrv_rmssd_sleep']).toBeDefined();
+    expect(result.dataset.metrics['heart_rate_variability']).toEqual(haeOnly.dataset.metrics['heart_rate_variability']);
+    expect(result.sources).toContain('Oura Ring');
+    for (const c of Object.values(result.dataset.coverage)) expect(c.expectedDays).toBe(result.dataset.days);
+    expect(result.sourceErrors).toBeUndefined();
+  });
+
+  it('counts an HAE workout and an overlapping Oura workout as one', async () => {
+    const upstream = twoSourceFetch();
+    const haeOnly = await fetchLiveDatasetUncached(twoSourceDeps(ENV, upstream.impl, false));
+    const result = await fetchLiveDatasetUncached(twoSourceDeps(BOTH_ENV, upstream.impl));
+    const overlapping = result.dataset.workouts.filter(
+      w => w.start_time < '2026-09-16T18:22:17.000Z' && w.end_time > '2026-09-16T17:43:07.000Z'
+    );
+    expect(overlapping).toHaveLength(1);
+    expect(result.dataset.workouts).toHaveLength(haeOnly.dataset.workouts.length);
+  });
+
+  it('serves HAE data plus a source error when Oura fails', async () => {
+    const upstream = twoSourceFetch({ oura: 'fail' });
+    const haeOnly = await fetchLiveDatasetUncached(twoSourceDeps(ENV, upstream.impl, false));
+    const result = await fetchLiveDatasetUncached(twoSourceDeps(BOTH_ENV, upstream.impl));
+    expect(result.dataset.metrics['resting_heart_rate']).toEqual(haeOnly.dataset.metrics['resting_heart_rate']);
+    expect(result.sourceErrors).toEqual([
+      { sourceId: 'oura', kind: 'http_error', message: expect.stringContaining('HTTP 500') },
+    ]);
+    const text = JSON.stringify(result);
+    for (const secret of [OURA_ACCESS, OURA_REFRESH, OURA_SECRET, TOKEN]) expect(text).not.toContain(secret);
+  });
+
+  it('serves Oura data plus a source error when HAE fails', async () => {
+    const upstream = twoSourceFetch({ hae: 'fail' });
+    const result = await fetchLiveDatasetUncached(twoSourceDeps(BOTH_ENV, upstream.impl));
+    expect(result.dataset.metrics['hrv_rmssd_sleep']).toBeDefined();
+    expect(result.sourceErrors?.map(e => e.sourceId)).toEqual(['hae']);
+  });
+
+  it('throws, with both reasons, when every source fails', async () => {
+    const upstream = twoSourceFetch({ hae: 'fail', oura: 'fail' });
+    const error = await fetchLiveDatasetUncached(twoSourceDeps(BOTH_ENV, upstream.impl)).catch(e => e);
+    expect(error).toBeInstanceOf(LiveSourcesFailedError);
+    expect((error as LiveSourcesFailedError).errors.map(e => e.sourceId).sort()).toEqual(['hae', 'oura']);
+  });
+
+  it('asks the reader to connect Oura when it is configured, not connected, and HAE is absent', async () => {
+    const upstream = twoSourceFetch();
+    const error = await fetchLiveDatasetUncached(twoSourceDeps(OURA_ONLY_ENV, upstream.impl, false)).catch(e => e);
+    expect(error).toBeInstanceOf(NoLiveSourceError);
+    expect((error as Error).message).toContain('Connect Oura in Settings');
+    expect(upstream.ouraCalls).toHaveLength(0);
+  });
+
+  it('leaves ring records in HAE when Oura is configured but not connected', async () => {
+    const upstream = twoSourceFetch();
+    const result = await fetchLiveDatasetUncached(twoSourceDeps(BOTH_ENV, upstream.impl, false));
+    const haeOnly = await fetchLiveDatasetUncached(twoSourceDeps(ENV, upstream.impl, false));
+    expect(JSON.stringify(result)).toBe(JSON.stringify(haeOnly));
+    expect(upstream.ouraCalls).toHaveLength(0);
+  });
+
+  it('keys the caches by the active source set and holds Oura under its own key', async () => {
+    liveCache.clear();
+    setCacheTtlForTests(60_000);
+    const upstream = twoSourceFetch();
+    const deps = { ...twoSourceDeps(BOTH_ENV, upstream.impl), bypassCache: false };
+    await loadLiveDataset(deps);
+    expect(liveCache.stats().keys.sort()).toEqual([liveCacheKey('UTC', 'hae+oura'), ouraCacheKey('UTC', LIVE_LOOKBACK_DAYS)].sort());
+    const ouraBefore = upstream.ouraCalls.length;
+    await loadLiveDataset(deps);
+    expect(upstream.ouraCalls.length).toBe(ouraBefore);
+
+    // Disconnecting changes the set: the old dataset is dropped, not served.
+    await loadLiveDataset({ ...deps, sources: sourcesCtx(BOTH_ENV, false) });
+    expect(liveCache.stats().keys.filter(k => k.startsWith('live-dataset:'))).toEqual([liveCacheKey('UTC', 'hae')]);
+  });
+
+  it('skips collections whose scope was not granted', async () => {
+    const upstream = twoSourceFetch();
+    await fetchLiveDatasetUncached({ ...twoSourceDeps(OURA_ONLY_ENV, upstream.impl), ouraClient: credentialPool('daily') });
+    const asked = upstream.ouraCalls.map(c => /usercollection\/([^?]+)/.exec(c.url)?.[1]).sort();
+    expect(asked).toEqual(['daily_activity', 'daily_readiness', 'sleep', 'vO2_max']);
+    for (const c of upstream.ouraCalls) expect(c.auth).toBe(`Bearer ${OURA_ACCESS}`);
   });
 });

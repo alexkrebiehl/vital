@@ -1,9 +1,12 @@
-// ── Live Health Data Adapter (Health Auto Export) ───────
+// ── Live Health Data Adapter (Health Auto Export + Oura) ─
 //
 // SERVER-SIDE ONLY. This module reads HAE_API_URL / HAE_API_KEY from the process
 // environment, fetches bounded windows from the Health Auto Export API, and
 // normalizes them into the same internal dataset shape the demo fixtures use
-// (see `normalize.ts`). It is never imported by a component.
+// (see `normalize.ts`). When Oura is connected it reads that source in parallel
+// and merges the two under a stated rule (`merge.ts`). Which sources are active
+// is decided in one place, the registry (`sources/registry.ts`). It is never
+// imported by a component.
 //
 // Design decisions required by the integration boundary in SPEC §10:
 //
@@ -31,6 +34,9 @@ import type {
 import { getMetric } from '../metrics/registry';
 import { addDays, dayKey, diffDays } from '../analytics/windows';
 import type { HealthDataAdapter, MetricQuery } from './types';
+import type { SourceError } from './meta';
+
+export type { SourceError } from './meta';
 import { HaeError, fetchMetricRecords, fetchWorkouts, readHaeConfig } from './hae';
 import { liveCache, liveCacheTtlMs } from './cache';
 import {
@@ -51,6 +57,14 @@ import {
   normalizeWorkoutsWithCounts,
 } from './normalize';
 import { splitSources, sourceRuleExplanationFor } from './sources';
+import { MERGE_RULE, mergeDatasets, preferRingFromGroups, type BuiltPart } from './merge';
+import { readOuraConfig } from './oura/config';
+import { OuraError } from './oura/client';
+import { fetchOuraContribution, recordOuraOutcome } from './oura';
+import { OuraNotConnectedError } from './oura/tokens';
+import type { OuraContribution } from './oura/normalize';
+import type { PoolLike } from '../db/pool';
+import { activeHealthSources, defaultContext, sourceSetKey, type SourceContext } from '../sources/registry';
 
 /** Rolling window fetched from upstream. Covers the observed 56-day history many times over. */
 export const LIVE_LOOKBACK_DAYS = 400;
@@ -77,6 +91,10 @@ export interface LiveDeps {
    * dates, workout days, daily totals and "today" all depend on it.
    */
   timezone?: string;
+  /** Replaces the registry's view of the world (tests). */
+  sources?: SourceContext;
+  /** Replaces the process Postgres pool for Oura's credential (tests). */
+  ouraClient?: PoolLike | null;
 }
 
 /** Outcome of the boot-time cache warm-up: reported, never thrown. */
@@ -97,6 +115,10 @@ export interface LiveDatasetResult {
   timezone: string;
   sources: string[];
   cacheTtlSeconds: number;
+  /** Present only when a source failed and the other's data was served. */
+  sourceErrors?: SourceError[];
+  /** Present only when two sources were merged. */
+  mergeRule?: string;
 }
 
 function resolveTimezone(deps: LiveDeps): string {
@@ -186,30 +208,33 @@ function provenanceRow(
   };
 }
 
+/** The Health Auto Export pass, for the window the orchestrator chose. */
+interface HaePassArgs {
+  env: NodeJS.ProcessEnv;
+  fetchImpl?: typeof fetch;
+  now: Date;
+  timezone: string;
+  referenceKey: string;
+  window: { from: string; to: string };
+  /** True when Oura is connected: ring records then come only from Oura's own API. */
+  excludeRing: boolean;
+}
+
 /**
- * One upstream pass, normalized and aggregated to one value per day.
+ * One Health Auto Export pass, normalized and aggregated to one value per day.
  *
  * Each metric's raw response is reduced and dropped immediately, so peak memory
  * is one metric's payload rather than the whole history.
  */
-export async function fetchLiveDatasetUncached(deps: LiveDeps = {}): Promise<LiveDatasetResult> {
-  const env = deps.env ?? process.env;
-  const config = readHaeConfig(env);
-  if (!config) {
-    throw new HaeError(
-      'Live mode is selected but the Health Auto Export API is not configured ' +
-        '(HAE_API_URL and HAE_API_KEY must both be set).',
-      'not_configured'
-    );
-  }
-
-  const now = (deps.now ?? (() => new Date()))();
-  const timezone = resolveTimezone(deps);
-  const referenceKey = dayKey(now.toISOString(), timezone);
-  const lookbackDays = deps.lookbackDays ?? LIVE_LOOKBACK_DAYS;
-  const window = upstreamWindow(referenceKey, lookbackDays);
-  const requestDeps = { env, fetchImpl: deps.fetchImpl };
-  const ctx = { tz: timezone, referenceKey, windowStartKey: referenceKey };
+async function fetchHaePass(args: HaePassArgs): Promise<LiveDatasetResult> {
+  const { env, now, timezone, referenceKey, window } = args;
+  const requestDeps = { env, fetchImpl: args.fetchImpl };
+  const ctx = {
+    tz: timezone,
+    referenceKey,
+    windowStartKey: referenceKey,
+    ...(args.excludeRing ? { excludeFamilies: ['ring' as const] } : {}),
+  };
 
   let recordsRead = 0;
   let observations = 0;
@@ -372,23 +397,188 @@ export async function fetchLiveDatasetUncached(deps: LiveDeps = {}): Promise<Liv
   };
 }
 
+// ── Several sources, one dataset ────────────────────────
+
+const OURA_CACHE_PREFIX = 'oura:';
+
+/** The Oura contribution's cache key: its own TTL and its own window. */
+export function ouraCacheKey(timezone: string = DEFAULT_TIMEZONE, lookbackDays: number = LIVE_LOOKBACK_DAYS): string {
+  return `${OURA_CACHE_PREFIX}${timezone}:${lookbackDays}`;
+}
+
+/** Thrown when live mode has no source to read. */
+export class NoLiveSourceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'NoLiveSourceError';
+  }
+}
+
+/** Thrown when every active source failed; `errors` lists each one. */
+export class LiveSourcesFailedError extends Error {
+  constructor(readonly errors: SourceError[]) {
+    super(errors.map(e => e.message).join(' '));
+    this.name = 'LiveSourcesFailedError';
+  }
+}
+
+/** Fixed, token-free text for a failure of one source. */
+function describeFailure(sourceId: 'hae' | 'oura', error: unknown): SourceError {
+  if (error instanceof HaeError) return { sourceId, kind: error.kind, message: error.message };
+  if (error instanceof OuraError) return { sourceId, kind: error.kind, message: error.message };
+  if (error instanceof OuraNotConnectedError) return { sourceId, kind: error.reason, message: error.message };
+  return {
+    sourceId,
+    kind: 'network_error',
+    message: sourceId === 'oura' ? 'The Oura request failed.' : 'The Health Auto Export API request failed.',
+  };
+}
+
+function sourceContext(deps: LiveDeps): SourceContext {
+  return deps.sources ?? defaultContext(deps.env ?? process.env);
+}
+
+/** The error for "no source is active", worded for what is actually missing. */
+function noSourceError(env: NodeJS.ProcessEnv): Error {
+  const oura = readOuraConfig(env);
+  if (oura?.ok) return new NoLiveSourceError('Connect Oura in Settings → Connections.');
+  return new HaeError(
+    'Live mode is selected but the Health Auto Export API is not configured ' +
+      '(HAE_API_URL and HAE_API_KEY must both be set).',
+    'not_configured'
+  );
+}
+
+async function loadOuraContribution(
+  deps: LiveDeps,
+  env: NodeJS.ProcessEnv,
+  args: { timezone: string; referenceKey: string; lookbackDays: number }
+): Promise<OuraContribution> {
+  const load = () =>
+    fetchOuraContribution(args, { env, fetchImpl: deps.fetchImpl, client: deps.ouraClient, now: deps.now });
+  const read = readOuraConfig(env);
+  const ttlMs = read?.ok ? read.config.cacheTtlSeconds * 1000 : undefined;
+  if (deps.bypassCache) return load();
+  return liveCache.getOrLoad(ouraCacheKey(args.timezone, args.lookbackDays), load, ttlMs);
+}
+
+/** Make every coverage record measure against the merged window. */
+function alignCoverage(dataset: HealthFixtures): void {
+  for (const id of Object.keys(dataset.coverage)) {
+    dataset.coverage[id] = { ...dataset.coverage[id], expectedDays: dataset.days };
+  }
+}
+
+/**
+ * One upstream pass over every active health source, merged.
+ *
+ *   HAE only    → exactly the Health Auto Export result, byte for byte.
+ *   Oura only   → the Oura contribution, framed on today in the profile zone.
+ *   both        → merged under the stated rule (`merge.ts`).
+ *   one failed  → the other's data plus a `sourceErrors` entry; never silent.
+ *   all failed  → throws.
+ */
+export async function fetchLiveDatasetUncached(deps: LiveDeps = {}): Promise<LiveDatasetResult> {
+  const env = deps.env ?? process.env;
+  const active = await activeHealthSources(sourceContext(deps));
+  const haeOn = active.includes('hae');
+  const ouraOn = active.includes('oura');
+  if (!haeOn && !ouraOn) throw noSourceError(env);
+
+  const now = (deps.now ?? (() => new Date()))();
+  const timezone = resolveTimezone(deps);
+  const referenceKey = dayKey(now.toISOString(), timezone);
+  const lookbackDays = deps.lookbackDays ?? LIVE_LOOKBACK_DAYS;
+  const window = upstreamWindow(referenceKey, lookbackDays);
+
+  const [haeRun, ouraRun] = await Promise.allSettled([
+    haeOn
+      ? fetchHaePass({ env, fetchImpl: deps.fetchImpl, now, timezone, referenceKey, window, excludeRing: ouraOn })
+      : Promise.resolve(null),
+    ouraOn ? loadOuraContribution(deps, env, { timezone, referenceKey, lookbackDays }) : Promise.resolve(null),
+  ]);
+
+  const errors: SourceError[] = [];
+  if (haeRun.status === 'rejected') errors.push(describeFailure('hae', haeRun.reason));
+  if (ouraRun.status === 'rejected') {
+    errors.push(describeFailure('oura', ouraRun.reason));
+    recordOuraOutcome(errors[errors.length - 1], now);
+  } else if (ouraOn) {
+    recordOuraOutcome(null, now);
+  }
+
+  const hae = haeRun.status === 'fulfilled' ? haeRun.value : null;
+  const oura = ouraRun.status === 'fulfilled' ? ouraRun.value : null;
+
+  if (!hae && !oura) {
+    // Health Auto Export alone keeps its own typed error; anything else is reported together.
+    if (errors.length === 1 && haeRun.status === 'rejected') throw asHaeError(haeRun.reason);
+    throw new LiveSourcesFailedError(errors);
+  }
+
+  const withErrors = <R extends LiveDatasetResult>(result: R): R =>
+    errors.length > 0 ? { ...result, sourceErrors: errors } : result;
+
+  // HAE alone (the other absent, or failed): the Health Auto Export result as it always was.
+  if (hae && !oura) return withErrors(hae);
+
+  const rules = { preferRing: preferRingFromGroups(readOuraConfigGroups(env)) };
+  const frame = { referenceDate: now.toISOString(), timezone };
+  const haePart: BuiltPart | null = hae ? { dataset: hae.dataset, provenance: hae.provenance, stats: hae.stats } : null;
+  const merged = mergeDatasets(haePart, oura, rules, frame);
+  if (!merged) throw new LiveSourcesFailedError(errors);
+  if (hae) alignCoverage(merged.dataset);
+
+  const sources = [...new Set([...(hae?.sources ?? []), ...(oura?.sources ?? [])])].sort();
+  const result: LiveDatasetResult = {
+    dataset: merged.dataset,
+    provenance: merged.provenance,
+    stats: merged.stats,
+    mode: 'live',
+    asOf: merged.dataset.windowEnd,
+    generatedAt: hae?.generatedAt ?? now.toISOString(),
+    referenceKey,
+    windowStartKey: dayKey(merged.dataset.windowStart, timezone),
+    timezone,
+    sources,
+    cacheTtlSeconds: liveCacheTtlMs(env) / 1000,
+    ...(hae ? { mergeRule: MERGE_RULE } : {}),
+  };
+  return withErrors(result);
+}
+
+function readOuraConfigGroups(env: NodeJS.ProcessEnv) {
+  const read = readOuraConfig(env);
+  return read?.ok ? read.config.preferredFor : [];
+}
+
 // ── Cached entry point ──────────────────────────────────
 
 const LIVE_CACHE_PREFIX = 'live-dataset:';
 
-export function liveCacheKey(timezone: string = DEFAULT_TIMEZONE): string {
-  return `${LIVE_CACHE_PREFIX}${timezone}:${LIVE_LOOKBACK_DAYS}`;
+/** The key for a timezone and an active-source set, e.g. `live-dataset:UTC:400:hae+oura`. */
+export function liveCacheKey(timezone: string = DEFAULT_TIMEZONE, setKey: string = ''): string {
+  return `${LIVE_CACHE_PREFIX}${timezone}:${LIVE_LOOKBACK_DAYS}:${setKey}`;
+}
+
+/** Drop every held live dataset and Oura contribution (connect, disconnect, source removal). */
+export function clearLiveCaches(): void {
+  for (const key of liveCache.stats().keys) {
+    if (key.startsWith(LIVE_CACHE_PREFIX) || key.startsWith(OURA_CACHE_PREFIX)) liveCache.clear(key);
+  }
 }
 
 /**
- * The key for this load. A dataset cut in any other zone is dropped: after a
- * timezone change it is stale, and holding two copies of the history only costs
- * memory.
+ * The key for this load. A dataset cut in any other zone, or for any other set
+ * of active sources, is dropped: it is stale, and holding two copies of the
+ * history only costs memory (and could outlive a removed source).
  */
-function liveCacheKeyFor(deps: LiveDeps): string {
-  const key = liveCacheKey(resolveTimezone(deps));
+async function liveCacheKeyFor(deps: LiveDeps): Promise<string> {
+  const timezone = resolveTimezone(deps);
+  const key = liveCacheKey(timezone, await sourceSetKey(sourceContext(deps)));
   for (const other of liveCache.stats().keys) {
     if (other !== key && other.startsWith(LIVE_CACHE_PREFIX)) liveCache.clear(other);
+    if (other.startsWith(OURA_CACHE_PREFIX) && !other.startsWith(`${OURA_CACHE_PREFIX}${timezone}:`)) liveCache.clear(other);
   }
   return key;
 }
@@ -398,7 +588,7 @@ function liveCacheKeyFor(deps: LiveDeps): string {
  * concurrent callers share one upstream pass.
  */
 export async function loadLiveDataset(deps: LiveDeps = {}): Promise<LiveDatasetResult> {
-  const key = liveCacheKeyFor(deps);
+  const key = await liveCacheKeyFor(deps);
   if (deps.bypassCache) {
     const fresh = await fetchLiveDatasetUncached(deps);
     liveCache.clear(key);
@@ -415,31 +605,32 @@ export async function loadLiveDataset(deps: LiveDeps = {}): Promise<LiveDatasetR
  * in-process cache, so the first visitor after a deploy or restart does not pay
  * the cold upstream pass. Nothing is written anywhere, no timer is installed and
  * no schedule exists — one pass per process, plus the stale-while-revalidate
- * refresh after the TTL lapses.
+ * refresh after the TTL lapses. Oura is read only if it is connected.
  *
  * Returns immediately; the fill continues in the background. The returned
  * promise resolves when the fill settles — reported as an outcome rather than a
  * rejection, because a failed warm-up must not crash or spam the boot path; the
  * next request retries and shows the real error. `null` means there was nothing
- * to do (demo mode, or the API is not configured).
+ * to do (demo mode, or no live source is configured).
  */
 export function warmLiveDataset(deps: LiveDeps = {}): Promise<WarmUpOutcome> | null {
   const env = deps.env ?? process.env;
   if ((env.VITAL_DATA_MODE ?? '').trim().toLowerCase() !== 'live') return null;
-  if (!readHaeConfig(env)) return null;
+  if (!readHaeConfig(env) && !readOuraConfig(env)?.ok) return null;
 
-  const key = liveCacheKeyFor(deps);
-  // Single-flight: a request that got there first is joined, not duplicated.
-  return liveCache
-    .getOrLoad(key, () => fetchLiveDatasetUncached(deps))
-    .then(
-      () => ({ ok: true }) as WarmUpOutcome,
-      (error: unknown) =>
-        ({
-          ok: false,
-          reason: error instanceof Error ? error.message : 'The live dataset warm-up failed.',
-        }) as WarmUpOutcome
-    );
+  return (async (): Promise<WarmUpOutcome> => {
+    try {
+      if ((await activeHealthSources(sourceContext(deps))).length === 0) {
+        return { ok: false, reason: 'No live source is connected yet.' };
+      }
+      const key = await liveCacheKeyFor(deps);
+      // Single-flight: a request that got there first is joined, not duplicated.
+      await liveCache.getOrLoad(key, () => fetchLiveDatasetUncached(deps));
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, reason: error instanceof Error ? error.message : 'The live dataset warm-up failed.' };
+    }
+  })();
 }
 
 // ── HealthDataAdapter implementation ────────────────────
@@ -459,7 +650,7 @@ function inWindow(date: string, from?: string, to?: string): boolean {
  */
 export class LiveHealthDataAdapter implements HealthDataAdapter {
   readonly isLive = true;
-  readonly label = 'Health Auto Export';
+  readonly label = 'Live sources';
 
   constructor(private readonly deps: LiveDeps = {}) {}
 

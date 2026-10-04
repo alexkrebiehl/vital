@@ -10,7 +10,7 @@ export async function warmUp(): Promise<void> {
   // Warm the entry requests will hit: the dataset is cut in the profile's zone.
   const { timezone } = await readProfile();
   const warm = warmLiveDataset({ timezone });
-  if (!warm) return; // demo mode, or the export API is not configured
+  if (!warm) return; // demo mode, or no live source is configured
 
   console.log('[vital] live dataset cache warm-up started (read-only cache fill).');
   void warm.then(outcome => {

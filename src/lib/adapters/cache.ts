@@ -53,7 +53,7 @@ export class TtlCache {
    * TTL-lapsed entry is served immediately and refreshed in the background; only
    * a key with no entry at all makes the caller wait for upstream.
    */
-  async getOrLoad<T>(key: string, loader: () => Promise<T>): Promise<T> {
+  async getOrLoad<T>(key: string, loader: () => Promise<T>, ttlMs?: number): Promise<T> {
     const now = Date.now();
     const hit = this.entries.get(key);
     if (hit && hit.expiresAt > now) {
@@ -79,13 +79,13 @@ export class TtlCache {
       // that same single refresh.
       this.staleHits += 1;
       this.revalidations += 1;
-      this.start(key, loader);
+      this.start(key, loader, ttlMs);
       return hit.value as T;
     }
 
     // Genuinely cold (no entry): block on one shared upstream pass.
     this.misses += 1;
-    return (await this.start(key, loader)) as T;
+    return (await this.start(key, loader, ttlMs)) as T;
   }
 
   /**
@@ -93,7 +93,7 @@ export class TtlCache {
    * is replaced only when the load succeeds, so a failed refresh leaves any
    * stale value in place to keep serving.
    */
-  private start(key: string, loader: () => Promise<unknown>): Promise<unknown> {
+  private start(key: string, loader: () => Promise<unknown>, ttlMs?: number): Promise<unknown> {
     const existing = this.inFlight.get(key);
     if (existing) return existing;
 
@@ -103,7 +103,7 @@ export class TtlCache {
       this.entries.set(key, {
         value,
         storedAt,
-        expiresAt: storedAt + this.ttlMs(),
+        expiresAt: storedAt + (ttlMs ?? this.ttlMs()),
       });
       return value;
     })();
