@@ -16,6 +16,7 @@ import { haeHost } from './hae';
 import { loadLiveDataset, type LiveDeps } from './live';
 import { readOuraConfig } from './oura/config';
 import { activeHealthSources, defaultContext } from '../sources/registry';
+import { reconcileQuietly } from '../sources/purge';
 import { liveCache, liveCacheTtlMs } from './cache';
 import type { ProvenanceRow } from './normalize';
 import type { ClientDatasetMeta } from './meta';
@@ -172,6 +173,10 @@ export async function resolveDataset(deps: LiveDeps = {}): Promise<ResolvedDatas
  * so route handlers read exactly what the pages are showing. Idempotent.
  */
 export async function installDataset(deps: LiveDeps = {}): Promise<ResolvedDataset> {
+  // A source that went away since the last request is purged BEFORE anything is
+  // built, so nothing it contributed can be read back (plan §8).
+  const env = deps.env ?? process.env;
+  await reconcileQuietly(deps.sources ?? defaultContext(env));
   const resolved = await resolveDataset(deps);
   if (resolved.mode === 'demo' && dataMode() !== 'demo') {
     // A process that previously served live data must not keep serving it in

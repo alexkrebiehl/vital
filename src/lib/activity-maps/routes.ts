@@ -23,6 +23,7 @@ import { HaeError, fetchWorkoutDetail, type RequestDeps } from '@/lib/adapters/h
 import { workoutDayKey } from '@/lib/analytics/workouts';
 import { compactRoute, routeBytes, type CompactRoute } from './route-data';
 import { demoRoute } from './demo-routes';
+import { registerPurger } from '@/lib/sources/purge';
 
 export const ROUTE_FETCH_CONCURRENCY = 4;
 export const DEFAULT_ROUTE_CACHE_MAX_POINTS = 3_000_000;
@@ -178,6 +179,22 @@ export function routeStoreStats(): { workouts: number; withRoute: number; points
   }
   return { workouts: entries.size, withRoute, points: heldPoints, bytes };
 }
+
+/**
+ * Drop every held route. Routes come only from the Health Auto Export workout
+ * detail, so they go when that source is removed; the generation moves on, so no
+ * coverage computed from them can be matched again.
+ */
+export function purgeRouteStore(): void {
+  entries.clear();
+  inFlight.clear();
+  heldPoints = 0;
+  generation += 1;
+}
+
+registerPurger('activity-maps.routes', removedIds => {
+  if (removedIds.includes('hae')) purgeRouteStore();
+});
 
 /** Tests only. */
 export function clearRouteStore(): void {

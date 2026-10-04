@@ -9,6 +9,7 @@ import { addDays, dayKey, dayKeyToDate } from '../../analytics/windows';
 import { getCredential } from '@/lib/db/credentials-store';
 import { getPool, type PoolLike } from '@/lib/db/pool';
 import { readSecretKey } from '@/lib/secrets/crypto';
+import { registerPurger } from '@/lib/sources/purge';
 import { DEFAULT_PROBE_TIMEOUT_MS } from '../hae';
 import { OuraError, clientDepsFrom, fetchHeartRate, ouraGetAll, type OuraClientDeps } from './client';
 import { readOuraConfig, type OuraConfig } from './config';
@@ -67,6 +68,12 @@ function lastStore(): { value: OuraLastError | null } {
   if (!g[LAST_KEY]) g[LAST_KEY] = { value: null };
   return g[LAST_KEY]!;
 }
+
+// The last outcome names a kind and a fixed message, never a value; it still
+// describes a connection that no longer exists once Oura is removed.
+registerPurger('oura.last-outcome', removedIds => {
+  if (removedIds.includes('oura')) lastStore().value = null;
+});
 
 export function recordOuraOutcome(error: { kind: string; message: string } | null, now: Date = new Date()): void {
   lastStore().value = error ? { kind: error.kind, message: error.message, at: now.toISOString() } : null;

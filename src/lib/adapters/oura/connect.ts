@@ -12,6 +12,8 @@ import { deleteCredential, getCredential, withLockedCredential } from '@/lib/db/
 import { getPool, type PoolLike } from '@/lib/db/pool';
 import { readSecretKey } from '@/lib/secrets/crypto';
 import { clearLiveCaches } from '../live';
+import { defaultContext } from '@/lib/sources/registry';
+import { reconcileQuietly } from '@/lib/sources/purge';
 import { readOuraConfig, type OuraConfig } from './config';
 import { OuraAuthError, buildAuthorizeUrl, exchangeCode, pkcePair, revoke } from './oauth';
 import { readOuraStatus, recordOuraOutcome } from './index';
@@ -35,6 +37,20 @@ export interface ConnectDeps {
 }
 
 const NO_STORE = 'private, no-store';
+
+/**
+ * Connect and disconnect change the active set: reconcile so everything held in
+ * memory for a source that just went away is purged now, not at the next page.
+ */
+async function reconcileAfterChange(env: NodeJS.ProcessEnv, deps: ConnectDeps): Promise<void> {
+  let client: PoolLike | null = null;
+  try {
+    client = deps.client === undefined ? getPool(env) : deps.client;
+  } catch {
+    client = null;
+  }
+  await reconcileQuietly(defaultContext(env, () => client));
+}
 
 function json(body: unknown, status: number, extra: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
@@ -122,6 +138,7 @@ export async function callback(request: Request, deps: ConnectDeps = {}): Promis
   }
 
   clearLiveCaches();
+  await reconcileAfterChange(env, deps);
   recordOuraOutcome(null);
   return redirect(settingsUrl(c.cfg, 'connected'), clear);
 }
@@ -155,6 +172,7 @@ export async function disconnect(deps: ConnectDeps = {}): Promise<Response> {
     return json({ error: 'The connection could not be removed.' }, 500);
   }
   clearLiveCaches();
+  await reconcileAfterChange(env, deps);
   recordOuraOutcome(null);
   return new Response(null, { status: 204, headers: { 'Cache-Control': NO_STORE } });
 }

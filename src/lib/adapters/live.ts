@@ -38,7 +38,7 @@ import type { SourceError } from './meta';
 
 export type { SourceError } from './meta';
 import { HaeError, fetchMetricRecords, fetchWorkouts, readHaeConfig } from './hae';
-import { liveCache, liveCacheTtlMs } from './cache';
+import { LIVE_CACHE_PREFIX, OURA_CACHE_PREFIX, clearLiveCaches, liveCache, liveCacheTtlMs } from './cache';
 import {
   BLOOD_PRESSURE_HAE_METRIC,
   METRIC_MAPPINGS,
@@ -399,8 +399,6 @@ async function fetchHaePass(args: HaePassArgs): Promise<LiveDatasetResult> {
 
 // ── Several sources, one dataset ────────────────────────
 
-const OURA_CACHE_PREFIX = 'oura:';
-
 /** The Oura contribution's cache key: its own TTL and its own window. */
 export function ouraCacheKey(timezone: string = DEFAULT_TIMEZONE, lookbackDays: number = LIVE_LOOKBACK_DAYS): string {
   return `${OURA_CACHE_PREFIX}${timezone}:${lookbackDays}`;
@@ -554,19 +552,12 @@ function readOuraConfigGroups(env: NodeJS.ProcessEnv) {
 
 // ── Cached entry point ──────────────────────────────────
 
-const LIVE_CACHE_PREFIX = 'live-dataset:';
-
 /** The key for a timezone and an active-source set, e.g. `live-dataset:UTC:400:hae+oura`. */
 export function liveCacheKey(timezone: string = DEFAULT_TIMEZONE, setKey: string = ''): string {
   return `${LIVE_CACHE_PREFIX}${timezone}:${LIVE_LOOKBACK_DAYS}:${setKey}`;
 }
 
-/** Drop every held live dataset and Oura contribution (connect, disconnect, source removal). */
-export function clearLiveCaches(): void {
-  for (const key of liveCache.stats().keys) {
-    if (key.startsWith(LIVE_CACHE_PREFIX) || key.startsWith(OURA_CACHE_PREFIX)) liveCache.clear(key);
-  }
-}
+export { clearLiveCaches };
 
 /**
  * The key for this load. A dataset cut in any other zone, or for any other set

@@ -18,6 +18,7 @@ import { computeCoverage, type CoverageQuery, type CoverageResult } from './cove
 import { isPathMetricId } from './metrics';
 import { MAX_RANGE_DAYS, validateBBox, type BBox, type MapRange } from './types';
 import { loadRoutes } from './routes';
+import { registerPurger } from '@/lib/sources/purge';
 
 /** "New ground" with no date range selected means the last this-many days. */
 export const DEFAULT_NEW_DAYS = 30;
@@ -95,6 +96,11 @@ function cachedCoverage(key: string, compute: () => CoverageResult): Promise<Cov
   }
   return value;
 }
+
+// A coverage result is a map of where the held routes went: it goes with them.
+registerPurger('activity-maps.coverage', removedIds => {
+  if (removedIds.includes('hae')) coverageCache.clear();
+});
 
 export async function readCoverage(req: CoverageRequest): Promise<CoverageResponse> {
   let mode: 'demo' | 'live';
