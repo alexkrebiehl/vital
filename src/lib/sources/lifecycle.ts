@@ -15,6 +15,7 @@
 
 import { getPool, type PoolLike } from '@/lib/db/pool';
 import { withTransaction } from '@/lib/db/lab-store';
+import { purgeDueSources, purgeGraceDays } from './purge-store';
 
 const UPSERT_ACTIVE = `
   INSERT INTO data_sources_seen (source_id)
@@ -51,7 +52,8 @@ export async function recordActiveSources(client: PoolLike, activeIds: string[])
 }
 
 /**
- * Bring the stored lifecycle in line with the active set. Does nothing when no database is configured (there
+ * Bring the stored lifecycle in line with the active set, then purge whatever
+ * is past its grace period. Does nothing when no database is configured (there
  * is nothing stored to hide). Throws on a database error so the caller can retry.
  */
 export async function syncLifecycle(
@@ -61,5 +63,7 @@ export async function syncLifecycle(
 ): Promise<LifecycleChange | null> {
   const client = clientFor(env);
   if (!client) return null;
-  return recordActiveSources(client, activeIds);
+  const change = await recordActiveSources(client, activeIds);
+  await purgeDueSources(client, purgeGraceDays(env));
+  return change;
 }

@@ -36,6 +36,9 @@ export class FakeAnalystDb implements SqlClient {
   /** The `data_sources_seen` table: a source with `removed_at` set hides what it tagged. */
   readonly seen = new Map<string, { first_active_at: Date; last_active_at: Date; removed_at: Date | null }>();
 
+  /** The `source_credentials` table, as the ids that hold a row (the purge deletes them). */
+  readonly credentials = new Set<string>();
+
   /** What `now()` answers; tests move it to cross a grace period. */
   now = new Date('2026-10-04T12:00:00Z');
 
@@ -103,6 +106,58 @@ export class FakeAnalystDb implements SqlClient {
         }
       }
       return { rows };
+    }
+
+    if (/AS hidden_conversations/.test(text)) {
+      const rows = [...this.seen.entries()]
+        .filter(([, row]) => row.removed_at !== null)
+        .sort(([ai, a], [bi, b]) => a.removed_at!.getTime() - b.removed_at!.getTime() || (ai < bi ? -1 : 1))
+        .map(([id, row]) => ({
+          source_id: id,
+          removed_at: row.removed_at,
+          hidden_conversations: [...this.conversations.values()].filter(c => (c.source_ids as string[]).includes(id))
+            .length,
+        }));
+      return { rows };
+    }
+
+    if (/make_interval/.test(text)) {
+      const cutoff = this.now.getTime() - Number(params[0]) * 86_400_000;
+      const rows = [...this.seen.entries()]
+        .filter(([, row]) => row.removed_at !== null && row.removed_at.getTime() <= cutoff)
+        .map(([id]) => ({ source_id: id }))
+        .sort((a, b) => (a.source_id < b.source_id ? -1 : 1));
+      return { rows };
+    }
+
+    if (/FOR UPDATE/.test(text) && /FROM data_sources_seen/.test(text)) {
+      const wanted = new Set(params[0] as string[]);
+      const rows = [...this.seen.entries()]
+        .filter(([id, row]) => row.removed_at !== null && wanted.has(id))
+        .map(([id]) => ({ source_id: id }))
+        .sort((a, b) => (a.source_id < b.source_id ? -1 : 1));
+      return { rows };
+    }
+
+    if (/WHERE source_ids && \$1::text\[\]/.test(text)) {
+      const ids = new Set(params[0] as string[]);
+      const doomed = [...this.conversations.values()].filter(c => (c.source_ids as string[]).some(id => ids.has(id)));
+      for (const c of doomed) {
+        this.conversations.delete(c.id as number);
+        // ON DELETE CASCADE.
+        this.messages = this.messages.filter(m => Number(m.conversation_id) !== c.id);
+      }
+      return { rows: doomed.map(c => ({ id: c.id })) };
+    }
+
+    if (/DELETE FROM source_credentials/.test(text)) {
+      for (const id of params[0] as string[]) this.credentials.delete(id);
+      return { rows: [] };
+    }
+
+    if (/DELETE FROM data_sources_seen/.test(text)) {
+      for (const id of params[0] as string[]) this.seen.delete(id);
+      return { rows: [] };
     }
 
     if (/INSERT INTO analyst_conversations/.test(text)) {
@@ -236,6 +291,10 @@ export class FakeAnalystDb implements SqlClient {
 
   messageCountOf(id: number): number {
     return this.messages.filter(m => Number(m.conversation_id) === id).length;
+  }
+
+  conversationIds(): number[] {
+    return [...this.conversations.keys()].sort((a, b) => a - b);
   }
 
   /** The source tags a conversation carries. */

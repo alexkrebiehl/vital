@@ -137,6 +137,14 @@ After that, Vital behaves as if the source had never existed:
 | Lab reports and files | The existing per-report delete; deleting the last one triggers the conversation purge |
 | Logs | Nothing to purge: Vital logs outcomes, never values or tokens |
 
+Settings → Connections lists each removed source in a **Removed sources** card: the date it was
+removed, how many conversations are hidden, and when they will be deleted, with a **Delete now**
+button (after a confirmation). The same action is `DELETE /api/sources/{id}/data?confirm=yes`; it is
+refused with 409 while the source is still active. The purge deletes the conversations tagged with the
+source (their messages go with them), its stored credential and its lifecycle record in one
+transaction. It runs at boot and whenever the set of sources changes; `VITAL_SOURCE_PURGE_GRACE_DAYS=0`
+deletes at the next of those. If the source comes back before the purge, nothing is lost.
+
 Kept on purpose, because they are configuration and not data: your profile, preferences, training
 plans (targets, never observations) and activity-map areas.
 

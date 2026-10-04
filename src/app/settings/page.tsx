@@ -38,6 +38,7 @@ import { useProfile } from '@/components/profile/ProfileProvider';
 import { LabUpload } from '@/components/settings/LabUpload';
 import { MapProvidersCard } from '@/components/settings/MapProviders';
 import { OuraConnection } from '@/components/settings/OuraConnection';
+import { RemovedSources } from '@/components/settings/RemovedSources';
 import {
   PROFILE_NAME_MAX,
   PROFILE_NOTES_MAX,
@@ -763,6 +764,11 @@ function ConnectionsTab() {
           onChanged={() => router.refresh()}
         />
       </Card>
+
+      <RemovedSources
+        heading={title => <SectionHead icon={<Trash2 size={18} className="text-text-secondary" />} title={title} />}
+        onChanged={() => router.refresh()}
+      />
 
       <Card className="p-6">
         <MapProvidersCard heading={(icon, title) => <SectionHead icon={icon} title={title} />} />
