@@ -70,6 +70,41 @@ Vital requests the scopes `daily heartrate workout spo2`. You can grant fewer: t
 scope was not granted are skipped, and Settings says which. Leave `OURA_CLIENT_ID` empty and Oura
 is off. Every `OURA_*` variable is listed in `.env.example`.
 
+### Connecting when Vital runs on another machine
+
+Oura allows a plain `http://` redirect address only for `localhost`. The redirect is followed by
+your **browser**, not by Oura's servers, so Vital never has to be reachable from the internet. If
+your browser is on a different computer from Vital (a home server, a NAS), carry `localhost`
+across with an SSH tunnel for the few seconds the sign-in takes:
+
+1. Set the redirect address to `localhost` in `.env`, and register the same string with Oura
+   (scheme, host, port and path must match exactly), then run `docker compose up -d`:
+
+   ```bash
+   OURA_REDIRECT_URI=http://localhost:8080/api/sources/oura/callback
+   ```
+
+2. On the computer that runs your browser, open the tunnel (`vital.example.lan` stands for
+   however you reach the server):
+
+   ```bash
+   ssh -L 8080:localhost:8080 you@vital.example.lan
+   ```
+
+3. Browse to `http://localhost:8080`, open *Settings → Connections* and press **Connect**. Start
+   from `localhost`, not from the server's name: the sign-in state lives in a cookie tied to the
+   host name, so a different host fails the state check.
+4. Close the tunnel when Oura shows as connected. Vital keeps the encrypted refresh token and
+   renews it itself, so day-to-day use at the server's normal address is unaffected. You only need
+   the tunnel again to reconnect after revoking access.
+
+If port 8080 is taken on the browser's computer, use another local port (`-L 9090:localhost:8080`)
+and put that port in the redirect address and in Oura's portal. If you get a "state mismatch" error, try
+another browser: some refuse `Secure` cookies over `http://localhost`.
+
+Alternatively, serve Vital over HTTPS (a reverse proxy with a certificate your browser trusts) and
+register the `https://` address as the redirect.
+
 ### What is stored
 
 Only the encrypted access and refresh tokens, in Postgres. **No Oura reading is ever stored**: not

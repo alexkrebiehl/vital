@@ -181,10 +181,49 @@ dataset, so you can explore every page before connecting anything.
 
 ### Connect your own data
 
+Vital reads live data from one or both of these sources. Set up either, or both; with neither it
+shows the demo dataset.
+
+**Health Auto Export (HAE)**
+
 1. Run a [Health Auto Export metrics server](https://github.com/HealthyApps/health-auto-export-server)
    and point the iPhone app at it.
-2. In `.env`, set `VITAL_DATA_MODE=live`, `HAE_API_URL` and `HAE_API_KEY`.
+2. In `.env`, set `VITAL_DATA_MODE=live` and the server address and key:
+
+   ```bash
+   VITAL_DATA_MODE=live
+   HAE_API_URL=http://your-hae-server:3001
+   HAE_API_KEY=your-hae-key
+   ```
+
 3. Restart: `docker compose up -d`.
+
+**Oura Ring**
+
+Oura works on its own or next to HAE. It signs in with OAuth, so a token cannot be pasted into
+`.env`.
+
+1. Register an app at <https://cloud.ouraring.com/oauth/applications> with the redirect address
+   below.
+2. In `.env`, set `VITAL_DATA_MODE=live` and the app's details, plus a key that encrypts the stored
+   login (`openssl rand -base64 32`):
+
+   ```bash
+   VITAL_DATA_MODE=live
+   OURA_CLIENT_ID=your-client-id
+   OURA_CLIENT_SECRET=your-client-secret
+   OURA_REDIRECT_URI=http://localhost:8080/api/sources/oura/callback
+   VITAL_SECRET_KEY=output-of-openssl-rand
+   ```
+
+3. Restart: `docker compose up -d`, then open *Settings → Connections* and press **Connect**.
+
+Oura only accepts a plain `http://` redirect for `localhost`. If your browser is on a different
+computer from Vital, use a short SSH tunnel to connect; see
+[Connecting when Vital runs on another machine](docs/data-sources.md#connecting-when-vital-runs-on-another-machine).
+With both sources connected, Vital uses one source per measure per day and never adds the two
+together; the rules, and what happens when you remove a source, are in
+[Data sources and modes](docs/data-sources.md).
 
 ### Turn on the AI analyst and briefing
 
