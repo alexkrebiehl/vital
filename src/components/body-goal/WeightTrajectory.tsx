@@ -23,6 +23,18 @@ const DAYS = 90;
 /** The comparison the "Recent change" weight card makes: the last 30 days against the 30 before. */
 const RECENT_DAYS = 30;
 
+/** "Today", "Yesterday", or the date. */
+function dayLabel(key: string): string {
+  const ago = diffDays(key, REFERENCE_KEY);
+  return ago === 0 ? 'Today' : ago === 1 ? 'Yesterday' : formatDayKeyLong(key);
+}
+
+/** "Today", "Yesterday", or "N days ago". */
+function daysAgo(key: string): string {
+  const ago = diffDays(key, REFERENCE_KEY);
+  return ago === 0 ? 'Today' : ago === 1 ? 'Yesterday' : `${ago} days ago`;
+}
+
 export function WeightTrajectory({ report }: { report: BodyGoalReport | null }) {
   const { units } = useUnits();
   const all = seriesFor('weight_body_mass');
@@ -67,12 +79,12 @@ export function WeightTrajectory({ report }: { report: BodyGoalReport | null }) 
           </div>
           <dl className="text-sm space-y-1.5 mb-3">
             <div className="flex justify-between gap-3">
-              <dt className="text-text-secondary">First in window</dt>
-              <dd className="tnum text-text-primary">{`${formatMetricWithUnit('weight_body_mass', first.value, units)} · ${formatDayKeyLong(first.key)}`}</dd>
+              <dt className="text-text-secondary" title={formatDayKeyLong(first.key)}>{daysAgo(first.key)}</dt>
+              <dd className="tnum text-text-primary">{formatMetricWithUnit('weight_body_mass', first.value, units)}</dd>
             </div>
             <div className="flex justify-between gap-3">
-              <dt className="text-text-secondary">Last in window</dt>
-              <dd className="tnum text-text-primary">{`${formatMetricWithUnit('weight_body_mass', last.value, units)} · ${formatDayKeyLong(last.key)}`}</dd>
+              <dt className="text-text-secondary">{dayLabel(last.key)}</dt>
+              <dd className="tnum text-text-primary">{formatMetricWithUnit('weight_body_mass', last.value, units)}</dd>
             </div>
             <div className="flex justify-between gap-3">
               <dt className="text-text-secondary">Change across window</dt>
