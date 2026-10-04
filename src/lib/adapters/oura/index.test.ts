@@ -91,7 +91,7 @@ describe('readOuraStatus', () => {
   it('lists granted and missing scopes and no token', async () => {
     const status = await readOuraStatus({ env: ENV, client: poolWith(KEY) });
     expect(status).toMatchObject({
-      configured: true, connected: true, scopes: ['daily', 'spo2'], missingScopes: ['heartrate', 'workout'],
+      configured: true, connected: true, scopes: ['daily', 'spo2'], missingScopes: ['heartrate', 'workout', 'heart_health'],
       accessExpiresAt: '2099-01-01T00:00:00.000Z', needsReconnect: false,
     });
     const text = JSON.stringify(status);

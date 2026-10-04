@@ -48,7 +48,7 @@ const COLLECTION_SCOPES: Record<keyof OuraRawBundle, readonly string[]> = {
   sleep: ['daily'],
   dailyActivity: ['daily'],
   dailyReadiness: ['daily'],
-  vo2Max: ['daily'],
+  vo2Max: ['heart_health'],
   dailySpo2: ['spo2', 'spo2Daily'],
   heartrate: ['heartrate'],
   workouts: ['workout'],
@@ -160,18 +160,26 @@ export async function fetchOuraContribution(window: OuraWindow, deps: OuraDeps =
   const hrDays = Math.min(window.lookbackDays, rt.config.heartrateLookbackDays);
   const get = <T>(collection: string) => ouraGetAll<T>(collection, days, client);
   const none = async <T>(): Promise<T[]> => [];
+  // One collection Oura refuses must not take the others down with it.
+  const tolerant = <T>(read: Promise<T[]>): Promise<T[]> =>
+    read.catch((error: unknown) => {
+      if (error instanceof OuraError && error.kind === 'forbidden') return [];
+      throw error;
+    });
 
   const [sleep, dailyActivity, dailyReadiness, dailySpo2, vo2Max, workouts, heartrate] = await Promise.all([
-    allowed(granted, 'sleep') ? get<OuraSleepDoc>('sleep') : none<OuraSleepDoc>(),
-    allowed(granted, 'dailyActivity') ? get<OuraDailyActivityDoc>('daily_activity') : none<OuraDailyActivityDoc>(),
-    allowed(granted, 'dailyReadiness') ? get<OuraDailyReadinessDoc>('daily_readiness') : none<OuraDailyReadinessDoc>(),
-    allowed(granted, 'dailySpo2') ? get<OuraDailySpo2Doc>('daily_spo2') : none<OuraDailySpo2Doc>(),
-    allowed(granted, 'vo2Max') ? get<OuraVo2MaxDoc>('vO2_max') : none<OuraVo2MaxDoc>(),
-    allowed(granted, 'workouts') ? get<OuraWorkoutDoc>('workout') : none<OuraWorkoutDoc>(),
+    allowed(granted, 'sleep') ? tolerant(get<OuraSleepDoc>('sleep')) : none<OuraSleepDoc>(),
+    allowed(granted, 'dailyActivity') ? tolerant(get<OuraDailyActivityDoc>('daily_activity')) : none<OuraDailyActivityDoc>(),
+    allowed(granted, 'dailyReadiness') ? tolerant(get<OuraDailyReadinessDoc>('daily_readiness')) : none<OuraDailyReadinessDoc>(),
+    allowed(granted, 'dailySpo2') ? tolerant(get<OuraDailySpo2Doc>('daily_spo2')) : none<OuraDailySpo2Doc>(),
+    allowed(granted, 'vo2Max') ? tolerant(get<OuraVo2MaxDoc>('vO2_max')) : none<OuraVo2MaxDoc>(),
+    allowed(granted, 'workouts') ? tolerant(get<OuraWorkoutDoc>('workout')) : none<OuraWorkoutDoc>(),
     allowed(granted, 'heartrate')
-      ? fetchHeartRate(
-          { start: dayKeyToDate(addDays(window.referenceKey, -hrDays)), end: dayKeyToDate(days.end_date) },
-          client
+      ? tolerant(
+          fetchHeartRate(
+            { start: dayKeyToDate(addDays(window.referenceKey, -hrDays)), end: dayKeyToDate(days.end_date) },
+            client
+          )
         )
       : none<OuraHeartRateRow>(),
   ]);

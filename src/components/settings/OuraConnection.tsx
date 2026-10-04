@@ -39,6 +39,7 @@ const SCOPE_WORDS: Record<string, string> = {
   workout: 'workouts',
   spo2: 'blood oxygen',
   spo2Daily: 'blood oxygen',
+  heart_health: 'VO2 max',
 };
 
 function scopeWords(scope: string): string {

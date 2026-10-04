@@ -519,7 +519,7 @@ const OURA_ONLY_ENV = {
 const BOTH_ENV = { ...ENV, ...OURA_ONLY_ENV } as NodeJS.ProcessEnv;
 
 /** A Postgres stand-in that answers only the credential read, from an encrypted row. */
-function credentialPool(scopes = 'daily heartrate workout spo2'): PoolLike {
+function credentialPool(scopes = 'daily heartrate workout spo2 heart_health'): PoolLike {
   const parts = encryptJson({ access_token: OURA_ACCESS, refresh_token: OURA_REFRESH }, SECRET_KEY);
   const row = {
     source_id: 'oura',
@@ -573,7 +573,7 @@ const OURA_DOCS: Record<string, unknown[]> = {
 };
 
 /** Serves HAE's samples and a few synthetic Oura documents; can fail either side. */
-function twoSourceFetch(opts: { hae?: 'ok' | 'fail'; oura?: 'ok' | 'fail' } = {}) {
+function twoSourceFetch(opts: { hae?: 'ok' | 'fail'; oura?: 'ok' | 'fail'; ouraRefuses?: string } = {}) {
   const haeCalls: string[] = [];
   const ouraCalls: { url: string; auth: string }[] = [];
   const impl = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -583,6 +583,9 @@ function twoSourceFetch(opts: { hae?: 'ok' | 'fail'; oura?: 'ok' | 'fail' } = {}
       ouraCalls.push({ url, auth });
       if (opts.oura === 'fail') return new Response('{}', { status: 500 });
       const name = /usercollection\/([^?]+)/.exec(url)?.[1] ?? '';
+      if (name === opts.ouraRefuses) {
+        return new Response(JSON.stringify({ detail: 'Token is not authorized access heart_health scope.' }), { status: 401 });
+      }
       return new Response(JSON.stringify({ data: OURA_DOCS[name] ?? [], next_token: null }), { status: 200 });
     }
     haeCalls.push(url);
@@ -705,11 +708,20 @@ describe('live dataset from HAE and Oura', () => {
     expect(liveCache.stats().keys.filter(k => k.startsWith('live-dataset:'))).toEqual([liveCacheKey('UTC', 'hae')]);
   });
 
+  it('keeps every other collection when Oura refuses one for its scope', async () => {
+    const upstream = twoSourceFetch({ ouraRefuses: 'vO2_max' });
+    const dataset = await fetchLiveDatasetUncached({ ...twoSourceDeps(OURA_ONLY_ENV, upstream.impl) });
+    expect(dataset).toBeTruthy();
+    const asked = upstream.ouraCalls.map(c => /usercollection\/([^?]+)/.exec(c.url)?.[1]);
+    expect(asked).toContain('sleep');
+    expect(asked).toContain('daily_activity');
+  });
+
   it('skips collections whose scope was not granted', async () => {
     const upstream = twoSourceFetch();
     await fetchLiveDatasetUncached({ ...twoSourceDeps(OURA_ONLY_ENV, upstream.impl), ouraClient: credentialPool('daily') });
     const asked = upstream.ouraCalls.map(c => /usercollection\/([^?]+)/.exec(c.url)?.[1]).sort();
-    expect(asked).toEqual(['daily_activity', 'daily_readiness', 'sleep', 'vO2_max']);
+    expect(asked).toEqual(['daily_activity', 'daily_readiness', 'sleep']);
     for (const c of upstream.ouraCalls) expect(c.auth).toBe(`Bearer ${OURA_ACCESS}`);
   });
 });

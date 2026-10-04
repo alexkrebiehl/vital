@@ -66,7 +66,7 @@ VITAL_SECRET_KEY=output-of-openssl-rand
 
 4. Open *Settings → Connections* and press **Connect**. Approve the scopes on Oura's page.
 
-Vital requests the scopes `daily heartrate workout spo2`. You can grant fewer: the endpoints whose
+Vital requests the scopes `daily heartrate workout spo2 heart_health`. You can grant fewer: the endpoints whose
 scope was not granted are skipped, and Settings says which. Leave `OURA_CLIENT_ID` empty and Oura
 is off. Every `OURA_*` variable is listed in `.env.example`.
 

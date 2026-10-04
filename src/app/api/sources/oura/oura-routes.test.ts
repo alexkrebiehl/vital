@@ -246,7 +246,7 @@ describe('GET /api/sources/oura/callback', () => {
     const { state, cookie } = await startSignIn();
     await callbackRoute(callbackRequest(`code=c&state=${state}`, cookie));
     const stored = await getCredential(db, 'oura', KEY);
-    expect(stored && !stored.needsReconnect && stored.scopes).toEqual(['daily', 'heartrate', 'workout', 'spo2']);
+    expect(stored && !stored.needsReconnect && stored.scopes).toEqual(['daily', 'heartrate', 'workout', 'spo2', 'heart_health']);
   });
 
   it('reports a refused exchange without storing anything or leaking a secret', async () => {
@@ -283,7 +283,7 @@ describe('GET /api/sources/oura', () => {
       configured: true,
       connected: true,
       scopes: ['daily', 'heartrate'],
-      missingScopes: ['workout', 'spo2'],
+      missingScopes: ['workout', 'spo2', 'heart_health'],
       needsReconnect: false,
     });
     expect(Object.keys(body).sort()).toEqual(

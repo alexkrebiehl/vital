@@ -150,6 +150,15 @@ describe('ouraGetAll', () => {
     });
   });
 
+  it('treats a 401 that names a missing scope as forbidden, without a refresh', async () => {
+    const { deps, tokenCalls } = setup([
+      { status: 401, body: { detail: 'Token is not authorized access heart_health scope.' } },
+    ]);
+    const err = await ouraGetAll('vO2_max', {}, deps).catch(e => e);
+    expect(err.kind).toBe('forbidden');
+    expect(tokenCalls).toHaveLength(1);
+  });
+
   it('maps statuses to kinds', async () => {
     const cases: [number, string][] = [
       [403, 'forbidden'],

@@ -116,6 +116,16 @@ async function send(url: string, token: string, timeoutMs: number, deps: OuraCli
  * One page, with the 401 and 429 handling. `session.token` is the access token
  * in use; a forced refresh replaces it, at most once per `ouraGetAll` call.
  */
+/** A 401 whose body says the token lacks a scope (not that the token is bad). */
+async function isScopeRefusal(res: Response): Promise<boolean> {
+  try {
+    const body = (await res.clone().json()) as { detail?: unknown } | null;
+    return typeof body?.detail === 'string' && /not authorized access .*scope/i.test(body.detail);
+  } catch {
+    return false;
+  }
+}
+
 async function getPage<T>(
   url: string,
   collection: string,
@@ -131,6 +141,12 @@ async function getPage<T>(
   for (;;) {
     const remaining = Math.max(budgetMs - (now() - startedAt), 1);
     const res = await send(url, session.token, remaining, deps);
+
+    if (res.status === 401 && (await isScopeRefusal(res))) {
+      // Oura answers 401, not 403, when the token lacks the scope for one
+      // collection. The token is fine; refreshing it would change nothing.
+      throw new OuraError(`Oura denied ${collection}: the scope for it was not granted.`, 'forbidden', 401);
+    }
 
     if (res.status === 401) {
       if (session.refreshed) throw new OuraError('Oura rejected the access token; reconnect it in Settings.', 'needs_reconnect', 401);
