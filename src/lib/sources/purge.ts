@@ -39,15 +39,15 @@ interface PurgeState {
   /** The active ids at the last successful reconcile; null before the first. */
   lastIds: string[] | null;
   inFlight: Promise<ReconcileResult> | null;
-  /** Called after a changed (or first) reconcile; set by the lifecycle module. */
-  afterChange: ((active: string[]) => Promise<void>) | null;
+  /** The active set whose lifecycle record (removal times, purge) is not yet stored; retried. */
+  lifecyclePending: string[] | null;
 }
 
 const STATE_KEY = Symbol.for('vital.sources.purge');
 
 function state(): PurgeState {
   const g = globalThis as unknown as Record<symbol, PurgeState | undefined>;
-  return (g[STATE_KEY] ??= { purgers: new Map(), lastIds: null, inFlight: null, afterChange: null });
+  return (g[STATE_KEY] ??= { purgers: new Map(), lastIds: null, inFlight: null, lifecyclePending: null });
 }
 
 /**
@@ -74,11 +74,6 @@ export function currentSourceKey(): string {
   return (state().lastIds ?? []).join('+');
 }
 
-/** Lets the lifecycle module run after the set changes, without an import cycle. */
-export function setAfterChangeHook(hook: ((active: string[]) => Promise<void>) | null): void {
-  state().afterChange = hook;
-}
-
 /**
  * Tests only: forget the last set seen (and any pass in flight), as in a fresh
  * process. Purgers registered when their modules loaded are kept.
@@ -87,7 +82,7 @@ export function resetPurgeStateForTests(): void {
   const s = state();
   s.lastIds = null;
   s.inFlight = null;
-  s.afterChange = null;
+  s.lifecyclePending = null;
 }
 
 /** Tests only: forget every purger, including those the app modules registered. */
@@ -110,6 +105,22 @@ function runPurgers(removed: string[]): string[] {
   return failed;
 }
 
+/**
+ * Store the lifecycle of the active set (db/lifecycle). A failure never breaks
+ * a page: it is remembered and retried at the next reconcile. The module is
+ * loaded lazily because it needs the database layer.
+ */
+async function recordLifecycle(active: string[], env: NodeJS.ProcessEnv): Promise<void> {
+  const s = state();
+  try {
+    const { syncLifecycle } = await import('./lifecycle');
+    await syncLifecycle(active, env);
+    s.lifecyclePending = null;
+  } catch {
+    s.lifecyclePending = active;
+  }
+}
+
 async function reconcileOnce(ctx?: SourceContext): Promise<ReconcileResult> {
   const { activeSourceIds, defaultContext } = await import('./registry');
   const active: string[] = await activeSourceIds(ctx ?? defaultContext());
@@ -118,21 +129,20 @@ async function reconcileOnce(ctx?: SourceContext): Promise<ReconcileResult> {
   const removed = previous ? previous.filter(id => !active.includes(id)) : [];
   const added = previous ? active.filter(id => !previous.includes(id)) : active;
   const changed = previous === null || removed.length > 0 || added.length > 0;
-  if (!changed) return { active, removed, added, changed, failed: [] };
+  if (!changed) {
+    // A lifecycle record that could not be stored (database briefly down) is
+    // retried until it is, so a removal is never lost.
+    if (s.lifecyclePending) await recordLifecycle(active, (ctx ?? defaultContext()).env);
+    return { active, removed, added, changed, failed: [] };
+  }
 
   // Purge BEFORE the new key is published, so nothing can read a removed
   // source's data under the new key. A first call has nothing to purge.
   const failed = previous === null ? [] : runPurgers(removed);
   if (failed.length === 0) s.lastIds = active;
-  // The lifecycle (removal timestamps, hiding) follows the set, and also runs
-  // at the first call so a source removed while the process was down is found.
-  if (s.afterChange) {
-    try {
-      await s.afterChange(active);
-    } catch {
-      // Hiding is retried at the next change or boot; a store failure must not break a page.
-    }
-  }
+  // The lifecycle (removal times, hiding, the purge) follows the set, and also
+  // runs at the first call so a source removed while the process was down is found.
+  await recordLifecycle(active, (ctx ?? defaultContext()).env);
   return { active, removed, added, changed, failed };
 }
 

@@ -24,6 +24,16 @@ export type SqlClient = PoolLike;
 /** The version of the APPLICATION RECORD SHAPE stored in these tables. */
 export const ANALYST_CONVERSATION_SCHEMA_VERSION = 1;
 
+/**
+ * HIDDEN BY REMOVAL (plan §8). A conversation tagged with a source whose
+ * `removed_at` is set behaves exactly as if it had never existed: it is not
+ * listed, read, renamed, deleted, appended to or loaded as thread memory. The
+ * rows stay until the purge (db/purge-store); this predicate is what hides
+ * them in the meantime, so EVERY conversation read goes through it.
+ */
+const REMOVED_SOURCES = `ARRAY(SELECT hs.source_id FROM data_sources_seen hs WHERE hs.removed_at IS NOT NULL)`;
+const visible = (column: string): string => `NOT (${column} && ${REMOVED_SOURCES})`;
+
 const CONVERSATION_COLUMNS = 'id, title, message_count, created_at, updated_at';
 
 const INSERT_CONVERSATION = `
@@ -45,6 +55,7 @@ const SELECT_CONVERSATIONS = `
   SELECT ${CONVERSATION_COLUMNS}
     FROM analyst_conversations
    WHERE archived_at IS NULL
+     AND ${visible('source_ids')}
    ORDER BY created_at DESC, id DESC
    LIMIT $1
 `;
@@ -53,12 +64,14 @@ const SELECT_CONVERSATION = `
   SELECT ${CONVERSATION_COLUMNS}
     FROM analyst_conversations
    WHERE id = $1
+     AND ${visible('source_ids')}
 `;
 
 const SELECT_MESSAGES = `
   SELECT id, role, content, title, status, provider, model, attribution, handler_id, payload, created_at
     FROM analyst_messages
    WHERE conversation_id = $1
+     AND EXISTS (SELECT 1 FROM analyst_conversations c WHERE c.id = $1 AND ${visible('c.source_ids')})
    ORDER BY created_at ASC, id ASC
 `;
 
@@ -69,6 +82,7 @@ const SELECT_RECENT_MESSAGES = `
     SELECT id, role, content, title, status, provider, model, attribution, handler_id, payload, created_at
       FROM analyst_messages
      WHERE conversation_id = $1
+       AND EXISTS (SELECT 1 FROM analyst_conversations c WHERE c.id = $1 AND ${visible('c.source_ids')})
      ORDER BY created_at DESC, id DESC
      LIMIT $2
   ) recent
@@ -89,7 +103,7 @@ const INSERT_MESSAGE = `
     INSERT INTO analyst_messages
       (conversation_id, role, content, title, status, provider, model, attribution, handler_id, payload, schema_version, source_ids)
     SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $13::text[]
-     WHERE EXISTS (SELECT 1 FROM analyst_conversations WHERE id = $1)
+     WHERE EXISTS (SELECT 1 FROM analyst_conversations WHERE id = $1 AND ${visible('source_ids')})
        AND (SELECT count(*) FROM analyst_messages WHERE conversation_id = $1) < $12
     RETURNING id, conversation_id, role, content, title, status, provider, model, attribution, handler_id, payload, created_at
   ), bumped AS (
@@ -110,10 +124,16 @@ const RENAME_CONVERSATION = `
      SET title    = $2,
          revision = revision + 1
    WHERE id = $1
+     AND ${visible('source_ids')}
   RETURNING ${CONVERSATION_COLUMNS}
 `;
 
-const DELETE_CONVERSATION = `DELETE FROM analyst_conversations WHERE id = $1 RETURNING id`;
+const DELETE_CONVERSATION = `
+  DELETE FROM analyst_conversations
+   WHERE id = $1
+     AND ${visible('source_ids')}
+  RETURNING id
+`;
 
 /** A timestamp column as an ISO string, whether it arrived as a Date or text. */
 function iso(value: unknown): string {
