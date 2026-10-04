@@ -22,6 +22,7 @@ import { HeroFigure } from '@/components/art/HeroFigure';
 import { CompositionBar } from '@/components/art/CompositionBar';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { BodyGoalPanel } from '@/components/body-goal/BodyGoalPanel';
+import { useBodyGoal } from '@/components/body-goal/useBodyGoal';
 import {
   DomainHeader, SectionTitle, SeriesCard, MetricGrid, metricsForCategories,
 } from './DomainShared';
@@ -43,6 +44,71 @@ export function BodyPage() {
   const values = inWindow.map(p => p.value);
   const bodyComposition = metricsForCategories(['body'], ['weight_body_mass']);
 
+  // One read of the goal for the page: with a goal set, its "Toward the goal"
+  // chart already shows every weigh-in (plus the trend, the goal line and the
+  // projection), so the plain weight chart below is left out and its range
+  // card moves beside the goal's chart.
+  const goal = useBodyGoal();
+  const goalChartShown = goal.state.status === 'loading' || goal.active !== null;
+
+  const rangeCard = inWindow.length > 0 ? (
+    <Card className="p-5 flex flex-col">
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <span className="text-xs font-medium text-text-secondary">Recorded range</span>
+        <Badge variant="default" className="text-[10px]">
+          {all.length} total
+        </Badge>
+      </div>
+      <dl className="text-sm space-y-1.5 mb-3">
+        <div className="flex justify-between gap-3">
+          <dt className="text-text-secondary">First in window</dt>
+          <dd className="tnum text-text-primary">
+            {first ? `${formatMetricWithUnit('weight_body_mass', first.value, units)} · ${formatDayKeyLong(first.key)}` : '—'}
+          </dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-text-secondary">Last in window</dt>
+          <dd className="tnum text-text-primary">
+            {last ? `${formatMetricWithUnit('weight_body_mass', last.value, units)} · ${formatDayKeyLong(last.key)}` : '—'}
+          </dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-text-secondary">Change across window</dt>
+          <dd className="tnum text-text-primary">
+            {first && last
+              ? formatSigned('weight_body_mass', last.value - first.value, units)
+              : '—'}
+          </dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-text-secondary">Lowest / highest</dt>
+          <dd className="tnum text-text-primary">
+            {values.length
+              ? `${formatMetricValue('weight_body_mass', Math.min(...values), units)} / ${formatMetricValue('weight_body_mass', Math.max(...values), units)}`
+              : '—'}
+          </dd>
+        </div>
+        <div className="flex justify-between gap-3">
+          <dt className="text-text-secondary">Coverage</dt>
+          <dd className="tnum text-text-primary">
+            {coverageFor('weight_body_mass')
+              ? `${coverageFor('weight_body_mass')!.observedDays}/${coverageFor('weight_body_mass')!.expectedDays} days`
+              : '—'}
+          </dd>
+        </div>
+      </dl>
+      <div className="mt-auto">
+        <Link href="/metric/weight_body_mass" className="text-sm text-primary hover:underline">
+          Open weight detail
+        </Link>
+      </div>
+      <DataStateNote>
+        The lowest and highest readings are the extremes of the measurements taken, not a
+        range your weight stayed inside between them.
+      </DataStateNote>
+    </Card>
+  ) : null;
+
   return (
     <div className="space-y-8">
       <DomainHeader
@@ -52,7 +118,7 @@ export function BodyPage() {
         subtitle={`Weight and body composition, read against your goal. Measurements are individual weigh-ins, not daily readings — the average gap is ${Number.isFinite(avgGap) ? avgGap.toFixed(1) : '—'} days.`}
       />
 
-      <BodyGoalPanel />
+      <BodyGoalPanel goal={goal} trajectoryAside={rangeCard} />
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_340px]">
       <BodyMap
@@ -73,8 +139,8 @@ export function BodyPage() {
       </Card>
       </div>
 
-      {/* ── Weight trajectory (owner request 2: only when there is data) ── */}
-      {inWindow.length > 0 && (
+      {/* ── Weight trajectory (owner request 2: only when there is data), when no goal chart shows it ── */}
+      {inWindow.length > 0 && !goalChartShown && (
         <section>
           <SectionTitle hint={`${windowRangeLabel(win)} · ${inWindow.length} weigh-ins`}>
             Weight trajectory
@@ -100,61 +166,7 @@ export function BodyPage() {
               </div>
             </Card>
 
-            <Card className="p-5 flex flex-col">
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <span className="text-xs font-medium text-text-secondary">Recorded range</span>
-                <Badge variant="default" className="text-[10px]">
-                  {all.length} total
-                </Badge>
-              </div>
-              <dl className="text-sm space-y-1.5 mb-3">
-                <div className="flex justify-between gap-3">
-                  <dt className="text-text-secondary">First in window</dt>
-                  <dd className="tnum text-text-primary">
-                    {first ? `${formatMetricWithUnit('weight_body_mass', first.value, units)} · ${formatDayKeyLong(first.key)}` : '—'}
-                  </dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt className="text-text-secondary">Last in window</dt>
-                  <dd className="tnum text-text-primary">
-                    {last ? `${formatMetricWithUnit('weight_body_mass', last.value, units)} · ${formatDayKeyLong(last.key)}` : '—'}
-                  </dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt className="text-text-secondary">Change across window</dt>
-                  <dd className="tnum text-text-primary">
-                    {first && last
-                      ? formatSigned('weight_body_mass', last.value - first.value, units)
-                      : '—'}
-                  </dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt className="text-text-secondary">Lowest / highest</dt>
-                  <dd className="tnum text-text-primary">
-                    {values.length
-                      ? `${formatMetricValue('weight_body_mass', Math.min(...values), units)} / ${formatMetricValue('weight_body_mass', Math.max(...values), units)}`
-                      : '—'}
-                  </dd>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <dt className="text-text-secondary">Coverage</dt>
-                  <dd className="tnum text-text-primary">
-                    {coverageFor('weight_body_mass')
-                      ? `${coverageFor('weight_body_mass')!.observedDays}/${coverageFor('weight_body_mass')!.expectedDays} days`
-                      : '—'}
-                  </dd>
-                </div>
-              </dl>
-              <div className="mt-auto">
-                <Link href="/metric/weight_body_mass" className="text-sm text-primary hover:underline">
-                  Open weight detail
-                </Link>
-              </div>
-              <DataStateNote>
-                The lowest and highest readings are the extremes of the measurements taken, not a
-                range your weight stayed inside between them.
-              </DataStateNote>
-            </Card>
+            {rangeCard}
           </div>
         </section>
       )}

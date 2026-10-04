@@ -9,7 +9,7 @@
 // the reader against a deadline — arrival dates are projections from a pace.
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { ChevronRight, Target } from 'lucide-react';
 import { Badge, Button, Card, DataStateNote, EmptyState, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { useUnits } from '@/components/ui/UnitsProvider';
@@ -25,7 +25,7 @@ import type { UnitSystem } from '@/lib/prefs';
 import { GoalDialog } from './GoalDialog';
 import { GoalTrajectoryChart } from './GoalTrajectoryChart';
 import { PaceScale } from './PaceScale';
-import { useBodyGoal, useGoalReport } from './useBodyGoal';
+import { useGoalReport, type useBodyGoal } from './useBodyGoal';
 import {
   formatGrams,
   formatKcal,
@@ -48,9 +48,14 @@ const STATUS_BADGE: Record<EffectStatus | 'warn' | 'unknown', { variant: 'succes
   unknown: { variant: 'default', label: 'No data' },
 };
 
-export function BodyGoalPanel() {
+/**
+ * `goal` is the page's one read of the goal (the page also needs it, to leave
+ * out its own weight chart when this one is showing). `trajectoryAside` sits
+ * beside the goal's weight chart.
+ */
+export function BodyGoalPanel({ goal, trajectoryAside }: { goal: ReturnType<typeof useBodyGoal>; trajectoryAside?: ReactNode }) {
   const { units } = useUnits();
-  const { state, active, save, end } = useBodyGoal();
+  const { state, active, save, end } = goal;
   const report = useGoalReport(active);
   const [editing, setEditing] = useState(false);
   const [endError, setEndError] = useState<string | null>(null);
@@ -108,7 +113,7 @@ export function BodyGoalPanel() {
         endError={endError}
       />
       {dialog}
-      <TrajectorySection report={report} units={units} />
+      <TrajectorySection report={report} units={units} aside={trajectoryAside} />
       <EnergySection report={report} units={units} />
       <PaceSection report={report} units={units} />
       <DriversSection report={report} />
@@ -242,18 +247,21 @@ function suggestions(report: BodyGoalReport): string[] {
 
 // ── Trajectory ──────────────────────────────────────────
 
-function TrajectorySection({ report, units }: { report: BodyGoalReport; units: UnitSystem }) {
+function TrajectorySection({ report, units, aside }: { report: BodyGoalReport; units: UnitSystem; aside?: ReactNode }) {
   const weights = seriesFor('weight_body_mass');
   if (weights.length === 0) return null;
   return (
     <section>
       <SectionTitle hint="weigh-ins, the seven-day average, and the pace in use">Toward the goal</SectionTitle>
-      <Card className="p-4 md:p-6">
-        <GoalTrajectoryChart report={report} weights={weights} units={units} />
-        {report.projection?.trendNote && (
-          <div className="mt-3"><DataStateNote>{report.projection.trendNote}</DataStateNote></div>
-        )}
-      </Card>
+      <div className={`grid grid-cols-1 gap-4 ${aside ? 'lg:grid-cols-3' : ''}`}>
+        <Card className={`p-4 md:p-6 ${aside ? 'lg:col-span-2' : ''}`}>
+          <GoalTrajectoryChart report={report} weights={weights} units={units} />
+          {report.projection?.trendNote && (
+            <div className="mt-3"><DataStateNote>{report.projection.trendNote}</DataStateNote></div>
+          )}
+        </Card>
+        {aside}
+      </div>
     </section>
   );
 }
