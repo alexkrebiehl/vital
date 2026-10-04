@@ -236,7 +236,7 @@ otherwise connected to** any company or product it can read from or talk to.
 
 All product names, service names, logos and trademarks that appear in this repository, its
 documentation or the application — including, without limitation, **Apple**, **Apple Health**,
-**Apple Watch** and **iPhone** (Apple Inc.); **Health Auto Export**; **Hevy**; **Quest Diagnostics**;
+**Apple Watch** and **iPhone** (Apple Inc.); **Health Auto Export**; **Oura** (Oura Health Oy); **Hevy**; **Quest Diagnostics**;
 **MyChart** and **Epic** (Epic Systems Corporation); and the names of AI providers and models such as
 **OpenAI**, **Anthropic**, **OpenRouter**, **LM Studio**, **Ollama** and **llama.cpp**; and the map
 and place-search services behind Activity → Maps — **CARTO**, **OpenStreetMap** (including its
@@ -260,7 +260,7 @@ own terms and usage policies, and are not provided by Vital.
 | | |
 |---|---|
 | [Configuration](docs/configuration.md) | The analyst and its providers, the profile and goals, the training routine, the daily briefing |
-| [Data sources and modes](docs/data-sources.md) | Health Auto Export, Hevy, demo vs live data, de-duplication and the adapters |
+| [Data sources and modes](docs/data-sources.md) | Health Auto Export, Oura, Hevy, demo vs live data, de-duplication and the adapters |
 | [Architecture](docs/architecture.md) | How the app is put together, and what that shape costs |
 | [Running it](docs/running.md) | Docker in detail, the database, local development, changing the port, CI and published images |
 | [Reference](docs/reference.md) | Every route, what is demo-only in this build, and the quality commands |
