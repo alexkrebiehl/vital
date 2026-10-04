@@ -1,10 +1,10 @@
 'use client';
 
-// ── Weight toward the goal ──────────────────────────────
+// ── Weight trajectory chart ─────────────────────────────
 //
-// Weigh-ins as a thin muted line, the seven-day mean as the trend line, the
-// goal weight as a reference line, and — dashed, clearly a projection — where
-// the trend weight goes at the pace in use. The weigh-in line joins
+// Weigh-ins as a thin muted line and the seven-day mean as the trend line.
+// With a goal set, also the goal weight as a reference line and — dashed,
+// clearly a projection — where the trend weight goes at the pace in use. The weigh-in line joins
 // consecutive weigh-ins; it does not mean weight was measured in between. The
 // trend line is the mean of the weigh-ins in each seven-day span, nothing more.
 
@@ -28,14 +28,22 @@ interface Row {
   projected?: number;
 }
 
-export function GoalTrajectoryChart({ report, weights, units }: { report: BodyGoalReport; weights: DayValue[]; units: UnitSystem }) {
+export function WeightTrajectoryChart({
+  weights, today, report, units,
+}: {
+  weights: DayValue[];
+  today: string;
+  /** The goal's report, or null when no goal is set (no goal line, no projection). */
+  report: BodyGoalReport | null;
+  units: UnitSystem;
+}) {
   const show = (kg: number) => Math.round(convertValue(kg, 'kg', units) * 10) / 10;
-  const from = addDays(report.today, -(HISTORY_DAYS - 1));
-  const history = weights.filter(w => w.key >= from && w.key <= report.today);
+  const from = addDays(today, -(HISTORY_DAYS - 1));
+  const history = weights.filter(w => w.key >= from && w.key <= today);
   const byDay = new Map(history.map(w => [w.key, w.value]));
 
   const rows: Row[] = [];
-  for (let day = from; day <= report.today; day = addDays(day, 1)) {
+  for (let day = from; day <= today; day = addDays(day, 1)) {
     const span = history.filter(w => w.key > addDays(day, -7) && w.key <= day);
     const row: Row = { date: day };
     if (byDay.has(day)) row.weighIn = show(byDay.get(day)!);
@@ -43,19 +51,20 @@ export function GoalTrajectoryChart({ report, weights, units }: { report: BodyGo
     rows.push(row);
   }
 
-  const chosen = report.projection?.chosen ?? null;
-  const current = report.weight.current?.value ?? null;
-  if (chosen && current !== null && report.goalWeightKg !== null) {
-    const days = Math.min(MAX_PROJECTION_DAYS, diffDays(report.today, chosen.arrival));
-    const perDay = (report.goalWeightKg - current) / Math.max(1, diffDays(report.today, chosen.arrival));
+  const chosen = report?.projection?.chosen ?? null;
+  const current = report?.weight.current?.value ?? null;
+  const goalKg = report?.goalWeightKg ?? null;
+  if (chosen && current !== null && goalKg !== null) {
+    const days = Math.min(MAX_PROJECTION_DAYS, diffDays(today, chosen.arrival));
+    const perDay = (goalKg - current) / Math.max(1, diffDays(today, chosen.arrival));
     rows[rows.length - 1].projected = show(current);
     for (let i = 1; i <= days; i++) {
-      rows.push({ date: addDays(report.today, i), projected: show(current + perDay * i) });
+      rows.push({ date: addDays(today, i), projected: show(current + perDay * i) });
     }
   }
 
   const values = rows.flatMap(r => [r.weighIn, r.trend, r.projected]).filter((v): v is number => v !== undefined);
-  const goal = report.goalWeightKg !== null ? show(report.goalWeightKg) : null;
+  const goal = goalKg !== null ? show(goalKg) : null;
   if (goal !== null) values.push(goal);
   const { ticks, lo, hi } = niceTicks(Math.min(...values), Math.max(...values));
   const unit = weightUnit(units);
@@ -82,7 +91,7 @@ export function GoalTrajectoryChart({ report, weights, units }: { report: BodyGo
                   label={{ value: `Goal ${goal} ${unit}`, position: 'insideTopRight', fontSize: 10, fill: 'var(--color-text-secondary)' }}
                 />
               ),
-              <ReferenceLine key="today" x={report.today} stroke="var(--color-border-strong)" strokeWidth={1} />,
+              chosen && <ReferenceLine key="today" x={today} stroke="var(--color-border-strong)" strokeWidth={1} />,
             ]}
             <Line dataKey="weighIn" stroke="var(--color-text-secondary)" strokeOpacity={0.45} strokeWidth={1.25} dot={false} activeDot={{ r: 3, fill: 'var(--color-text-secondary)', strokeWidth: 0 }} connectNulls isAnimationActive={false} />
             <Line dataKey="trend" stroke="var(--color-category-body)" strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />

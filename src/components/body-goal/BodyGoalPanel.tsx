@@ -2,21 +2,20 @@
 
 // ── Body → Overview: the goal and what bears on it ──────
 //
-// The goal card (set, edit, end), then the goal read through the data: the
-// weight trajectory, the energy balance behind it, how long each pace would
-// take, what is driving the change and how the body is responding. Every
+// The goal card (set, edit, end), and the goal read through the data: the
+// energy balance, how long each pace would take, what is driving the change
+// and how the body is responding. The Body page puts its weight trajectory
+// (WeightTrajectory) between the two. Every
 // section is shown only when there is data for it, and nothing here measures
 // the reader against a deadline — arrival dates are projections from a pace.
 
 import Link from 'next/link';
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { ChevronRight, Target } from 'lucide-react';
 import { Badge, Button, Card, DataStateNote, EmptyState, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { DiscussButton } from '@/components/analyst/DiscussDialog';
-import { ChangeBadge, SectionTitle } from '@/components/domain/DomainShared';
-import { REFERENCE_KEY, seriesFor } from '@/lib/adapters/dataset';
-import { buildSeriesSummary } from '@/lib/analytics';
+import { SectionTitle } from '@/components/domain/DomainShared';
 import { formatDayKeyLong } from '@/lib/analytics/windows';
 import { TREND_DAYS } from '@/lib/body-goal/constants';
 import { PHASE_LABEL } from '@/lib/body-goal/phase';
@@ -24,9 +23,8 @@ import type { BodyGoalReport } from '@/lib/body-goal/report';
 import type { EffectStatus } from '@/lib/body-goal/effects';
 import type { UnitSystem } from '@/lib/prefs';
 import { GoalDialog } from './GoalDialog';
-import { GoalTrajectoryChart } from './GoalTrajectoryChart';
 import { PaceScale } from './PaceScale';
-import { useGoalReport, type useBodyGoal } from './useBodyGoal';
+import type { useBodyGoal } from './useBodyGoal';
 import {
   formatGrams,
   formatKcal,
@@ -50,14 +48,13 @@ const STATUS_BADGE: Record<EffectStatus | 'warn' | 'unknown', { variant: 'succes
 };
 
 /**
- * `goal` is the page's one read of the goal (the page also needs it, to leave
- * out its own weight chart when this one is showing). `trajectoryAside` sits
- * beside the goal's weight chart.
+ * The goal card: set a goal, or the goal with its progress, pace and arrival.
+ * `goal` and `report` are the page's one read of the goal (the weight chart
+ * and the sections below use the same report).
  */
-export function BodyGoalPanel({ goal, trajectoryAside }: { goal: ReturnType<typeof useBodyGoal>; trajectoryAside?: ReactNode }) {
+export function BodyGoalCard({ goal, report }: { goal: ReturnType<typeof useBodyGoal>; report: BodyGoalReport | null }) {
   const { units } = useUnits();
   const { state, active, save, end } = goal;
-  const report = useGoalReport(active);
   const [editing, setEditing] = useState(false);
   const [endError, setEndError] = useState<string | null>(null);
 
@@ -87,7 +84,7 @@ export function BodyGoalPanel({ goal, trajectoryAside }: { goal: ReturnType<type
           <EmptyState
             icon={<Target size={22} aria-hidden="true" />}
             title="Set a goal"
-            description="Choose a target body weight or body-fat percentage. This page and Nutrition will then show your pace, your maintenance calories, targets for eating, and how your training and recovery are holding up — whether you are cutting, gaining or maintaining."
+            description="Choose a target body weight or body-fat percentage. This page and Nutrition will then show your pace, your maintenance calories, targets for eating, and how your recovery and lean mass are holding up — whether you are cutting, gaining or maintaining."
             action={<Button variant="primary" size="sm" onClick={() => setEditing(true)}>Set a goal</Button>}
           />
         </Card>
@@ -97,7 +94,7 @@ export function BodyGoalPanel({ goal, trajectoryAside }: { goal: ReturnType<type
   }
 
   return (
-    <div className="space-y-8">
+    <>
       <GoalCard
         report={report}
         units={units}
@@ -114,12 +111,21 @@ export function BodyGoalPanel({ goal, trajectoryAside }: { goal: ReturnType<type
         endError={endError}
       />
       {dialog}
-      <TrajectorySection report={report} units={units} aside={trajectoryAside} />
+    </>
+  );
+}
+
+/** The goal read through the data: energy balance, pace, what drives it, how the body responds. */
+export function BodyGoalSections({ report }: { report: BodyGoalReport | null }) {
+  const { units } = useUnits();
+  if (!report) return null;
+  return (
+    <>
       <EnergySection report={report} units={units} />
       <PaceSection report={report} units={units} />
       <DriversSection report={report} />
       <ResponseSection report={report} />
-    </div>
+    </>
   );
 }
 
@@ -244,37 +250,6 @@ function suggestions(report: BodyGoalReport): string[] {
   if (report.effects.rate?.status === 'watch') out.unshift('Is my current rate too fast?');
   if (report.phase.phase === 'bulk') out.push('How do I keep the gain mostly muscle?');
   return out.slice(0, 3);
-}
-
-// ── Trajectory ──────────────────────────────────────────
-
-/** The comparison the "Recent change" weight card makes: the last 30 days against the 30 before. */
-const RECENT_DAYS = 30;
-
-function TrajectorySection({ report, units, aside }: { report: BodyGoalReport; units: UnitSystem; aside?: ReactNode }) {
-  const weights = seriesFor('weight_body_mass');
-  const recent = buildSeriesSummary('weight_body_mass', REFERENCE_KEY, RECENT_DAYS, units);
-  if (weights.length === 0) return null;
-  return (
-    <section>
-      <SectionTitle hint="weigh-ins, the seven-day average, and the pace in use">Toward the goal</SectionTitle>
-      <div className={`grid grid-cols-1 gap-4 ${aside ? 'lg:grid-cols-3' : ''}`}>
-        <Card className={`p-4 md:p-6 ${aside ? 'lg:col-span-2' : ''}`}>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <span className="text-xs text-text-secondary">
-              Weight{recent.latest ? ` · ${recent.latestValue} on ${formatDayKeyLong(recent.latest.key)}` : ''}
-            </span>
-            <ChangeBadge summary={recent} days={RECENT_DAYS} />
-          </div>
-          <GoalTrajectoryChart report={report} weights={weights} units={units} />
-          {report.projection?.trendNote && (
-            <div className="mt-3"><DataStateNote>{report.projection.trendNote}</DataStateNote></div>
-          )}
-        </Card>
-        {aside}
-      </div>
-    </section>
-  );
 }
 
 // ── Energy balance ──────────────────────────────────────
