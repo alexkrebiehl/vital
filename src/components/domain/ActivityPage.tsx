@@ -168,7 +168,9 @@ export function ActivityPage() {
                     <span className="text-text-primary font-medium w-24 shrink-0">{w.workout_type}</span>
                     <span className="text-text-secondary tnum">{formatDayKeyLong(workoutDayKey(w))}</span>
                     <span className="text-text-primary tnum">{w.duration_minutes} min</span>
-                    <span className="text-text-primary tnum">{w.calories_burned} kcal</span>
+                    <span className="text-text-primary tnum">
+                      {w.calories_burned === null ? 'Calories not recorded' : `${w.calories_burned} kcal`}
+                    </span>
                     {w.distance_km != null && (
                       <span className="text-text-secondary tnum">{w.distance_km.toFixed(1)} km</span>
                     )}

@@ -48,7 +48,7 @@ import {
   normalizeSimpleMetric,
   normalizeSleep,
   sleepDedupeRule,
-  normalizeWorkouts,
+  normalizeWorkoutsWithCounts,
 } from './normalize';
 import { splitSources, sourceRuleExplanationFor } from './sources';
 
@@ -333,6 +333,9 @@ export async function fetchLiveDatasetUncached(deps: LiveDeps = {}): Promise<Liv
     });
   }
 
+  const { workouts, dropped: workoutsDropped } = normalizeWorkoutsWithCounts(workoutRaw, ctx);
+  droppedRecords += workoutsDropped.total;
+
   // ── Assemble the dataset ──────────────────────────────
   const sortedInstants = [...allInstants].sort();
   const dataset: HealthFixtures = {
@@ -342,7 +345,7 @@ export async function fetchLiveDatasetUncached(deps: LiveDeps = {}): Promise<Liv
     days: expectedDays,
     timezone,
     metrics,
-    workouts: normalizeWorkouts(workoutRaw, ctx),
+    workouts,
     coverage,
   };
 

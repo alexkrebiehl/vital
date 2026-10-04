@@ -64,19 +64,29 @@ export function workoutViews(records: WorkoutRecord[] = workoutList()): WorkoutV
 export interface WorkoutTotals {
   sessions: number;
   minutes: number;
+  /** Total of the sessions that recorded calories. NaN when none did, never 0. */
   calories: number;
+  /** Sessions that recorded calories; the others are left out of `calories`. */
+  calorieSessions: number;
   /** NaN when no session in the set recorded a distance. */
   distanceKm: number;
   distanceSessions: number;
   minutesPerSession: number;
 }
 
+/** The calorie values that were recorded; sessions without one are left out. */
+function knownCalories(views: { calories_burned: number | null }[]): number[] {
+  return views.flatMap(v => (v.calories_burned === null ? [] : [v.calories_burned]));
+}
+
 export function workoutTotals(views: WorkoutView[]): WorkoutTotals {
   const distances = views.filter(v => v.hasDistance).map(v => v.distance_km as number);
+  const calories = knownCalories(views);
   return {
     sessions: views.length,
     minutes: sum(views.map(v => v.duration_minutes)),
-    calories: sum(views.map(v => v.calories_burned)),
+    calories: calories.length ? sum(calories) : NaN,
+    calorieSessions: calories.length,
     distanceKm: distances.length ? sum(distances) : NaN,
     distanceSessions: distances.length,
     minutesPerSession: views.length ? mean(views.map(v => v.duration_minutes)) : NaN,
@@ -128,7 +138,13 @@ function comparatorFor(filter: WorkoutFilter): (a: WorkoutView, b: WorkoutView) 
     case 'duration':
       return (a, b) => dir * (a.duration_minutes - b.duration_minutes);
     case 'calories':
-      return (a, b) => dir * (a.calories_burned - b.calories_burned);
+      // Sessions without calories sort last in either direction.
+      return (a, b) => {
+        if (a.calories_burned === null || b.calories_burned === null) {
+          return a.calories_burned === b.calories_burned ? 0 : a.calories_burned === null ? 1 : -1;
+        }
+        return dir * (a.calories_burned - b.calories_burned);
+      };
     case 'distance':
       return (a, b) => dir * ((a.distance_km ?? -1) - (b.distance_km ?? -1));
     case 'date-desc':
@@ -197,7 +213,7 @@ export function workoutGroupComparison(
     sessions: ofType.length,
     comparedSessions: others.length,
     duration,
-    calories: field(others.map(v => v.calories_burned)),
+    calories: field(knownCalories(others)),
     distance: distances.length ? field(distances) : null,
     avgHeartRate: avgHr.length ? field(avgHr) : null,
     maxHeartRate: maxHr.length ? field(maxHr) : null,

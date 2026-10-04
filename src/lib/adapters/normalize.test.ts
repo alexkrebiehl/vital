@@ -9,6 +9,7 @@ import {
   normalizeSimpleMetric,
   normalizeSleep,
   normalizeWorkouts,
+  normalizeWorkoutsWithCounts,
   round,
   type IntervalValue,
   type RawBloodPressureRecord,
@@ -472,15 +473,94 @@ describe('blood pressure and workouts', () => {
     expect(first).toBeDefined();
     expect(String(first.duration_minutes)).not.toContain('1697040339311');
     expect(first.duration_minutes).toBeCloseTo(39.2, 6);
-    expect(Number.isInteger(first.calories_burned)).toBe(true);
+    expect(Number.isInteger(first.calories_burned as number)).toBe(true);
     expect(first.distance_km).toBeUndefined();
     expect(first.avg_heart_rate).toBeUndefined();
     expect(first.max_heart_rate).toBeUndefined();
     // Every session is rounded the same way.
     for (const w of workouts) {
       expect(String(w.duration_minutes)).not.toMatch(/\d{6,}/);
-      expect(Number.isInteger(w.calories_burned)).toBe(true);
+      expect(w.calories_burned === null || Number.isInteger(w.calories_burned)).toBe(true);
     }
+  });
+
+  describe('overlapping workouts', () => {
+    const T0 = Date.parse('2026-09-10T15:00:00.000Z');
+    const at = (m: number) => new Date(T0 + m * 60_000).toISOString();
+    const raw = (over: Record<string, unknown>) => ({
+      id: 'a',
+      workout_type: 'Running',
+      start_time: at(0),
+      end_time: at(30),
+      duration_minutes: 30,
+      calories_burned: 200,
+      ...over,
+    });
+
+    it('collapses an 80% overlap to one record and counts the other', () => {
+      const { workouts, dropped } = normalizeWorkoutsWithCounts(
+        [raw({ id: 'a' }), raw({ id: 'b', start_time: at(6), end_time: at(36) })],
+        CTX
+      );
+      expect(workouts).toHaveLength(1);
+      expect(dropped).toEqual({ repeats: 0, overlapping: 1, total: 1 });
+    });
+
+    it('keeps back-to-back workouts with a 1-minute gap as two', () => {
+      const { workouts, dropped } = normalizeWorkoutsWithCounts(
+        [raw({ id: 'a' }), raw({ id: 'b', start_time: at(31), end_time: at(61) })],
+        CTX
+      );
+      expect(workouts).toHaveLength(2);
+      expect(dropped.total).toBe(0);
+    });
+
+    it('keeps the record with a known calorie value over one without', () => {
+      const out = normalizeWorkouts(
+        [raw({ id: 'a', calories_burned: null, duration_minutes: 40, end_time: at(40) }), raw({ id: 'z' })],
+        CTX
+      );
+      expect(out).toHaveLength(1);
+      expect(out[0].id).toBe('z');
+      expect(out[0].calories_burned).toBe(200);
+    });
+
+    it('then the longer duration, then the lower id', () => {
+      const longer = normalizeWorkouts(
+        [raw({ id: 'a' }), raw({ id: 'b', end_time: at(40), duration_minutes: 40 })],
+        CTX
+      );
+      expect(longer.map(w => w.id)).toEqual(['b']);
+      const tie = normalizeWorkouts([raw({ id: 'b' }), raw({ id: 'a' })], CTX);
+      expect(tie.map(w => w.id)).toEqual(['a']);
+    });
+
+    it('counts an id repeat and an overlap separately', () => {
+      const { workouts, dropped } = normalizeWorkoutsWithCounts(
+        [raw({ id: 'a' }), raw({ id: 'a' }), raw({ id: 'b', start_time: at(2), end_time: at(32) })],
+        CTX
+      );
+      expect(workouts).toHaveLength(1);
+      expect(dropped).toEqual({ repeats: 1, overlapping: 1, total: 2 });
+    });
+
+    it('leaves unknown calories null, never zero', () => {
+      const out = normalizeWorkouts(
+        [raw({ id: 'a', calories_burned: null }), raw({ id: 'b', start_time: at(90), end_time: at(120), calories_burned: undefined })],
+        CTX
+      );
+      expect(out).toHaveLength(2);
+      expect(out.map(w => w.calories_burned)).toEqual([null, null]);
+    });
+
+    it('is reported in the assembled stats', () => {
+      const built = buildLiveDataset(
+        { metrics: {}, workouts: [raw({ id: 'a' }), raw({ id: 'b', start_time: at(3), end_time: at(33) })] },
+        { tz: TZ, now: '2026-09-17T18:00:00.000Z', referenceKey: REFERENCE }
+      );
+      expect(built.dataset.workouts).toHaveLength(1);
+      expect(built.stats.droppedRecords).toBe(1);
+    });
   });
 
   it('de-duplicates a session exported more than once', () => {

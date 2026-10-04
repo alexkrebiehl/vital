@@ -40,6 +40,7 @@ import {
   sourceRuleExplanationFor,
   type SourcedRecord,
 } from './sources';
+import { intervalsMatch } from '@/lib/workout-sources/match';
 
 // ── Upstream record shapes (only the fields actually present) ──
 
@@ -90,7 +91,8 @@ export interface RawWorkoutRecord {
   start_time?: string;
   end_time?: string;
   duration_minutes?: number;
-  calories_burned?: number;
+  /** HAE sends `null` when the session has no active-energy value. */
+  calories_burned?: number | null;
 }
 
 // ── Metric mapping table ────────────────────────────────
@@ -558,35 +560,102 @@ export function normalizeBloodPressure(
  * shows those fields as "not recorded for this session".
  *
  * `duration_minutes` arrives as a long float (39.1697040339311) and is rounded
- * to one decimal; calories are rounded to whole kcal.
+ * to one decimal; calories are rounded to whole kcal. Calories the source did not record stay
+ * `null`.
  */
 export function normalizeWorkouts(records: RawWorkoutRecord[], ctx: NormalizeContext): WorkoutRecord[] {
-  const byId = new Map<string, WorkoutRecord>();
+  return normalizeWorkoutsWithCounts(records, ctx).workouts;
+}
+
+/** Records `normalizeWorkoutsWithCounts` set aside, by reason. `total` is their sum. */
+export interface WorkoutDropCounts {
+  /** The same id exported more than once. */
+  repeats: number;
+  /** A different id for a session that overlaps one already kept. */
+  overlapping: number;
+  total: number;
+}
+
+/**
+ * `normalizeWorkouts` plus what it dropped.
+ *
+ * Calories that the source did not record stay `null`: they are never written
+ * as zero and never enter a sum. After the id de-duplication, two workouts
+ * whose intervals match (`intervalsMatch`) are one. HAE carries no source on a
+ * workout, so the record to keep is chosen by what it knows: more known fields
+ * (calories known beats unknown), then the longer duration, then the lower id.
+ * The other record is dropped, never merged, and counted.
+ */
+export function normalizeWorkoutsWithCounts(
+  records: RawWorkoutRecord[],
+  ctx: NormalizeContext
+): { workouts: WorkoutRecord[]; dropped: WorkoutDropCounts } {
+  interface Candidate {
+    record: WorkoutRecord;
+    known: number;
+  }
+  const byId = new Map<string, Candidate>();
+  let repeats = 0;
   for (const r of records) {
     if (!r.start_time || !r.end_time || !r.workout_type) continue;
     const id = r.id && String(r.id).trim().length > 0
       ? String(r.id)
       : `${r.workout_type}:${r.start_time}`;
+    const calories = typeof r.calories_burned === 'number' && Number.isFinite(r.calories_burned)
+      ? Math.round(r.calories_burned)
+      : null;
+    const durationKnown = typeof r.duration_minutes === 'number' && Number.isFinite(r.duration_minutes);
     const record: WorkoutRecord = {
       id,
       workout_type: r.workout_type,
       start_time: r.start_time,
       end_time: r.end_time,
       duration_minutes: round(
-        typeof r.duration_minutes === 'number' ? r.duration_minutes : minutesBetween(r.start_time, r.end_time),
+        durationKnown ? (r.duration_minutes as number) : minutesBetween(r.start_time, r.end_time),
         1
       ),
-      calories_burned: Math.round(
-        typeof r.calories_burned === 'number' ? r.calories_burned : NaN
-      ),
+      calories_burned: calories,
       source: 'Health Auto Export',
     };
-    if (!Number.isFinite(record.calories_burned)) record.calories_burned = 0;
     // The same session can be exported twice; the id is the identity.
-    if (!byId.has(id)) byId.set(id, record);
+    if (byId.has(id)) {
+      repeats += 1;
+      continue;
+    }
+    byId.set(id, { record, known: (calories !== null ? 1 : 0) + (durationKnown ? 1 : 0) });
+  }
+
+  const better = (x: Candidate, y: Candidate): boolean => {
+    if (x.known !== y.known) return x.known > y.known;
+    if (x.record.duration_minutes !== y.record.duration_minutes) {
+      return x.record.duration_minutes > y.record.duration_minutes;
+    }
+    return x.record.id < y.record.id;
+  };
+  const span = (c: Candidate) => ({ start: c.record.start_time, end: c.record.end_time });
+  const same = (x: Candidate, y: Candidate) =>
+    intervalsMatch(span(x), span(y)) || intervalsMatch(span(y), span(x));
+
+  const kept: Candidate[] = [];
+  let overlapping = 0;
+  const ordered = [...byId.values()].sort(
+    (x, y) =>
+      x.record.start_time.localeCompare(y.record.start_time) || x.record.id.localeCompare(y.record.id)
+  );
+  for (const candidate of ordered) {
+    const i = kept.findIndex(k => same(k, candidate));
+    if (i === -1) {
+      kept.push(candidate);
+      continue;
+    }
+    overlapping += 1;
+    if (better(candidate, kept[i])) kept[i] = candidate;
   }
   void ctx;
-  return [...byId.values()].sort((a, b) => a.start_time.localeCompare(b.start_time));
+  return {
+    workouts: kept.map(k => k.record).sort((x, y) => x.start_time.localeCompare(y.start_time)),
+    dropped: { repeats, overlapping, total: repeats + overlapping },
+  };
 }
 
 function minutesBetween(start: string, end: string): number {
@@ -813,7 +882,8 @@ export function buildLiveDataset(raw: RawMetricBundle, options: BuildOptions): B
     });
   }
 
-  const workouts = normalizeWorkouts(raw.workouts, ctx);
+  const { workouts, dropped: workoutsDropped } = normalizeWorkoutsWithCounts(raw.workouts, ctx);
+  droppedRecords += workoutsDropped.total;
 
   const asOf = newestInstant(raw);
 

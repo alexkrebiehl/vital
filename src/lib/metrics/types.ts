@@ -97,7 +97,7 @@ export interface WorkoutRecord {
   start_time: string;
   end_time: string;
   duration_minutes: number;
-  calories_burned: number;
+  calories_burned: number | null;
   source: string;
   distance_km?: number;
   avg_heart_rate?: number;
