@@ -22,7 +22,8 @@
 //      totals, not by the export timestamp, so an episode that was exported
 //      twice is one night (`SLEEP_REPEAT_RULE` below, applied in
 //      `normalizeSleep`). Two records that share a start instant but differ in
-//      window or totals are two episodes and both are kept.
+//      window or totals are two episodes of one night, and the night keeps one
+//      of them (`SLEEP_ONE_PER_NIGHT_RULE` below).
 //
 // The effect is "one device per metric per interval" — no double counting — and
 // the dropped-source counts are reported so the UI can say what was set aside.
@@ -244,3 +245,18 @@ export const SLEEP_REPEAT_RULE =
   'A repeated sleep export is one night, not two: an episode is identified by its ' +
   'in-bed window and its recorded totals, and the highest-priority record is kept.';
 
+
+/**
+ * The stated one-episode-per-night rule, shown in the provenance panel.
+ *
+ * A device can record the same night twice with different windows (a fragment
+ * and a longer episode). Each wake-up day keeps one episode: only the
+ * best-ranked device family is considered, and within it the episode with the
+ * most time asleep wins, then the longest in-bed window, then the earliest
+ * bedtime. Every other episode is set aside and counted, never added.
+ */
+export const SLEEP_ONE_PER_NIGHT_RULE =
+  'A wake-up day keeps one sleep episode: the best-ranked device that recorded it, and ' +
+  'within that device the episode with the most time asleep (then the longest time in ' +
+  'bed, then the earliest bedtime). The other episodes are set aside and counted, ' +
+  'never added.';

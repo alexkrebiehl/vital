@@ -31,7 +31,10 @@ import {
   dedupeByInterval,
   dedupeSameInstant,
   sourceLabel,
+  sourceRank,
   sourceRuleFor,
+  SLEEP_ONE_PER_NIGHT_RULE,
+  SLEEP_REPEAT_RULE,
   splitSources,
   SOURCE_DEDUPE_RULE,
   sourceRuleExplanationFor,
@@ -392,6 +395,22 @@ export function heartRateObservations(daily: DailyHeartRate[]): (MetricObservati
  * night in every average. A record with no window falls back to its export
  * instant, so two exports without a window are never merged on totals alone.
  */
+/** Records `normalizeSleep` set aside, by reason. `total` is their sum. */
+export interface SleepDropCounts {
+  /** The same episode exported more than once. */
+  repeats: number;
+  /** Episodes from a lower-ranked device family than another that day. */
+  lowerRankedSource: number;
+  /** Other episodes from the kept family on a day that keeps one. */
+  extraEpisodes: number;
+  total: number;
+}
+
+export interface SleepResult {
+  observations: SleepObservation[];
+  dropped: SleepDropCounts;
+}
+
 export function sleepRepeatIdentity(record: RawSleepRecord): string {
   const start = record.inBedStart ?? record.sleepStart;
   const end = record.inBedEnd ?? record.sleepEnd;
@@ -426,12 +445,12 @@ export function sleepRepeatIdentity(record: RawSleepRecord): string {
  * Exact repeats collapse to one night using the project's source-priority
  * convention (`dedupeSameInstant` + `SLEEP_REPEAT_RULE` in `sources.ts`).
  */
-export function normalizeSleep(records: RawSleepRecord[], ctx: NormalizeContext): SleepObservation[] {
+export function normalizeSleep(records: RawSleepRecord[], ctx: NormalizeContext): SleepResult {
   const rule = sourceRuleFor('sleep_analysis');
   const sourced = records.map(r => ({ ...r, source: r.source ?? '' }));
-  const { kept } = dedupeSameInstant(sourced, rule, sleepRepeatIdentity);
+  const { kept, duplicates } = dedupeSameInstant(sourced, rule, sleepRepeatIdentity);
 
-  const out: SleepObservation[] = [];
+  const candidates: { obs: SleepObservation; rank: number }[] = [];
   for (const r of kept) {
     const key = dayKey(r.date, ctx.tz);
     const toMin = (x: number | undefined) => (typeof x === 'number' && Number.isFinite(x) ? x * 60 : 0);
@@ -455,7 +474,7 @@ export function normalizeSleep(records: RawSleepRecord[], ctx: NormalizeContext)
       inBedMinutes = round(asleepMinutes + awake, 1);
     }
 
-    out.push({
+    const obs: SleepObservation = {
       date: key,
       bedtime: start ?? '',
       wakeTime: end ?? '',
@@ -470,9 +489,44 @@ export function normalizeSleep(records: RawSleepRecord[], ctx: NormalizeContext)
         awake: round(awake, 1),
       },
       source: sourceLabel(r.source),
-    });
+    };
+    candidates.push({ obs, rank: sourceRank(r.source, rule) });
   }
-  return out.sort((a, b) => a.date.localeCompare(b.date));
+
+  // One episode per wake-up day: best-ranked family first, then the most time
+  // asleep, then the longest in-bed window, then the earliest bedtime.
+  const byDay = new Map<string, { obs: SleepObservation; rank: number }[]>();
+  for (const c of candidates) {
+    const list = byDay.get(c.obs.date);
+    if (list) list.push(c);
+    else byDay.set(c.obs.date, [c]);
+  }
+  const observations: SleepObservation[] = [];
+  let lowerRankedSource = 0;
+  let extraEpisodes = 0;
+  for (const group of byDay.values()) {
+    const bestRank = Math.min(...group.map(c => c.rank));
+    const contenders = group.filter(c => c.rank === bestRank);
+    lowerRankedSource += group.length - contenders.length;
+    contenders.sort(
+      (x, y) =>
+        y.obs.asleepMinutes - x.obs.asleepMinutes ||
+        y.obs.inBedMinutes - x.obs.inBedMinutes ||
+        x.obs.bedtime.localeCompare(y.obs.bedtime)
+    );
+    extraEpisodes += contenders.length - 1;
+    observations.push(contenders[0].obs);
+  }
+  observations.sort((a, b) => a.date.localeCompare(b.date));
+  return {
+    observations,
+    dropped: {
+      repeats: duplicates,
+      lowerRankedSource,
+      extraEpisodes,
+      total: duplicates + lowerRankedSource + extraEpisodes,
+    },
+  };
 }
 
 // ── Blood pressure ──────────────────────────────────────
@@ -587,6 +641,11 @@ export interface ProvenanceRow {
   dedupeRule: string;
 }
 
+/** Everything the sleep de-duplication does, quoted in the provenance panel. */
+export function sleepDedupeRule(): string {
+  return [sourceRuleExplanationFor('sleep_analysis'), SLEEP_REPEAT_RULE, SLEEP_ONE_PER_NIGHT_RULE].join(' ');
+}
+
 const AGGREGATION_LABEL: Record<string, string> = {
   sum: 'sum per day',
   mean: 'mean per day',
@@ -665,7 +724,8 @@ export function buildLiveDataset(raw: RawMetricBundle, options: BuildOptions): B
   // Sleep
   const sleepRaw = (raw.metrics[SLEEP_HAE_METRIC] ?? []) as RawSleepRecord[];
   if (sleepRaw.length > 0) {
-    const sleep = normalizeSleep(sleepRaw, ctx);
+    const { observations: sleep, dropped: sleepDropped } = normalizeSleep(sleepRaw, ctx);
+    droppedRecords += sleepDropped.total;
     metrics['sleep_analysis'] = sleep;
     coverage['sleep_analysis'] = coverageOf(
       sleep.map(s => s.date),
@@ -688,7 +748,7 @@ export function buildLiveDataset(raw: RawMetricBundle, options: BuildOptions): B
       firstDay: sleep[0]?.date ?? null,
       lastDay: sleep[sleep.length - 1]?.date ?? null,
       unitConversions: ['hr → min'],
-      dedupeRule: sourceRuleExplanationFor('sleep_analysis'),
+      dedupeRule: sleepDedupeRule(),
     });
   }
 

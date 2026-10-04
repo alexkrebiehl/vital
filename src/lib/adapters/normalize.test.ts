@@ -23,6 +23,7 @@ import {
   seriesFor,
   setActiveDataset,
 } from '@/lib/adapters/dataset';
+import { SLEEP_ONE_PER_NIGHT_RULE, sourceLabel } from '@/lib/adapters/sources';
 import { addDays, dayKey, diffDays, trailingWindow } from '@/lib/analytics/windows';
 import { compareWindows } from '@/lib/analytics/comparisons';
 import type { HealthFixtures } from '@/lib/metrics/types';
@@ -190,7 +191,7 @@ describe('sleep composition (SPEC §9)', () => {
   const sleep = normalizeSleep(
     samples.metrics.sleep_analysis as unknown as RawSleepRecord[],
     CTX
-  );
+  ).observations;
   const latest = sleep[sleep.length - 1];
 
   it('assigns each episode to its waking date', () => {
@@ -215,7 +216,7 @@ describe('sleep composition (SPEC §9)', () => {
   });
 
   it('keeps awake time separate from time asleep', () => {
-    const syntheticNight = normalizeSleep(synthetic.hours, CTX)[0];
+    const syntheticNight = normalizeSleep(synthetic.hours, CTX).observations[0];
     expect(syntheticNight.asleepMinutes).toBeCloseTo(360, 6);
     expect(syntheticNight.inBedMinutes).toBeCloseTo(480, 6);
     expect(syntheticNight.durationMinutes).toBeCloseTo(390, 6);
@@ -228,7 +229,7 @@ describe('sleep composition (SPEC §9)', () => {
       [{ date: '2026-09-16T05:00:00.000Z', source: 'watch', awake: 0.1, core: 5, deep: 1, rem: 1, inBed: 0.5,
         inBedStart: '2026-09-16T05:00:00.000Z', inBedEnd: '2026-09-16T05:05:00.000Z' }],
       CTX
-    )[0];
+    ).observations[0];
     expect(odd.inBedMinutes).toBeGreaterThanOrEqual(odd.asleepMinutes);
   });
 });
@@ -260,7 +261,7 @@ describe('a sleep episode exported twice', () => {
         { ...episode, date: '2026-08-09T22:00:00.000Z' },
       ],
       CTX
-    );
+    ).observations;
 
     expect(nights).toHaveLength(1);
     expect(nights[0].date).toBe('2026-08-09');
@@ -286,7 +287,7 @@ describe('a sleep episode exported twice', () => {
         { ...fragment, date: '2026-08-14T21:00:00.000Z', inBedEnd: '2026-08-14T22:59:38.000Z', awake: 0.4012375479274326 },
       ],
       CTX
-    );
+    ).observations;
 
     expect(nights).toHaveLength(2);
     expect(nights.map(n => n.inBedMinutes)).toEqual([126.4, 196.1]);
@@ -333,6 +334,116 @@ describe('a sleep episode exported twice', () => {
     expect(sleep.filter(s => s.date === '2026-08-14')).toHaveLength(1);
     // The assembly reports the same counts it publishes.
     expect(built.stats.observations).toBe(sleep.length);
+  });
+});
+
+// ── One episode per wake-up day (SLEEP_ONE_PER_NIGHT_RULE) ─
+describe('one sleep episode per wake-up day', () => {
+  const WATCH = "Sample's Apple Watch";
+  const PHONE = "Sample's iPhone";
+  const base = { awake: 0.1, inBed: 0 };
+  const night = (over: Partial<RawSleepRecord>): RawSleepRecord => ({
+    date: '2026-09-10T12:00:00.000Z',
+    source: WATCH,
+    core: 4,
+    deep: 1,
+    rem: 1.5,
+    inBedStart: '2026-09-10T04:00:00.000Z',
+    inBedEnd: '2026-09-10T12:00:00.000Z',
+    ...base,
+    ...over,
+  });
+
+  it('keeps the longer of two same-source episodes and counts the other', () => {
+    const { observations, dropped } = normalizeSleep(
+      [
+        night({ core: 1, deep: 0.2, rem: 0.3, inBedStart: '2026-09-10T10:00:00.000Z', date: '2026-09-10T13:00:00.000Z' }),
+        night({}),
+      ],
+      CTX
+    );
+    expect(observations).toHaveLength(1);
+    expect(observations[0].asleepMinutes).toBe(390);
+    expect(dropped).toEqual({ repeats: 0, lowerRankedSource: 0, extraEpisodes: 1, total: 1 });
+  });
+
+  it('keeps the watch over the phone on the same day', () => {
+    const { observations, dropped } = normalizeSleep(
+      [night({ source: PHONE, core: 6, deep: 1, rem: 1.5 }), night({})],
+      CTX
+    );
+    expect(observations).toHaveLength(1);
+    expect(observations[0].source).toBe(sourceLabel(WATCH));
+    expect(observations[0].asleepMinutes).toBe(390);
+    expect(dropped.lowerRankedSource).toBe(1);
+    expect(dropped.total).toBe(1);
+  });
+
+  it('lets a staged episode beat an in-bed-only record', () => {
+    const { observations } = normalizeSleep(
+      [
+        night({ core: 0, deep: 0, rem: 0, inBedStart: '2026-09-10T02:00:00.000Z', awake: 0.2 }),
+        night({ core: 3, deep: 0.5, rem: 1 }),
+      ],
+      CTX
+    );
+    expect(observations).toHaveLength(1);
+    expect(observations[0].asleepMinutes).toBe(270);
+  });
+
+  it('breaks an asleep tie by the longest in-bed window, then the earliest bedtime', () => {
+    const longer = night({ inBedStart: '2026-09-10T03:00:00.000Z' });
+    const shorter = night({ inBedStart: '2026-09-10T05:00:00.000Z' });
+    expect(normalizeSleep([shorter, longer], CTX).observations[0].bedtime).toBe(longer.inBedStart);
+
+    const early = night({ inBedStart: '2026-09-10T04:00:00.000Z', inBedEnd: '2026-09-10T11:00:00.000Z' });
+    const late = night({ inBedStart: '2026-09-10T05:00:00.000Z', inBedEnd: '2026-09-10T12:00:00.000Z' });
+    expect(normalizeSleep([late, early], CTX).observations[0].bedtime).toBe(early.inBedStart);
+  });
+
+  it('counts an exact repeat separately from an extra episode', () => {
+    const a = night({});
+    const { observations, dropped } = normalizeSleep(
+      [a, { ...a, date: '2026-09-10T13:00:00.000Z' }, night({ core: 1, deep: 0, rem: 0 })],
+      CTX
+    );
+    expect(observations).toHaveLength(1);
+    expect(dropped).toEqual({ repeats: 1, lowerRankedSource: 0, extraEpisodes: 1, total: 2 });
+  });
+
+  it('leaves days with one episode unchanged and reports no drops', () => {
+    const records = (samples.metrics.sleep_analysis as unknown as RawSleepRecord[]);
+    const days = new Map<string, number>();
+    for (const r of records) days.set(dayKey(r.date, TZ), (days.get(dayKey(r.date, TZ)) ?? 0) + 1);
+    const single = records.filter(r => days.get(dayKey(r.date, TZ)) === 1);
+    const { observations, dropped } = normalizeSleep(single, CTX);
+    expect(dropped.total).toBe(0);
+    expect(observations).toHaveLength(single.length);
+    // Every kept night is the record it came from, field for field.
+    for (const r of single) {
+      const o = observations.find(x => x.date === dayKey(r.date, TZ))!;
+      expect(o.bedtime).toBe(r.inBedStart ?? r.sleepStart ?? '');
+      expect(o.stages.deep).toBeCloseTo(round((r.deep ?? 0) * 60, 1), 6);
+      expect(o.stages.core).toBeCloseTo(round((r.core ?? 0) * 60, 1), 6);
+    }
+  });
+
+  it('is applied in the assembled dataset and reported in the stats', () => {
+    const built = buildLiveDataset(
+      {
+        metrics: {
+          sleep_analysis: [night({}), night({ core: 1, deep: 0, rem: 0, date: '2026-09-10T13:00:00.000Z' })] as unknown[],
+        },
+        workouts: [],
+      },
+      { tz: TZ, now: '2026-09-17T18:00:00.000Z', referenceKey: REFERENCE }
+    );
+    expect((built.dataset.metrics['sleep_analysis'] as unknown[]).length).toBe(1);
+    expect(built.stats.droppedRecords).toBe(1);
+    const row = built.provenance.find(p => p.metricId === 'sleep_analysis')!;
+    expect(row.recordsRead).toBe(2);
+    expect(row.recordsKept).toBe(1);
+    expect(row.dedupeRule).toContain(SLEEP_ONE_PER_NIGHT_RULE);
   });
 });
 

@@ -47,6 +47,7 @@ import {
   normalizeBloodPressure,
   normalizeSimpleMetric,
   normalizeSleep,
+  sleepDedupeRule,
   normalizeWorkouts,
 } from './normalize';
 import { splitSources, sourceRuleExplanationFor } from './sources';
@@ -271,7 +272,8 @@ export async function fetchLiveDatasetUncached(deps: LiveDeps = {}): Promise<Liv
 
   // ── Sleep ─────────────────────────────────────────────
   if (sleepRaw.length > 0) {
-    const sleep = normalizeSleep(sleepRaw, ctx);
+    const { observations: sleep, dropped: sleepDropped } = normalizeSleep(sleepRaw, ctx);
+    droppedRecords += sleepDropped.total;
     metrics['sleep_analysis'] = sleep;
     for (const s of sleep) allDayKeys.push(s.date);
     const sources = [...new Set(sleepRaw.flatMap(r => splitSources(r.source)))].sort();
@@ -296,7 +298,7 @@ export async function fetchLiveDatasetUncached(deps: LiveDeps = {}): Promise<Liv
       firstDay: sleep[0]?.date ?? null,
       lastDay: sleep[sleep.length - 1]?.date ?? null,
       unitConversions: ['hr → min'],
-      dedupeRule: sourceRuleExplanationFor('sleep_analysis'),
+      dedupeRule: sleepDedupeRule(),
     });
   }
 
