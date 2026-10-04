@@ -14,6 +14,7 @@ import { useProfile } from '@/components/profile/ProfileProvider';
 import { useDatasetMeta } from '@/components/data/DatasetProvider';
 import { inputsFromDataset } from '@/lib/body-goal/dataset';
 import { bodyGoalReport } from '@/lib/body-goal/report';
+import { lowBodyFatNote } from '@/lib/body-goal/composition';
 import { PHASE_LABEL } from '@/lib/body-goal/phase';
 import { MAX_PACE_KG_PER_WEEK, TARGET_BOUNDS, type BodyGoal, type BodyGoalInput, type BodyGoalKind } from '@/lib/body-goal/types';
 import { formatDayKeyLong } from '@/lib/analytics/windows';
@@ -123,6 +124,11 @@ function GoalForm({
   }, [draft, paceKg, inputs]);
 
   const phase = preview?.phase.phase ?? null;
+  // A very low body-fat target — set directly, or where a weight target lands — gets a word of caution, never a block.
+  const lowFat =
+    kind === 'body_fat'
+      ? targetValid ? lowBodyFatNote(targetCanonical, profile.sex) : null
+      : preview?.bodyFatAtGoal != null ? lowBodyFatNote(preview.bodyFatAtGoal, profile.sex) : null;
   const signedPace = paceKg !== null && phase ? (phase === 'cut' ? -paceKg : paceKg) : null;
   const kindChanged = existing !== null && existing.kind !== kind;
 
@@ -184,6 +190,19 @@ function GoalForm({
           {target.trim() !== '' && !targetValid && ` Enter a target between ${kind === 'weight' ? `${kgToInput(bounds.min, units)} and ${kgToInput(bounds.max, units)} ${unit}` : `${bounds.min} and ${bounds.max} %`}.`}
           {preview?.phase.phase && ` That makes this ${preview.phase.phase === 'maintain' ? 'a maintenance goal — you are already there' : `a ${PHASE_LABEL[preview.phase.phase].toLowerCase()} phase`}.`}
         </p>
+        {lowFat && (
+          <p
+            role="note"
+            className={`rounded-control px-3 py-2 text-[12px] leading-relaxed ${
+              lowFat.level === 'essential'
+                ? 'bg-amber-50 text-amber-900 dark:bg-amber-900/30 dark:text-amber-100'
+                : 'bg-surface-muted text-text-primary'
+            }`}
+          >
+            {kind === 'weight' && 'At that weight, at a typical lean share: '}
+            {lowFat.text}
+          </p>
+        )}
       </fieldset>
 
       {band && phase && phase !== 'maintain' && (

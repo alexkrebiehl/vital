@@ -53,10 +53,25 @@ export const CUT_BANDS = {
 } as const;
 export const BULK_BAND = { min: 0.25, max: 0.5 } as const;
 
-/** Body-fat % below which a person counts as "lean", and above which "higher", by sex. */
+/**
+ * Body-fat % below which a person counts as "lean", and above which "higher",
+ * by sex. Used only when sex is set in Settings: without it no sex's bands are
+ * assumed and the general cutting range applies.
+ */
 export const BODY_FAT_BANDS = {
   male: { lean: 15, higher: 25 },
   female: { lean: 23, higher: 32 },
+} as const;
+
+/**
+ * Low body-fat targets, by sex. Essential fat is the minimum the body needs
+ * (about 2–5 % in men, 10–13 % in women; American Council on Exercise);
+ * "very lean" is the bottom of the athletic range, below which body fat is
+ * contest-level — hard to hold and costly to energy, hormones and recovery.
+ */
+export const LOW_BODY_FAT = {
+  male: { essential: 5, veryLean: 8 },
+  female: { essential: 13, veryLean: 15 },
 } as const;
 
 /** Rates above which the page says the pace carries extra cost. */

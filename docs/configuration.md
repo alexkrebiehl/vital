@@ -178,9 +178,14 @@ pace. It is set from the Body page and stored in the `body_goals` table (migrati
   fat) the goal is reached and the guidance turns to maintenance. Crossing the target never needs
   the goal to be re-entered.
 - **Recommended pace, or your own.** The recommended band is a share of body weight per week:
-  0.5–1 % when cutting (narrower when lean; the body-fat bands use the profile's sex when it is
-  set), 0.25–0.5 % when gaining. A pace you set replaces the middle of the band; its direction
+  0.5–1 % when cutting, 0.25–0.5 % when gaining. With the profile's sex set, the cutting band is
+  fitted to how lean the current body fat is for that sex (narrower when lean); unset, no sex is
+  assumed and the general band is used. A pace you set replaces the middle of the band; its direction
   always follows the phase.
+- **A caution on very low targets.** A body-fat target near or below essential fat (about 2–5 %
+  for men, 10–13 % for women), or below the athletic range (8 % / 15 %), gets a note in the goal
+  dialog; so does a weight target whose projected body fat lands there. It is advice, never a
+  block. With sex unset the note names both.
 - **Maintenance two ways.** From the weight trend (mean logged calories on complete days minus the
   four-week weight slope × 7,700 kcal/kg; needs 10 complete logged days and 4 weigh-ins) and from
   the device (basal + active energy). The weight-trend estimate is used when there is one.

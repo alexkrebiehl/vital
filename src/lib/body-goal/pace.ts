@@ -24,9 +24,10 @@ export interface PaceBand {
   basis: string;
 }
 
+/** How lean a reading is for the reader's sex; 'unknown' without a reading or without sex set (no sex is assumed). */
 export function bodyFatLevel(bodyFatPct: number | null, sex: 'male' | 'female' | null): BodyFatLevel {
-  if (bodyFatPct === null) return 'unknown';
-  const bands = BODY_FAT_BANDS[sex ?? 'male'];
+  if (bodyFatPct === null || sex === null) return 'unknown';
+  const bands = BODY_FAT_BANDS[sex];
   if (bodyFatPct < bands.lean) return 'lean';
   if (bodyFatPct > bands.higher) return 'higher';
   return 'moderate';
@@ -46,15 +47,16 @@ export function recommendedBand(phase: GoalPhase, bodyFatPct: number | null, sex
   }
   const level = bodyFatLevel(bodyFatPct, sex);
   const band = CUT_BANDS[level];
-  const sexNote = sex === null && bodyFatPct !== null ? ' (body-fat bands for men are used until sex is set in Settings)' : '';
   const basis =
     level === 'unknown'
-      ? 'Without a body-fat reading the general range is used: 0.5–1 % of body weight a week.'
+      ? bodyFatPct !== null
+        ? 'This is the general range. Setting your sex in Settings fits it to your body fat, since how lean a reading is differs between men and women.'
+        : 'Without a body-fat reading this is the general range.'
       : level === 'lean'
-        ? `At ${bodyFatPct!.toFixed(1)} % body fat you are lean${sexNote}, and slower cuts keep more muscle.`
+        ? `At ${bodyFatPct!.toFixed(1)} % body fat you are lean, and slower cuts keep more muscle.`
         : level === 'higher'
-          ? `At ${bodyFatPct!.toFixed(1)} % body fat${sexNote}, a faster cut costs little muscle.`
-          : `At ${bodyFatPct!.toFixed(1)} % body fat${sexNote}, a moderate pace balances speed against keeping muscle.`;
+          ? `At ${bodyFatPct!.toFixed(1)} % body fat, a faster cut costs little muscle.`
+          : `At ${bodyFatPct!.toFixed(1)} % body fat, a moderate pace balances speed against keeping muscle.`;
   return { minPct: band.min, maxPct: band.max, level, basis };
 }
 

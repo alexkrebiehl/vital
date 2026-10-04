@@ -398,7 +398,7 @@ function AccountTab() {
 
             <Field
               label="Sex"
-              hint="Used only to pick sex-specific reference intervals for lab results, and never inferred from an uploaded document."
+              hint="Used only to pick sex-specific reference intervals for lab results and to read body fat for a body goal (the recommended pace, and a caution on very low targets). Never inferred from an uploaded document or body data; left unset, no sex is assumed."
             >
               <Select
                 value={draft.sex ?? ''}

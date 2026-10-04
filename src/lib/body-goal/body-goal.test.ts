@@ -10,6 +10,7 @@ import {
   energyBalance,
   goalPhase,
   goalTrack,
+  lowBodyFatNote,
   macroConsistency,
   maintenanceRange,
   monthlyIntake,
@@ -164,11 +165,14 @@ describe('phase and pace', () => {
   it('narrows the cutting band as body fat falls, with sex-specific bands', () => {
     expect(bodyFatLevel(17.9, 'male')).toBe('moderate');
     expect(bodyFatLevel(17.9, 'female')).toBe('lean');
-    expect(bodyFatLevel(12, null)).toBe('lean');
+    // No sex is assumed: without it the level is unknown and the general band applies.
+    expect(bodyFatLevel(12, null)).toBe('unknown');
+    expect(recommendedBand('cut', 12, null)).toMatchObject({ minPct: 0.5, maxPct: 1.0, level: 'unknown' });
     expect(recommendedBand('cut', 12, 'male')).toMatchObject({ minPct: 0.5, maxPct: 0.75 });
     expect(recommendedBand('cut', 30, 'male')).toMatchObject({ minPct: 0.75, maxPct: 1.0 });
     expect(recommendedBand('cut', null, null)).toMatchObject({ minPct: 0.5, maxPct: 1.0 });
-    expect(recommendedBand('cut', 18, null).basis).toMatch(/until sex is set/);
+    expect(recommendedBand('cut', 18, null).basis).toMatch(/Setting your sex in Settings/);
+    expect(recommendedBand('cut', 18, null).basis).not.toMatch(/for men/);
     expect(recommendedBand('bulk', 18, 'male')).toMatchObject({ minPct: 0.25, maxPct: 0.5 });
   });
 
@@ -506,5 +510,29 @@ describe('on track or not', () => {
   it('puts the track in the report', () => {
     const report = bodyGoalReport(goal(), { series: lookup(cutSeries()), workoutDays: [], today: TODAY, sex: 'male', system: 'metric' });
     expect(report.track.status).toBe('fast');
+  });
+});
+
+describe('a caution on very low body-fat targets', () => {
+  it('reads the target against the reader\'s sex', () => {
+    expect(lowBodyFatNote(12, 'male')).toBeNull();
+    expect(lowBodyFatNote(7, 'male')).toMatchObject({ level: 'very-lean' });
+    expect(lowBodyFatNote(4, 'male')).toMatchObject({ level: 'essential' });
+    expect(lowBodyFatNote(18, 'female')).toBeNull();
+    expect(lowBodyFatNote(14, 'female')).toMatchObject({ level: 'very-lean' });
+    expect(lowBodyFatNote(12, 'female')!.text).toMatch(/essential fat women need/);
+  });
+
+  it('assumes no sex when it is unset, and says so', () => {
+    expect(lowBodyFatNote(20, null)).toBeNull();
+    const note = lowBodyFatNote(12, null)!;
+    expect(note.text).toMatch(/women/);
+    expect(note.text).toMatch(/men/);
+    expect(note.text).toMatch(/Set your sex in Settings/);
+    expect(lowBodyFatNote(4, null)!.level).toBe('essential');
+  });
+
+  it('prints the target without a trailing .0', () => {
+    expect(lowBodyFatNote(7, 'male')!.text).toMatch(/^7 % /);
   });
 });

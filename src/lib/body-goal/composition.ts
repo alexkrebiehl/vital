@@ -14,7 +14,7 @@
 // Scale body-fat readings (bioimpedance) can be off by 3–5 points; the pages
 // say so and suggest judging by the trend and a waist measurement.
 
-import { AT_GOAL_BODY_FAT_POINTS, AT_GOAL_WEIGHT_SHARE, IDEAL_LEAN_SHARE, MIN_CHANGE_FOR_SHARE_KG, REALISTIC_LEAN_SHARE } from './constants';
+import { AT_GOAL_BODY_FAT_POINTS, AT_GOAL_WEIGHT_SHARE, IDEAL_LEAN_SHARE, LOW_BODY_FAT, MIN_CHANGE_FOR_SHARE_KG, REALISTIC_LEAN_SHARE } from './constants';
 import type { GoalPhase } from './phase';
 import type { BodyGoal } from './types';
 import { currentReading, readingNear, type DayValue, type Reading } from './trend';
@@ -166,4 +166,45 @@ export function maintenanceRange(
     highKg: at(goal.target + AT_GOAL_BODY_FAT_POINTS),
     basis: `The weights at ${goal.target - AT_GOAL_BODY_FAT_POINTS}–${goal.target + AT_GOAL_BODY_FAT_POINTS} % body fat, with today's lean mass.`,
   };
+}
+
+export interface LowBodyFatNote {
+  /** essential: at or below the body's minimum; very-lean: contest-level. */
+  level: 'essential' | 'very-lean';
+  text: string;
+}
+
+/**
+ * A word of caution for a body-fat target (or the body fat a weight target
+ * lands at) that is very low for the reader's sex. Advice only: the target is
+ * still the reader's to set. Without sex set, no sex is assumed — the note
+ * names both and suggests setting it.
+ */
+export function lowBodyFatNote(pct: number, sex: 'male' | 'female' | null): LowBodyFatNote | null {
+  const p = `${Number(pct.toFixed(1))} %`;
+  const { male, female } = LOW_BODY_FAT;
+  const cost = 'hard to hold, and it tends to cost energy, hormones, sleep and recovery';
+  if (sex !== null) {
+    const t = LOW_BODY_FAT[sex];
+    const who = sex === 'male' ? 'men' : 'women';
+    const essential = sex === 'male' ? '2–5 %' : '10–13 %';
+    if (pct <= t.essential) {
+      return { level: 'essential', text: `${p} is at the essential fat ${who} need (about ${essential}) — not a level to diet to.` };
+    }
+    if (pct < t.veryLean) return { level: 'very-lean', text: `${p} is contest-level for ${who}: ${cost}.` };
+    return null;
+  }
+  if (pct <= male.essential) {
+    return { level: 'essential', text: `${p} is at or below essential fat for anyone (about 2–5 % for men, 10–13 % for women) — not a level to diet to.` };
+  }
+  if (pct < male.veryLean) {
+    return { level: 'essential', text: `${p} is contest-level for men and below essential fat for women (about 10–13 %). Set your sex in Settings for a note that fits you.` };
+  }
+  if (pct <= female.essential) {
+    return { level: 'essential', text: `${p} is at or below essential fat for women (about 10–13 %), though lean but ordinary for men. Set your sex in Settings for a note that fits you.` };
+  }
+  if (pct < female.veryLean) {
+    return { level: 'very-lean', text: `${p} is contest-level for women (${cost}), though ordinary for men. Set your sex in Settings for a note that fits you.` };
+  }
+  return null;
 }
