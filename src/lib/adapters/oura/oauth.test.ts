@@ -187,3 +187,12 @@ describe('parseGrantedScopes', () => {
     for (const v of ['', '  ', [], undefined, null, 5]) expect(parseGrantedScopes(v)).toBeNull();
   });
 });
+
+describe('namespaced scopes', () => {
+  it('strips the extapi: namespace Oura puts on granted scopes', async () => {
+    const { parseGrantedScopes } = await import('./oauth');
+    expect(parseGrantedScopes('extapi:daily extapi:heartrate extapi:workout extapi:spo2')).toEqual([
+      'daily', 'heartrate', 'workout', 'spo2',
+    ]);
+  });
+});

@@ -7,6 +7,7 @@
 //
 // No error raised here contains a token, a code, a verifier or the secret.
 
+import { bareScope } from '@/lib/db/credentials-store';
 import { createHash, randomInt } from 'node:crypto';
 import { OURA_AUTHORIZE_URL, type OuraConfig } from './config';
 import { timedFetch, TimedFetchError, type OuraHttpDeps } from './http';
@@ -23,7 +24,7 @@ export function parseGrantedScopes(raw: unknown): string[] | null {
     : typeof raw === 'string'
       ? [raw]
       : [];
-  const scopes = parts.flatMap(p => p.split(/[\s,]+/)).filter(Boolean);
+  const scopes = parts.flatMap(p => p.split(/[\s,]+/)).filter(Boolean).map(bareScope);
   return scopes.length ? scopes : null;
 }
 

@@ -42,10 +42,21 @@ function bytes(value: unknown): Buffer {
   return Buffer.isBuffer(value) ? value : Buffer.from(value as Uint8Array);
 }
 
+/**
+ * Oura names granted scopes with a namespace ("extapi:daily"); the rest of Vital
+ * uses the bare names it asked for ("daily"). Strip the namespace on the way in
+ * and again on the way out, so credentials stored before this was handled work
+ * without reconnecting.
+ */
+export function bareScope(scope: string): string {
+  return scope.replace(/^extapi:/i, '');
+}
+
 function splitScopes(value: unknown): string[] {
   return String(value ?? '')
-    .split(/\s+/)
-    .filter(Boolean);
+    .split(/[\s,]+/)
+    .filter(Boolean)
+    .map(bareScope);
 }
 
 /** Read one row through the key. Never throws on a key mismatch or a bad row. */

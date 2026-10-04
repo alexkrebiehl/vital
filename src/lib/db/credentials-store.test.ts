@@ -137,3 +137,11 @@ describe('credentials store', () => {
     });
   });
 });
+
+describe('bareScope', () => {
+  it('strips the extapi: namespace and leaves bare names alone', async () => {
+    const { bareScope } = await import('./credentials-store');
+    expect(bareScope('extapi:daily')).toBe('daily');
+    expect(bareScope('spo2')).toBe('spo2');
+  });
+});
