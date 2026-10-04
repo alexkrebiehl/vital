@@ -18,8 +18,8 @@
 // server render (so a client-side navigation or a revalidation picks up a new
 // hour or a new name) and refreshed on the client as the clock moves.
 //
-// The stored profile is read once here and handed to both the greeting and the
-// briefing read, so the two cannot disagree about the day or the person. The
+// Everything here runs as the requesting profile (`withCurrentUser`). The stored
+// profile is read once and handed to both the greeting and the briefing read, so the two cannot disagree about the day or the person. The
 // read is awaitable because the profile may live in Postgres.
 
 import { OverviewPage } from '@/components/metric/OverviewPage';
@@ -28,25 +28,33 @@ import { ensureBriefingScheduler } from '@/lib/briefing/scheduler';
 import { readProfile } from '@/lib/profile/store';
 import { greetingLine } from '@/lib/profile/types';
 import { readPreferences } from '@/lib/prefs/store';
+import { installDataset } from '@/lib/adapters/runtime';
+import { withCurrentUser } from '@/lib/identity';
 import type { UnitSystem } from '@/lib/prefs/types';
 
 export default async function Home() {
-  const profile = await readProfile();
-  // The cache key includes the unit system: reading 'metric' for a reader who
-  // uses imperial primed a briefing they would never be served, and their own
-  // copy was written lazily on their first visit instead of on schedule.
-  const prefs = await readPreferences().catch(() => null);
-  const system: UnitSystem = prefs?.units === 'imperial' ? 'imperial' : 'metric';
-  // A pure read: it serves the day's written briefing, or the computed one while
-  // the scheduler (or a catch-up attempt for a day the scheduler has not yet
-  // touched) writes it. It never originates a generation on its own.
-  readBriefing({ system, profile });
-  // Writes the briefing AT the configured hour rather than only when someone
-  // happens to visit afterwards. Armed here, in the bundle that serves requests
-  // (the instrumentation hook runs in a separate module graph — see the note in
-  // ./index), and the container's healthcheck now hits /api/health, so the timer
-  // is armed by the first request that reaches this route.
-  ensureBriefingScheduler(profile);
-  const now = new Date();
-  return <OverviewPage initialGreeting={greetingLine(profile.name, now, profile.timezone)} />;
+  return withCurrentUser(async () => {
+    const profile = await readProfile();
+    // The cache key includes the unit system: reading 'metric' for a reader who
+    // uses imperial primed a briefing they would never be served, and their own
+    // copy was written lazily on their first visit instead of on schedule.
+    const prefs = await readPreferences().catch(() => null);
+    const system: UnitSystem = prefs?.units === 'imperial' ? 'imperial' : 'metric';
+    // The briefing is computed from THIS person's dataset, so it is installed
+    // into the request scope first. A live failure is the layout's to report;
+    // the briefing then falls back to what it can compute.
+    await installDataset().catch(() => null);
+    // A pure read: it serves the day's written briefing, or the computed one while
+    // the scheduler (or a catch-up attempt for a day the scheduler has not yet
+    // touched) writes it. It never originates a generation on its own.
+    readBriefing({ system, profile });
+    // Writes the briefing AT the configured hour rather than only when someone
+    // happens to visit afterwards. Armed here, in the bundle that serves requests
+    // (the instrumentation hook runs in a separate module graph — see the note in
+    // ./index), and the container's healthcheck now hits /api/health, so the timer
+    // is armed by the first request that reaches this route.
+    ensureBriefingScheduler(profile);
+    const now = new Date();
+    return <OverviewPage initialGreeting={greetingLine(profile.name, now, profile.timezone)} />;
+  });
 }

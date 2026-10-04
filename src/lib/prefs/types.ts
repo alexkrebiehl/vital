@@ -58,10 +58,27 @@ export interface PreferencesRecord extends VitalPreferences {
 /** The version of the stored record. A row with another version is rejected. */
 export const PREFS_SCHEMA_VERSION = 1;
 
-/** The namespaced local cache key. Versioned so an old shape is never read. */
+/**
+ * The profile this page is served as, when it is not the primary one: the root
+ * layout marks `<html data-profile="…">` for any other profile. Null on the
+ * server and for the primary profile.
+ */
+export function browserProfileSlug(): string | null {
+  if (typeof document === 'undefined') return null;
+  return document.documentElement.getAttribute('data-profile') || null;
+}
+
+/**
+ * The namespaced local cache key. Versioned so an old shape is never read, and
+ * suffixed with the profile (other than the primary one, which keeps the key it
+ * always had) so one person's theme never paints first for another.
+ */
 export const PREFERENCES_CACHE_PREFIX = 'vital-prefs';
-export function preferencesCacheKey(schemaVersion: number = PREFS_SCHEMA_VERSION): string {
-  return `${PREFERENCES_CACHE_PREFIX}:v${schemaVersion}`;
+export function preferencesCacheKey(
+  schemaVersion: number = PREFS_SCHEMA_VERSION,
+  profile: string | null = browserProfileSlug()
+): string {
+  return `${PREFERENCES_CACHE_PREFIX}:v${schemaVersion}${profile ? `:${profile}` : ''}`;
 }
 
 /** The pre-sync key older builds wrote. Read once, at import, then removed. */

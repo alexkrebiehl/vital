@@ -27,6 +27,7 @@ import { readBriefing, regenerateBriefing } from '@/lib/briefing';
 import { readProfile } from '@/lib/profile/store';
 import type { UnitSystem } from '@/lib/prefs';
 import { LiveDataUnavailableError, installDataset } from '@/lib/adapters/runtime';
+import { scoped } from '@/lib/identity';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -49,7 +50,7 @@ async function readDataset(): Promise<{ ok: true } | { ok: false; detail: string
   }
 }
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   const system = systemOf(request);
   const dataset = await readDataset();
   if (!dataset.ok) {
@@ -62,7 +63,7 @@ export async function GET(request: Request) {
   return NextResponse.json(readBriefing({ system, profile }), { status: 200, headers: NO_STORE });
 }
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   const system = systemOf(request);
   const dataset = await readDataset();
   if (!dataset.ok) {
@@ -85,3 +86,6 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const GET = scoped(handleGET);
+export const POST = scoped(handlePOST);

@@ -29,6 +29,7 @@
 // An analyte is only split when BOTH specimens exist, so a urine-only analyte
 // keeps its single metric and no empty twin is manufactured for it.
 
+import { requireUserId } from '@/lib/identity/scope';
 import type { ExtractedObservation, LabReport, LabResult } from '@/lib/lab/types';
 import { redact, hasTablePii } from '@/lib/lab/extract/parse';
 import { specimenOfPanel, seriesIdOf, seriesNameOf, type PanelSpecimen } from '@/lib/lab/panel';
@@ -71,8 +72,8 @@ const RESULT_COLUMNS = `
 const INSERT_REPORT = `
   INSERT INTO lab_reports
     (kind, document_date, lab_name, source_filename, source_sha256, source_bytes,
-     page_count, extraction, notes, schema_version)
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
+     page_count, extraction, notes, schema_version, user_id)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11)
   RETURNING ${REPORT_COLUMNS}
 `;
 
@@ -80,8 +81,8 @@ const INSERT_RESULT = `
   INSERT INTO lab_results
     (report_id, line_no, analyte_key, printed_name, panel, result_on, value,
      value_text, unit, ref_low, ref_high, ref_text, ref_source, ref_basis,
-     printed_flag, category, extraction_method, confidence, source_line)
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+     printed_flag, category, extraction_method, confidence, source_line, user_id)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
   RETURNING ${RESULT_COLUMNS}
 `;
 
@@ -97,6 +98,7 @@ const SELECT_REPORTS = `
          to_char(max(l.result_on), 'YYYY-MM-DD') AS last_result_on
     FROM lab_reports r
     LEFT JOIN lab_results l ON l.report_id = r.id
+   WHERE r.user_id = $2
    GROUP BY r.id
    ORDER BY r.created_at DESC, r.id DESC
    LIMIT $1
@@ -106,36 +108,41 @@ const SELECT_REPORT = `
   SELECT ${REPORT_COLUMNS}
     FROM lab_reports
    WHERE id = $1
+     AND user_id = $2
 `;
 
 const SELECT_REPORT_BY_SHA = `
   SELECT ${REPORT_COLUMNS}
     FROM lab_reports
    WHERE source_sha256 = $1
+     AND user_id = $2
 `;
 
 const SELECT_RESULTS = `
   SELECT ${RESULT_COLUMNS}
     FROM lab_results
    WHERE report_id = $1
+     AND user_id = $2
    ORDER BY line_no ASC
 `;
 
 const SELECT_ALL_RESULTS = `
   SELECT ${RESULT_COLUMNS}
     FROM lab_results
+   WHERE user_id = $1
    ORDER BY analyte_key ASC, result_on ASC, line_no ASC
 `;
 
-const DELETE_REPORT = `DELETE FROM lab_reports WHERE id = $1 RETURNING id`;
+const DELETE_REPORT = `DELETE FROM lab_reports WHERE id = $1 AND user_id = $2 RETURNING id`;
 
-const DELETE_RESULTS = `DELETE FROM lab_results WHERE report_id = $1 RETURNING id`;
+const DELETE_RESULTS = `DELETE FROM lab_results WHERE report_id = $1 AND user_id = $2 RETURNING id`;
 
 const BUMP_REPORT_REVISION = `
   UPDATE lab_reports
      SET revision = revision + 1,
          updated_at = now()
    WHERE id = $1
+     AND user_id = $2
   RETURNING ${REPORT_COLUMNS}
 `;
 
@@ -155,6 +162,7 @@ const UPDATE_RESULT = `
          revision          = revision + 1,
          updated_at        = now()
    WHERE id = $1
+     AND user_id = $12
    RETURNING ${RESULT_COLUMNS}
 `;
 
@@ -376,6 +384,7 @@ export async function insertReport(
       JSON.stringify(report.extraction ?? {}),
       report.notes,
       report.schemaVersion ?? LAB_SCHEMA_VERSION,
+      requireUserId(),
     ]);
     const reportRow = inserted.rows[0];
     if (!reportRow) throw new Error('The report insert returned no row.');
@@ -415,6 +424,7 @@ async function insertObservation(
     observation.extractionMethod,
     observation.confidence,
     observation.sourceLine,
+    requireUserId(),
   ]);
   const row = inserted.rows[0];
   if (!row) throw new Error('The observation insert returned no row.');
@@ -431,13 +441,17 @@ export async function replaceResults(
   results: NewObservationInput[]
 ): Promise<LabResult[]> {
   assertNoPii(results);
+  const userId = requireUserId();
   return withTransaction(client, async tx => {
-    await tx.query(DELETE_RESULTS, [reportId]);
+    // The revision bump doubles as the ownership check: a report that is not the
+    // person's own matches no row, and nothing of it is touched.
+    const bumped = await tx.query(BUMP_REPORT_REVISION, [reportId, userId]);
+    if (!bumped.rows[0]) throw new Error('No such lab report.');
+    await tx.query(DELETE_RESULTS, [reportId, userId]);
     const stored: LabResult[] = [];
     for (const observation of results) {
       stored.push(await insertObservation(tx, reportId, observation));
     }
-    await tx.query(BUMP_REPORT_REVISION, [reportId]);
     return stored;
   });
 }
@@ -479,6 +493,7 @@ export async function updateResult(
     patch.refBasis ?? null,
     patch.printedName ?? null,
     patch.analyteKey ?? null,
+    requireUserId(),
   ]);
   const row = result.rows[0];
   return row ? toLabResult(row) : null;
@@ -489,6 +504,7 @@ const UPDATE_RESULT_PANEL = `
      SET panel = $2,
          updated_at = now()
    WHERE id = $1
+     AND user_id = $3
   RETURNING ${RESULT_COLUMNS}
 `;
 
@@ -506,7 +522,7 @@ export async function updateResultPanel(
   id: string,
   panel: string | null
 ): Promise<LabResult | null> {
-  const result = await client.query(UPDATE_RESULT_PANEL, [id, panel]);
+  const result = await client.query(UPDATE_RESULT_PANEL, [id, panel, requireUserId()]);
   const row = result.rows[0];
   return row ? toLabResult(row) : null;
 }
@@ -534,33 +550,33 @@ export function toReportSummary(row: Record<string, unknown>): ReportSummary {
 
 /** Every stored report, newest first, with its counts and result date range. */
 export async function listReports(client: SqlClient, limit = 200): Promise<ReportSummary[]> {
-  const result = await client.query(SELECT_REPORTS, [limit]);
+  const result = await client.query(SELECT_REPORTS, [limit, requireUserId()]);
   return result.rows.map(toReportSummary);
 }
 
 /** One report, or null when there is no such row. */
 export async function getReport(client: SqlClient, id: string): Promise<LabReport | null> {
-  const result = await client.query(SELECT_REPORT, [id]);
+  const result = await client.query(SELECT_REPORT, [id, requireUserId()]);
   const row = result.rows[0];
   return row ? toLabReport(row) : null;
 }
 
 /** One report's observations, in reading order. */
 export async function listResults(client: SqlClient, reportId: string): Promise<LabResult[]> {
-  const result = await client.query(SELECT_RESULTS, [reportId]);
+  const result = await client.query(SELECT_RESULTS, [reportId, requireUserId()]);
   return result.rows.map(toLabResult);
 }
 
 /** The report already stored for a content hash, or null. */
 export async function findReportBySha(client: SqlClient, sha256: string): Promise<LabReport | null> {
-  const result = await client.query(SELECT_REPORT_BY_SHA, [sha256.trim().toLowerCase()]);
+  const result = await client.query(SELECT_REPORT_BY_SHA, [sha256.trim().toLowerCase(), requireUserId()]);
   const row = result.rows[0];
   return row ? toLabReport(row) : null;
 }
 
 /** Delete a report. Its observations go with it (the foreign key cascades). */
 export async function deleteReport(client: SqlClient, id: string): Promise<boolean> {
-  const result = await client.query(DELETE_REPORT, [id]);
+  const result = await client.query(DELETE_REPORT, [id, requireUserId()]);
   return result.rows.length > 0;
 }
 
@@ -673,7 +689,7 @@ export async function getSeries(
   client: SqlClient,
   profile: SeriesProfile | null = null
 ): Promise<LabSeries> {
-  const result = await client.query(SELECT_ALL_RESULTS);
+  const result = await client.query(SELECT_ALL_RESULTS, [requireUserId()]);
   const rows = result.rows.map(toLabResult);
 
   // One bucket per (CANONICAL analyte, specimen): a urine row and a serum row
@@ -856,11 +872,11 @@ export function storeClient(env: NodeJS.ProcessEnv = process.env): SqlClient | n
 const SELECT_PROFILE_FACTS = `
   SELECT to_char(date_of_birth, 'YYYY-MM-DD') AS date_of_birth, sex
     FROM profile
-   WHERE id = 1
+   WHERE user_id = $1
 `;
 
 /**
- * The owner's facts that choose a reference band, read from the one profile row.
+ * The person's facts that choose a reference band, read from their profile row.
  *
  * A read failure (or no profile row yet) is reported as `null` rather than
  * throwing: the caller then serves every result unscored, which is the honest
@@ -870,7 +886,7 @@ const SELECT_PROFILE_FACTS = `
  */
 export async function readSeriesProfile(client: SqlClient): Promise<SeriesProfile | null> {
   try {
-    const result = await client.query(SELECT_PROFILE_FACTS);
+    const result = await client.query(SELECT_PROFILE_FACTS, [requireUserId()]);
     const row = result.rows[0];
     if (!row) return null;
     const sex = row.sex === 'male' || row.sex === 'female' ? row.sex : null;

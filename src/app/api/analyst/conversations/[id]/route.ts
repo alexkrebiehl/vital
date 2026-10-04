@@ -19,6 +19,7 @@ import {
   readConversationForApi,
   renameConversationForApi,
 } from '@/lib/analyst/conversations';
+import { scoped } from '@/lib/identity';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -27,7 +28,7 @@ const NO_STORE = { 'Cache-Control': 'no-store, private' } as const;
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-export async function GET(_request: Request, context: RouteContext) {
+async function handleGET(_request: Request, context: RouteContext) {
   const { id } = await context.params;
   const result = await readConversationForApi({}, id);
   if (!result.ok) {
@@ -36,7 +37,7 @@ export async function GET(_request: Request, context: RouteContext) {
   return NextResponse.json({ conversation: result.data, available: true }, { status: result.status, headers: NO_STORE });
 }
 
-export async function PATCH(request: Request, context: RouteContext) {
+async function handlePATCH(request: Request, context: RouteContext) {
   const { id } = await context.params;
   let body: unknown;
   try {
@@ -52,7 +53,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   return NextResponse.json({ conversation: result.data, available: true }, { status: result.status, headers: NO_STORE });
 }
 
-export async function DELETE(_request: Request, context: RouteContext) {
+async function handleDELETE(_request: Request, context: RouteContext) {
   const { id } = await context.params;
   const result = await deleteConversationForApi({}, id);
   if (!result.ok) {
@@ -60,3 +61,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
   }
   return NextResponse.json({ deleted: result.data.id, available: true }, { status: result.status, headers: NO_STORE });
 }
+
+export const GET = scoped(handleGET);
+export const PATCH = scoped(handlePATCH);
+export const DELETE = scoped(handleDELETE);

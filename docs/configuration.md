@@ -124,13 +124,13 @@ and audits its numbers, but only the prompt can tell a model not to diagnose.
 
 ## The profile (Settings → Account)
 
-Vital keeps one small record about the person, owned by the **server** and stored in the
-`profile` row of the Postgres database (`id = 1`), in the same database as the rest of the
-configuration:
+Vital keeps one small record about each person, owned by the **server** and stored in their
+`profile` row of the Postgres database (keyed by `user_id`), in the same database as the rest of
+the configuration:
 
 | | |
 |---|---|
-| Storage | The `profile` row (`id = 1`) in Postgres |
+| Storage | The person's `profile` row in Postgres |
 | Route | `GET` / `PUT /api/profile` |
 
 - **Fields, and only fields that are used.** `name` (the greeting and the briefing prose),
@@ -160,6 +160,58 @@ configuration:
 - **Nothing else is stored locally.** Theme choices, units and the notification flags stay in
   `localStorage` as a cache; no API key, token or health record does — and the timezone no longer
   does either.
+
+## Profiles: more than one person
+
+One deployment can serve a household. Declare the people in the environment:
+
+```sh
+VITAL_PROFILES=alex,sam
+```
+
+Each slug is one profile (`a-z`, `0-9`, `-`, starting with a letter); the first is the
+**primary** one. With more than one, the avatar in the top bar becomes a switcher. Picking a
+profile sets the `vital_profile` cookie and reloads the page. With `VITAL_PROFILES` unset there
+is one implicit profile and nothing changes.
+
+**What belongs to a person.** Their profile and goals, display settings, lab reports (uploaded
+PDFs go in `VITAL_LAB_DIR/<slug>/` for every profile except the primary one), training plans,
+activity maps, analyst conversations, the daily briefing (each profile has its own schedule
+and timezone) and their health data.
+
+**Where a person's data comes from.** Every per-person variable is read as
+`VITAL_PROFILE_<SLUG>_<VAR>`: the slug upper-cased, with hyphens as underscores.
+
+| Variable | Per person as |
+|---|---|
+| `VITAL_DATA_MODE`, `VITAL_TIMEZONE` | `VITAL_PROFILE_SAM_DATA_MODE`, … |
+| `HAE_API_URL`, `HAE_API_KEY`, `HAE_PROBE_METRIC`, `HAE_CACHE_TTL_SECONDS` | `VITAL_PROFILE_SAM_HAE_API_URL`, … |
+| `HEVY_API_KEY`, `HEVY_API_URL`, `HEVY_CACHE_TTL_SECONDS` | `VITAL_PROFILE_SAM_HEVY_API_KEY`, … |
+
+Only the primary profile falls back to the plain variables, so an existing setup keeps working
+once `VITAL_PROFILES` is added. Any other profile without its own variables is *not
+configured*: it is never served the primary person's export. Each person needs their own
+Health Auto Export server, because one server holds one person's history. Settings →
+Connections names the exact variable each profile should set. The analyst and briefing
+models, map tiles and geocoder are shared.
+
+**Upgrading.** Migration `0010-users` adds a `users` table and a `user_id` to every
+per-person table. Everything stored before it belongs to a user called `owner`, which is
+renamed to the first declared profile when there is one. Renaming a slug later starts that
+person over, and their earlier data stays under the old slug.
+
+**Not access control.** The switcher is for a household on a trusted network: anyone who can
+reach Vital can pick any profile. `VITAL_AUTH` names how the person is chosen. Today the only
+provider is `profiles`. A forward-auth proxy header or OIDC provider is meant to plug in at
+`src/lib/identity/index.ts`, mapping a signed-in user to a declared profile (the `users` table
+already has `external_issuer` / `external_subject` for it), and would disable the switcher.
+
+**How the server keeps people apart.** Every route handler and server page runs inside a
+request scope for its profile (`runAsUser`, `src/lib/identity/scope.ts`). The dataset, the
+per-person environment and the database user all come from that scope, and a store refuses
+to run outside one. In-process caches (the live dataset, medications, routes, Hevy sessions,
+briefings) are keyed by profile. Pages render in the browser after hydration, because a
+server render of client components can't be tied to one request.
 
 ## The training routine on `/workouts`
 

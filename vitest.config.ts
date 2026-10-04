@@ -5,6 +5,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    // Runs every test as one fixed profile; see the file.
+    setupFiles: ['src/test-setup.ts'],
     // The briefing cache is anchored on globalThis so that the page bundle and
     // the route bundle share ONE cache in the server (they are separate module
     // graphs). That makes it process-wide state, so test FILES must not share a

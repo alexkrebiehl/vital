@@ -33,6 +33,7 @@ import { HaeError } from '@/lib/adapters/hae';
 import { loadMedications } from '@/lib/adapters/medications';
 import { MEDICATIONS_SOURCE, resolveWindow } from '@/lib/medications/window';
 import { readProfile } from '@/lib/profile/store';
+import { scoped } from '@/lib/identity';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -40,7 +41,7 @@ export const revalidate = 0;
 
 const NO_STORE = { 'Cache-Control': 'no-store, private' } as const;
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   const { timezone } = await readProfile();
   const window = resolveWindow(new URL(request.url).searchParams, new Date(), timezone);
   if (typeof window === 'string') {
@@ -80,3 +81,5 @@ export async function GET(request: Request) {
     );
   }
 }
+
+export const GET = scoped(handleGET);

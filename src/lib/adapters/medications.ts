@@ -21,6 +21,7 @@
 
 import { addDays, dayKey } from '../analytics/windows';
 import { liveCache } from './cache';
+import { cacheOwner } from '@/lib/identity/scope';
 import { haeGetArray, type MetricWindow, type RequestDeps } from './hae';
 
 /**
@@ -264,12 +265,13 @@ export interface MedicationDeps extends MedicationReadDeps {
   bypassCache?: boolean;
 }
 
-/** One cache entry per requested window and attribution zone. */
+/** One cache entry per profile, requested window and attribution zone. */
 export function medicationsCacheKey(
   window: MetricWindow = {},
-  timezone: string = MEDICATION_DAY_TIMEZONE
+  timezone: string = MEDICATION_DAY_TIMEZONE,
+  owner: string = cacheOwner()
 ): string {
-  return `medications:${timezone}:${window.from ?? ''}:${window.to ?? ''}`;
+  return `medications:${owner}:${timezone}:${window.from ?? ''}:${window.to ?? ''}`;
 }
 
 /**

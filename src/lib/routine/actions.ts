@@ -11,6 +11,7 @@ import { planRepository, type ChangeMeta } from './store';
 import { workoutList } from '../adapters/dataset';
 import { allPaths, uncheckableTargetProblems, validatePlan } from './validate';
 import type { PlanChange, StoredPlan, TrainingPlan } from './types';
+import { serverEnv } from '@/lib/identity/env';
 
 export class PlanInputError extends Error {
   constructor(readonly errors: string[]) {
@@ -80,7 +81,7 @@ export async function createPlan(input: unknown, options: CreateOptions, deps: R
     plan = result.plan;
     inferred = result.changes;
   }
-  const repo = deps.repo ?? planRepository(deps.env ?? process.env);
+  const repo = deps.repo ?? planRepository(deps.env ?? serverEnv());
   const previous = ctx.stored;
   const stored = await repo.create(plan, options.meta);
   return {
@@ -106,7 +107,7 @@ export async function updateActivePlan(
   deps: RoutineDeps = {},
   expectedRevision?: number
 ): Promise<{ stored: StoredPlan; change: PlanChange }> {
-  const repo = deps.repo ?? planRepository(deps.env ?? process.env);
+  const repo = deps.repo ?? planRepository(deps.env ?? serverEnv());
   const current = await repo.active();
   if (!current) throw new PlanInputError(['There is no active plan to change. Create one first.']);
   const next = mutate(structuredClone(current.plan));
@@ -131,7 +132,7 @@ export async function updateActivePlan(
 }
 
 export async function archiveActivePlan(meta: ChangeMeta, deps: RoutineDeps = {}): Promise<PlanChange> {
-  const repo = deps.repo ?? planRepository(deps.env ?? process.env);
+  const repo = deps.repo ?? planRepository(deps.env ?? serverEnv());
   const current = await repo.active();
   if (!current) throw new PlanInputError(['There is no active plan to archive.']);
   await repo.setStatus(current.id, 'archived');

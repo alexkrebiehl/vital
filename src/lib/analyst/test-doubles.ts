@@ -51,6 +51,13 @@ export class FakeAnalystDb implements SqlClient {
     };
   }
 
+  /** The conversation, when it belongs to `user` (every statement names its
+   *  user as its last parameter, as the real SQL does). */
+  private owned(id: unknown, user: unknown): Row | undefined {
+    const row = this.conversations.get(Number(id));
+    return row && row.user_id === user ? row : undefined;
+  }
+
   private messageRow(message: Row): Row {
     return { ...message };
   }
@@ -64,10 +71,11 @@ export class FakeAnalystDb implements SqlClient {
     }
 
     if (/INSERT INTO analyst_conversations/.test(text)) {
-      const [title] = params as [string, number];
+      const [title, , userId] = params as [string, number, string];
       const now = this.stamp();
       const row: Row = {
         id: this.nextConversationId++,
+        user_id: userId,
         title,
         message_count: 0,
         archived_at: null,
@@ -80,8 +88,9 @@ export class FakeAnalystDb implements SqlClient {
 
     if (/FROM analyst_conversations/.test(text) && /archived_at IS NULL/.test(text)) {
       const limit = Number((params as number[])[0] ?? 100);
+      const user = params[1];
       const rows = [...this.conversations.values()]
-        .filter(c => c.archived_at === null)
+        .filter(c => c.archived_at === null && c.user_id === user)
         // Mirrors the real SELECT: newest CONVERSATION first, by created_at.
         .sort((a, b) => {
           const at = String(a.created_at);
@@ -100,7 +109,7 @@ export class FakeAnalystDb implements SqlClient {
         string | null, string | null, string | null, string | null, number, number,
       ];
       const [conversationId, role, content, title, status, provider, model, attribution, handlerId, payload, , cap] = p;
-      const conversation = this.conversations.get(Number(conversationId));
+      const conversation = this.owned(conversationId, params[12]);
       if (!conversation) return { rows: [] };
       const count = this.messages.filter(m => Number(m.conversation_id) === Number(conversationId)).length;
       if (count >= Number(cap)) return { rows: [] };
@@ -128,11 +137,13 @@ export class FakeAnalystDb implements SqlClient {
 
     if (/SELECT count\(\*\)/.test(text)) {
       const id = Number((params as number[])[0]);
+      if (!this.owned(id, params[1])) return { rows: [{ count: 0 }] };
       return { rows: [{ count: this.messages.filter(m => Number(m.conversation_id) === id).length }] };
     }
 
     if (/LIMIT \$2/.test(text)) {
       const [conversationId, limit] = params as [number, number];
+      if (!this.owned(conversationId, params[2])) return { rows: [] };
       const rows = this.messages
         .filter(m => Number(m.conversation_id) === Number(conversationId))
         .sort((a, b) => Number(b.id) - Number(a.id))
@@ -144,6 +155,7 @@ export class FakeAnalystDb implements SqlClient {
 
     if (/FROM analyst_messages/.test(text)) {
       const [conversationId] = params as [number];
+      if (!this.owned(conversationId, params[1])) return { rows: [] };
       const rows = this.messages
         .filter(m => Number(m.conversation_id) === Number(conversationId))
         .sort((a, b) => Number(a.id) - Number(b.id))
@@ -153,7 +165,7 @@ export class FakeAnalystDb implements SqlClient {
 
     if (/UPDATE analyst_conversations/.test(text)) {
       const [id, title] = params as [number, string];
-      const row = this.conversations.get(Number(id));
+      const row = this.owned(id, params[2]);
       if (!row) return { rows: [] };
       row.title = title;
       row.revision = Number(row.revision ?? 1) + 1;
@@ -162,7 +174,7 @@ export class FakeAnalystDb implements SqlClient {
 
     if (/DELETE FROM analyst_conversations/.test(text)) {
       const id = Number((params as number[])[0]);
-      if (!this.conversations.has(id)) return { rows: [] };
+      if (!this.owned(id, params[1])) return { rows: [] };
       this.conversations.delete(id);
       // ON DELETE CASCADE.
       this.messages = this.messages.filter(m => Number(m.conversation_id) !== id);
@@ -174,7 +186,7 @@ export class FakeAnalystDb implements SqlClient {
     // must be matched by their own branch first.
     if (/FROM analyst_conversations/.test(text)) {
       const id = Number((params as number[])[0]);
-      const row = this.conversations.get(id);
+      const row = this.owned(id, params[1]);
       return { rows: row ? [this.summary(row)] : [] };
     }
 

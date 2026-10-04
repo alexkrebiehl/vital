@@ -27,6 +27,9 @@ goal-aware dashboard.
 
 **Who it is for:** one person (or one household) who wears an Apple Watch or logs health data on an
 iPhone, is comfortable running a Docker container, and wants more insight than the Health app gives.
+A household can share one deployment: declare each person in `VITAL_PROFILES` and switch between
+them from the avatar, with each person's data, settings and briefing kept apart (see
+[Profiles](docs/configuration.md#profiles-more-than-one-person)).
 It is a personal dashboard for a trusted, private network — **not a medical device**, and not a
 substitute for a clinician.
 

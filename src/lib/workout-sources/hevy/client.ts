@@ -16,6 +16,7 @@
 
 import { safeExcerpt } from '../../analyst/scrub';
 import type { SourceRequestDeps } from '../types';
+import { serverEnv } from '@/lib/identity/env';
 
 export const HEVY_DEFAULT_URL = 'https://api.hevyapp.com';
 export const HEVY_WORKOUT_PAGE_SIZE = 10;
@@ -54,7 +55,7 @@ export interface HevyConfig {
 }
 
 /** Read the configuration. Returns null when no key is set. */
-export function readHevyConfig(env: NodeJS.ProcessEnv = process.env): HevyConfig | null {
+export function readHevyConfig(env: NodeJS.ProcessEnv = serverEnv()): HevyConfig | null {
   const key = (env.HEVY_API_KEY ?? '').trim();
   if (!key) return null;
   const url = (env.HEVY_API_URL ?? '').trim().replace(/\/+$/, '') || HEVY_DEFAULT_URL;

@@ -18,9 +18,11 @@
 import { NextResponse } from 'next/server';
 import { extractLabDocument, sha256Of } from '@/lib/lab/extract';
 import { buildDraft, isPdf } from '@/lib/lab/commit';
-import { resolveLabConfig } from '@/lib/lab/config';
+import { profileLabDir, resolveLabConfig } from '@/lib/lab/config';
 import { storeBytes } from '@/lib/lab/storage';
 import { findReportBySha, listReports, storeClient } from '@/lib/db/lab-store';
+import { scoped } from '@/lib/identity';
+import { scopedIdentity } from '@/lib/identity/scope';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,7 +33,7 @@ const NO_STORE = { 'Cache-Control': 'no-store, private' } as const;
 const NO_DATABASE_REASON =
   'No Postgres database is configured, so uploaded reports are not saved. Configure DATABASE_URL or the VITAL_PG_* variables to store them.';
 
-export async function GET() {
+async function handleGET() {
   // The size cap travels with the list so the browser can refuse an oversize
   // file itself, with the same number the route enforces, instead of learning it
   // only after a doomed upload. It is not a secret: it is a documented limit.
@@ -47,7 +49,7 @@ export async function GET() {
   return NextResponse.json({ available: true, maxBytes, reports }, { status: 200, headers: NO_STORE });
 }
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   const config = resolveLabConfig();
 
   let form: FormData;
@@ -107,7 +109,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const path = await storeBytes(config.dir, sha256, bytes);
+  const path = await storeBytes(profileLabDir(config.dir, scopedIdentity()), sha256, bytes);
   void path;
 
   const extraction = await extractLabDocument(bytes, {
@@ -122,3 +124,6 @@ export async function POST(request: Request) {
     { status: 201, headers: NO_STORE }
   );
 }
+
+export const GET = scoped(handleGET);
+export const POST = scoped(handlePOST);

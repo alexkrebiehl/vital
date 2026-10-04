@@ -1,9 +1,9 @@
 'use client';
 
-import { Command, Search, UserRound } from 'lucide-react';
+import { Command, Search } from 'lucide-react';
 import { useCommandPalette } from '@/components/ui/CommandPalette';
-import { useProfile } from '@/components/profile/ProfileProvider';
-import { initialsOf } from '@/lib/profile/types';
+import { ProfileSwitcher } from '@/components/profile/ProfileSwitcher';
+import type { ProfileSwitcherState } from '@/lib/identity/types';
 
 /**
  * Application top bar.
@@ -17,13 +17,11 @@ import { initialsOf } from '@/lib/profile/types';
  *
  * The avatar follows the configured profile name — initials and accessible label
  * both. With no name configured it shows a neutral icon and a neutral label
- * rather than a literal name.
+ * rather than a literal name. When the deployment declares more than one
+ * profile, the avatar opens the profile switcher.
  */
-export function TopBar() {
+export function TopBar({ switcher }: { switcher: ProfileSwitcherState }) {
   const { open } = useCommandPalette();
-  const { profile } = useProfile();
-  const name = profile.name?.trim() || null;
-  const initials = initialsOf(name);
 
   return (
     <header className="h-16 border-b border-border flex items-center gap-2 px-4 md:px-8 bg-page/85 backdrop-blur-md sticky top-0 z-20">
@@ -50,13 +48,7 @@ export function TopBar() {
       <div className="flex-1 min-w-0" />
 
       {/* Avatar — initials from the profile name, or a neutral icon. */}
-      <div
-        className="w-8 h-8 rounded-full bg-accent-tint text-primary ring-1 ring-border flex items-center justify-center text-xs font-semibold shrink-0"
-        aria-label={name ? `Signed in as ${name}` : 'Account profile'}
-        title={name ?? 'Account profile'}
-      >
-        {initials ?? <UserRound size={16} aria-hidden="true" />}
-      </div>
+      <ProfileSwitcher switcher={switcher} />
     </header>
   );
 }

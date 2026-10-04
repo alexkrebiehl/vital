@@ -26,6 +26,13 @@ import type {
   PipelineStatusReport,
   ProbeOutcome,
 } from './types';
+import { serverEnv } from '@/lib/identity/env';
+import { configVarName } from '@/lib/identity/scope';
+
+/** The two variables that point this profile at its export server. */
+function haeVarPair(): string {
+  return `${configVarName('HAE_API_URL')} and ${configVarName('HAE_API_KEY')}`;
+}
 
 export type {
   PipelineStage,
@@ -41,7 +48,7 @@ export { STAGE_STATUS_LABEL, PIPELINE_ORDER } from './types';
 
 export const PROBE_TIMEOUT_MS = 1500;
 
-export function readPipelineConfig(env: NodeJS.ProcessEnv = process.env): PipelineConfig {
+export function readPipelineConfig(env: NodeJS.ProcessEnv = serverEnv()): PipelineConfig {
   const config = readHaeConfig(env);
   return {
     healthApiConfigured: Boolean(config),
@@ -69,7 +76,7 @@ function toProbe(result: HaeProbeResult | null, config: PipelineConfig, env: Nod
       outcome: 'not_configured',
       httpStatus: null,
       records: null,
-      detail: 'HAE_API_URL and HAE_API_KEY are not both set, so no request was made.',
+      detail: `${haeVarPair()} are not both set, so no request was made.`,
       durationMs: null,
     };
   }
@@ -106,7 +113,7 @@ function dayOf(iso: string | null): string {
 
 /** Build the whole report. Every status here comes from a real check. */
 export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<PipelineStatusReport> {
-  const env = deps.env ?? process.env;
+  const env = deps.env ?? serverEnv();
   const now = deps.now ?? (() => Date.now());
   const config = readPipelineConfig(env);
   const mode = readDataMode(env);
@@ -151,7 +158,7 @@ export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<Pi
       name: 'Health Auto Export',
       status: !config.healthApiConfigured ? 'unconfigured' : probeOk ? 'healthy' : 'degraded',
       detail: !config.healthApiConfigured
-        ? 'No export server is configured (HAE_API_URL and HAE_API_KEY are not both set).'
+        ? `No export server is configured (${haeVarPair()} are not both set).`
         : probeOk
           ? `The configured export server at ${config.healthApiHost ?? 'the configured host'} answered a read-only probe with ${probe.records ?? 0} record(s).`
           : `${probe.detail} The configured host is ${config.healthApiHost ?? 'unknown'}.`,

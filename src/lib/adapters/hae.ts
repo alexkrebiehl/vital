@@ -18,6 +18,7 @@
 // token (see README "Live data" and the bundle check in the verification steps).
 
 import type { RawSimpleRecord, RawWorkoutRecord } from './normalize';
+import { serverEnv } from '@/lib/identity/env';
 
 export type HaeFailureKind =
   | 'not_configured'
@@ -52,7 +53,7 @@ export const DEFAULT_PROBE_TIMEOUT_MS = 1500;
 export const DEFAULT_DATA_TIMEOUT_MS = 20_000;
 
 /** Read the configuration. Returns null when the API is not configured. */
-export function readHaeConfig(env: NodeJS.ProcessEnv = process.env): HaeConfig | null {
+export function readHaeConfig(env: NodeJS.ProcessEnv = serverEnv()): HaeConfig | null {
   const url = (env.HAE_API_URL ?? '').trim().replace(/\/+$/, '');
   const key = (env.HAE_API_KEY ?? '').trim();
   if (!url || !key) return null;
@@ -68,7 +69,7 @@ export function readHaeConfig(env: NodeJS.ProcessEnv = process.env): HaeConfig |
 }
 
 /** Host of the configured API — safe to display, never the token. */
-export function haeHost(env: NodeJS.ProcessEnv = process.env): string | null {
+export function haeHost(env: NodeJS.ProcessEnv = serverEnv()): string | null {
   const url = (env.HAE_API_URL ?? '').trim();
   if (!url) return null;
   try {
@@ -97,7 +98,7 @@ async function haeGetJson(
   deps: RequestDeps = {},
   timeoutMs?: number
 ): Promise<unknown> {
-  const config = readHaeConfig(deps.env ?? process.env);
+  const config = readHaeConfig(deps.env ?? serverEnv());
   if (!config) {
     throw new HaeError(
       'The Health Auto Export API is not configured (HAE_API_URL and HAE_API_KEY must both be set).',
@@ -255,7 +256,7 @@ export interface HaeProbeResult {
  * asks for a real metric and requires a real array back.
  */
 export async function probeHae(deps: RequestDeps = {}, now: () => number = Date.now): Promise<HaeProbeResult> {
-  const config = readHaeConfig(deps.env ?? process.env);
+  const config = readHaeConfig(deps.env ?? serverEnv());
   if (!config) {
     return {
       outcome: 'network_error',

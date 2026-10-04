@@ -164,8 +164,19 @@ async function main() {
 
   const { extractLabDocument } = await import(join(SRC, 'lib/lab/extract/index.ts'));
   const { updateResultPanel } = await import(join(SRC, 'lib/db/lab-store.ts'));
+  const { runAsUser } = await import(join(SRC, 'lib/identity/scope.ts'));
 
-  const files = readdirSync(dir).filter(name => name.toLowerCase().endsWith('.pdf'));
+  // The primary profile's PDFs sit in the directory itself, every other
+  // profile's in a subdirectory named after it (src/lib/lab/config.ts).
+  const files = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isFile() && entry.name.toLowerCase().endsWith('.pdf')) files.push(entry.name);
+    else if (entry.isDirectory()) {
+      for (const name of readdirSync(join(dir, entry.name))) {
+        if (name.toLowerCase().endsWith('.pdf')) files.push(join(entry.name, name));
+      }
+    }
+  }
   const byHash = new Map();
   for (const name of files) {
     const bytes = new Uint8Array(readFileSync(join(dir, name)));
@@ -181,13 +192,14 @@ async function main() {
   try {
     const reports = await client.query(
       `SELECT r.id,
+              r.user_id,
               r.source_sha256,
               r.source_filename,
               r.document_date,
               count(l.id) AS result_count
          FROM lab_reports r
          LEFT JOIN lab_results l ON l.report_id = r.id
-        GROUP BY r.id, r.source_sha256, r.source_filename, r.document_date, r.created_at
+        GROUP BY r.id, r.user_id, r.source_sha256, r.source_filename, r.document_date, r.created_at
         ORDER BY r.created_at`
     );
 
@@ -197,7 +209,9 @@ async function main() {
         totals.missing += 1;
         continue;
       }
-      byHash.delete(String(report.source_sha256).toLowerCase());
+      // Two people may hold the same document, so a file is kept for every report
+      // of it and only counted as unstored when no report names it at all.
+      file.stored = true;
       totals.reports += 1;
 
       // The panel a TREND document covers comes from its FILE NAME, so the name the
@@ -225,7 +239,11 @@ async function main() {
         if (observation.panel !== null) panels.add(observation.panel);
         if ((row.panel ?? null) === (observation.panel ?? null)) continue;
         changed += 1;
-        if (!dryRun) await updateResultPanel(client, row.id, observation.panel);
+        if (!dryRun) {
+          // The store writes only the person in scope's rows: run as the report's owner.
+          const owner = { slug: '-', primary: false, userId: report.user_id, userError: null, env: process.env };
+          await runAsUser(owner, () => updateResultPanel(client, row.id, observation.panel));
+        }
       }
       totals.updated += changed;
 
@@ -247,9 +265,10 @@ async function main() {
       }
     }
 
-    if (byHash.size > 0) {
+    const unstored = [...byHash.values()].filter(file => !file.stored).length;
+    if (unstored > 0) {
       console.log(
-        `\n  ${byHash.size} PDF(s) on disk are NOT stored as a report — nothing to backfill for them, and this script imports nothing.`
+        `\n  ${unstored} PDF(s) on disk are NOT stored as a report — nothing to backfill for them, and this script imports nothing.`
       );
     }
   } finally {

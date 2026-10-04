@@ -16,11 +16,12 @@ import { archiveActivePlan, startFromReference } from '@/lib/routine/actions';
 import { NO_STORE, routineFailure as failure } from '@/lib/routine/http';
 import { loadRoutine } from '@/lib/routine/service';
 import { REFERENCE_PLANS } from '@/lib/routine/templates';
+import { scoped } from '@/lib/identity';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   const system: UnitSystem = new URL(request.url).searchParams.get('system') === 'imperial' ? 'imperial' : 'metric';
   try {
     const routine = await loadRoutine(system);
@@ -33,7 +34,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   let body: Record<string, unknown>;
   try {
     body = (await request.json()) as Record<string, unknown>;
@@ -55,3 +56,6 @@ export async function POST(request: Request) {
     return failure(error);
   }
 }
+
+export const GET = scoped(handleGET);
+export const POST = scoped(handlePOST);

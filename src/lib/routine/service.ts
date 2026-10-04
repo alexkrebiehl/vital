@@ -15,6 +15,7 @@ import { buildRoutine, type PathProgress, type RoutineOverview } from './progres
 import { planRepository, revertPlan, PlanConflictError, PlanNotFoundError, type PlanRepository } from './store';
 import type { PlanChange, StoredPlan } from './types';
 import type { WorkoutView } from './workout-view';
+import { serverEnv } from '@/lib/identity/env';
 
 export interface RoutineContext {
   stored: StoredPlan | null;
@@ -30,7 +31,7 @@ export interface RoutineDeps {
 }
 
 export async function loadRoutineContext(deps: RoutineDeps = {}): Promise<RoutineContext> {
-  const env = deps.env ?? process.env;
+  const env = deps.env ?? serverEnv();
   await installDataset({ env, fetchImpl: deps.fetchImpl });
   const repo = deps.repo ?? planRepository(env);
   const [stored, training] = await Promise.all([repo.active(), loadTrainingData({ env, fetchImpl: deps.fetchImpl })]);
@@ -108,7 +109,7 @@ export function workoutDetailFrom(routine: RoutineOverview, templateId: string):
  * moved on since — undoing an older change would silently discard a newer one.
  */
 export async function undoPlanChange(change: PlanChange, deps: RoutineDeps = {}): Promise<StoredPlan | null> {
-  const repo = deps.repo ?? planRepository(deps.env ?? process.env);
+  const repo = deps.repo ?? planRepository(deps.env ?? serverEnv());
   const current = await repo.get(change.planId);
   if (!current) throw new PlanNotFoundError(`There is no plan "${change.planId}".`);
   if (current.revision !== change.toRevision) {

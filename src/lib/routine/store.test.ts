@@ -3,6 +3,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { PlanSqlClient } from '@/lib/db/plan-store';
+import { runAsUser } from '@/lib/identity/scope';
 import { referencePlan } from './templates';
 import {
   FilePlanRepository,
@@ -37,38 +38,43 @@ class FakePlanDb implements PlanSqlClient {
   async query(text: string, params: unknown[] = []): Promise<{ rows: Record<string, unknown>[] }> {
     const sql = text.replace(/\s+/g, ' ').trim();
     this.statements.push(sql);
+    // Every per-person statement names its user as the LAST parameter.
+    const user = params[params.length - 1];
+    const mine = () => this.plans.filter(p => p.user_id === user);
+    const owns = (planId: unknown) => this.plans.some(p => p.id === planId && p.user_id === user);
     if (/^(BEGIN|COMMIT|ROLLBACK)$/.test(sql)) return { rows: [] };
-    if (sql.startsWith("SELECT id, status, plan, revision, created_at, updated_at FROM training_plans WHERE status = 'active'")) {
-      return { rows: this.plans.filter(p => p.status === 'active') };
+    if (sql.startsWith("SELECT id, status, plan, revision, created_at, updated_at FROM training_plans WHERE status = 'active' AND user_id = $1")) {
+      return { rows: mine().filter(p => p.status === 'active') };
     }
-    if (sql.startsWith('SELECT id, status, plan, revision, created_at, updated_at FROM training_plans WHERE id = $1')) {
-      return { rows: this.plans.filter(p => p.id === params[0]) };
+    if (sql.startsWith('SELECT id, status, plan, revision, created_at, updated_at FROM training_plans WHERE id = $1 AND user_id = $2')) {
+      return { rows: mine().filter(p => p.id === params[0]) };
     }
-    if (sql.startsWith('SELECT id, status, plan, revision, created_at, updated_at FROM training_plans ORDER BY')) {
-      return { rows: [...this.plans].reverse() };
+    if (sql.startsWith('SELECT id, status, plan, revision, created_at, updated_at FROM training_plans WHERE user_id = $2 ORDER BY')) {
+      return { rows: [...mine()].reverse() };
     }
-    if (sql.startsWith('SELECT revision FROM training_plans WHERE id = $1')) {
-      return { rows: this.plans.filter(p => p.id === params[0]) };
+    if (sql.startsWith('SELECT revision FROM training_plans WHERE id = $1 AND user_id = $2') || sql.startsWith('SELECT 1 FROM training_plans WHERE id = $1 AND user_id = $2')) {
+      return { rows: mine().filter(p => p.id === params[0]) };
     }
     if (sql.startsWith("UPDATE training_plans SET status = 'archived', updated_at = now() WHERE status = 'active'")) {
-      for (const p of this.plans) if (p.status === 'active' && (params[0] === undefined || p.id !== params[0])) p.status = 'archived';
+      const except = sql.includes('id <> $1') ? params[0] : undefined;
+      for (const p of mine()) if (p.status === 'active' && p.id !== except) p.status = 'archived';
       return { rows: [] };
     }
     if (sql.startsWith('INSERT INTO training_plans')) {
       const at = this.tick();
-      const row = { id: params[0], status: 'active', plan: JSON.parse(params[1] as string), revision: 1, created_at: at, updated_at: at };
-      if (this.plans.some(p => p.status === 'active')) throw new Error('unique violation: training_plans_one_active');
+      const row = { id: params[0], status: 'active', plan: JSON.parse(params[1] as string), revision: 1, created_at: at, updated_at: at, user_id: user };
+      if (mine().some(p => p.status === 'active')) throw new Error('unique violation: training_plans_one_active');
       this.plans.push(row);
       return { rows: [row] };
     }
     if (sql.startsWith('UPDATE training_plans SET plan = $2')) {
-      const row = this.plans.find(p => p.id === params[0] && p.revision === params[3]);
+      const row = mine().find(p => p.id === params[0] && p.revision === params[3]);
       if (!row) return { rows: [] };
       Object.assign(row, { plan: JSON.parse(params[1] as string), revision: (row.revision as number) + 1, updated_at: this.tick() });
       return { rows: [row] };
     }
     if (sql.startsWith('UPDATE training_plans SET status = $2')) {
-      const row = this.plans.find(p => p.id === params[0]);
+      const row = mine().find(p => p.id === params[0]);
       if (!row) return { rows: [] };
       Object.assign(row, { status: params[1], updated_at: this.tick() });
       return { rows: [row] };
@@ -78,9 +84,11 @@ class FakePlanDb implements PlanSqlClient {
       return { rows: [] };
     }
     if (sql.startsWith('SELECT plan_id, revision, source, summary, created_at FROM training_plan_revisions')) {
+      if (!owns(params[0])) return { rows: [] };
       return { rows: this.revisions.filter(r => r.plan_id === params[0]).sort((a, b) => (b.revision as number) - (a.revision as number)) };
     }
     if (sql.startsWith('SELECT plan FROM training_plan_revisions')) {
+      if (!owns(params[0])) return { rows: [] };
       return { rows: this.revisions.filter(r => r.plan_id === params[0] && r.revision === params[1]) };
     }
     throw new Error(`FakePlanDb does not understand: ${sql}`);
@@ -152,5 +160,29 @@ describe.each(backends)('%s plan repository', (_name, make) => {
     expect((await repo.get(b.id))?.status).toBe('archived');
     await repo.setStatus(a.id, 'archived');
     expect(await repo.active()).toBeNull();
+  });
+});
+
+describe('postgres plans belong to one profile', () => {
+  const as = (userId: string) => ({ slug: userId, primary: false, userId, userError: null, env: process.env });
+
+  it('keeps each person’s active plan, list and revisions apart', async () => {
+    const repo = new PostgresPlanRepository(new FakePlanDb());
+    const alex = await runAsUser(as('alex'), () => repo.create(plan(), { source: 'analyst', summary: 'alex' }));
+    const sam = await runAsUser(as('sam'), () => repo.create(plan('strength'), { source: 'user', summary: 'sam' }));
+
+    // Creating Sam's plan did not archive Alex's.
+    expect((await runAsUser(as('alex'), () => repo.active()))?.id).toBe(alex.id);
+    expect((await runAsUser(as('sam'), () => repo.active()))?.id).toBe(sam.id);
+    expect((await runAsUser(as('sam'), () => repo.list())).map(p => p.id)).toEqual([sam.id]);
+
+    // Another person's plan is not found, not readable and not writable.
+    expect(await runAsUser(as('sam'), () => repo.get(alex.id))).toBeNull();
+    expect(await runAsUser(as('sam'), () => repo.revisions(alex.id))).toEqual([]);
+    await expect(runAsUser(as('sam'), () => repo.setStatus(alex.id, 'archived'))).rejects.toThrow(/no plan/);
+    await expect(
+      runAsUser(as('sam'), () => repo.update(alex.id, alex.plan, alex.revision, { source: 'user', summary: 'x' }))
+    ).rejects.toThrow(/no plan/);
+    expect((await runAsUser(as('alex'), () => repo.get(alex.id)))?.status).toBe('active');
   });
 });

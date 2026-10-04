@@ -16,6 +16,8 @@
 // The cache lives in the server process only. Nothing here is ever serialised to
 // the browser.
 
+import { serverEnv } from '@/lib/identity/env';
+
 export interface CacheStats {
   keys: string[];
   /** Age in ms of the oldest entry, or null when empty. */
@@ -189,7 +191,7 @@ export function setCacheTtlForTests(ms: number | null): void {
   ttlOverrideMs = ms;
 }
 
-export function liveCacheTtlMs(env: NodeJS.ProcessEnv = process.env): number {
+export function liveCacheTtlMs(env: NodeJS.ProcessEnv = serverEnv()): number {
   if (ttlOverrideMs != null) return ttlOverrideMs;
   const raw = Number(env.HAE_CACHE_TTL_SECONDS);
   if (Number.isFinite(raw) && raw > 0) return Math.round(raw * 1000);

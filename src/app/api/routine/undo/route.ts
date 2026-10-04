@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server';
 import { NO_STORE, routineFailure } from '@/lib/routine/http';
 import { undoPlanChange } from '@/lib/routine/service';
 import type { PlanChange } from '@/lib/routine/types';
+import { scoped } from '@/lib/identity';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -32,7 +33,7 @@ function readChange(raw: unknown): PlanChange | null {
   };
 }
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   let body: Record<string, unknown>;
   try {
     body = (await request.json()) as Record<string, unknown>;
@@ -48,3 +49,5 @@ export async function POST(request: Request) {
     return routineFailure(error);
   }
 }
+
+export const POST = scoped(handlePOST);

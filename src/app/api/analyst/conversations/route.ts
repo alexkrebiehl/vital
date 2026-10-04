@@ -20,13 +20,14 @@ import {
   listConversationsForApi,
   type ConversationDeps,
 } from '@/lib/analyst/conversations';
+import { scoped } from '@/lib/identity';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 const NO_STORE = { 'Cache-Control': 'no-store, private' } as const;
 
-export async function GET() {
+async function handleGET() {
   const result = await listConversationsForApi();
   if (!result.ok) {
     return NextResponse.json({ error: result.error, ...result.availability }, { status: result.status, headers: NO_STORE });
@@ -37,7 +38,7 @@ export async function GET() {
   );
 }
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   let body: unknown;
   try {
     body = await request.json();
@@ -53,3 +54,6 @@ export async function POST(request: Request) {
   }
   return NextResponse.json({ conversation: result.data, available: true }, { status: result.status, headers: NO_STORE });
 }
+
+export const GET = scoped(handleGET);
+export const POST = scoped(handlePOST);

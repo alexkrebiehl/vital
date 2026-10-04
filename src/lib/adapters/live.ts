@@ -50,6 +50,8 @@ import {
   normalizeWorkouts,
 } from './normalize';
 import { splitSources, sourceRuleExplanationFor } from './sources';
+import { serverEnv } from '@/lib/identity/env';
+import { cacheOwner } from '@/lib/identity/scope';
 
 /** Rolling window fetched from upstream. Covers the observed 56-day history many times over. */
 export const LIVE_LOOKBACK_DAYS = 400;
@@ -192,7 +194,7 @@ function provenanceRow(
  * is one metric's payload rather than the whole history.
  */
 export async function fetchLiveDatasetUncached(deps: LiveDeps = {}): Promise<LiveDatasetResult> {
-  const env = deps.env ?? process.env;
+  const env = deps.env ?? serverEnv();
   const config = readHaeConfig(env);
   if (!config) {
     throw new HaeError(
@@ -370,19 +372,22 @@ export async function fetchLiveDatasetUncached(deps: LiveDeps = {}): Promise<Liv
 
 const LIVE_CACHE_PREFIX = 'live-dataset:';
 
-export function liveCacheKey(timezone: string = DEFAULT_TIMEZONE): string {
-  return `${LIVE_CACHE_PREFIX}${timezone}:${LIVE_LOOKBACK_DAYS}`;
+/** The cache key of one profile's history cut in one zone. */
+export function liveCacheKey(timezone: string = DEFAULT_TIMEZONE, owner: string = cacheOwner()): string {
+  return `${LIVE_CACHE_PREFIX}${owner}:${timezone}:${LIVE_LOOKBACK_DAYS}`;
 }
 
 /**
- * The key for this load. A dataset cut in any other zone is dropped: after a
- * timezone change it is stale, and holding two copies of the history only costs
- * memory.
+ * The key for this load. The same profile's dataset cut in any other zone is
+ * dropped: after a timezone change it is stale, and holding two copies of the
+ * history only costs memory. Other profiles' entries are theirs and are kept.
  */
 function liveCacheKeyFor(deps: LiveDeps): string {
-  const key = liveCacheKey(resolveTimezone(deps));
+  const owner = cacheOwner();
+  const key = liveCacheKey(resolveTimezone(deps), owner);
+  const mine = `${LIVE_CACHE_PREFIX}${owner}:`;
   for (const other of liveCache.stats().keys) {
-    if (other !== key && other.startsWith(LIVE_CACHE_PREFIX)) liveCache.clear(other);
+    if (other !== key && other.startsWith(mine)) liveCache.clear(other);
   }
   return key;
 }
@@ -418,7 +423,7 @@ export async function loadLiveDataset(deps: LiveDeps = {}): Promise<LiveDatasetR
  * to do (demo mode, or the API is not configured).
  */
 export function warmLiveDataset(deps: LiveDeps = {}): Promise<WarmUpOutcome> | null {
-  const env = deps.env ?? process.env;
+  const env = deps.env ?? serverEnv();
   if ((env.VITAL_DATA_MODE ?? '').trim().toLowerCase() !== 'live') return null;
   if (!readHaeConfig(env)) return null;
 

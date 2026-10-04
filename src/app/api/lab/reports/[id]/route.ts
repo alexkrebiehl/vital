@@ -11,8 +11,10 @@
 
 import { NextResponse } from 'next/server';
 import { deleteStoredBytes } from '@/lib/lab/storage';
-import { resolveLabConfig } from '@/lib/lab/config';
+import { profileLabDir, resolveLabConfig } from '@/lib/lab/config';
 import { deleteReport, findReportBySha, getReport, listResults, storeClient } from '@/lib/db/lab-store';
+import { scoped } from '@/lib/identity';
+import { scopedIdentity } from '@/lib/identity/scope';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -26,7 +28,7 @@ function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
-export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+async function handleGET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
   if (!isUuid(id)) {
     return NextResponse.json(INVALID_ID, { status: 400, headers: NO_STORE });
@@ -46,7 +48,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   return NextResponse.json({ report: { ...report, resultCount: results.length }, results }, { status: 200, headers: NO_STORE });
 }
 
-export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
+async function handleDELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
   if (!isUuid(id)) {
     return NextResponse.json(INVALID_ID, { status: 400, headers: NO_STORE });
@@ -74,8 +76,11 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
   const stillReferenced = await findReportBySha(client, report.sourceSha256);
   if (!stillReferenced) {
     const config = resolveLabConfig();
-    fileRemoved = await deleteStoredBytes(config.dir, report.sourceSha256);
+    fileRemoved = await deleteStoredBytes(profileLabDir(config.dir, scopedIdentity()), report.sourceSha256);
   }
 
   return NextResponse.json({ deleted: true, reportId: id, fileRemoved }, { status: 200, headers: NO_STORE });
 }
+
+export const GET = scoped(handleGET);
+export const DELETE = scoped(handleDELETE);

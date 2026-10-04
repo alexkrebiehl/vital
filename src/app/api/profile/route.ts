@@ -34,13 +34,14 @@
 import { NextResponse } from 'next/server';
 import { readProfile, readProfileState, writeProfile } from '@/lib/profile/store';
 import { validateProfileInput } from '@/lib/profile/types';
+import { scoped } from '@/lib/identity';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 const NO_STORE = { 'Cache-Control': 'no-store, private' } as const;
 
-export async function GET() {
+async function handleGET() {
   const state = await readProfileState();
   if (state.error) {
     return NextResponse.json({ error: state.error }, { status: 500, headers: NO_STORE });
@@ -48,7 +49,7 @@ export async function GET() {
   return NextResponse.json(state.profile, { status: 200, headers: NO_STORE });
 }
 
-export async function PUT(request: Request) {
+async function handlePUT(request: Request) {
   let body: unknown;
   try {
     body = await request.json();
@@ -75,3 +76,6 @@ export async function PUT(request: Request) {
 
   return NextResponse.json(await readProfile(), { status: 200, headers: NO_STORE });
 }
+
+export const GET = scoped(handleGET);
+export const PUT = scoped(handlePUT);

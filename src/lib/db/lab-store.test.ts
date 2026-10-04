@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { TEST_USER_ID } from '@/test-setup';
 import {
   assertNoPii,
   deleteReport,
@@ -510,7 +511,7 @@ describe('updateResult marks the row manual and bumps its revision', () => {
 
 describe('replaceResults swaps a report\u2019s observations in one transaction', () => {
   it('deletes, re-inserts, bumps the report revision and commits', async () => {
-    const db = writingDb();
+    const db = writingDb([{ test: sql => sql.includes('UPDATE lab_reports'), rows: () => [REPORT_ROW] }]);
     const results = await replaceResults(db, REPORT_ID, [observation()]);
     expect(results).toHaveLength(1);
     const statements = db.statements;
@@ -518,6 +519,16 @@ describe('replaceResults swaps a report\u2019s observations in one transaction',
     expect(statements.some(s => s.includes('DELETE FROM lab_results'))).toBe(true);
     expect(statements.some(s => s.includes('UPDATE lab_reports'))).toBe(true);
     expect(statements[statements.length - 1]).toBe('COMMIT');
+  });
+});
+
+describe('replaceResults touches only the person’s own report', () => {
+  it('rolls back without deleting anything when the report is someone else’s', async () => {
+    // The ownership-checked revision bump matches no row.
+    const db = writingDb([{ test: sql => sql.includes('UPDATE lab_reports'), rows: () => [] }]);
+    await expect(replaceResults(db, REPORT_ID, [observation()])).rejects.toThrow(/No such lab report/);
+    expect(db.statements.some(s => s.includes('DELETE FROM lab_results'))).toBe(false);
+    expect(db.statements[db.statements.length - 1]).toBe('ROLLBACK');
   });
 });
 
@@ -580,7 +591,9 @@ describe('the panel a row was printed under', () => {
     expect(setClause).not.toContain('value');
     expect(setClause).not.toContain('revision');
     expect(setClause).not.toContain('created_at');
-    expect(db.queries[0]!.params).toEqual(['r1', 'URINALYSIS, COMPLETE']);
+    // The row is written only when it is the person in scope's own.
+    expect(sql).toContain('user_id = $3');
+    expect(db.queries[0]!.params).toEqual(['r1', 'URINALYSIS, COMPLETE', TEST_USER_ID]);
   });
 
   it('returns null when there is no such row', async () => {

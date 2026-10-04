@@ -16,6 +16,7 @@
 // with its reason, never silently dropped.
 
 import type { ConversationMessage, ConversationSummary, StoredAssistantPayload } from '@/lib/analyst/conversation-types';
+import { requireUserId } from '@/lib/identity/scope';
 import { getPool, type PoolLike } from './pool';
 
 /** A connection (or pool) that can run one query. */
@@ -27,8 +28,8 @@ export const ANALYST_CONVERSATION_SCHEMA_VERSION = 1;
 const CONVERSATION_COLUMNS = 'id, title, message_count, created_at, updated_at';
 
 const INSERT_CONVERSATION = `
-  INSERT INTO analyst_conversations (title, message_count, schema_version)
-  VALUES ($1, 0, $2)
+  INSERT INTO analyst_conversations (title, message_count, schema_version, user_id)
+  VALUES ($1, 0, $2, $3)
   RETURNING ${CONVERSATION_COLUMNS}
 `;
 
@@ -45,6 +46,7 @@ const SELECT_CONVERSATIONS = `
   SELECT ${CONVERSATION_COLUMNS}
     FROM analyst_conversations
    WHERE archived_at IS NULL
+     AND user_id = $2
    ORDER BY created_at DESC, id DESC
    LIMIT $1
 `;
@@ -53,22 +55,30 @@ const SELECT_CONVERSATION = `
   SELECT ${CONVERSATION_COLUMNS}
     FROM analyst_conversations
    WHERE id = $1
+     AND user_id = $2
 `;
 
 const SELECT_MESSAGES = `
   SELECT id, role, content, title, status, provider, model, attribution, handler_id, payload, created_at
     FROM analyst_messages
    WHERE conversation_id = $1
+     AND EXISTS (SELECT 1 FROM analyst_conversations WHERE id = $1 AND user_id = $2)
    ORDER BY created_at ASC, id ASC
 `;
 
-const COUNT_MESSAGES = `SELECT count(*)::int AS count FROM analyst_messages WHERE conversation_id = $1`;
+const COUNT_MESSAGES = `
+  SELECT count(*)::int AS count
+    FROM analyst_messages
+   WHERE conversation_id = $1
+     AND EXISTS (SELECT 1 FROM analyst_conversations WHERE id = $1 AND user_id = $2)
+`;
 
 const SELECT_RECENT_MESSAGES = `
   SELECT * FROM (
     SELECT id, role, content, title, status, provider, model, attribution, handler_id, payload, created_at
       FROM analyst_messages
      WHERE conversation_id = $1
+       AND EXISTS (SELECT 1 FROM analyst_conversations WHERE id = $1 AND user_id = $3)
      ORDER BY created_at DESC, id DESC
      LIMIT $2
   ) recent
@@ -77,7 +87,7 @@ const SELECT_RECENT_MESSAGES = `
 
 /**
  * Insert one turn, but only while the conversation exists and holds fewer than
- * the cap. `$12` is the cap; the guard runs in the same statement as the insert,
+ * the cap, and only in a conversation of the person in scope (`$13`). `$12` is the cap; the guard runs in the same statement as the insert,
  * so two appends cannot both look under the limit and then both write.
  *
  * `message_count` is advanced from the conversation's own counter rather than
@@ -89,7 +99,7 @@ const INSERT_MESSAGE = `
     INSERT INTO analyst_messages
       (conversation_id, role, content, title, status, provider, model, attribution, handler_id, payload, schema_version)
     SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11
-     WHERE EXISTS (SELECT 1 FROM analyst_conversations WHERE id = $1)
+     WHERE EXISTS (SELECT 1 FROM analyst_conversations WHERE id = $1 AND user_id = $13)
        AND (SELECT count(*) FROM analyst_messages WHERE conversation_id = $1) < $12
     RETURNING id, conversation_id, role, content, title, status, provider, model, attribution, handler_id, payload, created_at
   ), bumped AS (
@@ -108,10 +118,11 @@ const RENAME_CONVERSATION = `
      SET title    = $2,
          revision = revision + 1
    WHERE id = $1
+     AND user_id = $3
   RETURNING ${CONVERSATION_COLUMNS}
 `;
 
-const DELETE_CONVERSATION = `DELETE FROM analyst_conversations WHERE id = $1 RETURNING id`;
+const DELETE_CONVERSATION = `DELETE FROM analyst_conversations WHERE id = $1 AND user_id = $2 RETURNING id`;
 
 /** A timestamp column as an ISO string, whether it arrived as a Date or text. */
 function iso(value: unknown): string {
@@ -170,7 +181,7 @@ export function toConversationMessage(row: Record<string, unknown>): Conversatio
 
 /** Create a conversation with a title. Returns the stored summary. */
 export async function insertConversation(client: SqlClient, title: string): Promise<ConversationSummary> {
-  const result = await client.query(INSERT_CONVERSATION, [title, ANALYST_CONVERSATION_SCHEMA_VERSION]);
+  const result = await client.query(INSERT_CONVERSATION, [title, ANALYST_CONVERSATION_SCHEMA_VERSION, requireUserId()]);
   const row = result.rows[0];
   if (!row) throw new Error('The conversation insert returned no row.');
   return toConversationSummary(row);
@@ -178,20 +189,20 @@ export async function insertConversation(client: SqlClient, title: string): Prom
 
 /** Live conversations, most recently active first. */
 export async function listConversations(client: SqlClient, limit = 100): Promise<ConversationSummary[]> {
-  const result = await client.query(SELECT_CONVERSATIONS, [limit]);
+  const result = await client.query(SELECT_CONVERSATIONS, [limit, requireUserId()]);
   return result.rows.map(toConversationSummary);
 }
 
 /** One conversation, or null when there is no such row. */
 export async function findConversation(client: SqlClient, id: number): Promise<ConversationSummary | null> {
-  const result = await client.query(SELECT_CONVERSATION, [id]);
+  const result = await client.query(SELECT_CONVERSATION, [id, requireUserId()]);
   const row = result.rows[0];
   return row ? toConversationSummary(row) : null;
 }
 
 /** One conversation's turns, oldest first. */
 export async function listMessages(client: SqlClient, conversationId: number): Promise<ConversationMessage[]> {
-  const result = await client.query(SELECT_MESSAGES, [conversationId]);
+  const result = await client.query(SELECT_MESSAGES, [conversationId, requireUserId()]);
   return result.rows.map(toConversationMessage);
 }
 
@@ -206,13 +217,13 @@ export async function listRecentMessages(
   conversationId: number,
   limit: number
 ): Promise<ConversationMessage[]> {
-  const result = await client.query(SELECT_RECENT_MESSAGES, [conversationId, limit]);
+  const result = await client.query(SELECT_RECENT_MESSAGES, [conversationId, limit, requireUserId()]);
   return result.rows.map(toConversationMessage);
 }
 
 /** How many turns a conversation holds. */
 export async function countMessages(client: SqlClient, conversationId: number): Promise<number> {
-  const result = await client.query(COUNT_MESSAGES, [conversationId]);
+  const result = await client.query(COUNT_MESSAGES, [conversationId, requireUserId()]);
   return numberOrZero(result.rows[0]?.count);
 }
 
@@ -258,6 +269,7 @@ export async function insertMessage(
     message.payload ? JSON.stringify(message.payload) : null,
     ANALYST_CONVERSATION_SCHEMA_VERSION,
     cap,
+    requireUserId(),
   ]);
   const row = result.rows[0];
   if (row) return { ok: true, message: toConversationMessage(row) };
@@ -271,7 +283,7 @@ export async function renameConversationRow(
   id: number,
   title: string
 ): Promise<ConversationSummary | null> {
-  const result = await client.query(RENAME_CONVERSATION, [id, title]);
+  const result = await client.query(RENAME_CONVERSATION, [id, title, requireUserId()]);
   const row = result.rows[0];
   return row ? toConversationSummary(row) : null;
 }
@@ -282,7 +294,7 @@ export async function renameConversationRow(
  * Returns true when a row was deleted.
  */
 export async function deleteConversationRow(client: SqlClient, id: number): Promise<boolean> {
-  const result = await client.query(DELETE_CONVERSATION, [id]);
+  const result = await client.query(DELETE_CONVERSATION, [id, requireUserId()]);
   return result.rows.length > 0;
 }
 

@@ -10,9 +10,11 @@
 
 import { NextResponse } from 'next/server';
 import { extractLabDocument, sha256Of } from '@/lib/lab/extract';
-import { resolveLabConfig } from '@/lib/lab/config';
+import { profileLabDir, resolveLabConfig } from '@/lib/lab/config';
 import { readStoredBytes } from '@/lib/lab/storage';
 import { getReport, listResults, replaceResults, storeClient } from '@/lib/db/lab-store';
+import { scoped } from '@/lib/identity';
+import { scopedIdentity } from '@/lib/identity/scope';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,7 +26,7 @@ function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
-export async function POST(_request: Request, context: { params: Promise<{ id: string }> }) {
+async function handlePOST(_request: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
   if (!isUuid(id)) {
     return NextResponse.json({ error: 'The report id must be a UUID.' }, { status: 400, headers: NO_STORE });
@@ -44,7 +46,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   }
 
   const config = resolveLabConfig();
-  const bytes = await readStoredBytes(config.dir, report.sourceSha256);
+  const bytes = await readStoredBytes(profileLabDir(config.dir, scopedIdentity()), report.sourceSha256);
   if (!bytes) {
     return NextResponse.json(
       {
@@ -95,3 +97,5 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     { status: 200, headers: NO_STORE }
   );
 }
+
+export const POST = scoped(handlePOST);

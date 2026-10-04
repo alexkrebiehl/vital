@@ -11,6 +11,7 @@ import { ProfileProvider } from '@/components/profile/ProfileProvider';
 import { TimezoneDefault } from '@/components/profile/TimezoneDefault';
 import { DiscussProvider } from '@/components/analyst/DiscussDialog';
 import type { VitalProfile } from '@/lib/profile/types';
+import type { ProfileSwitcherState } from '@/lib/identity/types';
 
 interface AppShellProps {
   children: ReactNode;
@@ -21,9 +22,11 @@ interface AppShellProps {
   profile: VitalProfile;
   /** True when the profile was read from storage rather than defaulted. */
   profileStored: boolean;
+  /** The declared profiles, for the avatar's switcher. */
+  switcher: ProfileSwitcherState;
 }
 
-export function AppShell({ children, profile, profileStored }: AppShellProps) {
+export function AppShell({ children, profile, profileStored, switcher }: AppShellProps) {
   return (
     <ProfileProvider initialProfile={profile} initialStored={profileStored}>
       <TimezoneDefault />
@@ -39,7 +42,7 @@ export function AppShell({ children, profile, profileStored }: AppShellProps) {
 
                 {/* Main content area */}
                 <div className="md:ml-sidebar flex flex-col min-h-screen min-w-0">
-                  <TopBar />
+                  <TopBar switcher={switcher} />
 
                   <main className="flex-1 px-4 md:px-8 py-6 md:py-8 max-w-content mx-auto w-full min-w-0">
                     <Breadcrumbs />

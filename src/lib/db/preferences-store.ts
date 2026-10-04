@@ -7,7 +7,8 @@
 //   database configured → this module
 //   nothing configured  → the caller throws with the reason
 //
-// One row, pinned to `id = 1` by the schema's CHECK constraint. Every write
+// One row per user (db/migrations/0010), keyed by `user_id`: the person in the
+// current request scope (`requireUserId`). Every write
 // carries the revision the client last read; the caller compares it with the
 // stored revision before calling in, and a stale write is refused upstream (409).
 //
@@ -25,6 +26,7 @@ import {
   type PreferencesRecord,
   type VitalPreferences,
 } from '@/lib/prefs/types';
+import { requireUserId } from '@/lib/identity/scope';
 import { NO_DATABASE_CONFIGURED_REASON } from './backend';
 import { getPool } from './pool';
 
@@ -38,13 +40,13 @@ const SELECT_PREFERENCES = `
          revision,
          updated_at
     FROM preferences
-   WHERE id = 1
+   WHERE user_id = $1
 `;
 
 const UPSERT_PREFERENCES = `
-  INSERT INTO preferences (id, units, theme, notifications, schema_version, revision, updated_at, light_theme, dark_theme)
-  VALUES (1, $1, $2, $3::jsonb, $4, $5, now(), $6, $7)
-  ON CONFLICT (id) DO UPDATE
+  INSERT INTO preferences (user_id, units, theme, notifications, schema_version, revision, updated_at, light_theme, dark_theme)
+  VALUES ($8, $1, $2, $3::jsonb, $4, $5, now(), $6, $7)
+  ON CONFLICT (user_id) DO UPDATE
      SET units          = EXCLUDED.units,
          theme          = EXCLUDED.theme,
          light_theme    = EXCLUDED.light_theme,
@@ -85,7 +87,7 @@ function toRecord(row: Record<string, unknown>): PreferencesRecord {
 /** The stored record, or `null` when no record has ever been written. */
 export async function readPreferencesRow(env: NodeJS.ProcessEnv = process.env): Promise<PreferencesRecord | null> {
   const pool = poolOrThrow(env);
-  const result = await pool.query(SELECT_PREFERENCES);
+  const result = await pool.query(SELECT_PREFERENCES, [requireUserId()]);
   const row = result.rows[0];
   if (!row) return null;
   return toRecord(row);
@@ -106,6 +108,7 @@ export async function writePreferencesRow(
     revision,
     preferences.lightTheme,
     preferences.darkTheme,
+    requireUserId(),
   ]);
   const row = result.rows[0];
   if (!row) throw new Error('The preferences write returned no row.');

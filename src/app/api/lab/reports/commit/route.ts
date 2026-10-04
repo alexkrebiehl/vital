@@ -12,6 +12,7 @@
 import { NextResponse } from 'next/server';
 import { validateCommitPayload } from '@/lib/lab/commit';
 import { findReportBySha, insertReport, storeClient } from '@/lib/db/lab-store';
+import { scoped } from '@/lib/identity';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -19,7 +20,7 @@ export const revalidate = 0;
 
 const NO_STORE = { 'Cache-Control': 'no-store, private' } as const;
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   let body: unknown;
   try {
     body = await request.json();
@@ -65,3 +66,5 @@ export async function POST(request: Request) {
     { status: 201, headers: NO_STORE }
   );
 }
+
+export const POST = scoped(handlePOST);

@@ -30,6 +30,7 @@ import { parsePageContextRef } from '@/lib/analyst/page-context-types';
 import type { AnalystResponse } from '@/lib/analyst/types';
 import type { UnitSystem } from '@/lib/prefs';
 import { LiveDataUnavailableError, installDataset } from '@/lib/adapters/runtime';
+import { scoped } from '@/lib/identity';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -47,7 +48,7 @@ function sseFrame(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
-export async function GET() {
+async function handleGET() {
   // The same configuration STATE the non-streaming route reports, so a client
   // can tell whether a provider is configured before it asks.
   const state = publicConfigState(readAnalystConfig());
@@ -57,7 +58,7 @@ export async function GET() {
   });
 }
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   let body: unknown;
   try {
     body = await request.json();
@@ -179,3 +180,6 @@ export async function POST(request: Request) {
 
   return new Response(stream, { status: 200, headers: SSE_HEADERS });
 }
+
+export const GET = scoped(handleGET);
+export const POST = scoped(handlePOST);

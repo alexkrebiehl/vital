@@ -26,13 +26,14 @@ import { appendExchange, memoryTurnsFor, resolveConversations } from '@/lib/anal
 import { parsePageContextRef } from '@/lib/analyst/page-context-types';
 import type { UnitSystem } from '@/lib/prefs';
 import { LiveDataUnavailableError, installDataset } from '@/lib/adapters/runtime';
+import { scoped } from '@/lib/identity';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 const NO_STORE = { 'Cache-Control': 'no-store, private' } as const;
 
-export async function GET() {
+async function handleGET() {
   // Only the configuration STATE is reported. The provider name, model, host and
   // prompt source are safe to show; the key itself never leaves the server and is
   // reduced to `hasKey`.
@@ -46,7 +47,7 @@ export async function GET() {
   );
 }
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   let body: unknown;
   try {
     body = await request.json();
@@ -115,3 +116,6 @@ export async function POST(request: Request) {
     { status: 200, headers: NO_STORE }
   );
 }
+
+export const GET = scoped(handleGET);
+export const POST = scoped(handlePOST);

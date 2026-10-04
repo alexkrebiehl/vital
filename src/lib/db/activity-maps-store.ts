@@ -12,6 +12,7 @@
 // An update or delete names the revision it was based on; a stale one is refused
 // rather than silently overwriting a change made in another tab.
 
+import { requireUserId } from '@/lib/identity/scope';
 import { randomUUID } from 'crypto';
 import {
   readStoredSettings,
@@ -66,25 +67,32 @@ export function toActivityMap(row: Record<string, unknown>): ActivityMap {
 }
 
 export async function listMaps(client: PoolLike): Promise<ActivityMap[]> {
-  const result = await client.query(`SELECT ${COLUMNS} FROM activity_maps ORDER BY position, created_at`);
+  const result = await client.query(
+    `SELECT ${COLUMNS} FROM activity_maps WHERE user_id = $1 ORDER BY position, created_at`,
+    [requireUserId()]
+  );
   return result.rows.map(toActivityMap);
 }
 
 export async function createMap(client: PoolLike, input: ActivityMapInput): Promise<ActivityMap> {
-  const count = await client.query('SELECT count(*)::int AS n, coalesce(max(position), -1)::int AS last FROM activity_maps');
+  const userId = requireUserId();
+  const count = await client.query(
+    'SELECT count(*)::int AS n, coalesce(max(position), -1)::int AS last FROM activity_maps WHERE user_id = $1',
+    [userId]
+  );
   const { n, last } = count.rows[0] as { n: number; last: number };
   if (Number(n) >= MAX_MAPS) throw new MapConflictError(`At most ${MAX_MAPS} maps can be kept.`);
   const result = await client.query(
-    `INSERT INTO activity_maps (id, position, name, bbox, settings)
-     VALUES ($1, $2, $3, $4::jsonb, $5::jsonb)
+    `INSERT INTO activity_maps (id, position, name, bbox, settings, user_id)
+     VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6)
      RETURNING ${COLUMNS}`,
-    [`map-${randomUUID().slice(0, 8)}`, Number(last) + 1, input.name, JSON.stringify(input.bbox), JSON.stringify(input.settings)]
+    [`map-${randomUUID().slice(0, 8)}`, Number(last) + 1, input.name, JSON.stringify(input.bbox), JSON.stringify(input.settings), userId]
   );
   return toActivityMap(result.rows[0]);
 }
 
 async function revisionOf(client: PoolLike, id: string): Promise<number | null> {
-  const result = await client.query('SELECT revision FROM activity_maps WHERE id = $1', [id]);
+  const result = await client.query('SELECT revision FROM activity_maps WHERE id = $1 AND user_id = $2', [id, requireUserId()]);
   return result.rows[0] ? Number(result.rows[0].revision) : null;
 }
 
@@ -97,9 +105,9 @@ export async function updateMap(
   const result = await client.query(
     `UPDATE activity_maps
         SET name = $3, bbox = $4::jsonb, settings = $5::jsonb, revision = revision + 1, updated_at = now()
-      WHERE id = $1 AND revision = $2
+      WHERE id = $1 AND revision = $2 AND user_id = $6
       RETURNING ${COLUMNS}`,
-    [id, revision, input.name, JSON.stringify(input.bbox), JSON.stringify(input.settings)]
+    [id, revision, input.name, JSON.stringify(input.bbox), JSON.stringify(input.settings), requireUserId()]
   );
   if (result.rows[0]) return toActivityMap(result.rows[0]);
   const current = await revisionOf(client, id);
@@ -108,7 +116,10 @@ export async function updateMap(
 }
 
 export async function deleteMap(client: PoolLike, id: string, revision: number): Promise<void> {
-  const result = await client.query('DELETE FROM activity_maps WHERE id = $1 AND revision = $2 RETURNING id', [id, revision]);
+  const result = await client.query(
+    'DELETE FROM activity_maps WHERE id = $1 AND revision = $2 AND user_id = $3 RETURNING id',
+    [id, revision, requireUserId()]
+  );
   if (result.rows[0]) return;
   const current = await revisionOf(client, id);
   if (current === null) throw new MapNotFoundError(`No map ${id}.`);
@@ -128,8 +139,8 @@ export async function reorderMaps(client: PoolLike, ids: string[]): Promise<Acti
   await client.query(
     `UPDATE activity_maps AS m SET position = o.position
        FROM unnest($1::text[]) WITH ORDINALITY AS o(id, position)
-      WHERE m.id = o.id`,
-    [ids]
+      WHERE m.id = o.id AND m.user_id = $2`,
+    [ids, requireUserId()]
   );
   return listMaps(client);
 }
