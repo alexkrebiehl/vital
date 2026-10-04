@@ -7,6 +7,9 @@
 // Activity is decided from configuration and from the existence of a credential
 // or a document. It never reads a health value and never calls a source's API.
 
+import { readOuraConfig } from '@/lib/adapters/oura/config';
+import { hasCredentialRow } from '@/lib/db/credentials-store';
+import { getPool, type PoolLike } from '@/lib/db/pool';
 import { hevyPlugin } from '@/lib/workout-sources/hevy';
 
 export type DataSourceId = 'hae' | 'oura' | 'hevy' | 'lab';
@@ -43,9 +46,8 @@ export const DATA_SOURCES: readonly DataSourceDef[] = [
     id: 'oura',
     displayName: 'Oura Ring',
     kind: 'health',
-    // Configured AND connected. The configuration check is a placeholder until
-    // `readOuraConfig` exists; see the wiring commit.
-    isActive: async ctx => filled(ctx.env.OURA_CLIENT_ID) && (await ctx.hasCredential('oura')),
+    // Configured AND connected: a usable configuration and a stored credential.
+    isActive: async ctx => readOuraConfig(ctx.env)?.ok === true && (await ctx.hasCredential('oura')),
   },
   {
     id: 'hevy',
@@ -82,11 +84,27 @@ export async function activeHealthSources(ctx: SourceContext = defaultContext())
     .sort();
 }
 
-/** The context for this process. Credential and lab lookups are wired separately. */
-export function defaultContext(env: NodeJS.ProcessEnv = process.env): SourceContext {
+/**
+ * The context for this process. Both lookups read the one Postgres pool and
+ * count or test for existence only; no credential is decrypted and no lab value
+ * is read. With no database configured nothing is stored, so both answer
+ * "none". An invalid database configuration still throws, as everywhere else.
+ */
+export function defaultContext(
+  env: NodeJS.ProcessEnv = process.env,
+  clientFor: () => PoolLike | null = () => getPool(env)
+): SourceContext {
   return {
     env,
-    hasCredential: async () => false,
-    labReportCount: async () => 0,
+    hasCredential: async id => {
+      const client = clientFor();
+      return client ? hasCredentialRow(client, id) : false;
+    },
+    labReportCount: async () => {
+      const client = clientFor();
+      if (!client) return 0;
+      const result = await client.query('SELECT count(*)::int AS n FROM lab_reports');
+      return Number(result.rows[0]?.n ?? 0);
+    },
   };
 }

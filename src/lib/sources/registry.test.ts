@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { DATA_SOURCES, activeHealthSources, activeSourceIds, sourceSetKey, type SourceContext } from './registry';
+import { randomBytes } from 'node:crypto';
+import type { PoolLike } from '@/lib/db/pool';
+import {
+  DATA_SOURCES,
+  activeHealthSources,
+  activeSourceIds,
+  defaultContext,
+  sourceSetKey,
+  type SourceContext,
+} from './registry';
 
 function ctx(env: Record<string, string>, opts: { credentials?: string[]; labs?: number } = {}): SourceContext {
   return {
@@ -10,7 +19,12 @@ function ctx(env: Record<string, string>, opts: { credentials?: string[]; labs?:
 }
 
 const HAE = { HAE_API_URL: 'http://hae.test', HAE_API_KEY: 'k' };
-const OURA = { OURA_CLIENT_ID: 'id' };
+const OURA = {
+  OURA_CLIENT_ID: 'id',
+  OURA_CLIENT_SECRET: 'secret',
+  OURA_REDIRECT_URI: 'http://localhost:8080/cb',
+  VITAL_SECRET_KEY: randomBytes(32).toString('base64'),
+};
 
 describe('source registry', () => {
   it('lists every source once, with a display name and a kind', () => {
@@ -37,6 +51,12 @@ describe('source registry', () => {
     expect(await activeSourceIds(ctx(OURA, { credentials: ['other'] }))).toEqual([]);
   });
 
+  it('oura is inactive when the configuration is unusable, even with a credential row', async () => {
+    const { OURA_CLIENT_SECRET: _s, ...noSecret } = OURA;
+    expect(await activeSourceIds(ctx(noSecret, { credentials: ['oura'] }))).toEqual([]);
+    expect(await activeSourceIds(ctx({ ...OURA, VITAL_SECRET_KEY: 'short' }, { credentials: ['oura'] }))).toEqual([]);
+  });
+
   it('hevy is active when its API key is set', async () => {
     expect(await activeSourceIds(ctx({ HEVY_API_KEY: 'k' }))).toEqual(['hevy']);
     expect(await activeSourceIds(ctx({ HEVY_API_KEY: '  ' }))).toEqual([]);
@@ -57,5 +77,39 @@ describe('source registry', () => {
     const all = ctx({ ...HAE, ...OURA, HEVY_API_KEY: 'k' }, { credentials: ['oura'], labs: 2 });
     expect(await activeHealthSources(all)).toEqual(['hae', 'oura']);
     expect(await activeHealthSources(ctx({ HEVY_API_KEY: 'k' }, { labs: 1 }))).toEqual([]);
+  });
+});
+
+describe('defaultContext', () => {
+  function client(answers: Record<string, Record<string, unknown>[]>): PoolLike & { sent: string[] } {
+    const sent: string[] = [];
+    return {
+      sent,
+      async query(text: string) {
+        sent.push(text);
+        const hit = Object.keys(answers).find(k => text.includes(k));
+        return { rows: hit ? answers[hit] : [] };
+      },
+    };
+  }
+
+  it('reads credential existence and the lab count from the database, never a value', async () => {
+    const db = client({ source_credentials: [{ present: 1 }], lab_reports: [{ n: 3 }] });
+    const c = defaultContext({} as NodeJS.ProcessEnv, () => db);
+    expect(await c.hasCredential('oura')).toBe(true);
+    expect(await c.labReportCount()).toBe(3);
+    expect(db.sent.join(' ')).not.toMatch(/ciphertext|lab_results/);
+  });
+
+  it('answers "none" when the database has nothing', async () => {
+    const c = defaultContext({} as NodeJS.ProcessEnv, () => client({}));
+    expect(await c.hasCredential('oura')).toBe(false);
+    expect(await c.labReportCount()).toBe(0);
+  });
+
+  it('answers "none" when no database is configured', async () => {
+    const c = defaultContext({} as NodeJS.ProcessEnv, () => null);
+    expect(await c.hasCredential('oura')).toBe(false);
+    expect(await c.labReportCount()).toBe(0);
   });
 });
