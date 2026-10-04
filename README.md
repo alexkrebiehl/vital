@@ -238,14 +238,20 @@ All product names, service names, logos and trademarks that appear in this repos
 documentation or the application — including, without limitation, **Apple**, **Apple Health**,
 **Apple Watch** and **iPhone** (Apple Inc.); **Health Auto Export**; **Hevy**; **Quest Diagnostics**;
 **MyChart** and **Epic** (Epic Systems Corporation); and the names of AI providers and models such as
-**OpenAI**, **Anthropic**, **OpenRouter**, **LM Studio**, **Ollama** and **llama.cpp** — are the
-property of their respective owners. They are used only to describe what Vital is compatible with.
+**OpenAI**, **Anthropic**, **OpenRouter**, **LM Studio**, **Ollama** and **llama.cpp**; and the map
+and place-search services behind Activity → Maps — **CARTO**, **OpenStreetMap** (including its
+**Nominatim** search), **OpenTopoMap** and **Leaflet** — are the property of their respective owners.
+They are used only to describe what Vital is compatible with.
 
 The same applies to every data source, workout source, lab format or AI provider that is added to
 Vital in future: each name belongs to its owner, and mentioning it implies no relationship, approval
 or partnership. Vital reads data you already have the right to access, through interfaces those
 services make available to you; using them remains subject to their own terms of service. Vital is
 not a medical device and is not provided by, or on behalf of, any of the parties named above.
+
+Map data is © OpenStreetMap contributors, available under the Open Database License; each map
+shows its provider's credit. Map tiles and place search are served by those providers under their
+own terms and usage policies, and are not provided by Vital.
 
 ---
 
