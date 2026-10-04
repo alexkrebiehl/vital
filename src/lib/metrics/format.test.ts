@@ -154,3 +154,10 @@ describe('stored preferences (SPEC §7, §11)', () => {
     expect(DEFAULT_NOTIFICATIONS.dailyBriefing).toBe(true);
   });
 });
+
+describe('delta of a metric whose formatter already signs', () => {
+  it('prints one sign, not two', () => {
+    expect(formatDeltaWithUnit('temperature_deviation', 0.3, 'metric')).toBe('+0.30 °C');
+    expect(formatDeltaWithUnit('temperature_deviation', -0.3, 'metric')).toBe('-0.30 °C');
+  });
+});
