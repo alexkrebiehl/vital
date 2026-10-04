@@ -17,8 +17,8 @@ import {
   metricUnit,
 } from '@/lib/metrics/format';
 import {
-  REFERENCE_KEY,
-  WINDOW_START_KEY,
+  referenceDayKey,
+  windowStartDayKey,
   canonicalDayKey,
   metricHasData,
   seriesFor,
@@ -113,13 +113,13 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
   );
 
   const yesterdayKey = useMemo(() => {
-    const d = new Date(`${REFERENCE_KEY}T12:00:00.000Z`);
+    const d = new Date(`${referenceDayKey()}T12:00:00.000Z`);
     d.setUTCDate(d.getUTCDate() - 1);
     return d.toISOString().slice(0, 10);
   }, []);
 
   // ── Windows ─────────────────────────────────────────
-  const evaluatedWindow = useMemo(() => trailingWindow(REFERENCE_KEY, EVALUATED_DAYS), []);
+  const evaluatedWindow = useMemo(() => trailingWindow(referenceDayKey(), EVALUATED_DAYS), []);
   const baselineWindow = useMemo(
     () => previousWindow(evaluatedWindow, BASELINE_DAYS, `Previous ${BASELINE_DAYS}-day baseline`),
     [evaluatedWindow]
@@ -133,13 +133,13 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
   const chartPoints = useMemo(() => inWindow(chartWindow), [all, chartWindow]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const latest = all.length ? all[all.length - 1] : undefined;
-  const todayPoint = pointOn(all, REFERENCE_KEY);
+  const todayPoint = pointOn(all, referenceDayKey());
   const yesterdayPoint = pointOn(all, yesterdayKey);
 
   // Partial / stale detection (SPEC §6 + §9)
   const latestPartial = latest?.partial === true;
-  const accumulatingPendingToday = !!isAccumulating(meta) && latest?.key === REFERENCE_KEY;
-  const staleDays = latest ? diffDays(latest.key, REFERENCE_KEY) : 0;
+  const accumulatingPendingToday = !!isAccumulating(meta) && latest?.key === referenceDayKey();
+  const staleDays = latest ? diffDays(latest.key, referenceDayKey()) : 0;
 
   // ── Comparison: 7-day average vs the previous 30-day baseline ──
   const comparison = useMemo(
@@ -190,12 +190,12 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
 
   // Honest insufficient-history state: the dataset holds fewer days than the
   // selected range asks for, so the range cannot be presented as a full period.
-  const availableHistoryDays = diffDays(WINDOW_START_KEY, REFERENCE_KEY) + 1;
+  const availableHistoryDays = diffDays(windowStartDayKey(), referenceDayKey()) + 1;
   const rangeNeedsMoreHistory =
-    range !== 'all' && diffDays(chartWindow.startKey, WINDOW_START_KEY) > 0;
+    range !== 'all' && diffDays(chartWindow.startKey, windowStartDayKey()) > 0;
 
   const windowValues = chartPoints.map(p => p.value);
-  const yDayDelta = todayPoint && latest && latest.key === REFERENCE_KEY && yesterdayPoint
+  const yDayDelta = todayPoint && latest && latest.key === referenceDayKey() && yesterdayPoint
     ? todayPoint.value - yesterdayPoint.value
     : null;
   const yDayPct = yDayDelta != null && yesterdayPoint ? percentChange(todayPoint!.value, yesterdayPoint.value) : null;
@@ -273,7 +273,7 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
         {rangeNeedsMoreHistory && (
           <DataStateNote tone="attention">
             Insufficient history for a {windowDays(chartWindow)}-day view: the dataset begins{' '}
-            {formatDayKeyLong(WINDOW_START_KEY)} and holds {availableHistoryDays} days. The window is
+            {formatDayKeyLong(windowStartDayKey())} and holds {availableHistoryDays} days. The window is
             shown at its real length and every statistic below is computed from the{' '}
             {chartPoints.length} recorded observation{chartPoints.length === 1 ? '' : 's'} only —
             nothing is extended or filled in.
@@ -598,11 +598,11 @@ function displayLatest(
 /** Resolve a range token to actual day-key bounds for the loaded series. */
 function actualRangeWindow(range: string, all: DayPoint[]): DayWindow {
   if (range === 'all') {
-    const first = all[0]?.key ?? REFERENCE_KEY;
-    return { startKey: first, endKey: REFERENCE_KEY, label: 'All time' };
+    const first = all[0]?.key ?? referenceDayKey();
+    return { startKey: first, endKey: referenceDayKey(), label: 'All time' };
   }
   const match = /^(\d+)d$/.exec(range);
-  if (match) return trailingWindow(REFERENCE_KEY, Number(match[1]));
-  if (range === '1y') return trailingWindow(REFERENCE_KEY, 365);
-  return trailingWindow(REFERENCE_KEY, 90);
+  if (match) return trailingWindow(referenceDayKey(), Number(match[1]));
+  if (range === '1y') return trailingWindow(referenceDayKey(), 365);
+  return trailingWindow(referenceDayKey(), 90);
 }

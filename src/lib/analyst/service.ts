@@ -16,7 +16,7 @@
 //   * a misconfigured or failing provider says so — it never falls back to demo
 //     output and canned text is never presented as a live model response
 
-import { REFERENCE_KEY } from '../adapters/dataset';
+import { referenceDayKey } from '../adapters/dataset';
 import type { UnitSystem } from '../prefs';
 import { getMetric } from '../metrics/registry';
 import { selectHandler, selectHandlerStrict } from './handlers';
@@ -244,7 +244,7 @@ type Preparation = Prepared | { ok: false; response: AnalystResponse };
  * own in full mode, and as the fallback when on-demand tools are refused.
  */
 async function loadFullBundle(query: string, matchedId: string | null, deps: AnalystDeps): Promise<RetrievalBundle> {
-  let bundle: RetrievalBundle = matchedId ? retrieve(matchedId, REFERENCE_KEY) : retrieveGeneral(REFERENCE_KEY);
+  let bundle: RetrievalBundle = matchedId ? retrieve(matchedId, referenceDayKey()) : retrieveGeneral(referenceDayKey());
   const handlerId = matchedId ?? GENERAL_HANDLER_ID;
 
   const labSpec = labSpecOf(handlerId) ?? DEFAULT_LAB_SPEC;
@@ -377,10 +377,10 @@ async function prepareAnalyst(
   if (onDemandMode) {
     // Nothing is pre-loaded: the model gets an index of what exists and fetches what
     // the question needs. The full context is built only if the tools are refused.
-    bundle = retrieveNone(handlerId, REFERENCE_KEY);
+    bundle = retrieveNone(handlerId, referenceDayKey());
     const access = createDataAccess({
       system,
-      refKey: REFERENCE_KEY,
+      refKey: referenceDayKey(),
       env: deps.env,
       ...(deps.labSource ? { labSource: deps.labSource } : {}),
       medications: async days =>
@@ -389,7 +389,7 @@ async function prepareAnalyst(
           lookbackDays: days,
         })) ?? unavailableMedicationSnapshot('The medication records could not be read.')),
     });
-    const index = renderDataIndex(buildDataIndex(REFERENCE_KEY, await access.labSource()));
+    const index = renderDataIndex(buildDataIndex(referenceDayKey(), await access.labSource()));
     onDemand = { access, index, full: fullBundle };
   } else {
     try {
@@ -433,7 +433,7 @@ function pageGrounding(prep: Prepared): string[] {
 /** Build the provider request context from a prepared analyst question. */
 function providerContext(prep: Prepared): AnalystProviderContext {
   return {
-    refKey: REFERENCE_KEY,
+    refKey: referenceDayKey(),
     system: prep.system,
     bundle: prep.bundle,
     question: prep.query,

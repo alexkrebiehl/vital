@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { ChevronRight, Info, UtensilsCrossed } from 'lucide-react';
 import { getMetric, getMetricsByCategory } from '@/lib/metrics';
 import { formatMetricWithUnit } from '@/lib/metrics/format';
-import { REFERENCE_KEY, coverageFor, seriesFor, seriesInWindow } from '@/lib/adapters/dataset';
+import { referenceDayKey, coverageFor, seriesFor, seriesInWindow } from '@/lib/adapters/dataset';
 import {
   ASSOCIATION_NOTE,
   computeRelationship,
@@ -70,8 +70,8 @@ export function NutritionPage() {
   const [range, setRange] = useState(String(LOGGED_WINDOW_DAYS));
 
   const days = Number(range);
-  const window = trailingWindow(REFERENCE_KEY, days);
-  const stats = HEADLINE.map(id => loggedDayStats(id, REFERENCE_KEY, days));
+  const window = trailingWindow(referenceDayKey(), days);
+  const stats = HEADLINE.map(id => loggedDayStats(id, referenceDayKey(), days));
   // Owner request 2: a nutrient with no logged day in this window is not
   // rendered as a card, and the section disappears with its last card.
   const loggedStats = stats.filter(s => s.loggedDays > 0);
@@ -80,7 +80,7 @@ export function NutritionPage() {
   // Owner request 2: a fixed association is shown only when both of its metrics
   // actually have observations in the window being compared.
   const associationPairs = useMemo(() => {
-    const win = trailingWindow(REFERENCE_KEY, days);
+    const win = trailingWindow(referenceDayKey(), days);
     return ASSOCIATION_PAIRS.map(p => ({
       ...p,
       available: seriesInWindow(p.xId, win).length > 0 && seriesInWindow(p.yId, win).length > 0,
@@ -338,7 +338,7 @@ function AssociationCard({
   title: string;
   description: string;
 }) {
-  const window = trailingWindow(REFERENCE_KEY, days);
+  const window = trailingWindow(referenceDayKey(), days);
   const result = computeRelationship(xId, yId, window, alignment, lagDays);
   const xMeta = getMetric(xId);
   const yMeta = getMetric(yId);

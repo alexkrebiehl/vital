@@ -32,7 +32,7 @@
 //
 // Generation happens ONCE PER LOCAL CALENDAR DAY, and the cache key says so:
 //
-//     briefing:v<contextVersion>:<day>:<profileFingerprint>:<unit system>
+//     briefing:v<contextVersion>:<profile slug>:<day>:<profileFingerprint>:<unit system>
 //
 // The key carries no dataset identity. Health Auto Export lands new observations
 // all day long, and a briefing that regenerated whenever one arrived would be a
@@ -57,7 +57,8 @@
 // The computed text can never be labelled as model output, and vice versa.
 
 import { buildBriefing } from '../analytics/narrative';
-import { REFERENCE_KEY } from '../adapters/dataset';
+import { referenceDayKey } from '../adapters/dataset';
+import { cacheOwner } from '../identity/scope';
 import type { UnitSystem } from '../prefs';
 import { ageInYears, defaultProfile, type VitalProfile } from '../profile/types';
 import { briefingSchedule, briefingTimeLabel, type BriefingSchedule } from './schedule';
@@ -274,8 +275,8 @@ function profileFingerprint(profile: VitalProfile | null | undefined): string {
 }
 
 /**
- * The cache key: the local calendar day the briefing is for, the profile fields
- * that reach the prompt, and the unit system.
+ * The cache key: whose briefing it is, the local calendar day it is for, the
+ * profile fields that reach the prompt, and the unit system.
  *
  * Deliberately day-granular and deliberately free of any dataset identity:
  * Health Auto Export lands new observations all day long, and regenerating on
@@ -284,9 +285,22 @@ function profileFingerprint(profile: VitalProfile | null | undefined): string {
 export function briefingCacheKey(
   schedule: BriefingSchedule,
   system: UnitSystem = 'metric',
-  profile?: VitalProfile | null
+  profile?: VitalProfile | null,
+  owner: string = cacheOwner()
 ): string {
-  return `briefing:v${BRIEFING_CONTEXT_VERSION}:${schedule.coversDay}:${profileFingerprint(profile)}:${system}`;
+  return `${ownerPrefix(owner)}${schedule.coversDay}:${profileFingerprint(profile)}:${system}`;
+}
+
+/** Every key of one profile's briefings starts with this. */
+function ownerPrefix(owner: string): string {
+  return `briefing:v${BRIEFING_CONTEXT_VERSION}:${owner}:`;
+}
+
+/** True while one of the current profile's briefings is being written. */
+function pendingForOwner(): boolean {
+  const prefix = ownerPrefix(cacheOwner());
+  for (const key of state.inFlight.keys()) if (key.startsWith(prefix)) return true;
+  return false;
 }
 
 // ── Fallback ────────────────────────────────────────────
@@ -297,7 +311,7 @@ export function computedBriefing(
   schedule: BriefingSchedule,
   options: { reason?: string | null; engineDetail?: string | null; adjustments?: string[] } = {}
 ): BriefingPayload {
-  const briefing = buildBriefing(REFERENCE_KEY, context.profile?.goals ?? null);
+  const briefing = buildBriefing(referenceDayKey(), context.profile?.goals ?? null);
   return {
     kind: 'computed',
     headline: briefing.headline,
@@ -463,7 +477,7 @@ export function readBriefing(deps: BriefingDeps = {}): BriefingView {
   const cached = peekPayload(key);
   if (cached) {
     state.hits += 1;
-    return { ...cached, pending: state.inFlight.size > 0, cached: true };
+    return { ...cached, pending: pendingForOwner(), cached: true };
   }
   state.misses += 1;
 
@@ -478,7 +492,7 @@ export function readBriefing(deps: BriefingDeps = {}): BriefingView {
   const failure = lastBriefingFailure(key);
   return {
     ...computedBriefing(context, schedule, { reason: failure?.reason ?? null }),
-    pending: state.inFlight.size > 0,
+    pending: pendingForOwner(),
     cached: false,
   };
 }
@@ -501,7 +515,7 @@ export async function regenerateBriefing(deps: BriefingDeps = {}): Promise<Brief
   state.entries.delete(key);
   state.failures.delete(key);
   const payload = await startLoad(key, () => generateFor(key, context, deps, schedule, { forceProbe: true }));
-  return { ...payload, pending: state.inFlight.size > 0, cached: false };
+  return { ...payload, pending: pendingForOwner(), cached: false };
 }
 
 // ── Warm-up ─────────────────────────────────────────────

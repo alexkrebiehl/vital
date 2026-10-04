@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { seriesFor, seriesInWindow, REFERENCE_KEY } from '@/lib/adapters/dataset';
+import { seriesFor, seriesInWindow, referenceDayKey } from '@/lib/adapters/dataset';
 import { trailingWindow, formatDayKeyLong } from '@/lib/analytics';
 import { formatMetricValue, metricUnit } from '@/lib/metrics/format';
 import { getMetric } from '@/lib/metrics';
@@ -24,10 +24,10 @@ export function HeroFigure({
   // is partial. Lead with the last complete day and say so, rather than show a
   // half-finished total as if it were the day's result.
   const partialToday =
-    meta?.aggregationStrategy === 'sum' && all.length > 0 && all[all.length - 1].key === REFERENCE_KEY;
+    meta?.aggregationStrategy === 'sum' && all.length > 0 && all[all.length - 1].key === referenceDayKey();
   const latest = partialToday ? all[all.length - 2] : all.length ? all[all.length - 1] : undefined;
   if (!meta || !latest) return null;
-  const pts = seriesInWindow(metricId, trailingWindow(REFERENCE_KEY, days));
+  const pts = seriesInWindow(metricId, trailingWindow(referenceDayKey(), days));
   const formatted = formatMetricValue(metricId, latest.value, units);
   // Duration formats (7h 14m) already carry their unit; a bare number takes the metric's.
   const unit = /[a-z]/i.test(formatted) ? '' : metricUnit(metricId, units);

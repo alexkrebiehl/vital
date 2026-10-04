@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { REFERENCE_KEY, seriesInWindow } from '@/lib/adapters/dataset';
+import { referenceDayKey, seriesInWindow } from '@/lib/adapters/dataset';
 import { formatMetricWithUnit } from '@/lib/metrics/format';
 import { windowRangeLabel } from '@/lib/analytics/windows';
 import {
@@ -14,14 +14,14 @@ import {
 import { ASSOCIATION_NOTE, MIN_PAIRED_OBSERVATIONS } from '@/lib/analytics/relationships';
 
 describe('insight generation (SPEC §7)', () => {
-  const insights = generateInsights(REFERENCE_KEY);
+  const insights = generateInsights(referenceDayKey());
 
   it('produces at least one observation from the dataset', () => {
     expect(insights.length).toBeGreaterThan(0);
   });
 
   it('is deterministic across calls', () => {
-    const again = generateInsights(REFERENCE_KEY);
+    const again = generateInsights(referenceDayKey());
     expect(again.map(i => [i.id, i.title, i.summary])).toEqual(insights.map(i => [i.id, i.title, i.summary]));
   });
 
@@ -45,7 +45,7 @@ describe('insight generation (SPEC §7)', () => {
   it('only emits a change or trend insight with enough observations on both sides', () => {
     for (const insight of insights.filter(i => i.kind === 'change' || i.kind === 'trend')) {
       const days = insight.kind === 'change' ? 7 : 90;
-      const cmp = compareWindows(insight.metricId, REFERENCE_KEY, days);
+      const cmp = compareWindows(insight.metricId, referenceDayKey(), days);
       expect(cmp.counts.evaluated).toBeGreaterThanOrEqual(MIN_INSIGHT_OBSERVATIONS);
       expect(cmp.counts.baseline).toBeGreaterThanOrEqual(MIN_INSIGHT_OBSERVATIONS);
       if (insight.kind === 'change') {
@@ -58,7 +58,7 @@ describe('insight generation (SPEC §7)', () => {
     const change = insights.filter(i => i.kind === 'change');
     expect(change.length).toBeGreaterThan(0);
     for (const insight of change) {
-      const cmp = compareWindows(insight.metricId, REFERENCE_KEY, 7);
+      const cmp = compareWindows(insight.metricId, referenceDayKey(), 7);
       const expected = formatMetricWithUnit(insight.metricId, cmp.comparison.current, 'metric');
       expect(insight.computed).toContain(`This period: ${expected}`);
       expect(insight.detail).toContain(windowRangeLabel(cmp.evaluatedWindow));
@@ -85,9 +85,9 @@ describe('insight generation (SPEC §7)', () => {
 
   it('gates an observation entirely when the evidence is too thin', () => {
     // A one-day window cannot satisfy the coverage gate, so nothing is emitted.
-    const tiny = compareWindows('sleep_analysis', REFERENCE_KEY, 1);
+    const tiny = compareWindows('sleep_analysis', referenceDayKey(), 1);
     expect(tiny.counts.evaluated).toBeLessThan(MIN_INSIGHT_OBSERVATIONS);
-    const singleDay = generateInsights(REFERENCE_KEY).filter(
+    const singleDay = generateInsights(referenceDayKey()).filter(
       i => i.kind === 'change' && i.metricId === 'sleep_analysis' && i.windowLabel.includes('1 day')
     );
     expect(singleDay).toEqual([]);
@@ -114,7 +114,7 @@ describe('insight generation (SPEC §7)', () => {
   it('uses the dataset for its window bounds', () => {
     for (const insight of insights) {
       const days = insight.kind === 'change' ? 7 : 90;
-      const cmp = compareWindows(insight.metricId, REFERENCE_KEY, days);
+      const cmp = compareWindows(insight.metricId, referenceDayKey(), days);
       expect(seriesInWindow(insight.metricId, cmp.evaluatedWindow).length).toBe(cmp.counts.evaluated);
     }
   });

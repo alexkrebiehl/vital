@@ -16,7 +16,7 @@
 // identifier appears here.
 
 import { describe, expect, it } from 'vitest';
-import { REFERENCE_KEY } from '@/lib/adapters/dataset';
+import { referenceDayKey } from '@/lib/adapters/dataset';
 import { retrieve } from '@/lib/analyst/retrieval';
 import { HANDLERS, BOUNDARY_NOTE, selectHandler, selectHandlerStrict } from '@/lib/analyst/handlers';
 import { askAnalyst } from '@/lib/analyst/service';
@@ -155,7 +155,7 @@ describe('the lab block travels inside the untrusted boundaries (SPEC §8)', () 
     const source = labSourceFixture();
     source.series[0]!.displayName = injection;
     const snapshot = buildLabSnapshot(source, { question: 'What do my lab results show?' });
-    const bundle = { ...retrieve('lab-results', REFERENCE_KEY), lab: snapshot };
+    const bundle = { ...retrieve('lab-results', referenceDayKey()), lab: snapshot };
     const message = buildAnalystUserMessage({ question: 'What are my lab results?', bundle, system: 'metric' });
     const start = message.indexOf(UNTRUSTED_START);
     const end = message.indexOf(UNTRUSTED_END);
@@ -257,7 +257,7 @@ describe('the lab handler (SPEC §8)', () => {
 
   it('answers from the lab block: totals, one line per series and a link each', () => {
     const lab = HANDLERS.find(h => h.id === 'lab-results')!;
-    const answer = lab.run({ bundle: labBundleFor('lab-results', 'What do my lab results show?'), system: 'metric', refKey: REFERENCE_KEY });
+    const answer = lab.run({ bundle: labBundleFor('lab-results', 'What do my lab results show?'), system: 'metric', refKey: referenceDayKey() });
     expect(answer.observed[0]).toContain('2 documents');
     expect(answer.observed.some(line => line.includes('242 mg/dL'))).toBe(true);
     expect(answer.evidence.map(e => e.href)).toContain('/lab/total_cholesterol');
@@ -270,7 +270,7 @@ describe('the lab handler (SPEC §8)', () => {
     const answer = lab.run({
       bundle: labBundleFor('lab-results', 'What is my vitamin D level?'),
       system: 'metric',
-      refKey: REFERENCE_KEY,
+      refKey: referenceDayKey(),
     });
     expect(answer.observed[0]).toContain('No lab results for "25-hydroxy vitamin D"');
     expect(answer.evidence).toEqual([]);
@@ -278,7 +278,7 @@ describe('the lab handler (SPEC §8)', () => {
 
   it('offers plausible follow-ups in the style of the other handlers', () => {
     const lab = HANDLERS.find(h => h.id === 'lab-results')!;
-    const answer = lab.run({ bundle: labBundleFor('lab-results', CHOLESTEROL_QUESTION), system: 'metric', refKey: REFERENCE_KEY });
+    const answer = lab.run({ bundle: labBundleFor('lab-results', CHOLESTEROL_QUESTION), system: 'metric', refKey: referenceDayKey() });
     expect(answer.followUps.length).toBeGreaterThanOrEqual(1);
     expect(answer.followUps.length).toBeLessThanOrEqual(3);
     for (const follow of answer.followUps) {
@@ -291,9 +291,9 @@ describe('the lab handler (SPEC §8)', () => {
   it('refuses to guess when the lab block is absent', () => {
     const lab = HANDLERS.find(h => h.id === 'lab-results')!;
     const answer = lab.run({
-      bundle: { handlerId: 'lab-results', refKey: REFERENCE_KEY, summaries: [], pairs: [], workouts: null, lab: null, recordsRead: 0, note: '' },
+      bundle: { handlerId: 'lab-results', refKey: referenceDayKey(), summaries: [], pairs: [], workouts: null, lab: null, recordsRead: 0, note: '' },
       system: 'metric',
-      refKey: REFERENCE_KEY,
+      refKey: referenceDayKey(),
     });
     expect(answer.observed[0]).toMatch(/No lab results could be selected/);
     expect(answer.evidence).toEqual([]);
@@ -367,11 +367,11 @@ describe('the grounding guard covers lab figures (SPEC §8)', () => {
 
   it('still rejects an invented METRIC figure when a lab block is attached', () => {
     // The lab block adds numbers to the bundle; the metric guard must not loosen.
-    const bundle = { ...retrieve('sleep-1-month', REFERENCE_KEY), lab: labSnapshotFor('How is my sleep?') };
+    const bundle = { ...retrieve('sleep-1-month', referenceDayKey()), lab: labSnapshotFor('How is my sleep?') };
     const bad = checkGrounding(answerWith(['Time asleep averaged 9h 12m in the last 30 days.']), bundle);
     expect(bad.unmatched).toContain('9h 12m');
 
-    const payload = buildContextPayload(retrieve('sleep-1-month', REFERENCE_KEY), 'metric');
+    const payload = buildContextPayload(retrieve('sleep-1-month', referenceDayKey()), 'metric');
     const mean = payload.metrics[0]!.display.mean;
     const good = checkGrounding(answerWith([`Time asleep averaged ${mean} in the last 30 days.`]), bundle);
     expect(good.unmatched).toEqual([]);
@@ -631,7 +631,7 @@ describe('gate 29k — absence is never reported for a series that exists (SPEC 
   it('puts the left-out name in front of the model, inside the untrusted block', () => {
     const { source, target } = crowdedSource();
     const capped = buildLabSnapshot(source, { question: 'What do my lab results show?' });
-    const bundle = { ...retrieve('lab-results', REFERENCE_KEY), lab: capped };
+    const bundle = { ...retrieve('lab-results', referenceDayKey()), lab: capped };
     const message = buildAnalystUserMessage({ question: 'What do my lab results show?', bundle, system: 'metric' });
 
     const start = message.indexOf(UNTRUSTED_START);
@@ -736,7 +736,7 @@ describe('gate 29k — a suggested follow-up must exist (SPEC §8)', () => {
       'What is my vitamin D level?',
     ];
     for (const question of questions) {
-      const answer = labHandler().run({ bundle: labBundleFor('lab-results', question), system: 'metric', refKey: REFERENCE_KEY });
+      const answer = labHandler().run({ bundle: labBundleFor('lab-results', question), system: 'metric', refKey: referenceDayKey() });
       expect(answer.followUps.length).toBeGreaterThanOrEqual(1);
       for (const follow of answer.followUps) {
         const requested = analyteRequestedBy(follow);
@@ -753,7 +753,7 @@ describe('gate 29k — a suggested follow-up must exist (SPEC §8)', () => {
     const answer = labHandler().run({
       bundle: labBundleFor('lab-results', 'What do my lab results show?'),
       system: 'metric',
-      refKey: REFERENCE_KEY,
+      refKey: referenceDayKey(),
     });
     const requested = analyteRequestedBy(answer.followUps[0]!);
     expect(requested).not.toBeNull();
@@ -764,8 +764,8 @@ describe('gate 29k — a suggested follow-up must exist (SPEC §8)', () => {
   it('states, in the answer, what a capped selection left out', () => {
     const { source } = crowdedSource();
     const capped = buildLabSnapshot(source, { question: 'What do my lab results show?' });
-    const bundle = { ...retrieve('lab-results', REFERENCE_KEY), lab: capped };
-    const answer = labHandler().run({ bundle, system: 'metric', refKey: REFERENCE_KEY });
+    const bundle = { ...retrieve('lab-results', referenceDayKey()), lab: capped };
+    const answer = labHandler().run({ bundle, system: 'metric', refKey: referenceDayKey() });
     const line = answer.observed.find(entry => entry.includes('does not carry every stored series'));
     expect(line).toBeDefined();
     expect(line).toContain('Total cholesterol');

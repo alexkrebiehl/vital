@@ -25,8 +25,8 @@
 // BRIEFING_CONTEXT_MAX_TOKENS for the live history.
 
 import {
-  REFERENCE_KEY,
-  REFERENCE_TZ,
+  referenceDayKey,
+  referenceTimezone,
   coverageFor,
   datasetMeta,
   hasSleepStages,
@@ -235,17 +235,17 @@ function metricFact(metricId: string, system: UnitSystem): BriefingMetricFact | 
   const cov = coverageFor(metricId);
   if (points.length === 0) return null;
 
-  const evaluated = trailingWindow(REFERENCE_KEY, BRIEFING_EVALUATED_DAYS, `Last ${BRIEFING_EVALUATED_DAYS} days`);
+  const evaluated = trailingWindow(referenceDayKey(), BRIEFING_EVALUATED_DAYS, `Last ${BRIEFING_EVALUATED_DAYS} days`);
   const prior = previousWindow(evaluated, BRIEFING_PRIOR_DAYS, `Prior ${BRIEFING_PRIOR_DAYS} days`);
   const baseline = previousWindow(
-    trailingWindow(REFERENCE_KEY, BRIEFING_BASELINE_DAYS, `Last ${BRIEFING_BASELINE_DAYS} days`),
+    trailingWindow(referenceDayKey(), BRIEFING_BASELINE_DAYS, `Last ${BRIEFING_BASELINE_DAYS} days`),
     BRIEFING_BASELINE_DAYS,
     `Prior ${BRIEFING_BASELINE_DAYS} days`
   );
 
   // Complete-day comparison for accumulating metrics: the in-progress day is
   // excluded from BOTH sides rather than compared with a complete day.
-  const cmp = compareWindows(metricId, REFERENCE_KEY, BRIEFING_EVALUATED_DAYS, { meta });
+  const cmp = compareWindows(metricId, referenceDayKey(), BRIEFING_EVALUATED_DAYS, { meta });
 
   const latestPoint = points[points.length - 1];
   const evaluatedValues = pointsIn(metricId, cmp.evaluatedWindow);
@@ -309,7 +309,7 @@ function minutesSinceNoon(iso: string): number | null {
   const t = Date.parse(iso);
   if (!Number.isFinite(t)) return null;
   const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: REFERENCE_TZ,
+    timeZone: referenceTimezone(),
     hour: 'numeric',
     minute: 'numeric',
     hour12: false,
@@ -332,12 +332,12 @@ function sleepFact(system: UnitSystem): BriefingSleepFact | null {
   if (nights.length === 0) return null;
 
   const staged = nights.filter(hasSleepStages);
-  const evaluated = trailingWindow(REFERENCE_KEY, BRIEFING_EVALUATED_DAYS, `Last ${BRIEFING_EVALUATED_DAYS} days`);
+  const evaluated = trailingWindow(referenceDayKey(), BRIEFING_EVALUATED_DAYS, `Last ${BRIEFING_EVALUATED_DAYS} days`);
   const inWindow = (list: typeof nights) => list.filter(n => n.key >= evaluated.startKey && n.key <= evaluated.endKey);
   const stagedWindow = inWindow(staged);
   const allWindow = inWindow(nights);
   const consistencyWindow = nights.filter(
-    n => n.key >= trailingWindow(REFERENCE_KEY, BRIEFING_SLEEP_CONSISTENCY_DAYS).startKey
+    n => n.key >= trailingWindow(referenceDayKey(), BRIEFING_SLEEP_CONSISTENCY_DAYS).startKey
   );
 
   const latest = nights[nights.length - 1];
@@ -407,7 +407,7 @@ function medianOf(values: number[]): number {
 // ── Workouts ────────────────────────────────────────────
 
 function workoutFact(): BriefingWorkoutFact {
-  const evaluated = trailingWindow(REFERENCE_KEY, BRIEFING_EVALUATED_DAYS, `Last ${BRIEFING_EVALUATED_DAYS} days`);
+  const evaluated = trailingWindow(referenceDayKey(), BRIEFING_EVALUATED_DAYS, `Last ${BRIEFING_EVALUATED_DAYS} days`);
   const prior = previousWindow(evaluated, BRIEFING_PRIOR_DAYS, `Prior ${BRIEFING_PRIOR_DAYS} days`);
   const sessions = workoutList();
   const inWindow = (win: DayWindow) =>
@@ -441,7 +441,7 @@ const EXPECTED_BUT_OFTEN_ABSENT = ['vo2max', 'blood_pressure', 'respiratory_rate
  */
 function missingNotes(presentMetricIds: Set<string>, withData: BriefingMetricFact[]): string[] {
   const notes: string[] = [];
-  const evaluated = trailingWindow(REFERENCE_KEY, BRIEFING_EVALUATED_DAYS);
+  const evaluated = trailingWindow(referenceDayKey(), BRIEFING_EVALUATED_DAYS);
 
   for (const metricId of EXPECTED_BUT_OFTEN_ABSENT) {
     const meta = getMetric(metricId);
@@ -522,7 +522,7 @@ export function buildBriefingContext(
   // carries no profile facts rather than reading a second source here.
   const profile = options.profile ?? null;
   const meta = datasetMeta();
-  const evaluated = trailingWindow(REFERENCE_KEY, BRIEFING_EVALUATED_DAYS, `Last ${BRIEFING_EVALUATED_DAYS} days`);
+  const evaluated = trailingWindow(referenceDayKey(), BRIEFING_EVALUATED_DAYS, `Last ${BRIEFING_EVALUATED_DAYS} days`);
   const prior = previousWindow(evaluated, BRIEFING_PRIOR_DAYS, `Prior ${BRIEFING_PRIOR_DAYS} days`);
 
   // The goals decide what comes first. The metrics that bear on them lead the list
@@ -562,7 +562,7 @@ export function buildBriefingContext(
       evaluatedRange: windowRangeLabel(evaluated),
       priorRange: windowRangeLabel(prior),
       baselineRange: windowRangeLabel(
-        previousWindow(trailingWindow(REFERENCE_KEY, BRIEFING_BASELINE_DAYS), BRIEFING_BASELINE_DAYS)
+        previousWindow(trailingWindow(referenceDayKey(), BRIEFING_BASELINE_DAYS), BRIEFING_BASELINE_DAYS)
       ),
     },
     metrics: facts,

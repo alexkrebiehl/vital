@@ -6,7 +6,7 @@
 // a single reading, and no insight is written by hand.
 
 import { getMetric } from '../metrics/registry';
-import { REFERENCE_KEY, seriesFor } from '../adapters/dataset';
+import { referenceDayKey, seriesFor } from '../adapters/dataset';
 import { formatMetricWithUnit, formatPercent } from '../metrics/format';
 import type { UnitSystem } from '../prefs';
 import { compareWindows } from './comparisons';
@@ -90,7 +90,7 @@ function windowPoints(metricId: string, startKey: string, endKey: string, cap = 
 }
 
 /** Every insight the dataset can currently support, most significant first. */
-export function generateInsights(refKey: string = REFERENCE_KEY, system: UnitSystem = 'metric'): Insight[] {
+export function generateInsights(refKey: string = referenceDayKey(), system: UnitSystem = 'metric'): Insight[] {
   const out: Insight[] = [];
 
   // ── Changes: last 7 days against the preceding 7 ──────

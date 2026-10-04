@@ -8,11 +8,12 @@ import { NextResponse } from 'next/server';
 import type { UnitSystem } from '@/lib/prefs';
 import { NO_STORE, routineFailure } from '@/lib/routine/http';
 import { loadRoutine, workoutDetailFrom } from '@/lib/routine/service';
+import { scoped } from '@/lib/identity';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export async function GET(request: Request, { params }: { params: Promise<{ templateId: string }> }) {
+async function handleGET(request: Request, { params }: { params: Promise<{ templateId: string }> }) {
   const { templateId } = await params;
   const system: UnitSystem = new URL(request.url).searchParams.get('system') === 'imperial' ? 'imperial' : 'metric';
   try {
@@ -29,3 +30,5 @@ export async function GET(request: Request, { params }: { params: Promise<{ temp
     return routineFailure(error);
   }
 }
+
+export const GET = scoped(handleGET);

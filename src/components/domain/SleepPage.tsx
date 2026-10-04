@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { formatMetricValue, formatMetricWithUnit } from '@/lib/metrics/format';
 import {
-  REFERENCE_KEY,
-  REFERENCE_TZ,
+  referenceDayKey,
+  referenceTimezone,
   sleepSeries,
   sleepCoverageSummary,
   seriesFor,
@@ -48,13 +48,13 @@ export function SleepPage() {
   const latest: SleepDay | undefined = all[all.length - 1];
   const latestStagesRecorded = latest ? hasSleepStages(latest) : false;
   const coverage = sleepCoverageSummary(all);
-  const last90 = all.filter(s => s.key >= trailingWindow(REFERENCE_KEY, LONG_DAYS).startKey);
-  const last90Staged = stagedNights.filter(s => s.key >= trailingWindow(REFERENCE_KEY, LONG_DAYS).startKey);
-  const last30 = stagedNights.filter(s => s.key >= trailingWindow(REFERENCE_KEY, DAYS).startKey);
-  const last30All = all.filter(s => s.key >= trailingWindow(REFERENCE_KEY, DAYS).startKey);
+  const last90 = all.filter(s => s.key >= trailingWindow(referenceDayKey(), LONG_DAYS).startKey);
+  const last90Staged = stagedNights.filter(s => s.key >= trailingWindow(referenceDayKey(), LONG_DAYS).startKey);
+  const last30 = stagedNights.filter(s => s.key >= trailingWindow(referenceDayKey(), DAYS).startKey);
+  const last30All = all.filter(s => s.key >= trailingWindow(referenceDayKey(), DAYS).startKey);
 
-  const asleepSummary = buildSeriesSummary('sleep_analysis', REFERENCE_KEY, DAYS, units);
-  const inBedSummary = buildSeriesSummary('sleep_in_bed', REFERENCE_KEY, DAYS, units);
+  const asleepSummary = buildSeriesSummary('sleep_analysis', referenceDayKey(), DAYS, units);
+  const inBedSummary = buildSeriesSummary('sleep_in_bed', referenceDayKey(), DAYS, units);
   const hasCompareWindow = asleepSummary.points.length > 0 || inBedSummary.points.length > 0;
 
   const bedtimeStats = bedtimeStatsFor(last30All);
@@ -78,7 +78,7 @@ export function SleepPage() {
       <DomainHeader
         title="Sleep"
         aside={<HeroFigure metricId="sleep_analysis" category="sleep" days={30} />}
-        subtitle={`Latest episode, stages, duration, consistency and recovery across ${windowRangeLabel(trailingWindow(REFERENCE_KEY, LONG_DAYS))}. Nights are assigned to the waking date.`}
+        subtitle={`Latest episode, stages, duration, consistency and recovery across ${windowRangeLabel(trailingWindow(referenceDayKey(), LONG_DAYS))}. Nights are assigned to the waking date.`}
       />
 
       {/* ── Latest episode ─────────────────────────── */}
@@ -194,7 +194,7 @@ export function SleepPage() {
             <div>
               <h2 className="text-[20px] md:text-[24px] font-semibold text-text-primary">Sleep stages by night</h2>
               <p className="text-xs text-text-secondary mt-0.5">
-                {windowRangeLabel(trailingWindow(REFERENCE_KEY, LONG_DAYS))} · {last90.length} nights
+                {windowRangeLabel(trailingWindow(referenceDayKey(), LONG_DAYS))} · {last90.length} nights
               </p>
             </div>
             <div className="flex rounded-control overflow-hidden border border-border">
@@ -245,7 +245,7 @@ export function SleepPage() {
       {/* ── Duration timeline (time asleep) ───────── */}
       {last90Staged.length > 0 && (
         <section>
-          <SectionTitle hint={`${windowRangeLabel(trailingWindow(REFERENCE_KEY, LONG_DAYS))} · ${last90Staged.length} nights with a stage split`}>
+          <SectionTitle hint={`${windowRangeLabel(trailingWindow(referenceDayKey(), LONG_DAYS))} · ${last90Staged.length} nights with a stage split`}>
             Time asleep timeline
           </SectionTitle>
           <Card className="p-4 md:p-6">
@@ -481,7 +481,7 @@ function AlignedPair({
   units: 'metric' | 'imperial';
   showXAxis?: boolean;
 }) {
-  const win = trailingWindow(REFERENCE_KEY, windowDays);
+  const win = trailingWindow(referenceDayKey(), windowDays);
   const points = seriesFor(metricId).filter(p => p.key >= win.startKey && p.key <= win.endKey);
   return (
     <div>
@@ -514,7 +514,7 @@ interface BedtimeStats {
 
 /** Local wall-clock time of an ISO instant in the dataset timezone. */
 function localTime(iso: string): string {
-  return clockLabel(iso, REFERENCE_TZ);
+  return clockLabel(iso, referenceTimezone());
 }
 
 /**
@@ -523,7 +523,7 @@ function localTime(iso: string): string {
  */
 function minutesSinceNoon(iso: string): number {
   const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: REFERENCE_TZ,
+    timeZone: referenceTimezone(),
     hour: 'numeric',
     minute: 'numeric',
     hour12: false,

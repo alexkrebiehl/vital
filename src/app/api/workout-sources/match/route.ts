@@ -8,13 +8,14 @@
 import { NextResponse } from 'next/server';
 import { matchSession } from '@/lib/workout-sources/match';
 import { loadTrainingData } from '@/lib/workout-sources/store';
+import { scoped } from '@/lib/identity';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 const NO_STORE = { 'Cache-Control': 'no-store, private' } as const;
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   const url = new URL(request.url);
   const start = url.searchParams.get('start') ?? '';
   const end = url.searchParams.get('end') ?? '';
@@ -29,3 +30,5 @@ export async function GET(request: Request) {
     { headers: NO_STORE }
   );
 }
+
+export const GET = scoped(handleGET);

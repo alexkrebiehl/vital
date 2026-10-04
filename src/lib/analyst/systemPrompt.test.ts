@@ -7,7 +7,7 @@
 // raw numbers the grounding audit compares against.
 
 import { describe, expect, it } from 'vitest';
-import { REFERENCE_KEY } from '@/lib/adapters/dataset';
+import { referenceDayKey } from '@/lib/adapters/dataset';
 import { retrieve, retrieveGeneral } from '@/lib/analyst/retrieval';
 import { formatMetricWithUnit } from '@/lib/metrics/format';
 import {
@@ -18,7 +18,7 @@ import {
 } from '@/lib/analyst/systemPrompt';
 import type { RetrievalBundle } from '@/lib/analyst/types';
 
-const sleepBundle = retrieve('sleep-1-month', REFERENCE_KEY);
+const sleepBundle = retrieve('sleep-1-month', referenceDayKey());
 const sleepPayload = buildContextPayload(sleepBundle, 'metric');
 const sleep = sleepPayload.metrics[0];
 
@@ -35,7 +35,7 @@ describe('analyst context payload (SPEC §8)', () => {
   });
 
   it('never puts more than two decimal places in any display string', () => {
-    for (const bundle of [sleepBundle, retrieveGeneral(REFERENCE_KEY)]) {
+    for (const bundle of [sleepBundle, retrieveGeneral(referenceDayKey())]) {
       for (const text of collectDisplayStrings(bundle)) {
         expect(text).not.toMatch(/\d\.\d{4,}/);
       }
@@ -57,7 +57,7 @@ describe('analyst context payload (SPEC §8)', () => {
   });
 
   it('names a unit for every metric in the general selection', () => {
-    const payload = buildContextPayload(retrieveGeneral(REFERENCE_KEY), 'metric');
+    const payload = buildContextPayload(retrieveGeneral(referenceDayKey()), 'metric');
     for (const metric of payload.metrics) {
       expect(metric.display.unit.length).toBeGreaterThan(0);
       expect(metric.display.metricName.length).toBeGreaterThan(0);

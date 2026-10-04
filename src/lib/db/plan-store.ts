@@ -13,6 +13,7 @@
 // an update names the revision it was based on — a stale one is refused rather
 // than silently overwriting a newer change.
 
+import { requireUserId } from '@/lib/identity/scope';
 import { validatePlan } from '@/lib/routine/validate';
 import {
   PLAN_SCHEMA_VERSION,
@@ -88,19 +89,19 @@ async function inTransaction<T>(client: PlanSqlClient, fn: (tx: PoolLike) => Pro
 }
 
 export async function pgActivePlan(client: PlanSqlClient): Promise<StoredPlan | null> {
-  const result = await client.query(`SELECT ${PLAN_COLUMNS} FROM training_plans WHERE status = 'active' LIMIT 1`);
+  const result = await client.query(`SELECT ${PLAN_COLUMNS} FROM training_plans WHERE status = 'active' AND user_id = $1 LIMIT 1`, [requireUserId()]);
   return result.rows[0] ? toStoredPlan(result.rows[0]) : null;
 }
 
 export async function pgGetPlan(client: PlanSqlClient, id: string): Promise<StoredPlan | null> {
-  const result = await client.query(`SELECT ${PLAN_COLUMNS} FROM training_plans WHERE id = $1`, [id]);
+  const result = await client.query(`SELECT ${PLAN_COLUMNS} FROM training_plans WHERE id = $1 AND user_id = $2`, [id, requireUserId()]);
   return result.rows[0] ? toStoredPlan(result.rows[0]) : null;
 }
 
 export async function pgListPlans(client: PlanSqlClient, limit = 20): Promise<StoredPlan[]> {
   const result = await client.query(
-    `SELECT ${PLAN_COLUMNS} FROM training_plans ORDER BY updated_at DESC LIMIT $1`,
-    [limit]
+    `SELECT ${PLAN_COLUMNS} FROM training_plans WHERE user_id = $2 ORDER BY updated_at DESC LIMIT $1`,
+    [limit, requireUserId()]
   );
   return result.rows.map(toStoredPlan);
 }
@@ -117,13 +118,17 @@ export async function pgCreatePlan(
   plan: TrainingPlan,
   meta: { source: PlanChangeSource; summary: string }
 ): Promise<StoredPlan> {
+  const userId = requireUserId();
   return inTransaction(client, async tx => {
-    await tx.query(`UPDATE training_plans SET status = 'archived', updated_at = now() WHERE status = 'active'`);
+    await tx.query(
+      `UPDATE training_plans SET status = 'archived', updated_at = now() WHERE status = 'active' AND user_id = $1`,
+      [userId]
+    );
     const result = await tx.query(
-      `INSERT INTO training_plans (id, status, plan, schema_version, revision)
-       VALUES ($1, 'active', $2, $3, 1)
+      `INSERT INTO training_plans (id, status, plan, schema_version, revision, user_id)
+       VALUES ($1, 'active', $2, $3, 1, $4)
        RETURNING ${PLAN_COLUMNS}`,
-      [id, JSON.stringify(plan), PLAN_SCHEMA_VERSION]
+      [id, JSON.stringify(plan), PLAN_SCHEMA_VERSION, userId]
     );
     await tx.query(INSERT_REVISION, [id, 1, meta.source, meta.summary, JSON.stringify(plan)]);
     return toStoredPlan(result.rows[0]);
@@ -138,17 +143,18 @@ export async function pgUpdatePlan(
   expectedRevision: number,
   meta: { source: PlanChangeSource; summary: string }
 ): Promise<StoredPlan> {
+  const userId = requireUserId();
   return inTransaction(client, async tx => {
     const result = await tx.query(
       `UPDATE training_plans
           SET plan = $2, schema_version = $3, revision = revision + 1, updated_at = now()
-        WHERE id = $1 AND revision = $4
+        WHERE id = $1 AND revision = $4 AND user_id = $5
         RETURNING ${PLAN_COLUMNS}`,
-      [id, JSON.stringify(plan), PLAN_SCHEMA_VERSION, expectedRevision]
+      [id, JSON.stringify(plan), PLAN_SCHEMA_VERSION, expectedRevision, userId]
     );
     const row = result.rows[0];
     if (!row) {
-      const exists = await tx.query(`SELECT revision FROM training_plans WHERE id = $1`, [id]);
+      const exists = await tx.query(`SELECT revision FROM training_plans WHERE id = $1 AND user_id = $2`, [id, userId]);
       if (!exists.rows[0]) throw new PlanNotFoundError(`There is no plan "${id}".`);
       throw new PlanConflictError(
         `The plan changed since revision ${expectedRevision} (it is now at ${Number(exists.rows[0].revision)}). Reload it and apply the change again.`
@@ -162,13 +168,19 @@ export async function pgUpdatePlan(
 
 /** Archive or re-activate a plan. Re-activating archives whichever plan is active. */
 export async function pgSetStatus(client: PlanSqlClient, id: string, status: 'active' | 'archived'): Promise<StoredPlan> {
+  const userId = requireUserId();
   return inTransaction(client, async tx => {
+    const owned = await tx.query(`SELECT 1 FROM training_plans WHERE id = $1 AND user_id = $2`, [id, userId]);
+    if (!owned.rows[0]) throw new PlanNotFoundError(`There is no plan "${id}".`);
     if (status === 'active') {
-      await tx.query(`UPDATE training_plans SET status = 'archived', updated_at = now() WHERE status = 'active' AND id <> $1`, [id]);
+      await tx.query(
+        `UPDATE training_plans SET status = 'archived', updated_at = now() WHERE status = 'active' AND id <> $1 AND user_id = $2`,
+        [id, userId]
+      );
     }
     const result = await tx.query(
-      `UPDATE training_plans SET status = $2, updated_at = now() WHERE id = $1 RETURNING ${PLAN_COLUMNS}`,
-      [id, status]
+      `UPDATE training_plans SET status = $2, updated_at = now() WHERE id = $1 AND user_id = $3 RETURNING ${PLAN_COLUMNS}`,
+      [id, status, userId]
     );
     if (!result.rows[0]) throw new PlanNotFoundError(`There is no plan "${id}".`);
     return toStoredPlan(result.rows[0]);
@@ -180,9 +192,10 @@ export async function pgListRevisions(client: PlanSqlClient, id: string, limit =
     `SELECT plan_id, revision, source, summary, created_at
        FROM training_plan_revisions
       WHERE plan_id = $1
+        AND EXISTS (SELECT 1 FROM training_plans p WHERE p.id = $1 AND p.user_id = $3)
       ORDER BY revision DESC
       LIMIT $2`,
-    [id, limit]
+    [id, limit, requireUserId()]
   );
   return result.rows.map(row => ({
     planId: String(row.plan_id),
@@ -195,8 +208,10 @@ export async function pgListRevisions(client: PlanSqlClient, id: string, limit =
 
 export async function pgRevisionPlan(client: PlanSqlClient, id: string, revision: number): Promise<TrainingPlan | null> {
   const result = await client.query(
-    `SELECT plan FROM training_plan_revisions WHERE plan_id = $1 AND revision = $2`,
-    [id, revision]
+    `SELECT plan FROM training_plan_revisions
+      WHERE plan_id = $1 AND revision = $2
+        AND EXISTS (SELECT 1 FROM training_plans p WHERE p.id = $1 AND p.user_id = $3)`,
+    [id, revision, requireUserId()]
   );
   const row = result.rows[0];
   if (!row) return null;

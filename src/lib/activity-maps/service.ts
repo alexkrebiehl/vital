@@ -6,18 +6,19 @@
 // where it can be tested.
 //
 // The cache key is the query plus everything that can change the answer without
-// changing the query: the data mode, the dataset's generation time, the route
+// changing the query: whose data it is, the data mode, the dataset's generation time, the route
 // store's generation and the reference day.
 
 import { liveCacheTtlMs } from '@/lib/adapters/cache';
 import { HaeError } from '@/lib/adapters/hae';
 import { LiveDataUnavailableError, installDataset } from '@/lib/adapters/runtime';
-import { REFERENCE_KEY, workoutList } from '@/lib/adapters/dataset';
+import { referenceDayKey, workoutList } from '@/lib/adapters/dataset';
 import { addDays } from '@/lib/analytics/windows';
 import { computeCoverage, type CoverageQuery, type CoverageResult } from './coverage';
 import { isPathMetricId } from './metrics';
 import { MAX_RANGE_DAYS, validateBBox, type BBox, type MapRange } from './types';
 import { loadRoutes } from './routes';
+import { cacheOwner } from '@/lib/identity/scope';
 
 /** "New ground" with no date range selected means the last this-many days. */
 export const DEFAULT_NEW_DAYS = 30;
@@ -108,11 +109,11 @@ export async function readCoverage(req: CoverageRequest): Promise<CoverageRespon
     return { available: false, reason, unreadWorkouts: 0, referenceKey: null, range: null, mode: null };
   }
 
-  const referenceKey = REFERENCE_KEY;
+  const referenceKey = referenceDayKey();
   const query = coverageQuery(req, referenceKey);
   try {
     const load = await loadRoutes(workoutList(), mode);
-    const key = JSON.stringify([mode, generatedAt, load.generation, referenceKey, query]);
+    const key = JSON.stringify([cacheOwner(), mode, generatedAt, load.generation, referenceKey, query]);
     const result = await cachedCoverage(key, () => computeCoverage(load.routes, query));
     return {
       available: true,

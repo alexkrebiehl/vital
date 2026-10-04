@@ -18,6 +18,7 @@
 import { randomUUID } from 'crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs';
 import { dirname, join } from 'path';
+import { scopedIdentity } from '@/lib/identity/scope';
 import { resolveBackend } from '@/lib/db/backend';
 import { getPool } from '@/lib/db/pool';
 import {
@@ -104,9 +105,14 @@ interface FileShape {
 /** Revisions kept per plan in the file store (the database keeps all). */
 export const FILE_REVISIONS_PER_PLAN = 100;
 
+/** The plan file of the profile in scope: the primary profile keeps the
+ *  original name, any other gets its own `training-plans.<slug>.json`. */
 export function planFilePath(env: NodeJS.ProcessEnv = process.env): string {
   const override = env.VITAL_TRAINING_PLAN_PATH?.trim();
-  return override || join(process.cwd(), 'data', 'training-plans.json');
+  const path = override || join(process.cwd(), 'data', 'training-plans.json');
+  const identity = scopedIdentity();
+  if (!identity || identity.primary) return path;
+  return path.replace(/(\.json)?$/, `.${identity.slug}.json`);
 }
 
 export class FilePlanRepository implements PlanRepository {

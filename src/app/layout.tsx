@@ -3,8 +3,8 @@
 // Includes a blocking inline script that applies the cached theme before paint.
 // Wraps all pages with AppShell (sidebar, topbar, mobile nav).
 //
-// The layout is where the data mode is resolved, server-side and once per
-// request: demo fixtures, or the live Health Auto Export history fetched,
+// The layout is where the requesting profile is resolved and the data mode
+// read, server-side and once per request: demo fixtures, or the live Health Auto Export history fetched,
 // normalized and cached by the server. The browser never receives the API token
 // and never calls the health API itself.
 //
@@ -16,7 +16,7 @@ import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
 import './globals.css';
 import { AppShell } from '@/components/shell/AppShell';
-import { DatasetProvider } from '@/components/data/DatasetProvider';
+import { DatasetProvider, DatasetReady } from '@/components/data/DatasetProvider';
 import { ConnectionErrorState } from '@/components/data/ConnectionErrorState';
 import { FALLBACK_CLIENT_META } from '@/components/data/fallback-meta';
 import { LiveDataUnavailableError, resolveDataset, type ResolvedDataset } from '@/lib/adapters/runtime';
@@ -24,6 +24,8 @@ import { readProfileState } from '@/lib/profile/store';
 import { LEGACY_STORAGE_KEY, preferencesCacheKey } from '@/lib/prefs/types';
 import { DEFAULT_THEME_ID, themesFor } from '@/lib/prefs/themes';
 import PrefsSync from '@/components/prefs/PrefsSync';
+import { withCurrentUser, type Identity } from '@/lib/identity';
+import { profileSwitcherState } from '@/lib/identity/options';
 
 // The icons are files beside this layout (icon.svg, favicon.ico, apple-icon.png,
 // drawn by scripts/make-icons.mjs) and the web app manifest is manifest.ts.
@@ -71,10 +73,10 @@ const KNOWN_THEMES = JSON.stringify({
   dark: themesFor('dark').map(t => t.id),
 });
 
-const themeScript = `
+const themeScript = (cacheKey: string, legacyKey: string | null) => `
   (function() {
     try {
-      var raw = localStorage.getItem('${preferencesCacheKey()}') || localStorage.getItem('${LEGACY_STORAGE_KEY}');
+      var raw = localStorage.getItem(${JSON.stringify(cacheKey)})${legacyKey ? ` || localStorage.getItem(${JSON.stringify(legacyKey)})` : ''};
       var prefs = JSON.parse(raw || '{}') || {};
       var theme = prefs.theme || 'system';
       var scheme = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
@@ -93,6 +95,11 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Everything below is read as the requesting profile.
+  return withCurrentUser(identity => renderLayout(identity, children));
+}
+
+async function renderLayout(identity: Identity, children: React.ReactNode) {
   let resolved: ResolvedDataset | null = null;
   let failure: { title: string; message: string; host: string | null; hint?: string } | null = null;
 
@@ -120,18 +127,32 @@ export default async function RootLayout({
   // read one profile, and the browser never needs to fetch it to render. The
   // read is awaitable because the record may live in Postgres.
   const { profile, stored: profileStored } = await readProfileState();
+  const switcher = await profileSwitcherState(identity);
+  // The primary profile keeps the un-suffixed cache key (and the legacy key)
+  // it always had; any other profile is marked on <html> so the browser's
+  // settings cache is that profile's own (see `preferencesCacheKey`).
+  const profileMark = identity.primary ? null : identity.slug;
 
   return (
-    <html lang="en" suppressHydrationWarning className={`${GeistSans.variable} ${GeistMono.variable}`}>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${GeistSans.variable} ${GeistMono.variable}`}
+      data-profile={profileMark ?? undefined}
+    >
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: themeScript(preferencesCacheKey(undefined, profileMark), profileMark ? null : LEGACY_STORAGE_KEY),
+          }}
+        />
       </head>
       <body>
         <DatasetProvider mode={mode} dataset={dataset} meta={meta}>
           {/* Starts the server-backed settings sync (theme/units) and re-applies
               the theme when the server's value differs from this device's cache. */}
           <PrefsSync />
-          <AppShell profile={profile} profileStored={profileStored}>
+          <AppShell profile={profile} profileStored={profileStored} switcher={switcher}>
             {failure ? (
               <ConnectionErrorState
                 title={failure.title}
@@ -140,7 +161,7 @@ export default async function RootLayout({
                 hint={failure.hint}
               />
             ) : (
-              children
+              <DatasetReady>{children}</DatasetReady>
             )}
           </AppShell>
         </DatasetProvider>

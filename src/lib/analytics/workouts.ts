@@ -8,7 +8,7 @@
 // the UTC timestamp: a 20:27 CDT workout is stored as 01:27Z the next day.
 
 import type { WorkoutRecord } from '../metrics/types';
-import { REFERENCE_TZ, REFERENCE_KEY, workoutList } from '../adapters/dataset';
+import { referenceTimezone, referenceDayKey, workoutList } from '../adapters/dataset';
 import { mean, sum } from './stats';
 import { clockLabel, containsDay, dayKey, addDays, formatDayKeyLong, trailingWindow, windowRangeLabel, type DayWindow } from './windows';
 
@@ -47,15 +47,15 @@ export const WORKOUT_COMPARISON_RULE =
 export function workoutDayKey(record: Pick<WorkoutRecord, 'start_time'>): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(record.start_time)
     ? record.start_time
-    : dayKey(record.start_time, REFERENCE_TZ);
+    : dayKey(record.start_time, referenceTimezone());
 }
 
 export function workoutViews(records: WorkoutRecord[] = workoutList()): WorkoutView[] {
   return records.map(r => ({
     ...r,
     key: workoutDayKey(r),
-    startClock: clockLabel(r.start_time, REFERENCE_TZ),
-    endClock: clockLabel(r.end_time, REFERENCE_TZ),
+    startClock: clockLabel(r.start_time, referenceTimezone()),
+    endClock: clockLabel(r.end_time, referenceTimezone()),
     hasDistance: typeof r.distance_km === 'number',
     hasHeartRate: typeof r.avg_heart_rate === 'number' && typeof r.max_heart_rate === 'number',
   }));
@@ -105,7 +105,7 @@ export interface FilteredWorkouts {
 export function filterWorkouts(
   filter: WorkoutFilter,
   all: WorkoutView[] = workoutViews(),
-  refKey: string = REFERENCE_KEY
+  refKey: string = referenceDayKey()
 ): FilteredWorkouts {
   const window = trailingWindow(refKey, filter.days, `Last ${filter.days} days`);
   const inWindow = all.filter(v => containsDay(window, v.key));
@@ -220,7 +220,7 @@ export interface WeeklyWorkoutCount {
 export function weeklyWorkoutCounts(
   views: WorkoutView[] = workoutViews(),
   weeks = 8,
-  refKey: string = REFERENCE_KEY
+  refKey: string = referenceDayKey()
 ): WeeklyWorkoutCount[] {
   const out: WeeklyWorkoutCount[] = [];
   for (let i = weeks - 1; i >= 0; i--) {

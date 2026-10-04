@@ -7,8 +7,9 @@
 //   database configured → this module
 //   nothing configured  → the caller throws with the reason
 //
-// One row, pinned to `id = 1` by the schema's CHECK constraint. The row carries
-// the same six fields plus the bookkeeping: `revision`, bumped by the database
+// One row per user (db/migrations/0010), keyed by `user_id`: the person in the
+// current request scope (`requireUserId`). The row carries the same six fields
+// plus the bookkeeping: `revision`, bumped by the database
 // on every write, and `updated_at`.
 //
 // CONFIGURATION ONLY. The profile holds a display name, a birth date, the
@@ -20,6 +21,7 @@
 // in an unknown shape. Nothing logs or returns a secret: the profile has none.
 
 import { validateProfileInput, type VitalProfile } from '@/lib/profile/types';
+import { requireUserId } from '@/lib/identity/scope';
 import { NO_DATABASE_CONFIGURED_REASON } from './backend';
 import { getPool } from './pool';
 
@@ -46,13 +48,13 @@ const SELECT_PROFILE = `
          revision,
          updated_at
     FROM profile
-   WHERE id = 1
+   WHERE user_id = $1
 `;
 
 const UPSERT_PROFILE = `
-  INSERT INTO profile (id, name, date_of_birth, sex, notes, timezone, briefing_hour, schema_version, revision, updated_at)
-  VALUES (1, $1, $2, $3, $4, $5, $6, ${PROFILE_SCHEMA_VERSION}, 1, now())
-  ON CONFLICT (id) DO UPDATE
+  INSERT INTO profile (user_id, name, date_of_birth, sex, notes, timezone, briefing_hour, schema_version, revision, updated_at)
+  VALUES ($7, $1, $2, $3, $4, $5, $6, ${PROFILE_SCHEMA_VERSION}, 1, now())
+  ON CONFLICT (user_id) DO UPDATE
      SET name           = EXCLUDED.name,
          date_of_birth  = EXCLUDED.date_of_birth,
          sex            = EXCLUDED.sex,
@@ -77,7 +79,7 @@ function poolOrThrow(env: NodeJS.ProcessEnv) {
  *  database is not configured, unreachable, or the row is not a valid profile. */
 export async function readProfileRow(env: NodeJS.ProcessEnv = process.env): Promise<StoredProfileRow | null> {
   const pool = poolOrThrow(env);
-  const result = await pool.query(SELECT_PROFILE);
+  const result = await pool.query(SELECT_PROFILE, [requireUserId()]);
   const row = result.rows[0];
   if (!row) return null;
 
@@ -117,6 +119,7 @@ export async function writeProfileRow(
     p.notes,
     p.timezone,
     p.briefingHour,
+    requireUserId(),
   ]);
   const row = result.rows[0];
   if (!row) throw new Error('The profile write returned no row.');

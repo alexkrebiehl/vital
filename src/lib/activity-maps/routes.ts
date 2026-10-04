@@ -23,6 +23,8 @@ import { HaeError, fetchWorkoutDetail, type RequestDeps } from '@/lib/adapters/h
 import { workoutDayKey } from '@/lib/analytics/workouts';
 import { compactRoute, routeBytes, type CompactRoute } from './route-data';
 import { demoRoute } from './demo-routes';
+import { serverEnv } from '@/lib/identity/env';
+import { cacheOwner } from '@/lib/identity/scope';
 
 export const ROUTE_FETCH_CONCURRENCY = 4;
 export const DEFAULT_ROUTE_CACHE_MAX_POINTS = 3_000_000;
@@ -68,8 +70,9 @@ async function limited<T>(task: () => Promise<T>): Promise<T> {
   }
 }
 
+/** One profile's workout: two people's export servers may reuse an id. */
 function keyOf(w: WorkoutRecord): string {
-  return `${w.id}|${w.end_time}`;
+  return `${cacheOwner()}|${w.id}|${w.end_time}`;
 }
 
 function store(key: string, route: CompactRoute | null, env: NodeJS.ProcessEnv): Entry {
@@ -130,7 +133,7 @@ export async function loadRoutes(
     return { routes, failed: 0, generation: 0 };
   }
 
-  const env = deps.env ?? process.env;
+  const env = deps.env ?? serverEnv();
   const routes: CompactRoute[] = [];
   let failed = 0;
   let firstError: unknown = null;

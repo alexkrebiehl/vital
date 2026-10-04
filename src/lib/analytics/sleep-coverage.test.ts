@@ -18,7 +18,7 @@
 
 import { afterEach, describe, expect, it } from 'vitest';
 import {
-  REFERENCE_KEY,
+  referenceDayKey,
   coverageFor,
   hasSleepStages,
   resetToDemoDataset,
@@ -204,7 +204,7 @@ describe('every consumer of time asleep', () => {
     // …and the 30-day summary the domain cards render is built from it too.
     // (Its comparison needs the registry's 3-observation minimum, so only the
     // point series is asserted here — that is the series every consumer reads.)
-    const summary = buildSeriesSummary('sleep_analysis', REFERENCE_KEY, 30);
+    const summary = buildSeriesSummary('sleep_analysis', referenceDayKey(), 30);
     expect(summary.points.map(p => p.value)).toEqual(sleepPage);
     expect(mean(summary.points.map(p => p.value))).toBeCloseTo(mean(sleepPage), 6);
     expect(seriesInWindow('sleep_analysis', summary.window).map(p => p.value)).toEqual(sleepPage);

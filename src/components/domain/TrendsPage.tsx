@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { Search, X, Info } from 'lucide-react';
 import { getAllMetrics, getMetric, searchMetrics } from '@/lib/metrics';
 import { describeChange, formatMetricWithUnit, formatPercent } from '@/lib/metrics/format';
-import { seriesFor, metricHasData, REFERENCE_KEY, WINDOW_START_KEY } from '@/lib/adapters/dataset';
+import { seriesFor, metricHasData, referenceDayKey, windowStartDayKey } from '@/lib/adapters/dataset';
 import {
   addDays,
   compareWindows,
@@ -62,14 +62,14 @@ function CompareTab() {
   const [mode, setMode] = useState<ComparisonMode>('previous');
   const [selected, setSelected] = useState<string[]>(DEFAULT_SELECTION);
 
-  const window = trailingWindow(REFERENCE_KEY, Number(days));
+  const window = trailingWindow(referenceDayKey(), Number(days));
   const previous = previousWindow(window, Number(days), `Previous ${days} days`);
   const lastYear: DayWindow = {
     startKey: addDays(window.startKey, -365),
     endKey: addDays(window.endKey, -365),
     label: 'Same period last year',
   };
-  const lastYearAvailable = lastYear.startKey >= WINDOW_START_KEY;
+  const lastYearAvailable = lastYear.startKey >= windowStartDayKey();
   const comparator = mode === 'last-year' ? lastYear : previous;
   // Owner request 2: a metric with no observation in this window is neither
   // charted nor listed as a comparison row; the sections disappear with their
@@ -106,7 +106,7 @@ function CompareTab() {
           {!lastYearAvailable && (
             <span className="text-[11px] text-text-secondary">
               Same period last year is unavailable: the dataset begins{' '}
-              {formatDayKeyShort(WINDOW_START_KEY)}, so those dates have no coverage.
+              {formatDayKeyShort(windowStartDayKey())}, so those dates have no coverage.
             </span>
           )}
         </div>
@@ -197,7 +197,7 @@ function ComparisonTable({
     // The same complete-day rule as every other comparison in the app: an
     // in-progress day is dropped from both sides and the comparison window is
     // shortened to the same number of complete days.
-    const cmp = compareWindows(metricId, REFERENCE_KEY, days, {
+    const cmp = compareWindows(metricId, referenceDayKey(), days, {
       meta,
       baseline: (evaluated, n) =>
         mode === 'last-year'
@@ -226,7 +226,7 @@ function ComparisonTable({
       <Card className="p-4 md:p-6">
         {unavailable ? (
           <InsufficientDataState
-            message={`The dataset starts on ${WINDOW_START_KEY}, so the same period last year has no coverage. Switch to "Previous period" to compare.`}
+            message={`The dataset starts on ${windowStartDayKey()}, so the same period last year has no coverage. Switch to "Previous period" to compare.`}
           />
         ) : (
           <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Metric comparison table">
@@ -309,7 +309,7 @@ function RelationshipsTab() {
   const [alignment, setAlignment] = useState<Alignment>('same-day');
   const [lagDays, setLagDays] = useState('1');
 
-  const window = trailingWindow(REFERENCE_KEY, Number(days));
+  const window = trailingWindow(referenceDayKey(), Number(days));
   const result = computeRelationship(xId, yId, window, alignment, Number(lagDays));
   const xMeta = getMetric(xId);
   const yMeta = getMetric(yId);

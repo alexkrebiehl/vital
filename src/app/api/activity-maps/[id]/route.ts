@@ -10,12 +10,13 @@
 import { deleteMap, poolOrThrow, updateMap } from '@/lib/db/activity-maps-store';
 import { validateMapInput } from '@/lib/activity-maps/types';
 import { errorResponse, jsonResponse, readBody, revisionOf, storeErrorResponse } from '@/lib/activity-maps/http';
+import { scoped } from '@/lib/identity';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
+async function handlePUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const read = await readBody(request);
   if (!read.ok) return read.response;
@@ -30,7 +31,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   }
 }
 
-export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+async function handleDELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const revision = revisionOf(new URL(request.url).searchParams.get('revision'));
   if (revision === null) return errorResponse('revision must be the whole revision the delete was based on.', 400);
@@ -41,3 +42,6 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     return storeErrorResponse(error, 'The map could not be deleted.');
   }
 }
+
+export const PUT = scoped(handlePUT);
+export const DELETE = scoped(handleDELETE);

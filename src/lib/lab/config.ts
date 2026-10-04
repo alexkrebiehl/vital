@@ -4,12 +4,16 @@
 // import here pulls in `fs` or `pg`, so the pure validation and the tests can
 // use the same parsing without a filesystem.
 //
+//   Each profile stores its PDFs in its own directory (`profileLabDir`), which
+//   the lab routes apply for the profile in scope.
+//
 //   VITAL_LAB_DIR         where uploaded PDFs are stored, content-addressed.
 //                         Default /app/data/lab (./data is mounted writable).
 //   VITAL_LAB_MAX_BYTES   largest accepted upload, default 15 MB.
 //   VITAL_LAB_MODEL_ASSIST  `auto` (default), `on` or `off`. Controls the
 //                         OPTIONAL second extraction pass. `off` guarantees no
 //                         network call is made for an upload.
+
 
 /** Where uploaded PDFs live when nothing overrides it. */
 export const DEFAULT_LAB_DIR = '/app/data/lab';
@@ -42,7 +46,21 @@ function parseMode(value: string | undefined): LabModelAssist {
   return 'auto';
 }
 
-/** The lab module's configuration, from an injected or the process environment. */
+/**
+ * Where one profile's PDFs live: the primary profile keeps the configured
+ * directory itself (where every PDF uploaded before profiles existed already
+ * is), and any other profile gets its own `<dir>/<slug>` beside them, so
+ * deleting one person's document can never remove another's copy of the file.
+ */
+export function profileLabDir(dir: string, profile: { slug: string; primary: boolean } | null): string {
+  if (!profile || profile.primary) return dir;
+  return `${dir.replace(/\/+$/, '')}/${profile.slug}`;
+}
+
+/** The lab module's configuration, from an injected or the process environment.
+ *  `dir` is the configured directory; a route stores one person's PDFs in
+ *  `profileLabDir(dir, …)`. (This module also reaches the browser bundle, so it
+ *  cannot read the request scope itself.) */
 export function resolveLabConfig(env: NodeJS.ProcessEnv = process.env): LabConfig {
   const dir = (env.VITAL_LAB_DIR ?? '').trim() || DEFAULT_LAB_DIR;
   const maxBytes = parsePositiveInt(env.VITAL_LAB_MAX_BYTES, DEFAULT_LAB_MAX_BYTES);

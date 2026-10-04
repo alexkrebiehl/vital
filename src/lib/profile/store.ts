@@ -34,6 +34,7 @@ import {
 } from './types';
 import { resolveBackend } from '@/lib/db/backend';
 import { readProfileRow, writeProfileRow } from '@/lib/db/profile-store';
+import { serverEnv } from '@/lib/identity/env';
 
 /** Which backend answered. Postgres is the only one. */
 export type ProfileBackend = 'postgres';
@@ -78,7 +79,7 @@ function messageOf(error: unknown, fallback: string): string {
  * reason, which the API route turns into a 500 rather than serving a wrong
  * answer quietly.
  */
-export async function readProfileState(env: NodeJS.ProcessEnv = process.env): Promise<ProfileState> {
+export async function readProfileState(env: NodeJS.ProcessEnv = serverEnv()): Promise<ProfileState> {
   let target: string;
   try {
     target = resolveBackend(env).target;
@@ -130,7 +131,7 @@ export async function readProfileState(env: NodeJS.ProcessEnv = process.env): Pr
 }
 
 /** The profile, or the documented defaults. Never throws. */
-export async function readProfile(env: NodeJS.ProcessEnv = process.env): Promise<VitalProfile> {
+export async function readProfile(env: NodeJS.ProcessEnv = serverEnv()): Promise<VitalProfile> {
   return (await readProfileState(env)).profile;
 }
 
@@ -144,7 +145,7 @@ export async function readProfile(env: NodeJS.ProcessEnv = process.env): Promise
  */
 export async function writeProfile(
   profile: VitalProfile,
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = serverEnv()
 ): Promise<ProfileState> {
   const backend = resolveBackend(env);
   const row = await writeProfileRow(profile, env);

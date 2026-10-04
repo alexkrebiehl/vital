@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { REFERENCE_KEY, coverageFor, seriesInWindow } from '@/lib/adapters/dataset';
+import { referenceDayKey, coverageFor, seriesInWindow } from '@/lib/adapters/dataset';
 import { trailingWindow } from '@/lib/analytics/windows';
 import {
   availabilityTable,
@@ -12,8 +12,8 @@ import {
 
 describe('logged-day statistics (SPEC §7 nutrition)', () => {
   it('averages over logged days only, never over calendar days', () => {
-    const stats = loggedDayStats('dietary_energy', REFERENCE_KEY, 90);
-    const points = seriesInWindow('dietary_energy', trailingWindow(REFERENCE_KEY, 90));
+    const stats = loggedDayStats('dietary_energy', referenceDayKey(), 90);
+    const points = seriesInWindow('dietary_energy', trailingWindow(referenceDayKey(), 90));
     expect(stats.loggedDays).toBe(points.length);
     expect(stats.loggedDays).toBeLessThan(stats.windowDays);
     const sum = points.reduce((a, p) => a + p.value, 0);
@@ -24,7 +24,7 @@ describe('logged-day statistics (SPEC §7 nutrition)', () => {
   });
 
   it('states the coverage of the window and of the whole dataset', () => {
-    const stats = loggedDayStats('dietary_energy', REFERENCE_KEY, 90);
+    const stats = loggedDayStats('dietary_energy', referenceDayKey(), 90);
     const fact = coverageFor('dietary_energy')!;
     expect(stats.averageLabel).toBe(`average over ${stats.loggedDays} logged days of 90`);
     expect(stats.coverageLabel).toBe(`${fact.observedDays} logged days of ${fact.expectedDays} in the dataset`);
@@ -33,7 +33,7 @@ describe('logged-day statistics (SPEC §7 nutrition)', () => {
   });
 
   it('totals logged intake over the logged days it has', () => {
-    const stats = loggedDayStats('dietary_caffeine', REFERENCE_KEY, 90);
+    const stats = loggedDayStats('dietary_caffeine', referenceDayKey(), 90);
     expect(stats.accumulating).toBe(true);
     expect(stats.windowTotal).toBeCloseTo(
       stats.values.reduce((a, b) => a + b, 0),
@@ -45,7 +45,7 @@ describe('logged-day statistics (SPEC §7 nutrition)', () => {
   });
 
   it('reports insufficient logging rather than an average of nothing', () => {
-    const stats = loggedDayStats('dietary_energy', REFERENCE_KEY, 1);
+    const stats = loggedDayStats('dietary_energy', referenceDayKey(), 1);
     if (stats.loggedDays < MIN_LOGGED_DAYS) {
       expect(stats.sufficient).toBe(false);
       expect(loggedAverageLabel('dietary_energy', stats)).toBe('Not enough logged days');
@@ -53,8 +53,8 @@ describe('logged-day statistics (SPEC §7 nutrition)', () => {
   });
 
   it('is deterministic: the same call produces the same figures', () => {
-    const a = loggedDayStats('dietary_protein', REFERENCE_KEY, 90);
-    const b = loggedDayStats('dietary_protein', REFERENCE_KEY, 90);
+    const a = loggedDayStats('dietary_protein', referenceDayKey(), 90);
+    const b = loggedDayStats('dietary_protein', referenceDayKey(), 90);
     expect(a.dailyAverage).toBe(b.dailyAverage);
     expect(a.latestKey).toBe(b.latestKey);
   });

@@ -19,6 +19,8 @@ import {
   toConversationSummary,
 } from '@/lib/db/analyst-store';
 import { FakeAnalystDb } from '@/lib/analyst/test-doubles';
+import { runAsUser } from '@/lib/identity/scope';
+import { TEST_USER_ID } from '@/test-setup';
 
 describe('analyst-store — create, read, list', () => {
   it('creates a conversation and returns its stored summary', async () => {
@@ -31,7 +33,7 @@ describe('analyst-store — create, read, list', () => {
     expect(created.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     // The insert carries the schema version, and nothing secret.
     expect(db.calls[0].text).toMatch(/INSERT INTO analyst_conversations/);
-    expect(db.calls[0].params).toEqual(['Why was my resting heart rate higher?', 1]);
+    expect(db.calls[0].params).toEqual(['Why was my resting heart rate higher?', 1, TEST_USER_ID]);
   });
 
   it('fetches a conversation by id and returns null for an unknown id', async () => {
@@ -152,5 +154,32 @@ describe('analyst-store — row mapping', () => {
     expect(asObject.payload?.label).toBe('Demo analyst');
     expect(asText.payload).toEqual(asObject.payload);
     expect(toConversationMessage({ id: 3, role: 'nonsense', content: 'a' }).role).toBe('user');
+  });
+});
+describe('analyst-store — conversations belong to one profile', () => {
+  const as = (userId: string) => ({ slug: userId, primary: false, userId, userError: null, env: process.env });
+
+  it('never lists, reads, appends to, renames or deletes another person’s conversation', async () => {
+    const db = new FakeAnalystDb();
+    const alex = await runAsUser(as('alex'), () => insertConversation(db, 'Alex asks'));
+    await runAsUser(as('alex'), () => insertMessage(db, alex.id, { role: 'user', content: 'Hi' }, 10));
+
+    await runAsUser(as('sam'), async () => {
+      expect(await listConversations(db)).toEqual([]);
+      expect(await findConversation(db, alex.id)).toBeNull();
+      expect(await listMessages(db, alex.id)).toEqual([]);
+      expect(await listRecentMessages(db, alex.id, 5)).toEqual([]);
+      expect(await countMessages(db, alex.id)).toBe(0);
+      expect(await insertMessage(db, alex.id, { role: 'user', content: 'Hijack' }, 10)).toEqual({
+        ok: false,
+        reason: 'conversation_missing',
+      });
+      expect(await renameConversationRow(db, alex.id, 'Mine now')).toBeNull();
+      expect(await deleteConversationRow(db, alex.id)).toBe(false);
+    });
+
+    const still = await runAsUser(as('alex'), () => findConversation(db, alex.id));
+    expect(still?.title).toBe('Alex asks');
+    expect(await runAsUser(as('alex'), () => countMessages(db, alex.id))).toBe(1);
   });
 });

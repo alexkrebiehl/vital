@@ -14,13 +14,16 @@
 
 import { parseCoverageRequest, readCoverage } from '@/lib/activity-maps/service';
 import { errorResponse, jsonResponse } from '@/lib/activity-maps/http';
+import { scoped } from '@/lib/identity';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   const parsed = parseCoverageRequest(new URL(request.url).searchParams);
   if (typeof parsed === 'string') return errorResponse(parsed, 400);
   return jsonResponse(await readCoverage(parsed));
 }
+
+export const GET = scoped(handleGET);

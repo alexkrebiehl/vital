@@ -7,7 +7,7 @@
 
 import { getMetric } from '../metrics/registry';
 import type { MetricDefinition } from '../metrics/types';
-import { REFERENCE_KEY, coverageFor, seriesFor } from '../adapters/dataset';
+import { referenceDayKey, coverageFor, seriesFor } from '../adapters/dataset';
 import { formatMetricWithUnit } from '../metrics/format';
 import type { UnitSystem } from '../prefs';
 import { mean, median, min as minOf, max as maxOf, sum } from './stats';
@@ -52,8 +52,8 @@ export function coverageFact(metricId: string): CoverageFact | null {
     expectedDays: cov?.expectedDays ?? series.length,
     samplingFrequency: cov?.samplingFrequency ?? meta?.aggregationStrategy ?? 'unknown',
     sources: cov?.sourceNames ?? [...new Set(series.map(p => p.source))],
-    firstKey: dayKeyOf(cov?.firstObservation ?? series[0]?.key ?? REFERENCE_KEY),
-    lastKey: dayKeyOf(cov?.lastObservation ?? series[series.length - 1]?.key ?? REFERENCE_KEY),
+    firstKey: dayKeyOf(cov?.firstObservation ?? series[0]?.key ?? referenceDayKey()),
+    lastKey: dayKeyOf(cov?.lastObservation ?? series[series.length - 1]?.key ?? referenceDayKey()),
     observations: series.length,
   };
 }
@@ -107,7 +107,7 @@ export const MIN_LOGGED_DAYS = 3;
  */
 export function loggedDayStats(
   metricId: string,
-  refKey: string = REFERENCE_KEY,
+  refKey: string = referenceDayKey(),
   days = 90,
   options: { meta?: MetricDefinition } = {}
 ): LoggedDayStats {

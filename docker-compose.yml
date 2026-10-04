@@ -84,6 +84,16 @@ services:
       # the committed fixtures. A failed live read shows a connection error and
       # never falls back to demo data.
       VITAL_DATA_MODE: "${VITAL_DATA_MODE:-demo}"
+      # ── Profiles (optional; see .env.example) ───────────────────────────────
+      # Unset = one person. Each extra person's own data source is read from
+      # VITAL_PROFILE_<SLUG>_<VAR>; Compose only passes variables listed here, so
+      # add theirs below, for example:
+      #   VITAL_PROFILE_SAM_DATA_MODE: "${VITAL_PROFILE_SAM_DATA_MODE:-}"
+      #   VITAL_PROFILE_SAM_HAE_API_URL: "${VITAL_PROFILE_SAM_HAE_API_URL:-}"
+      #   VITAL_PROFILE_SAM_HAE_API_KEY: "${VITAL_PROFILE_SAM_HAE_API_KEY:-}"
+      #   VITAL_PROFILE_SAM_HEVY_API_KEY: "${VITAL_PROFILE_SAM_HEVY_API_KEY:-}"
+      VITAL_PROFILES: "${VITAL_PROFILES:-}"
+      VITAL_AUTH: "${VITAL_AUTH:-profiles}"
       HAE_API_URL: "${HAE_API_URL:-}"
       HAE_API_KEY: "${HAE_API_KEY:-}"
       HAE_PROBE_METRIC: "${HAE_PROBE_METRIC:-resting_heart_rate}"
@@ -106,8 +116,8 @@ services:
       # (defaulted from the first browser, editable in Settings) cuts the days.
       VITAL_TIMEZONE: "${VITAL_TIMEZONE:-}"
       # ── Profile (server-side only) ──────────────────────────────────────────
-      # The profile is NOT an environment variable: it is the `profile` row in
-      # the Postgres database above (id = 1), written by Settings → Account.
+      # The profile is NOT an environment variable: it is each person's
+      # `profile` row in the Postgres database above, written by Settings → Account.
       # There is no file-backed profile.
       # ── AI analyst (server-side only; five configurable things) ─────────────
       # provider · model · endpoint · credential · system prompt

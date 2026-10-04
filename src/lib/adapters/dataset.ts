@@ -33,16 +33,41 @@ export const FIXTURES = fixturesJson as unknown as HealthFixtures;
 
 /**
  * The active dataset, the timezone it is expressed in, and the day keys that
- * pages use as "now" and "the start of history". Mutable on purpose: the demo
- * fixtures are the initial value so demo mode and every test that never calls
+ * pages use as "now" and "the start of history", held together as one state.
+ *
+ * In the browser there is one reader per tab, so the state lives in module
+ * scope and `setActiveDataset` swaps it. On the server one process answers for
+ * several profiles at once, so a module-scope dataset would let one person's
+ * request read another's history. The server therefore registers a SCOPE
+ * resolver (src/lib/identity/scope.ts): inside a request scope every accessor
+ * reads, and `setActiveDataset` writes, that request's own state. Outside a
+ * scope (the browser, tests) the module state is used, and the demo fixtures
+ * are its initial value so demo mode and every test that never calls
  * `setActiveDataset` behave exactly as before.
  */
-let ACTIVE: HealthFixtures = FIXTURES;
+export interface DatasetState {
+  dataset: HealthFixtures;
+  mode: DataMode;
+  timezone: string;
+  referenceKey: string;
+  windowStartKey: string;
+  meta: DatasetMeta;
+}
 
-export let REFERENCE_TZ: string = FIXTURES.timezone || 'America/Chicago';
-export let REFERENCE_KEY: string = dayKey(FIXTURES.referenceDate, REFERENCE_TZ);
-export let WINDOW_START_KEY: string = dayKey(FIXTURES.windowStart, REFERENCE_TZ);
-let MODE: DataMode = 'demo';
+/** A request scope's slot for its dataset; `state` is null until one is installed. */
+export interface DatasetScope {
+  state: DatasetState | null;
+}
+
+let scopeResolver: (() => DatasetScope | undefined) | null = null;
+
+/**
+ * Register where the current request's dataset scope comes from. Called once by
+ * the server-only scope module; never called in the browser.
+ */
+export function setDatasetScopeResolver(resolver: (() => DatasetScope | undefined) | null): void {
+  scopeResolver = resolver;
+}
 
 export interface DatasetMeta {
   mode: DataMode;
@@ -90,7 +115,53 @@ export interface SleepDay {
 
 // ── Meta ────────────────────────────────────────────────
 
-let META: DatasetMeta = computeMeta(FIXTURES, 'demo', FIXTURES.referenceDate, FIXTURES.windowEnd);
+function buildState(
+  dataset: HealthFixtures,
+  mode: DataMode,
+  dataAsOf: string,
+  generatedAt?: string
+): DatasetState {
+  const timezone = dataset.timezone || 'America/Chicago';
+  const meta = computeMeta(dataset, mode, dataset.referenceDate, dataAsOf);
+  if (generatedAt) meta.generatedAt = generatedAt;
+  return {
+    dataset,
+    mode,
+    timezone,
+    referenceKey: dayKey(dataset.referenceDate, timezone),
+    windowStartKey: dayKey(dataset.windowStart, timezone),
+    meta,
+  };
+}
+
+const DEMO_STATE: DatasetState = buildState(FIXTURES, 'demo', FIXTURES.windowEnd);
+
+let moduleState: DatasetState = DEMO_STATE;
+
+/**
+ * The state every accessor reads: the request scope's when there is one (the
+ * demo fixtures until that request installs its own), otherwise the module's.
+ */
+function current(): DatasetState {
+  const scope = scopeResolver?.();
+  if (scope) return scope.state ?? DEMO_STATE;
+  return moduleState;
+}
+
+/** Day key of the current day in the dataset timezone. */
+export function referenceDayKey(): string {
+  return current().referenceKey;
+}
+
+/** Day key the data begins. */
+export function windowStartDayKey(): string {
+  return current().windowStartKey;
+}
+
+/** The IANA timezone the dataset's calendar days are cut in. */
+export function referenceTimezone(): string {
+  return current().timezone;
+}
 
 function computeMeta(
   dataset: HealthFixtures,
@@ -126,19 +197,19 @@ function computeMeta(
 }
 
 export function datasetMeta(): DatasetMeta {
-  return META;
+  return current().meta;
 }
 
 export function dataMode(): DataMode {
-  return MODE;
+  return current().mode;
 }
 
 export function isLiveMode(): boolean {
-  return MODE === 'live';
+  return current().mode === 'live';
 }
 
 export function activeDataset(): HealthFixtures {
-  return ACTIVE;
+  return current().dataset;
 }
 
 export interface ActiveDatasetOptions {
@@ -150,48 +221,44 @@ export interface ActiveDatasetOptions {
 
 /**
  * Install a dataset (demo fixtures or a normalized live history) as the active
- * one. Called once per request by the dataset provider, before the pages render.
+ * one: into the current request scope on the server, into module scope in the
+ * browser. Called once per request, before anything reads it.
  */
 export function setActiveDataset(dataset: HealthFixtures, options: ActiveDatasetOptions): void {
-  if (ACTIVE === dataset && MODE === options.mode) return;
-  ACTIVE = dataset;
-  MODE = options.mode;
-  REFERENCE_TZ = dataset.timezone || 'America/Chicago';
-  REFERENCE_KEY = dayKey(dataset.referenceDate, REFERENCE_TZ);
-  WINDOW_START_KEY = dayKey(dataset.windowStart, REFERENCE_TZ);
-  META = computeMeta(
+  const scope = scopeResolver?.();
+  const prior = scope ? scope.state : moduleState;
+  if (prior && prior.dataset === dataset && prior.mode === options.mode) return;
+  const next = buildState(
     dataset,
     options.mode,
-    dataset.referenceDate,
-    options.dataAsOf ?? dataset.windowEnd ?? dataset.referenceDate
+    options.dataAsOf ?? dataset.windowEnd ?? dataset.referenceDate,
+    options.generatedAt
   );
-  if (options.generatedAt) META.generatedAt = options.generatedAt;
+  if (scope) scope.state = next;
+  else moduleState = next;
 }
 
-/** Restore the committed demo fixtures. Used by tests. */
+/** Restore the committed demo fixtures. */
 export function resetToDemoDataset(): void {
-  ACTIVE = FIXTURES;
-  MODE = 'demo';
-  REFERENCE_TZ = FIXTURES.timezone || 'America/Chicago';
-  REFERENCE_KEY = dayKey(FIXTURES.referenceDate, REFERENCE_TZ);
-  WINDOW_START_KEY = dayKey(FIXTURES.windowStart, REFERENCE_TZ);
-  META = computeMeta(FIXTURES, 'demo', FIXTURES.referenceDate, FIXTURES.windowEnd);
+  const scope = scopeResolver?.();
+  if (scope) scope.state = DEMO_STATE;
+  else moduleState = DEMO_STATE;
 }
 
 export function getFixtures(): HealthFixtures {
-  return ACTIVE;
+  return current().dataset;
 }
 
 export function coverageFor(metricId: string): MetricCoverage | undefined {
-  return ACTIVE.coverage[metricId];
+  return current().dataset.coverage[metricId];
 }
 
 export function availableMetricIds(): string[] {
-  return Object.keys(ACTIVE.coverage);
+  return Object.keys(current().dataset.coverage);
 }
 
 function rawObservations(metricId: string): MetricObservation[] {
-  const raw = ACTIVE.metrics[metricId];
+  const raw = current().dataset.metrics[metricId];
   if (!Array.isArray(raw)) return [];
   return raw as MetricObservation[];
 }
@@ -202,7 +269,7 @@ function rawObservations(metricId: string): MetricObservation[] {
  * A bare date must never be pushed through timezone conversion, or it shifts a
  * day backwards for negative UTC offsets.
  */
-export function canonicalDayKey(dateStr: string, tz: string = REFERENCE_TZ): string {
+export function canonicalDayKey(dateStr: string, tz: string = referenceTimezone()): string {
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
   return dayKey(dateStr, tz);
 }
@@ -229,7 +296,7 @@ export function metricSeries(metricId: string): DayPoint[] {
 }
 
 export function sleepSeries(): SleepDay[] {
-  const raw = (ACTIVE.metrics['sleep_analysis'] as SleepObservation[]) || [];
+  const raw = (current().dataset.metrics['sleep_analysis'] as SleepObservation[]) || [];
   const episodes = raw.map(r => {
     const night: SleepDay = {
       key: canonicalDayKey(r.date),
@@ -313,7 +380,7 @@ export function hasSleepStages(day: SleepDay): boolean {
 }
 
 export function bloodPressureSeries(): BloodPressureObservation[] {
-  return ((ACTIVE.metrics['blood_pressure'] as BloodPressureObservation[]) || [])
+  return ((current().dataset.metrics['blood_pressure'] as BloodPressureObservation[]) || [])
     .map(r => ({ ...r, date: canonicalDayKey(r.date) }))
     .sort((a, b) => a.date.localeCompare(b.date));
 }
@@ -323,7 +390,7 @@ export function bloodOxygenSeries(): DayPoint[] {
 }
 
 export function workoutList(): WorkoutRecord[] {
-  return [...(ACTIVE.workouts || [])].sort((a, b) => a.start_time.localeCompare(b.start_time));
+  return [...(current().dataset.workouts || [])].sort((a, b) => a.start_time.localeCompare(b.start_time));
 }
 
 /**
@@ -384,7 +451,7 @@ export function excludePartialForSum(
   const excludedDays: string[] = [];
   const values: number[] = [];
   for (const p of points) {
-    const partial = p.partial === true || p.key === REFERENCE_KEY;
+    const partial = p.partial === true || p.key === referenceDayKey();
     if (partial) excludedDays.push(p.key);
     else values.push(p.value);
   }
@@ -415,7 +482,7 @@ export function metricObservationCount(metricId: string): number {
  */
 export function unavailableReasonFor(metricId: string): string {
   const meta = getMetric(metricId);
-  if (MODE === 'live') {
+  if (current().mode === 'live') {
     return 'No readings of this metric are recorded.';
   }
   return meta?.unavailableReason ?? 'No observations of this metric are present in the dataset.';

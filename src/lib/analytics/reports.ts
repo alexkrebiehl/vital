@@ -10,7 +10,7 @@
 // says so and states how many days it covers.
 
 import { getMetric } from '../metrics/registry';
-import { REFERENCE_KEY, WINDOW_START_KEY } from '../adapters/dataset';
+import { referenceDayKey, windowStartDayKey } from '../adapters/dataset';
 import { formatMetricWithUnit, formatPercent } from '../metrics/format';
 import { countNoun, proseName } from '../metrics/prose';
 import type { UnitSystem } from '../prefs';
@@ -270,14 +270,14 @@ export function weeklyReportWindows(refKey: string, count = 12): DayWindow[] {
   for (let i = 0; i < count; i++) {
     const endKey = addDays(refKey, -1 - i * 7);
     const startKey = addDays(endKey, -6);
-    if (startKey < WINDOW_START_KEY) break;
+    if (startKey < windowStartDayKey()) break;
     out.push({ startKey, endKey, label: `Week ending ${formatDayKeyLong(endKey)}` });
   }
   return out;
 }
 
 export function buildWeeklyReports(
-  refKey: string = REFERENCE_KEY,
+  refKey: string = referenceDayKey(),
   count = 12,
   system: UnitSystem = 'metric'
 ): PeriodReport[] {
@@ -285,7 +285,7 @@ export function buildWeeklyReports(
 }
 
 /** Calendar months clipped to the dataset window, most recent first. */
-export function monthlyReportWindows(refKey: string = REFERENCE_KEY, count = 7): DayWindow[] {
+export function monthlyReportWindows(refKey: string = referenceDayKey(), count = 7): DayWindow[] {
   const out: DayWindow[] = [];
   const [refYear, refMonth] = refKey.split('-').map(Number);
   for (let i = 0; i < count; i++) {
@@ -295,7 +295,7 @@ export function monthlyReportWindows(refKey: string = REFERENCE_KEY, count = 7):
     let startKey = `${monthKey}-01`;
     let endKey = `${monthKey}-${String(lastDay).padStart(2, '0')}`;
     if (endKey > refKey) endKey = refKey;
-    if (startKey < WINDOW_START_KEY) startKey = WINDOW_START_KEY;
+    if (startKey < windowStartDayKey()) startKey = windowStartDayKey();
     if (startKey > endKey) break;
     out.push({ startKey, endKey, label: monthName(startKey) });
   }
@@ -303,7 +303,7 @@ export function monthlyReportWindows(refKey: string = REFERENCE_KEY, count = 7):
 }
 
 export function buildMonthlyReports(
-  refKey: string = REFERENCE_KEY,
+  refKey: string = referenceDayKey(),
   count = 7,
   system: UnitSystem = 'metric'
 ): PeriodReport[] {
@@ -318,7 +318,7 @@ export interface ReportArchive {
 }
 
 export function buildReportArchive(
-  refKey: string = REFERENCE_KEY,
+  refKey: string = referenceDayKey(),
   options: { weeks?: number; months?: number; system?: UnitSystem } = {}
 ): ReportArchive {
   const system = options.system ?? 'metric';

@@ -1,6 +1,6 @@
 // ── Training-session store (server process only) ────────
 //
-// One shared store per server process holds every source's synced sessions.
+// One store per PROFILE per server process holds every source's synced sessions.
 // It lives on `globalThis` under a registered symbol, for the same reason as the
 // briefing cache (src/lib/briefing/index.ts): Next builds the app into several
 // server bundles, and a module-level Map would give each bundle its own copy, so
@@ -28,6 +28,8 @@ import type {
   TrainingSession,
   WorkoutSourceStatus,
 } from './types';
+import { serverEnv } from '@/lib/identity/env';
+import { cacheOwner, configVarName } from '@/lib/identity/scope';
 
 interface DemoFixtures {
   sourceId: string;
@@ -47,24 +49,28 @@ interface ProcessStore {
 
 const STORE_KEY = Symbol.for('vital.training.store');
 
-function processStore(): ProcessStore {
-  const g = globalThis as typeof globalThis & { [STORE_KEY]?: ProcessStore };
-  if (!g[STORE_KEY]) {
+/** One store per profile: each person's sources sync, cache and fail on their own. */
+function processStore(owner: string = cacheOwner()): ProcessStore {
+  const g = globalThis as typeof globalThis & { [STORE_KEY]?: Map<string, ProcessStore> };
+  const stores = (g[STORE_KEY] ??= new Map());
+  let store = stores.get(owner);
+  if (!store) {
     const ttlBySource = new Map<string, number>();
-    g[STORE_KEY] = {
+    store = {
       states: new Map(),
       errors: new Map(),
       ttlBySource,
       // One TTL per cache; sources share the shortest configured one.
       cache: new TtlCache(() => (ttlBySource.size ? Math.min(...ttlBySource.values()) : 300_000)),
     };
+    stores.set(owner, store);
   }
-  return g[STORE_KEY]!;
+  return store;
 }
 
 /** Drop every held session. Tests only. */
 export function resetTrainingStoreForTests(): void {
-  const g = globalThis as typeof globalThis & { [STORE_KEY]?: ProcessStore };
+  const g = globalThis as typeof globalThis & { [STORE_KEY]?: Map<string, ProcessStore> };
   delete g[STORE_KEY];
 }
 
@@ -113,7 +119,7 @@ function demoData(): TrainingData {
  * it had.
  */
 export async function loadTrainingData(deps: SourceRequestDeps = {}): Promise<TrainingData> {
-  const env = deps.env ?? process.env;
+  const env = deps.env ?? serverEnv();
   if (readDataMode(env) !== 'live') return demoData();
 
   const store = processStore();
@@ -157,7 +163,7 @@ export function sessionsBetween(sessions: TrainingSession[], from?: string, to?:
 
 /** The exercise catalogue of every configured source (or the demo catalogue). */
 export async function loadExerciseTemplates(deps: SourceRequestDeps = {}): Promise<ExerciseTemplateInfo[]> {
-  const env = deps.env ?? process.env;
+  const env = deps.env ?? serverEnv();
   if (readDataMode(env) !== 'live') return DEMO_TRAINING.templates;
   await loadTrainingData(deps);
   const store = processStore();
@@ -170,7 +176,7 @@ export async function loadExerciseTemplates(deps: SourceRequestDeps = {}): Promi
 }
 
 /** Status of every registered source without starting a sync (pipeline panel). */
-export function heldSourceStatuses(env: NodeJS.ProcessEnv = process.env): WorkoutSourceStatus[] {
+export function heldSourceStatuses(env: NodeJS.ProcessEnv = serverEnv()): WorkoutSourceStatus[] {
   if (readDataMode(env) !== 'live') return demoData().statuses;
   const store = processStore();
   const enabled = enabledSources(env);
@@ -181,7 +187,7 @@ export function heldSourceStatuses(env: NodeJS.ProcessEnv = process.env): Workou
     return {
       id: plugin.id,
       displayName: plugin.displayName,
-      envVars: plugin.envVars,
+      envVars: plugin.envVars.map(name => configVarName(name)),
       configured: Boolean(source),
       host: source ? plugin.host(source.config) : null,
       origin: source ? 'live' : 'none',

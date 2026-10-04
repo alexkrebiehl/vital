@@ -16,8 +16,8 @@ import {
   type RawSleepRecord,
 } from '@/lib/adapters/normalize';
 import {
-  REFERENCE_KEY,
-  WINDOW_START_KEY,
+  referenceDayKey,
+  windowStartDayKey,
   resetToDemoDataset,
   coverageFor,
   seriesFor,
@@ -464,8 +464,8 @@ describe('windowing and baselines against a 56-day history', () => {
     setActiveDataset(dataset, { mode: 'live', dataAsOf: dataset.windowEnd });
 
     // The live-binding reference day follows the installed dataset.
-    expect(REFERENCE_KEY).toBe(REFERENCE);
-    expect(WINDOW_START_KEY).toBe('2026-07-23');
+    expect(referenceDayKey()).toBe(REFERENCE);
+    expect(windowStartDayKey()).toBe('2026-07-23');
 
     const series = seriesFor('resting_heart_rate');
     expect(series).toHaveLength(56);
@@ -488,19 +488,19 @@ describe('windowing and baselines against a 56-day history', () => {
       const cmp = compareWindows('resting_heart_rate', REFERENCE, days);
       expect(cmp.comparison.valid, `${days}d`).toBe(false);
       const window = trailingWindow(REFERENCE, days);
-      expect(diffDays(window.startKey, WINDOW_START_KEY)).toBeGreaterThan(0);
+      expect(diffDays(window.startKey, windowStartDayKey())).toBeGreaterThan(0);
       expect(cmp.counts.evaluated).toBeLessThanOrEqual(56);
     }
 
     resetToDemoDataset();
-    expect(REFERENCE_KEY).toBe('2026-09-17');
-    expect(WINDOW_START_KEY).toBe('2026-03-21');
+    expect(referenceDayKey()).toBe('2026-09-17');
+    expect(windowStartDayKey()).toBe('2026-03-21');
     expect(coverageFor('vo2max')).toBeDefined();
   });
 
   it('still treats the demo fixtures as the default dataset', () => {
     // Nothing in this file installed a dataset before this expectation.
-    expect(REFERENCE_KEY).toBe('2026-09-17');
+    expect(referenceDayKey()).toBe('2026-09-17');
     expect(seriesFor('resting_heart_rate').length).toBeGreaterThan(100);
     expect(dayKey('2026-09-17T12:00:00.000Z', TZ)).toBe('2026-09-17');
   });

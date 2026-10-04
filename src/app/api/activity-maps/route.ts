@@ -12,12 +12,13 @@ import { createMap, listMaps, poolOrThrow, reorderMaps } from '@/lib/db/activity
 import { validateMapInput } from '@/lib/activity-maps/types';
 import { readTileConfig } from '@/lib/activity-maps/tiles';
 import { errorResponse, jsonResponse, readBody, storeErrorResponse } from '@/lib/activity-maps/http';
+import { scoped } from '@/lib/identity';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export async function GET() {
+async function handleGET() {
   try {
     return jsonResponse({ maps: await listMaps(poolOrThrow()), tiles: readTileConfig() });
   } catch (error) {
@@ -25,7 +26,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   const read = await readBody(request);
   if (!read.ok) return read.response;
   const input = validateMapInput(read.body);
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
   }
 }
 
-export async function PUT(request: Request) {
+async function handlePUT(request: Request) {
   const read = await readBody(request);
   if (!read.ok) return read.response;
   const order = (read.body as { order?: unknown } | null)?.order;
@@ -50,3 +51,7 @@ export async function PUT(request: Request) {
     return storeErrorResponse(error, 'The maps could not be reordered.');
   }
 }
+
+export const GET = scoped(handleGET);
+export const POST = scoped(handlePOST);
+export const PUT = scoped(handlePUT);

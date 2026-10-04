@@ -18,7 +18,7 @@ import {
   toCanonicalValue,
 } from '@/lib/metrics/format';
 import { countNoun, proseName } from '@/lib/metrics/prose';
-import { REFERENCE_KEY, seriesFor } from '@/lib/adapters/dataset';
+import { referenceDayKey, seriesFor } from '@/lib/adapters/dataset';
 import { buildSeriesSummary } from '@/lib/analytics';
 import { describeStoredPreferences, DEFAULT_NOTIFICATIONS, loadPreferences, STORAGE_KEY_NAME } from '@/lib/prefs';
 
@@ -66,7 +66,7 @@ describe('formatting discipline (SPEC §3, §9)', () => {
   it('never emits a raw float in a rendered value or delta', () => {
     for (const metric of getAllMetrics()) {
       if (seriesFor(metric.id).length === 0) continue;
-      const summary = buildSeriesSummary(metric.id, REFERENCE_KEY, 30);
+      const summary = buildSeriesSummary(metric.id, referenceDayKey(), 30);
       expect(summary.latestValue).not.toMatch(/\d\.\d{3}/);
       const delta = formatDeltaWithUnit(metric.id, 3.14159, 'metric');
       expect(delta).not.toMatch(/\d\.\d{3}/);

@@ -6,7 +6,7 @@ import { TriangleAlert } from 'lucide-react';
 import { getMetric } from '@/lib/metrics';
 import { formatMetricWithUnit } from '@/lib/metrics/format';
 import {
-  REFERENCE_KEY,
+  referenceDayKey,
   bloodPressureSeries,
   bloodOxygenSeries,
   seriesFor,
@@ -35,23 +35,23 @@ const HEADLINE = ['resting_heart_rate', 'heart_rate_variability', 'walking_heart
 
 export function HealthPage() {
   const { units } = useUnits();
-  const headlineSummaries = HEADLINE.map(id => buildSeriesSummary(id, REFERENCE_KEY, DAYS, units));
+  const headlineSummaries = HEADLINE.map(id => buildSeriesSummary(id, referenceDayKey(), DAYS, units));
   // Owner request 2: a metric with no observation in this window renders nothing,
   // and the section disappears with its last card.
   const summaries = headlineSummaries.filter(s => s.points.length > 0);
   const headlineIds = summaries.map(s => s.metricId);
   const bp = bloodPressureSeries();
   const spo2 = bloodOxygenSeries();
-  const spo2Window = trailingWindow(REFERENCE_KEY, DAYS);
+  const spo2Window = trailingWindow(referenceDayKey(), DAYS);
   const spo2Points = spo2.filter(p => p.key >= spo2Window.startKey && p.key <= spo2Window.endKey);
 
   // Blood pressure: only the last week, and only when it has readings. Readings
   // above the 120/80 reference threshold are called out individually.
-  const bpWindow = trailingWindow(REFERENCE_KEY, BP_RECENT_DAYS);
+  const bpWindow = trailingWindow(referenceDayKey(), BP_RECENT_DAYS);
   const bpRecent = bloodPressureInWindow(bp, bpWindow);
   const bpAbove = bpRecent.filter(isAboveBloodPressureReference);
 
-  const respiratoryWindow = trailingWindow(REFERENCE_KEY, DAYS);
+  const respiratoryWindow = trailingWindow(referenceDayKey(), DAYS);
   const respiratoryPoints = seriesFor('respiratory_rate').filter(
     p => p.key >= respiratoryWindow.startKey && p.key <= respiratoryWindow.endKey
   );
@@ -66,7 +66,7 @@ export function HealthPage() {
       <DomainHeader
         title="Health"
         aside={<HeroFigure metricId="resting_heart_rate" category="cardiovascular" days={30} />}
-        subtitle={`Cardiovascular signals first, then every other category the dataset actually contains. Window: last ${DAYS} days ending ${formatDayKeyLong(REFERENCE_KEY)}.`}
+        subtitle={`Cardiovascular signals first, then every other category the dataset actually contains. Window: last ${DAYS} days ending ${formatDayKeyLong(referenceDayKey())}.`}
       />
 
       <BodyMap

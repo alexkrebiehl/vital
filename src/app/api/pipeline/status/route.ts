@@ -8,11 +8,12 @@
 
 import { NextResponse } from 'next/server';
 import { resolvePipelineStatus } from '@/lib/pipeline/status';
+import { scoped } from '@/lib/identity';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-export async function GET() {
+async function handleGET() {
   const report = await resolvePipelineStatus();
   return NextResponse.json(report, {
     status: 200,
@@ -22,3 +23,5 @@ export async function GET() {
     },
   });
 }
+
+export const GET = scoped(handleGET);

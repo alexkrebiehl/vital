@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ArrowRight, ChevronRight, RotateCcw, Sparkles, Brain, History, Info } from 'lucide-react';
 import { getMetric } from '@/lib/metrics';
 import {
-  REFERENCE_KEY,
+  referenceDayKey,
   seriesInWindow,
   seriesFor,
   pointOn,
@@ -97,13 +97,13 @@ export function OverviewPage({ initialGreeting }: { initialGreeting: string }) {
   // Both times are stated absolutely — when it was written and when it was due —
   // instead of hedging about whether the schedule ran on time.
 
-  const briefing = useMemo(() => buildBriefing(REFERENCE_KEY, profile.notes), [profile.notes]);
+  const briefing = useMemo(() => buildBriefing(referenceDayKey(), profile.notes), [profile.notes]);
   const watch = useMemo(() => buildWatchItem(briefing, units), [briefing, units]);
-  const story = useMemo(() => buildStorySummary(REFERENCE_KEY, Number(storyDays), units), [storyDays, units]);
+  const story = useMemo(() => buildStorySummary(referenceDayKey(), Number(storyDays), units), [storyDays, units]);
 
   // Yesterday's values for the core-signal cards.
   const yesterdayKey = useMemo(() => {
-    const d = new Date(`${REFERENCE_KEY}T12:00:00.000Z`);
+    const d = new Date(`${referenceDayKey()}T12:00:00.000Z`);
     d.setUTCDate(d.getUTCDate() - 1);
     return d.toISOString().slice(0, 10);
   }, []);
@@ -118,7 +118,7 @@ export function OverviewPage({ initialGreeting }: { initialGreeting: string }) {
         const all = seriesFor(metricId);
         const latest = latestPoint(all);
         const yesterday = pointOn(all, yesterdayKey);
-        const win30 = trailingWindow(REFERENCE_KEY, 30);
+        const win30 = trailingWindow(referenceDayKey(), 30);
         const base30 = previousWindow(win30, 30);
         const raw = seriesInWindow(metricId, win30);
         const baselineValues = seriesInWindow(metricId, base30).map(p => p.value);
@@ -157,7 +157,7 @@ export function OverviewPage({ initialGreeting }: { initialGreeting: string }) {
     ];
     const comparisons = defs.map(d => ({
       ...d,
-      cmp: compareWindows(d.metricId, REFERENCE_KEY, 7, { meta: getMetric(d.metricId) }),
+      cmp: compareWindows(d.metricId, referenceDayKey(), 7, { meta: getMetric(d.metricId) }),
     }));
     const rows: ChangeRow[] = comparisons.map(c => ({
       metricId: c.metricId,
@@ -175,7 +175,7 @@ export function OverviewPage({ initialGreeting }: { initialGreeting: string }) {
   }, []);
 
   const storyFigure = useMemo(
-    () => buildTrendFigure('resting_heart_rate', REFERENCE_KEY, Number(storyDays), units),
+    () => buildTrendFigure('resting_heart_rate', referenceDayKey(), Number(storyDays), units),
     [storyDays, units]
   );
 
@@ -240,7 +240,7 @@ export function OverviewPage({ initialGreeting }: { initialGreeting: string }) {
         <div className="min-w-0">
           <p className="mb-2 inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-[12px] font-medium text-text-secondary shadow-card">
             <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
-            {weekdayName(REFERENCE_KEY)}, {formatDayKeyLong(REFERENCE_KEY)}
+            {weekdayName(referenceDayKey())}, {formatDayKeyLong(referenceDayKey())}
           </p>
           <h1 className="text-[34px] sm:text-[44px] md:text-[52px] font-semibold tracking-[-0.045em] text-text-primary leading-[1.02]">
             {greeting}
@@ -638,7 +638,7 @@ function SignalCard({
         <span aria-hidden="true" className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full opacity-[0.12] blur-2xl" style={{ background: accent }} />
         <div className="flex items-start justify-between gap-2 mb-2">
           <span className="text-xs font-medium text-text-secondary">{label}</span>
-          {latest?.key === REFERENCE_KEY ? (
+          {latest?.key === referenceDayKey() ? (
             <Badge variant="info" className="text-[10px]">Today</Badge>
           ) : latest ? (
             <span className="text-[10px] text-text-secondary">

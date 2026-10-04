@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { formatMetricValue, formatMetricWithUnit } from '@/lib/metrics/format';
 import {
-  REFERENCE_KEY,
+  referenceDayKey,
   seriesFor,
   coverageFor,
 } from '@/lib/adapters/dataset';
@@ -31,9 +31,9 @@ const WINDOW_DAYS = 30;
 export function BodyPage() {
   const { units } = useUnits();
   const all = seriesFor('weight_body_mass');
-  const win = trailingWindow(REFERENCE_KEY, DAYS);
+  const win = trailingWindow(referenceDayKey(), DAYS);
   const inWindow = all.filter(p => p.key >= win.startKey && p.key <= win.endKey);
-  const weightSummary = buildSeriesSummary('weight_body_mass', REFERENCE_KEY, WINDOW_DAYS, units);
+  const weightSummary = buildSeriesSummary('weight_body_mass', referenceDayKey(), WINDOW_DAYS, units);
 
   const first = inWindow[0];
   const last = inWindow[inWindow.length - 1];

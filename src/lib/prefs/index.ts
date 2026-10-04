@@ -53,7 +53,8 @@ export { DEFAULT_NOTIFICATIONS, DEFAULT_PREFERENCES } from './types';
 /** Fired on window whenever the settings change, so live views re-render. */
 export const PREFERENCES_EVENT = 'vital:preferences';
 
-/** The namespaced cache key this browser keeps as a first-paint hint. */
+/** The primary profile's cache key (another profile's adds its slug; see
+ *  `preferencesCacheKey`). */
 export const STORAGE_KEY_NAME = preferencesCacheKey(PREFS_SCHEMA_VERSION);
 
 /** The path the engine talks to. One place, so tests and code agree. */
@@ -183,7 +184,7 @@ export function clearPreferences(): void {
  * real store, and this is the first-paint copy of it.
  */
 export function describeStoredPreferences(prefs: VitalPreferences): { key: string; value: string }[] {
-  return [{ key: STORAGE_KEY_NAME, value: JSON.stringify(prefs) }];
+  return [{ key: preferencesCacheKey(PREFS_SCHEMA_VERSION), value: JSON.stringify(prefs) }];
 }
 
 type ThemeChoice = Pick<VitalPreferences, 'theme' | 'lightTheme' | 'darkTheme'>;

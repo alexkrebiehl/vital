@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { REFERENCE_KEY } from '@/lib/adapters/dataset';
+import { referenceDayKey } from '@/lib/adapters/dataset';
 import { retrieve, retrieveGeneral } from '@/lib/analyst/retrieval';
 import { BOUNDARY_NOTE } from '@/lib/analyst/handlers';
 import { buildContextPayload } from '@/lib/analyst/systemPrompt';
@@ -14,7 +14,7 @@ import {
 } from '@/lib/analyst/validate';
 import type { AnalystAnswer } from '@/lib/analyst/types';
 
-const sleepBundle = retrieve('sleep-1-month', REFERENCE_KEY);
+const sleepBundle = retrieve('sleep-1-month', referenceDayKey());
 
 function answerFrom(text: string) {
   return parseAnalystReply(text, { bundle: sleepBundle });
@@ -283,7 +283,7 @@ describe('grounding formatted citations (SPEC §8)', () => {
     // step_count's formatter renders a total as "218.8K", whose numeric value
     // (218.8) appears nowhere else in the payload: only the display string
     // states it, and quoting it must count as grounded.
-    const general = retrieveGeneral(REFERENCE_KEY);
+    const general = retrieveGeneral(referenceDayKey());
     const steps = buildContextPayload(general, 'metric').metrics.find(m => m.metricId === 'step_count')!.display;
     expect(steps.current).toMatch(/K$/);
 

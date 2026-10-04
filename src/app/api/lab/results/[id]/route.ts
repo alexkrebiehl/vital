@@ -16,6 +16,7 @@ import { NextResponse } from 'next/server';
 import { resolveAnalyte } from '@/lib/lab/analytes';
 import type { LabRefSource } from '@/lib/lab/types';
 import { updateResult, type ResultPatch, storeClient } from '@/lib/db/lab-store';
+import { scoped } from '@/lib/identity';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -80,7 +81,7 @@ function parsePatch(body: unknown): ParseResult {
   return { ok: true, patch };
 }
 
-export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+async function handlePATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
   if (!isUuid(id)) {
     return NextResponse.json({ error: 'The result id must be a UUID.' }, { status: 400, headers: NO_STORE });
@@ -127,3 +128,5 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
   return NextResponse.json({ result }, { status: 200, headers: NO_STORE });
 }
+
+export const PATCH = scoped(handlePATCH);

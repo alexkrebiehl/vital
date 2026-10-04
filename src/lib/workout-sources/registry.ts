@@ -6,6 +6,7 @@
 
 import { hevyPlugin } from './hevy';
 import type { WorkoutSourcePlugin } from './types';
+import { serverEnv } from '@/lib/identity/env';
 
 export const WORKOUT_SOURCE_PLUGINS: WorkoutSourcePlugin<any>[] = [hevyPlugin];
 
@@ -15,7 +16,7 @@ export interface EnabledSource {
 }
 
 /** Plugins whose configuration is present in this environment. */
-export function enabledSources(env: NodeJS.ProcessEnv = process.env): EnabledSource[] {
+export function enabledSources(env: NodeJS.ProcessEnv = serverEnv()): EnabledSource[] {
   const out: EnabledSource[] = [];
   for (const plugin of WORKOUT_SOURCE_PLUGINS) {
     const config = plugin.readConfig(env);
@@ -26,7 +27,7 @@ export function enabledSources(env: NodeJS.ProcessEnv = process.env): EnabledSou
 
 export const DEFAULT_SOURCE_LOOKBACK_DAYS = 400;
 
-export function sourceLookbackDays(env: NodeJS.ProcessEnv = process.env): number {
+export function sourceLookbackDays(env: NodeJS.ProcessEnv = serverEnv()): number {
   const raw = Number(env.WORKOUT_SOURCE_LOOKBACK_DAYS);
   return Number.isFinite(raw) && raw >= 7 && raw <= 3650 ? Math.round(raw) : DEFAULT_SOURCE_LOOKBACK_DAYS;
 }

@@ -14,7 +14,7 @@ import {
 } from '../metrics/format';
 import type { UnitSystem } from '../prefs';
 import type { DayPoint } from '../adapters/dataset';
-import { REFERENCE_KEY, isAccumulating, seriesFor as seriesForMetric } from '../adapters/dataset';
+import { referenceDayKey, isAccumulating, seriesFor as seriesForMetric } from '../adapters/dataset';
 import { aggregate } from './stats';
 import { compareWindows } from './comparisons';
 import { computeStatus, type BaselineStatus, type StatusResult, type WithinWord } from './status';
@@ -278,7 +278,7 @@ export function buildWatchItem(briefing: Briefing, system: UnitSystem = 'metric'
     counts: top.result.counts,
     excludedIncompleteDay: excluded.length > 0,
     exclusionNote: excluded.length
-      ? `Today (${formatDayKeyLong(REFERENCE_KEY)}) is still in progress and is excluded from this metric's comparison.`
+      ? `Today (${formatDayKeyLong(referenceDayKey())}) is still in progress and is excluded from this metric's comparison.`
       : null,
     tone,
     reason: reasonFor(meta, top.status),

@@ -5,7 +5,7 @@ import { ChevronRight, Info } from 'lucide-react';
 import { getMetric, getAllMetrics, getMetricsByCategory } from '@/lib/metrics';
 import { formatMetricWithUnit } from '@/lib/metrics/format';
 import {
-  REFERENCE_KEY,
+  referenceDayKey,
   seriesInWindow,
   seriesFor,
   coverageFor,
@@ -209,7 +209,7 @@ export function SeriesCard({
 
 export function useSeriesSummaries(metricIds: string[], days: number): SeriesSummary[] {
   const { units } = useUnits();
-  return metricIds.map(id => buildSeriesSummary(id, REFERENCE_KEY, days, units));
+  return metricIds.map(id => buildSeriesSummary(id, referenceDayKey(), days, units));
 }
 
 // ── Metric grid ────────────────────────────────────────
@@ -224,7 +224,7 @@ export function MetricGrid({
 }) {
   // Only metrics with an observation in this window are rendered; when none
   // qualifies, the section (and its heading) disappears entirely.
-  const win = trailingWindow(REFERENCE_KEY, days);
+  const win = trailingWindow(referenceDayKey(), days);
   const visible = metrics.filter(m => hasObservationsInWindow(m.id, win));
   if (visible.length === 0) return null;
   return (
@@ -242,7 +242,7 @@ export function MetricGrid({
 export function MetricTile({ metric, days }: { metric: MetricDefinition; days: number }) {
   const { units } = useUnits();
   const all = seriesFor(metric.id);
-  const win = trailingWindow(REFERENCE_KEY, days);
+  const win = trailingWindow(referenceDayKey(), days);
   const points = seriesInWindow(metric.id, win);
   const latest = all.length ? all[all.length - 1] : undefined;
 

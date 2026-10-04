@@ -28,6 +28,7 @@ import {
   defaultPreferences,
   parseLegacyPreferences,
   preferencesCacheKey,
+  browserProfileSlug,
   validatePreferencesRecord,
   type PreferencesRecord,
   type VitalPreferences,
@@ -248,6 +249,8 @@ export function createPrefsEngine(deps: PrefsEngineDeps): PrefsEngine {
    * write, so a failed import is retried rather than silently lost.
    */
   async function importLegacy(): Promise<boolean> {
+    // The legacy value predates profiles, so it was the primary person's.
+    if (browserProfileSlug()) return false;
     let raw: string | null;
     try {
       raw = deps.getStorage()?.getItem(LEGACY_STORAGE_KEY) ?? null;

@@ -11,6 +11,7 @@
 
 import { NextResponse } from 'next/server';
 import { getSeries, readSeriesProfile, storeClient } from '@/lib/db/lab-store';
+import { scoped } from '@/lib/identity';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -18,7 +19,7 @@ export const revalidate = 0;
 
 const NO_STORE = { 'Cache-Control': 'no-store, private' } as const;
 
-export async function GET() {
+async function handleGET() {
   const client = storeClient();
   if (!client) {
     return NextResponse.json(
@@ -42,3 +43,5 @@ export async function GET() {
     { status: 200, headers: NO_STORE }
   );
 }
+
+export const GET = scoped(handleGET);

@@ -19,6 +19,7 @@ import type { ProvenanceRow } from './normalize';
 import type { ClientDatasetMeta } from './meta';
 import { SOURCE_DEDUPE_RULE } from './sources';
 import { readProfile } from '../profile/store';
+import { serverEnv } from '@/lib/identity/env';
 
 export type { DataMode };
 export type { ClientDatasetMeta } from './meta';
@@ -35,7 +36,7 @@ export class LiveDataUnavailableError extends Error {
 }
 
 /** The mode selected by the environment. Anything but `live` is demo. */
-export function readDataMode(env: NodeJS.ProcessEnv = process.env): DataMode {
+export function readDataMode(env: NodeJS.ProcessEnv = serverEnv()): DataMode {
   return (env.VITAL_DATA_MODE ?? '').trim().toLowerCase() === 'live' ? 'live' : 'demo';
 }
 
@@ -92,7 +93,7 @@ function toClientMeta(
  * and the pipeline/analyst routes call `install()` before reading the dataset.
  */
 export async function resolveDataset(deps: LiveDeps = {}): Promise<ResolvedDataset> {
-  const env = deps.env ?? process.env;
+  const env = deps.env ?? serverEnv();
   const mode = readDataMode(env);
 
   if (mode === 'demo') {

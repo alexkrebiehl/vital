@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getAllMetrics } from '@/lib/metrics';
-import { REFERENCE_KEY, seriesFor } from '@/lib/adapters/dataset';
+import { referenceDayKey, seriesFor } from '@/lib/adapters/dataset';
 import {
   buildBriefing,
   buildReportArchive,
@@ -33,7 +33,7 @@ const BANNED = /\b(normal|normally|healthy|unhealthy|concerning|safe|unsafe|dang
 function collectStrings(): { label: string; text: string }[] {
   const out: { label: string; text: string }[] = [];
 
-  const briefing = buildBriefing(REFERENCE_KEY);
+  const briefing = buildBriefing(referenceDayKey());
   out.push({ label: 'briefing.headline', text: briefing.headline });
   out.push({ label: 'briefing.body', text: briefing.body });
   for (const c of briefing.categories) {
@@ -51,7 +51,7 @@ function collectStrings(): { label: string; text: string }[] {
   }
 
   for (const days of [30, 90]) {
-    const story = buildStorySummary(REFERENCE_KEY, days);
+    const story = buildStorySummary(referenceDayKey(), days);
     out.push({ label: `story.${days}.paragraph`, text: story.paragraph });
     for (const o of story.observations) {
       out.push({ label: `story.${days}.${o.metricId}.title`, text: o.title });
@@ -61,20 +61,20 @@ function collectStrings(): { label: string; text: string }[] {
   }
 
   for (const m of getAllMetrics()) {
-    const summary = buildSeriesSummary(m.id, REFERENCE_KEY, 30);
+    const summary = buildSeriesSummary(m.id, referenceDayKey(), 30);
     out.push({ label: `series.${m.id}.latestValue`, text: summary.latestValue });
     out.push({ label: `series.${m.id}.changeValue`, text: summary.changeValue });
     out.push({ label: `series.${m.id}.lengthLabel`, text: summary.lengthLabel });
     if (m.unavailableReason) out.push({ label: `registry.${m.id}.unavailableReason`, text: m.unavailableReason });
 
-    const figure = buildTrendFigure(m.id, REFERENCE_KEY, 30);
+    const figure = buildTrendFigure(m.id, referenceDayKey(), 30);
     out.push({ label: `figure.${m.id}.ariaLabel`, text: figure.ariaLabel });
   }
 
-  const win7 = trailingWindow(REFERENCE_KEY, 7);
+  const win7 = trailingWindow(referenceDayKey(), 7);
   const prior7 = previousWindow(win7, 7);
   const rows: ChangeRow[] = ['sleep_analysis', 'resting_heart_rate', 'heart_rate_variability', 'apple_exercise_time'].map(id => {
-    const cmp = compareWindows(id, REFERENCE_KEY, 7);
+    const cmp = compareWindows(id, referenceDayKey(), 7);
     return {
       metricId: id,
       label: id,
@@ -98,7 +98,7 @@ function collectStrings(): { label: string; text: string }[] {
   }
 
   // Insight cards
-  for (const insight of generateInsights(REFERENCE_KEY)) {
+  for (const insight of generateInsights(referenceDayKey())) {
     out.push({ label: `insight.${insight.id}.title`, text: insight.title });
     out.push({ label: `insight.${insight.id}.summary`, text: insight.summary });
     out.push({ label: `insight.${insight.id}.detail`, text: insight.detail });
@@ -113,7 +113,7 @@ function collectStrings(): { label: string; text: string }[] {
   }
 
   // Report archive
-  const archive = buildReportArchive(REFERENCE_KEY);
+  const archive = buildReportArchive(referenceDayKey());
   for (const report of [...archive.weekly, ...archive.monthly]) {
     out.push({ label: `report.${report.id}.title`, text: report.title });
     out.push({ label: `report.${report.id}.period`, text: report.periodLabel });
@@ -129,14 +129,14 @@ function collectStrings(): { label: string; text: string }[] {
 
   // Logged-intake copy
   for (const id of ['dietary_energy', 'dietary_protein', 'dietary_caffeine', 'dietary_water']) {
-    const stats = loggedDayStats(id, REFERENCE_KEY, 90);
+    const stats = loggedDayStats(id, referenceDayKey(), 90);
     out.push({ label: `nutrition.${id}.averageLabel`, text: stats.averageLabel });
     out.push({ label: `nutrition.${id}.coverageLabel`, text: stats.coverageLabel });
   }
 
   // Analyst answers, produced exactly as the service produces them
   for (const handler of HANDLERS) {
-    const answer = handler.run({ bundle: retrieve(handler.id, REFERENCE_KEY), system: 'metric', refKey: REFERENCE_KEY });
+    const answer = handler.run({ bundle: retrieve(handler.id, referenceDayKey()), system: 'metric', refKey: referenceDayKey() });
     out.push({ label: `analyst.${answer.id}.title`, text: answer.title });
     answer.observed.forEach((p, i) => out.push({ label: `analyst.${answer.id}.observed${i}`, text: p }));
     answer.interpretation.forEach((p, i) => out.push({ label: `analyst.${answer.id}.interp${i}`, text: p }));
@@ -172,7 +172,7 @@ describe('generated copy (SPEC §8 medical safety)', () => {
 
 describe('briefing self-consistency (defect 4)', () => {
   it('states it in the headline when any category is outside its baseline', () => {
-    const briefing = buildBriefing(REFERENCE_KEY);
+    const briefing = buildBriefing(referenceDayKey());
     if (briefing.outside.length > 0) {
       expect(briefing.headline).not.toMatch(/broadly within/i);
       for (const c of briefing.outside) {
@@ -184,7 +184,7 @@ describe('briefing self-consistency (defect 4)', () => {
   });
 
   it('keeps chips and headline on the same computation', () => {
-    const briefing = buildBriefing(REFERENCE_KEY);
+    const briefing = buildBriefing(referenceDayKey());
     // A chip may only say "Within baseline"/"Stable"/"Not enough data" when the
     // shared computation agrees; anything else must appear in the headline.
     for (const c of briefing.categories) {
@@ -201,16 +201,16 @@ describe('briefing self-consistency (defect 4)', () => {
       'Below recent average',
       'Not enough data',
     ]);
-    const briefing = buildBriefing(REFERENCE_KEY);
+    const briefing = buildBriefing(referenceDayKey());
     for (const c of briefing.categories) {
       expect(allowed.has(c.status)).toBe(true);
     }
   });
 
   it('derives every comparison row from real observations', () => {
-    const row = compareWindows('step_count', REFERENCE_KEY, 7);
+    const row = compareWindows('step_count', referenceDayKey(), 7);
     // The in-progress day must be excluded from a sum comparison …
-    expect(row.excludedDays).toContain(REFERENCE_KEY);
+    expect(row.excludedDays).toContain(referenceDayKey());
     expect(row.comparison.valid).toBe(true);
     // … and both sides must then be the same number of complete days.
     expect(row.evaluatedDays).toBe(row.baselineDays);
