@@ -21,6 +21,7 @@ import { BodyMap } from '@/components/art/BodyMap';
 import { HeroFigure } from '@/components/art/HeroFigure';
 import { CompositionBar } from '@/components/art/CompositionBar';
 import { useUnits } from '@/components/ui/UnitsProvider';
+import { BodyGoalPanel } from '@/components/body-goal/BodyGoalPanel';
 import {
   DomainHeader, SectionTitle, SeriesCard, MetricGrid, metricsForCategories,
 } from './DomainShared';
@@ -48,8 +49,10 @@ export function BodyPage() {
         title="Body"
         category="body"
         aside={<HeroFigure metricId="weight_body_mass" category="body" days={DAYS} />}
-        subtitle={`Weight is the main series. Measurements are individual weigh-ins, not daily readings — the average gap is ${Number.isFinite(avgGap) ? avgGap.toFixed(1) : '—'} days.`}
+        subtitle={`Weight and body composition, read against your goal. Measurements are individual weigh-ins, not daily readings — the average gap is ${Number.isFinite(avgGap) ? avgGap.toFixed(1) : '—'} days.`}
       />
+
+      <BodyGoalPanel />
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_340px]">
       <BodyMap

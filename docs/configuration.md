@@ -161,6 +161,36 @@ configuration:
   `localStorage` as a cache; no API key, token or health record does — and the timezone no longer
   does either.
 
+## The body goal (Body → Overview)
+
+A **body goal** is a target body weight or a target body-fat percentage, and optionally your own
+pace. It is set from the Body page and stored in the `body_goals` table (migration `0010`):
+
+| | |
+|---|---|
+| Storage | `body_goals` in Postgres; at most one is `active`, earlier ones are kept as history |
+| Route | `GET` / `PUT` / `DELETE /api/body-goal` (a stale `revision` is refused with `409`) |
+
+- **Configuration only.** A goal holds a kind, a target, a pace and the day it was set. Where you
+  started is read from the health data on that day every time it is shown; no reading is stored.
+- **Cut, gain or maintain comes from the data.** A target below your seven-day average weight (or
+  body-fat reading) is a cut, above it a gain, and within ±1 % of body weight (±0.5 points of body
+  fat) the goal is reached and the guidance turns to maintenance. Crossing the target never needs
+  the goal to be re-entered.
+- **Recommended pace, or your own.** The recommended band is a share of body weight per week:
+  0.5–1 % when cutting (narrower when lean; the body-fat bands use the profile's sex when it is
+  set), 0.25–0.5 % when gaining. A pace you set replaces the middle of the band; its direction
+  always follows the phase.
+- **Maintenance two ways.** From the weight trend (mean logged calories on complete days minus the
+  four-week weight slope × 7,700 kcal/kg; needs 10 complete logged days and 4 weigh-ins) and from
+  the device (basal + active energy). The weight-trend estimate is used when there is one.
+  Logged days under 60 % of the window's median are treated as partial logs and left out.
+- **Projections, not deadlines.** Arrival dates are worked out from a pace. Nothing is ever shown
+  as behind or overdue.
+- **Everywhere the goal matters.** The Overview shows a goal tile, the daily briefing leads with
+  the goal (its numbers are in the briefing context as `bodyGoal`), and the analyst receives the
+  same summary with every question (and as the page context from the Body page).
+
 ## The training routine on `/workouts`
 
 The Workouts page opens with the active **training plan**: the current phase, the next

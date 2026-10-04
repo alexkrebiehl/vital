@@ -713,6 +713,24 @@ def({
   sourceNames: [],
 });
 
+def({
+  id: 'dietary_fiber',
+  displayName: 'Fiber',
+  aliases: ['dietary fiber', 'fibre', 'fiber intake'],
+  category: 'nutrition',
+  canonicalUnit: 'g',
+  shortUnit: 'g',
+  dataType: 'continuous',
+  aggregationStrategy: 'sum',
+  defaultRange: '30d',
+  decimalPlaces: 0,
+  formatter: (v) => fmt0(v),
+  tickFormatter: tick0,
+  minObservations: 3,
+  demoAvailable: true,
+  sourceNames: [],
+});
+
 // ── Accessors ─────────────────────────────────────────
 
 export function getMetric(id: string): MetricDefinition | undefined {

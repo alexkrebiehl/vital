@@ -17,6 +17,10 @@ const nextConfig = {
   outputFileTracingIncludes: {
     '/**': ['./node_modules/pdfjs-dist/**'],
   },
+  // Nutrition moved under Body. Old bookmarks and links keep working.
+  async redirects() {
+    return [{ source: '/nutrition', destination: '/body/nutrition', permanent: true }];
+  },
   async headers() {
     return [
       {

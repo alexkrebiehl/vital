@@ -158,6 +158,8 @@ export const METRIC_MAPPINGS: MetricMapping[] = [
   { hae: 'protein', metricId: 'dietary_protein', field: 'qty', aggregation: 'sum', samplingFrequency: 'logged' },
   { hae: 'caffeine', metricId: 'dietary_caffeine', field: 'qty', aggregation: 'sum', samplingFrequency: 'logged' },
   { hae: 'water', metricId: 'dietary_water', field: 'qty', aggregation: 'sum', samplingFrequency: 'logged' },
+  // Fiber: the Body goal's nutrition targets compare it with ~14 g per 1,000 kcal.
+  { hae: 'fiber', metricId: 'dietary_fiber', field: 'qty', aggregation: 'sum', samplingFrequency: 'logged' },
 ];
 
 export const SLEEP_HAE_METRIC = 'sleep_analysis';

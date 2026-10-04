@@ -16,8 +16,8 @@ Routes, what is still demo or unwired in this build, and the quality commands.
 | `/activity` | Steps, exercise and movement |
 | `/activity/maps` | Maps of where outdoor workouts went, with highlights |
 | `/sleep` | Nights, stages, consistency |
-| `/body` | Weight, body composition |
-| `/nutrition` | Logged dietary intake |
+| `/body` | Weight and body composition, read against your body goal (pace, maintenance calories, projections, how training and recovery are holding up) |
+| `/body/nutrition` | Logged dietary intake, with daily targets for the goal, a month-by-month log and a check that macros add up to calories (`/nutrition` redirects here) |
 | `/medications` | Logged doses, today and per medication |
 | `/lab`, `/lab/[analyteKey]` | Lab results, and one analyte over time |
 | `/workouts` | The training routine dashboard |
@@ -32,7 +32,7 @@ Routes, what is still demo or unwired in this build, and the quality commands.
 | `/metric/[metricId]` | One metric in detail |
 
 The API lives under `/api/*`: `activity-coverage`, `activity-maps`, `analyst` (with `conversations`
-and `stream`), `briefing`, `geocode`, `lab`, `medications`, `pipeline/status`, `preferences`,
+and `stream`), `body-goal`, `briefing`, `geocode`, `lab`, `medications`, `pipeline/status`, `preferences`,
 `profile`, `routine`, `workout-sources` and a `health` liveness probe.
 
 ---

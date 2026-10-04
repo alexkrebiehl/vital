@@ -30,6 +30,22 @@ describe('resolveTrail', () => {
     expect(resolveTrail('/activity').page?.id).toBe('overview');
   });
 
+  it('places Nutrition under Body, and the Body landing page as its Overview', () => {
+    expect(labels('/body/nutrition')).toEqual(['Body', 'Nutrition']);
+    expect(resolveTrail('/body/nutrition').page?.id).toBe('nutrition');
+    expect(labels('/body')).toEqual(['Body']);
+    expect(resolveTrail('/body').page?.id).toBe('overview');
+    expect(NAV_SECTIONS.some(s => s.id === 'nutrition')).toBe(false);
+  });
+
+  it('files a nutrition metric under Body › Nutrition and a body metric under Body', () => {
+    const protein = resolveTrail('/metric/dietary_protein');
+    expect(protein.section?.id).toBe('body');
+    expect(protein.page?.id).toBe('nutrition');
+    expect(protein.crumbs.map(c => c.label)).toEqual(['Body', 'Nutrition', 'Protein']);
+    expect(labels('/metric/weight_body_mass')).toEqual(['Body', 'Weight']);
+  });
+
   it('puts a progression path under the Plan, which stays the active page', () => {
     const trail = resolveTrail('/workouts/routine/pull-up');
     expect(trail.crumbs).toEqual([

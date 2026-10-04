@@ -96,7 +96,7 @@ Ask in ordinary language and get an answer that reads like a short medical analy
 - **34 metrics**, each with its own page: chart, baseline band, a table view, how complete the data
   is, and related metrics. A day with no reading is shown as missing, never as zero.
 - **Dedicated pages** for **Sleep** (nights, stages, consistency, time asleep vs in bed), **Health**
-  (heart, blood pressure, oxygen), **Activity**, **Body** and **Nutrition**.
+  (heart, blood pressure, oxygen), **Activity**, and **Body** with **Nutrition** under it.
 - **Trends** compares any period with the one before — or the same period last year — and shows how
   two metrics move together, same-day or lagged. Relationships are described as association, never
   as cause.
@@ -146,6 +146,19 @@ and deload status, and a card per progression path showing how close you are to 
 - **Real training detail.** Connect **Hevy** for exercises, sets, reps, load and effort alongside
   your Apple Health workouts.
 - **A full history** — every session with filters, sorting and comparisons — at `/workouts/all`.
+
+### A body goal, whether you are cutting or gaining
+Set a target weight or body-fat percentage on the Body page, and Body and Nutrition read your data
+against it.
+
+- **Pace and maintenance from your own data.** Your four-week weight trend against a recommended
+  pace (or one you choose), and maintenance calories worked out two ways: from the trend and your
+  food log, and from your watch.
+- **Targets to eat to.** Calories, protein, carbs, fat and fiber for the pace, beside what you
+  logged, month by month — plus a check that your logged macros add up to your logged calories,
+  which catches a food entry with a wrong value.
+- **How long, not how late.** Arrival dates at each pace are projections, and the page shows how
+  your training, recovery and lean mass are holding up at the pace you are on.
 
 ### Comfortable to live in
 - **Themes** — five light and nine dark (Default, Solarized, GitHub, Gruvbox, Catppuccin, Monokai,

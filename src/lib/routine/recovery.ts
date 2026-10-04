@@ -16,6 +16,7 @@
 // indicator is shown for information only.
 
 import { addDays } from '../analytics/windows';
+import { linearSlope } from '../analytics/stats';
 import type { UnitSystem } from '../prefs';
 import { convertValue, displayUnit } from '../metrics/format';
 import type { RecoveryGate, RecoverySignalId } from './types';
@@ -145,22 +146,6 @@ function round(n: number, digits = 1): number {
   return Math.round(n * f) / f;
 }
 
-/** Least-squares slope in value per day. */
-function slopePerDay(points: DayValue[]): number | null {
-  if (points.length < 4) return null;
-  const x0 = Date.parse(`${points[0].key}T12:00:00Z`);
-  const xs = points.map(p => (Date.parse(`${p.key}T12:00:00Z`) - x0) / 86_400_000);
-  const ys = points.map(p => p.value);
-  const mx = mean(xs)!;
-  const my = mean(ys)!;
-  let num = 0, den = 0;
-  for (let i = 0; i < xs.length; i++) {
-    num += (xs[i] - mx) * (ys[i] - my);
-    den += (xs[i] - mx) ** 2;
-  }
-  return den > 0 ? num / den : null;
-}
-
 function pointsBetween(points: DayValue[], from: string, to: string, shown: (v: number) => number): DayValue[] {
   return points
     .filter(p => p.key >= from && p.key <= to && Number.isFinite(p.value))
@@ -251,7 +236,7 @@ export function recoveryIndicators(inputs: RecoveryInputs, gates: RecoveryGate[]
   {
     const trendFrom = addDays(today, -27);
     const weights = inputs.series('weight_body_mass').filter(p => p.key >= trendFrom && p.key <= today);
-    const perDay = slopePerDay(weights);
+    const perDay = linearSlope(weights);
     const kgPerWeek = perDay === null ? null : perDay * 7;
     const gate = gateFor('body_weight_rate');
     const shown = kgPerWeek === null ? null : round(convertValue(kgPerWeek, 'kg', system), 2);

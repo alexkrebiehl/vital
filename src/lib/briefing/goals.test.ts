@@ -71,6 +71,19 @@ describe('the briefing context follows the goals', () => {
     expect(c.sleep).not.toBeNull();
   });
 
+  it('leads with the body goal when one is set, and carries its summary', () => {
+    const bodyGoal = {
+      id: 'goal-1', kind: 'weight' as const, target: 60, paceKgPerWeek: null, startedOn: '2026-08-01',
+      endedOn: null, status: 'active' as const, revision: 1, updatedAt: '2026-08-01T00:00:00.000Z',
+    };
+    const c = buildBriefingContext('metric', { profile: { ...defaultProfile(), notes: null }, bodyGoal });
+    expect(c.bodyGoal?.goal).toMatch(/Reach 60 kg/);
+    expect(c.goalFocus?.recognised).toBe(true);
+    expect(c.metrics[0]?.metricId).toBe('weight_body_mass');
+    expect(JSON.stringify(c.bodyGoal)).not.toMatch(/behind|overdue/i);
+    expect(withGoals(null).bodyGoal).toBeNull();
+  });
+
   it('is the usual all-round context with no goals', () => {
     const c = withGoals(null);
     expect(c.goalFocus).toBeNull();

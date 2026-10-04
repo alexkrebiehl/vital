@@ -23,6 +23,7 @@ import { RangeControl } from '@/components/ui/RangeControl';
 import { MetricChart, TrendFigure } from '@/components/charts';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { DomainHeader, SectionTitle, MetricGrid } from './DomainShared';
+import { NutritionGoalPanel } from '@/components/body-goal/NutritionGoalPanel';
 
 const LOGGED_WINDOW_DAYS = 30;
 
@@ -96,6 +97,7 @@ export function NutritionPage() {
     <div className="space-y-8">
       <DomainHeader
         title="Nutrition"
+        eyebrow="Body"
         aside={<HeroFigure metricId="dietary_energy" category="nutrition" days={30} />}
         subtitle={`Logged dietary intake across ${windowRangeLabel(window)}. These are entries you recorded, not measurements of what you ate.`}
       />
@@ -116,7 +118,10 @@ export function NutritionPage() {
         </div>
       </Card>
 
-      {/* ── Date range: always reachable, and it drives every figure on the page ── */}
+      {/* ── The goal: targets, month by month, log consistency ── */}
+      <NutritionGoalPanel />
+
+      {/* ── Date range: drives every figure below ── */}
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-xs font-medium text-text-secondary">Date range</span>
         <RangeControl value={range} onChange={setRange} ariaLabel="Logged intake date range" />

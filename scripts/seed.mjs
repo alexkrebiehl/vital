@@ -7,6 +7,7 @@
 import { writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { addBodySeries } from './body-series.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -679,7 +680,9 @@ const PARTIAL_DAY_HOURS = 14;
 })();
 
 // ── Build final output ─────────────────────────────────
-const output = {
+// Body composition, basal energy and fiber are derived from the series above,
+// with their own PRNG, so they never shift a value drawn here.
+const output = addBodySeries({
   referenceDate: REFERENCE_DATE.toISOString(),
   windowStart: WINDOW_START.toISOString(),
   windowEnd: REFERENCE_DATE.toISOString(),
@@ -688,7 +691,7 @@ const output = {
   metrics,
   workouts,
   coverage,
-};
+});
 
 // ── Write ──────────────────────────────────────────────
 const dataDir = join(__dirname, '..', 'src', 'data');

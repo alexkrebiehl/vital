@@ -1,0 +1,127 @@
+'use client';
+
+// ── Weight toward the goal ──────────────────────────────
+//
+// Weigh-ins as dots, the seven-day mean as the trend line, the goal weight as a
+// reference line, and — dashed, clearly a projection — where the trend weight
+// goes at the pace in use. Days without a weigh-in have no dot: the trend line
+// is the mean of the weigh-ins that exist in each seven-day span, nothing more.
+
+import { CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Scatter, Tooltip, XAxis, YAxis } from 'recharts';
+import { addDays, diffDays, formatDayKeyLong, formatDayKeyShort } from '@/lib/analytics/windows';
+import { mean } from '@/lib/analytics/stats';
+import { convertValue } from '@/lib/metrics/format';
+import type { UnitSystem } from '@/lib/prefs';
+import type { BodyGoalReport } from '@/lib/body-goal/report';
+import type { DayValue } from '@/lib/body-goal/trend';
+import { weightUnit } from './format';
+
+const HISTORY_DAYS = 90;
+/** The projection is drawn at most this far ahead, so a slow pace does not flatten the history. */
+const MAX_PROJECTION_DAYS = 120;
+
+interface Row {
+  date: string;
+  weighIn?: number;
+  trend?: number;
+  projected?: number;
+}
+
+export function GoalTrajectoryChart({ report, weights, units }: { report: BodyGoalReport; weights: DayValue[]; units: UnitSystem }) {
+  const show = (kg: number) => Math.round(convertValue(kg, 'kg', units) * 10) / 10;
+  const from = addDays(report.today, -(HISTORY_DAYS - 1));
+  const history = weights.filter(w => w.key >= from && w.key <= report.today);
+  const byDay = new Map(history.map(w => [w.key, w.value]));
+
+  const rows: Row[] = [];
+  for (let day = from; day <= report.today; day = addDays(day, 1)) {
+    const span = history.filter(w => w.key > addDays(day, -7) && w.key <= day);
+    const row: Row = { date: day };
+    if (byDay.has(day)) row.weighIn = show(byDay.get(day)!);
+    if (span.length) row.trend = show(mean(span.map(w => w.value)));
+    rows.push(row);
+  }
+
+  const chosen = report.projection?.chosen ?? null;
+  const current = report.weight.current?.value ?? null;
+  if (chosen && current !== null && report.goalWeightKg !== null) {
+    const days = Math.min(MAX_PROJECTION_DAYS, diffDays(report.today, chosen.arrival));
+    const perDay = (report.goalWeightKg - current) / Math.max(1, diffDays(report.today, chosen.arrival));
+    rows[rows.length - 1].projected = show(current);
+    for (let i = 1; i <= days; i++) {
+      rows.push({ date: addDays(report.today, i), projected: show(current + perDay * i) });
+    }
+  }
+
+  const values = rows.flatMap(r => [r.weighIn, r.trend, r.projected]).filter((v): v is number => v !== undefined);
+  const goal = report.goalWeightKg !== null ? show(report.goalWeightKg) : null;
+  if (goal !== null) values.push(goal);
+  const { ticks, lo, hi } = niceTicks(Math.min(...values), Math.max(...values));
+  const unit = weightUnit(units);
+  const axis = { tick: { fontSize: 10, fill: 'var(--color-text-secondary)' }, tickLine: false as const, axisLine: false as const };
+  const summary = `Weight over the last ${HISTORY_DAYS} days: ${history.length} weigh-ins${goal !== null ? `, goal ${goal} ${unit}` : ''}${chosen ? `, projected to reach it around ${formatDayKeyLong(chosen.arrival)} at the pace in use` : ''}.`;
+
+  return (
+    <figure className="m-0">
+      <div role="img" aria-label={summary}>
+        <ResponsiveContainer width="100%" height={300}>
+          <ComposedChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+            <CartesianGrid stroke="var(--color-border)" vertical={false} />
+            <XAxis {...axis} dataKey="date" minTickGap={40} interval="preserveStartEnd" tickFormatter={(v: string) => formatDayKeyShort(v)} />
+            <YAxis {...axis} width={40} domain={[lo, hi]} ticks={ticks} allowDecimals={false} />
+            <Tooltip cursor={{ stroke: 'var(--color-border)' }} content={<ChartTooltip unit={unit} />} />
+            {[
+              goal !== null && (
+                <ReferenceLine
+                  key="goal"
+                  y={goal}
+                  stroke="var(--color-category-body)"
+                  strokeDasharray="6 4"
+                  strokeWidth={1.5}
+                  label={{ value: `Goal ${goal} ${unit}`, position: 'insideTopRight', fontSize: 10, fill: 'var(--color-text-secondary)' }}
+                />
+              ),
+              <ReferenceLine key="today" x={report.today} stroke="var(--color-border-strong)" strokeWidth={1} />,
+            ]}
+            <Scatter dataKey="weighIn" fill="var(--color-text-secondary)" fillOpacity={0.55} isAnimationActive={false} />
+            <Line dataKey="trend" stroke="var(--color-category-body)" strokeWidth={2.5} dot={false} connectNulls isAnimationActive={false} />
+            <Line dataKey="projected" stroke="var(--color-category-body)" strokeWidth={2} strokeDasharray="5 5" dot={false} connectNulls isAnimationActive={false} />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+      <figcaption className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-text-secondary">
+        <span><span aria-hidden="true" className="inline-block h-2 w-2 rounded-full mr-1.5 align-middle" style={{ background: 'var(--color-text-secondary)', opacity: 0.6 }} />Weigh-in</span>
+        <span><span aria-hidden="true" className="inline-block h-0.5 w-4 bg-category-body mr-1.5 align-middle" />Seven-day average</span>
+        {chosen && <span><span aria-hidden="true" className="inline-block w-4 border-t-2 border-dashed border-category-body mr-1.5 align-middle" />Projection at the pace in use</span>}
+      </figcaption>
+    </figure>
+  );
+}
+
+/** Evenly spaced round ticks covering [min, max], about five of them. */
+function niceTicks(min: number, max: number): { ticks: number[]; lo: number; hi: number } {
+  const span = Math.max(1, max - min);
+  const raw = span / 4;
+  const step = [1, 2, 2.5, 5, 10, 20, 25, 50].find(s => s >= raw) ?? Math.ceil(raw / 10) * 10;
+  const lo = Math.floor((min - step * 0.25) / step) * step;
+  const hi = Math.ceil((max + step * 0.25) / step) * step;
+  const ticks: number[] = [];
+  for (let t = lo; t <= hi + 1e-9; t += step) ticks.push(Math.round(t * 10) / 10);
+  return { ticks, lo, hi };
+}
+
+function ChartTooltip({ active, payload, label, unit }: { active?: boolean; payload?: { dataKey?: string; value?: number }[]; label?: string; unit: string }) {
+  if (!active || !payload?.length || !label) return null;
+  const get = (key: string) => payload.find(p => p.dataKey === key)?.value;
+  const weighIn = get('weighIn');
+  const trend = get('trend');
+  const projected = get('projected');
+  return (
+    <div className="bg-surface border border-border rounded-lg shadow-lg px-3 py-2 text-xs space-y-0.5">
+      <div className="text-text-secondary">{formatDayKeyLong(label)}</div>
+      {weighIn !== undefined && <div className="tnum text-text-primary">Weigh-in {weighIn} {unit}</div>}
+      {trend !== undefined && <div className="tnum text-text-primary">Seven-day average {trend} {unit}</div>}
+      {projected !== undefined && trend === undefined && <div className="tnum text-text-secondary">Projected {projected} {unit}</div>}
+    </div>
+  );
+}
