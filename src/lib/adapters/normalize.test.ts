@@ -761,3 +761,76 @@ describe('windowing and baselines against a 56-day history', () => {
     expect(dayKey('2026-09-17T12:00:00.000Z', TZ)).toBe('2026-09-17');
   });
 });
+
+
+// ── excludeFamilies: a ring that is connected directly is not read twice ──
+
+describe('excludeFamilies', () => {
+  const watch = "Sample's Apple Watch";
+  const ring = "Sample's Oura";
+  const ctx = { ...CTX };
+  const exclude = { ...CTX, excludeFamilies: ['ring' as const] };
+  const stepMapping = METRIC_MAPPINGS.find(m => m.metricId === 'step_count')!;
+  const steps = (date: string, qty: number, source: string): RawSimpleRecord => ({ date, qty, units: 'count', source });
+
+  it('drops ring-only records from a simple metric', () => {
+    const records = [
+      steps('2026-09-10T12:00:00-05:00', 1000, ring),
+      steps('2026-09-11T12:00:00-05:00', 2000, watch),
+    ];
+    const kept = normalizeSimpleMetric(stepMapping, records, exclude)!;
+    expect(kept.observations.map(o => [o.date, o.qty])).toEqual([['2026-09-11', 2000]]);
+    const all = normalizeSimpleMetric(stepMapping, records, ctx)!;
+    expect(all.observations.map(o => o.date)).toEqual(['2026-09-10', '2026-09-11']);
+  });
+
+  it('keeps the watch part of a composite source', () => {
+    const records = [steps('2026-09-10T12:00:00-05:00', 1500, `${watch}|${ring}`)];
+    const out = normalizeSimpleMetric(stepMapping, records, exclude)!;
+    expect(out.observations).toHaveLength(1);
+  });
+
+  it('returns nothing for a metric whose records are all from the ring', () => {
+    expect(normalizeSimpleMetric(stepMapping, [steps('2026-09-10T12:00:00-05:00', 1, ring)], exclude)).toBeNull();
+  });
+
+  it('drops a ring-only sleep episode and keeps a watch one', () => {
+    const night = (date: string, source: string): RawSleepRecord => ({
+      date: `${date}T07:00:00-05:00`, source, deep: 1, rem: 1.5, core: 4, awake: 0.5,
+      inBedStart: `${date}T00:00:00-05:00`, inBedEnd: `${date}T07:00:00-05:00`,
+    });
+    const records = [night('2026-09-10', ring), night('2026-09-11', watch)];
+    expect(normalizeSleep(records, exclude).observations.map(o => o.date)).toEqual(['2026-09-11']);
+    expect(normalizeSleep(records, ctx).observations.map(o => o.date)).toEqual(['2026-09-10', '2026-09-11']);
+  });
+
+  it('drops a ring-only daily heart rate and a ring-only blood-pressure reading', () => {
+    const hr = [
+      { date: '2026-09-10T12:00:00-05:00', Avg: 70, Max: 90, Min: 55, units: 'count/min', source: ring },
+      { date: '2026-09-11T12:00:00-05:00', Avg: 72, Max: 95, Min: 56, units: 'count/min', source: watch },
+    ];
+    expect(normalizeHeartRateDaily(hr, exclude).map(d => d.date)).toEqual(['2026-09-11']);
+    expect(normalizeHeartRateDaily(hr, ctx)).toHaveLength(2);
+    const bp = [{ date: '2026-09-10T08:00:00-05:00', systolic: 120, diastolic: 80, units: 'mmHg', source: ring }];
+    expect(normalizeBloodPressure(bp, exclude)).toEqual([]);
+    expect(normalizeBloodPressure(bp, ctx)).toHaveLength(1);
+  });
+
+  it('drops a workout whose source is the ring, and keeps one that names none', () => {
+    const w = (id: string, start: string, source?: string) => ({
+      id, workout_type: 'Walking', start_time: start, end_time: start.replace('T10', 'T11'), duration_minutes: 60,
+      calories_burned: 100, ...(source ? { source } : {}),
+    });
+    const records = [w('a', '2026-09-10T10:00:00-05:00', ring), w('b', '2026-09-12T10:00:00-05:00'), w('c', '2026-09-14T10:00:00-05:00', watch)];
+    expect(normalizeWorkouts(records, exclude).map(r => r.id)).toEqual(['b', 'c']);
+    expect(normalizeWorkouts(records, ctx).map(r => r.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('changes nothing for a whole dataset when the list is empty or absent', () => {
+    const raw = { metrics: { step_count: [steps('2026-09-10T12:00:00-05:00', 1000, ring)] }, workouts: [] };
+    const base = buildLiveDataset(raw, { tz: TZ, now: '2026-09-17T12:00:00-05:00', referenceKey: REFERENCE });
+    expect(buildLiveDataset(raw, { tz: TZ, now: '2026-09-17T12:00:00-05:00', referenceKey: REFERENCE, excludeFamilies: [] })).toEqual(base);
+    const dropped = buildLiveDataset(raw, { tz: TZ, now: '2026-09-17T12:00:00-05:00', referenceKey: REFERENCE, excludeFamilies: ['ring'] });
+    expect(dropped.dataset.metrics['step_count']).toBeUndefined();
+  });
+});

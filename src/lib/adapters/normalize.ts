@@ -36,8 +36,10 @@ import {
   sourceRuleFor,
   SLEEP_ONE_PER_NIGHT_RULE,
   SLEEP_REPEAT_RULE,
+  excludesSource,
   splitSources,
   SOURCE_DEDUPE_RULE,
+  type SourceFamily,
   sourceRuleExplanationFor,
   type SourcedRecord,
 } from './sources';
@@ -94,6 +96,8 @@ export interface RawWorkoutRecord {
   duration_minutes?: number;
   /** HAE sends `null` when the session has no active-energy value. */
   calories_burned?: number | null;
+  /** HAE sends no source on a workout today; honoured for `excludeFamilies` if one ever arrives. */
+  source?: string;
 }
 
 // ── Metric mapping table ────────────────────────────────
@@ -249,6 +253,18 @@ export interface NormalizeContext {
   referenceKey: string;
   /** First day of the dataset window (for expected-day counts). */
   windowStartKey: string;
+  /**
+   * Device families to leave out. A record is dropped only when every device
+   * that contributed to it is in one of these families. Used to read ring data
+   * once, through its own connection, rather than again through Health Auto Export.
+   */
+  excludeFamilies?: SourceFamily[];
+}
+
+/** Records not left out by `ctx.excludeFamilies`. */
+function allowed<T extends { source?: string }>(records: T[], ctx: NormalizeContext): T[] {
+  const families = ctx.excludeFamilies;
+  return families && families.length > 0 ? records.filter(r => !excludesSource(r.source, families)) : records;
 }
 
 function pickField(record: RawSimpleRecord, field: MetricMapping['field']): number | null {
@@ -270,6 +286,7 @@ export function normalizeSimpleMetric(
   ctx: NormalizeContext
 ): NormalizedMetric | null {
   const meta = getMetric(mapping.metricId);
+  records = allowed(records, ctx);
   if (!meta || records.length === 0) return null;
 
   const rule = sourceRuleFor(mapping.metricId);
@@ -341,7 +358,7 @@ export function normalizeHeartRateDaily(
   const meta = getMetric('heart_rate');
   const canonical = meta?.canonicalUnit ?? 'bpm';
   const byDay = new Map<string, { avg: number[]; max: number[]; min: number[]; sources: string[] }>();
-  for (const r of records) {
+  for (const r of allowed(records, ctx)) {
     if (typeof r.Avg !== 'number') continue;
     const key = dayKey(r.date, ctx.tz);
     const rawUnit = r.units ?? 'count/min';
@@ -450,7 +467,7 @@ export function sleepRepeatIdentity(record: RawSleepRecord): string {
  */
 export function normalizeSleep(records: RawSleepRecord[], ctx: NormalizeContext): SleepResult {
   const rule = sourceRuleFor('sleep_analysis');
-  const sourced = records.map(r => ({ ...r, source: r.source ?? '' }));
+  const sourced = allowed(records, ctx).map(r => ({ ...r, source: r.source ?? '' }));
   const { kept, duplicates } = dedupeSameInstant(sourced, rule, sleepRepeatIdentity);
 
   const candidates: { obs: SleepObservation; rank: number }[] = [];
@@ -568,7 +585,7 @@ export function normalizeBloodPressureWithCounts(
     observation: BloodPressureObservation;
   }
   const readings: Reading[] = [];
-  for (const r of records) {
+  for (const r of allowed(records, ctx)) {
     if (typeof r.systolic !== 'number' || typeof r.diastolic !== 'number') continue;
     const source = r.source ?? '';
     readings.push({
@@ -660,7 +677,7 @@ export function normalizeWorkoutsWithCounts(
   }
   const byId = new Map<string, Candidate>();
   let repeats = 0;
-  for (const r of records) {
+  for (const r of allowed(records, ctx)) {
     if (!r.start_time || !r.end_time || !r.workout_type) continue;
     const id = r.id && String(r.id).trim().length > 0
       ? String(r.id)
@@ -715,7 +732,6 @@ export function normalizeWorkoutsWithCounts(
     overlapping += 1;
     if (better(candidate, kept[i])) kept[i] = candidate;
   }
-  void ctx;
   return {
     workouts: kept.map(k => k.record).sort((x, y) => x.start_time.localeCompare(y.start_time)),
     dropped: { repeats, overlapping, total: repeats + overlapping },
@@ -750,6 +766,8 @@ export interface BuildOptions {
   now: string;
   /** Reference (current) day key; defaults to the day of `now` in `tz`. */
   referenceKey?: string;
+  /** Device families whose records are left out; see `NormalizeContext`. */
+  excludeFamilies?: SourceFamily[];
 }
 
 export interface BuiltDataset {
@@ -817,7 +835,7 @@ export function buildLiveDataset(raw: RawMetricBundle, options: BuildOptions): B
   firstInstants.sort();
   const windowStartKey = firstInstants.length > 0 ? dayKey(firstInstants[0], tz) : referenceKey;
 
-  const ctx: NormalizeContext = { tz, referenceKey, windowStartKey };
+  const ctx: NormalizeContext = { tz, referenceKey, windowStartKey, excludeFamilies: options.excludeFamilies };
 
   const metrics: Record<string, MetricObservation[] | SleepObservation[] | BloodPressureObservation[]> = {};
   const coverage: Record<string, MetricCoverage> = {};

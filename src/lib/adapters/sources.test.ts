@@ -4,6 +4,7 @@ import {
   SOURCE_RULES,
   dedupeByInterval,
   dedupeSameInstant,
+  excludesSource,
   familyOf,
   sourceLabel,
   sourceRank,
@@ -50,7 +51,8 @@ describe('source parsing (SPEC §9, §10)', () => {
     const rule = sourceRuleFor('step_count');
     expect(sourceRank(WATCH, rule)).toBe(0);
     expect(sourceRank(`${WATCH}|${PHONE}`, rule)).toBe(0);
-    expect(sourceRank(PHONE, rule)).toBe(1);
+    // A ring sits between the watch and the phone, so the phone is third.
+    expect(sourceRank(PHONE, rule)).toBe(rule.priority.indexOf('phone'));
     expect(sourceRank('', rule)).toBe(rule.priority.length);
   });
 
@@ -126,5 +128,46 @@ describe('de-duplication (never blind-sum overlapping devices)', () => {
     const result = dedupeByInterval(records, sourceRuleFor('apple_stand_hours'), day);
     expect(result.kept).toHaveLength(1);
     expect(result.kept[0].qty).toBe(12);
+  });
+});
+
+describe('ring family (device names are synthetic)', () => {
+  it('classifies a ring by its name', () => {
+    expect(familyOf('Oura')).toBe('ring');
+    expect(familyOf('Oura Ring')).toBe('ring');
+    expect(familyOf("Sample's Oura")).toBe('ring');
+    expect(familyOf('Sample Smart Ring')).toBe('ring');
+  });
+
+  it('leaves the other families alone', () => {
+    expect(familyOf("Sample's Apple Watch")).toBe('watch');
+    expect(familyOf('iPhone')).toBe('phone');
+    expect(familyOf('Sample Scale')).toBe('scale');
+    expect(familyOf('Sample Spring Mattress')).toBe('other');
+  });
+
+  it('ranks a ring right after the watch in every watch-led rule', () => {
+    for (const rule of Object.values(SOURCE_RULES)) {
+      const i = rule.priority.indexOf('ring');
+      expect(i, rule.explanation).toBeGreaterThan(-1);
+      if (rule.priority.includes('watch')) expect(i).toBe(rule.priority.indexOf('watch') + 1);
+    }
+    const rule = sourceRuleFor('step_count');
+    expect(sourceRank('Oura', rule)).toBeGreaterThan(sourceRank("Sample's Apple Watch", rule));
+    expect(sourceRank('Oura', rule)).toBeLessThan(sourceRank('iPhone', rule));
+  });
+
+  it('excludes a record only when every contributing device is in an excluded family', () => {
+    expect(excludesSource('Oura', ['ring'])).toBe(true);
+    expect(excludesSource('Oura|Sample Smart Ring', ['ring'])).toBe(true);
+    expect(excludesSource("Sample's Apple Watch|Oura", ['ring'])).toBe(false);
+    expect(excludesSource("Sample's Apple Watch", ['ring'])).toBe(false);
+    expect(excludesSource('Oura', [])).toBe(false);
+    expect(excludesSource('Oura', undefined)).toBe(false);
+  });
+
+  it('never excludes a record that names no device', () => {
+    expect(excludesSource('', ['ring'])).toBe(false);
+    expect(excludesSource(undefined, ['ring'])).toBe(false);
   });
 });
