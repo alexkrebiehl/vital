@@ -24,6 +24,24 @@ describe('db/migrations', () => {
     expect(() => buildMigrations(shipped())).not.toThrow();
   });
 
+  it('ships 0010 source credentials, with no health-value column', () => {
+    const file = shipped().find(m => m.filename === '0010-source-credentials.sql');
+    expect(file).toBeDefined();
+    const columns = [...file!.sql.matchAll(/^\s{2}(\w+)\s+(?:text|bytea|timestamptz|integer)\b/gm)].map(m => m[1]);
+    expect(columns).toEqual([
+      'source_id',
+      'ciphertext',
+      'iv',
+      'auth_tag',
+      'key_id',
+      'scopes',
+      'access_expires_at',
+      'connected_at',
+      'updated_at',
+      'revision',
+    ]);
+  });
+
   it('numbers each file as its header says', () => {
     for (const { filename, sql } of shipped()) {
       const version = filename.slice(0, 4);
