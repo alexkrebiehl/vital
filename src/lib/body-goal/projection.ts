@@ -58,6 +58,7 @@ export function projectArrival(input: {
   push(row('band-fast', 'Faster end of the recommended range', (band.maxPct * weightKg) / 100, weightKg, remainingKg, today));
 
   let trendNote: string | null = null;
+  const atPace = pace.source === 'custom' ? 'At your pace' : 'At the recommended pace';
   const toward = trendKgPerWeek !== null && Math.sign(trendKgPerWeek) === Math.sign(remainingKg) && Math.abs(trendKgPerWeek) >= 0.05;
   if (toward) {
     push(row('trend', 'Your trend over the last four weeks', Math.abs(trendKgPerWeek!), weightKg, remainingKg, today));
@@ -65,8 +66,8 @@ export function projectArrival(input: {
     const weeks = Math.round(chosen.weeks);
     trendNote =
       Math.abs(trendKgPerWeek) < 0.05
-        ? `Weight has held steady over the last four weeks. At ${chosenLabel.toLowerCase()} the goal is about ${weeks} week${weeks === 1 ? '' : 's'} away.`
-        : `Weight has moved ${formatRate(trendKgPerWeek)} over the last four weeks, away from the goal. At ${chosenLabel.toLowerCase()} the goal is about ${weeks} week${weeks === 1 ? '' : 's'} away.`;
+        ? `Weight has held steady over the last four weeks. ${atPace} the goal is about ${weeks} week${weeks === 1 ? '' : 's'} away.`
+        : `Weight has moved ${formatRate(trendKgPerWeek)} over the last four weeks, away from the goal. ${atPace} the goal is about ${weeks} week${weeks === 1 ? '' : 's'} away.`;
   }
 
   rows.sort((a, b) => a.kgPerWeek - b.kgPerWeek);

@@ -1,0 +1,188 @@
+'use client';
+
+// ── Pace, as a scale from slower to faster ──────────────
+//
+// One horizontal axis of pace (share of body weight per week): the recommended
+// range as a band, the zone past which a faster pace costs muscle (cutting) or
+// adds mostly fat (gaining), and markers for the pace in use and the measured
+// trend, each with when it would arrive. The exact numbers stay one click
+// away in a table, for screen readers and for anyone who wants them.
+
+import { formatDayKeyLong, formatDayKeyShort } from '@/lib/analytics/windows';
+import { BULK_RISK_PCT, CUT_RISK_PCT } from '@/lib/body-goal/constants';
+import type { ProjectionRow } from '@/lib/body-goal/projection';
+import type { BodyGoalReport } from '@/lib/body-goal/report';
+import type { UnitSystem } from '@/lib/prefs';
+import { DataStateNote } from '@/components/ui/primitives';
+import { formatKg, formatPct, formatWeeks } from './format';
+
+const ROW = 46;
+const BAR = 12;
+
+interface Marker {
+  row: ProjectionRow;
+  title: string;
+  /** Row above the bar, 0 = top. */
+  level: number;
+  tone: 'plan' | 'trend';
+}
+
+/** Place a label so it never runs off either edge of the scale. */
+function anchor(x: number): string {
+  if (x < 14) return 'translateX(0)';
+  if (x > 86) return 'translateX(-100%)';
+  return 'translateX(-50%)';
+}
+
+export function PaceScale({ report, units }: { report: BodyGoalReport; units: UnitSystem }) {
+  const band = report.band;
+  const phase = report.phase.phase;
+  const weightKg = report.weight.current?.value ?? null;
+  const rows = report.projection?.rows ?? [];
+  if (!band || !phase || phase === 'maintain' || weightKg === null || rows.length === 0) return null;
+
+  const find = (id: ProjectionRow['id']) => rows.find(r => r.id === id) ?? null;
+  const chosen = find('chosen');
+  const trend = find('trend');
+  const slow = find('band-slow');
+  const fast = find('band-fast');
+  const cutting = phase === 'cut';
+  const riskPct = Math.max(cutting ? CUT_RISK_PCT : BULK_RISK_PCT, band.maxPct);
+
+  const maxPct = Math.min(
+    2.5,
+    Math.ceil(Math.max(band.maxPct * 1.5, riskPct * 1.35, (chosen?.pct ?? 0) * 1.1, (trend?.pct ?? 0) * 1.1) / 0.25) * 0.25
+  );
+  const x = (pct: number) => Math.min(100, Math.max(0, (pct / maxPct) * 100));
+  const perWeek = (pct: number) => formatKg((pct * weightKg) / 100, units);
+
+  const markers: Marker[] = [];
+  if (trend) markers.push({ row: trend, title: 'Your trend, last four weeks', level: 0, tone: 'trend' });
+  if (chosen) markers.push({ row: chosen, title: report.pace?.source === 'custom' ? 'Your pace' : 'Recommended pace', level: trend ? 1 : 0, tone: 'plan' });
+  const levels = Math.max(1, markers.length);
+  const barTop = levels * ROW + 6;
+  const height = barTop + BAR + 26;
+
+  const ticks = [0, band.minPct, band.maxPct, ...(riskPct > band.maxPct ? [riskPct] : [])];
+  const summary =
+    `Pace from slower to faster. Recommended ${band.minPct}–${band.maxPct} % of body weight a week (${perWeek(band.minPct)}–${perWeek(band.maxPct)}).` +
+    markers.map(m => ` ${m.title}: ${perWeek(m.row.pct)} a week, arriving around ${formatDayKeyLong(m.row.arrival)}.`).join('');
+
+  return (
+    <div>
+      <div className="flex justify-between text-[11px] font-medium text-text-secondary mb-2">
+        <span>← Slower{cutting ? ' · keeps more muscle' : ' · less fat'}</span>
+        <span>{cutting ? 'costs more muscle · ' : 'more fat · '}Faster →</span>
+      </div>
+
+      <div className="relative w-full" style={{ height }} role="img" aria-label={summary}>
+        {/* The scale itself */}
+        <div className="absolute inset-x-0 rounded-full bg-surface-muted overflow-hidden" style={{ top: barTop, height: BAR }}>
+          <div
+            className="absolute inset-y-0"
+            style={{
+              left: `${x(riskPct)}%`,
+              right: 0,
+              background: 'repeating-linear-gradient(135deg, var(--color-category-attention) 0 3px, transparent 3px 7px)',
+              opacity: 0.35,
+            }}
+          />
+          <div
+            className="absolute inset-y-0 rounded-full"
+            style={{ left: `${x(band.minPct)}%`, width: `${x(band.maxPct) - x(band.minPct)}%`, background: 'var(--color-category-body)', opacity: 0.55 }}
+          />
+        </div>
+
+        {/* Ticks under the scale */}
+        {ticks.map(t => (
+          <span
+            key={t}
+            className="absolute text-[10px] tnum text-text-secondary whitespace-nowrap"
+            style={{ top: barTop + BAR + 6, left: `${x(t)}%`, transform: anchor(x(t)) }}
+          >
+            {t === 0 ? '0' : perWeek(t)}
+          </span>
+        ))}
+
+        {/* Markers: a label above the scale, joined to it by a line */}
+        {markers.map(m => {
+          const pos = x(m.row.pct);
+          const color = m.tone === 'plan' ? 'var(--color-category-body)' : 'var(--color-text-primary)';
+          const labelTop = m.level * ROW;
+          const clipped = m.row.pct > maxPct;
+          return (
+            <div key={m.row.id} aria-hidden="true">
+              <div
+                className="absolute rounded-control border bg-surface px-2 py-1 shadow-sm whitespace-nowrap"
+                style={{ top: labelTop, left: `${pos}%`, transform: anchor(pos), borderColor: color }}
+              >
+                <div className="text-[11px] font-medium text-text-primary leading-tight">{m.title}</div>
+                <div className="text-[11px] tnum text-text-secondary leading-tight">
+                  {perWeek(m.row.pct)}/week{clipped ? ' (off the scale)' : ''} · {formatWeeks(m.row.weeks)} · {formatDayKeyShort(m.row.arrival)}
+                </div>
+              </div>
+              <div className="absolute w-px" style={{ top: labelTop + 38, height: barTop - labelTop - 38 + BAR / 2, left: `${pos}%`, background: color }} />
+              <div
+                className="absolute rounded-full border-2"
+                style={{ top: barTop + BAR / 2 - 7, left: `calc(${pos}% - 7px)`, width: 14, height: 14, background: m.tone === 'plan' ? color : 'var(--color-surface)', borderColor: color }}
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-2 space-y-1.5 text-[12px] text-text-secondary leading-relaxed">
+        <p className="flex items-start gap-2">
+          <span aria-hidden="true" className="mt-1 inline-block h-2.5 w-4 shrink-0 rounded-sm" style={{ background: 'var(--color-category-body)', opacity: 0.55 }} />
+          <span>
+            Recommended: {perWeek(band.minPct)}–{perWeek(band.maxPct)} a week ({band.minPct}–{band.maxPct} % of body weight)
+            {slow && fast && <>, arriving between <span className="tnum text-text-primary">{formatDayKeyLong(fast.arrival)}</span> and <span className="tnum text-text-primary">{formatDayKeyLong(slow.arrival)}</span> ({formatWeeks(fast.weeks).replace('~', '')}–{formatWeeks(slow.weeks).replace('~', '')})</>}.
+          </span>
+        </p>
+        <p className="flex items-start gap-2">
+          <span
+            aria-hidden="true"
+            className="mt-1 inline-block h-2.5 w-4 shrink-0 rounded-sm"
+            style={{ background: 'repeating-linear-gradient(135deg, var(--color-category-attention) 0 3px, transparent 3px 7px)', opacity: 0.6 }}
+          />
+          <span>
+            {cutting
+              ? `Past about ${riskPct} % of body weight a week (${perWeek(riskPct)}), more of what is lost tends to be muscle, and recovery has less to work with.`
+              : `Past about ${riskPct} % of body weight a week (${perWeek(riskPct)}), most of the extra is fat rather than muscle.`}
+          </span>
+        </p>
+        {report.projection?.trendNote && <p>{report.projection.trendNote}</p>}
+      </div>
+
+      <details className="mt-3">
+        <summary className="cursor-pointer text-xs font-medium text-primary">Show as a table</summary>
+        <div className="mt-2 overflow-x-auto" tabIndex={0} role="region" aria-label="Pace options">
+          <table className="w-full text-sm text-left">
+            <thead>
+              <tr className="border-b border-border text-xs text-text-secondary">
+                <th scope="col" className="py-2 pr-3 font-medium">Pace</th>
+                <th scope="col" className="py-2 pr-3 font-medium">Per week</th>
+                <th scope="col" className="py-2 pr-3 font-medium">Weeks</th>
+                <th scope="col" className="py-2 font-medium">Around</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.id} className={`border-b border-border/50 text-text-primary ${r.id === 'chosen' ? 'font-medium' : ''}`}>
+                  <td className="py-2 pr-3">{r.label}</td>
+                  <td className="py-2 pr-3 tnum whitespace-nowrap">{formatKg(r.kgPerWeek, units)} · {formatPct(r.pct, 2)}</td>
+                  <td className="py-2 pr-3 tnum">{formatWeeks(r.weeks)}</td>
+                  <td className="py-2 tnum whitespace-nowrap">{formatDayKeyLong(r.arrival)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
+
+      <div className="mt-3">
+        <DataStateNote>{band.basis} Slower usually costs a couple of weeks and keeps more muscle (or, when gaining, adds less fat).</DataStateNote>
+      </div>
+    </div>
+  );
+}

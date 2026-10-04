@@ -25,6 +25,7 @@ import type { EffectStatus } from '@/lib/body-goal/effects';
 import type { UnitSystem } from '@/lib/prefs';
 import { GoalDialog } from './GoalDialog';
 import { GoalTrajectoryChart } from './GoalTrajectoryChart';
+import { PaceScale } from './PaceScale';
 import { useBodyGoal, useGoalReport } from './useBodyGoal';
 import {
   formatGrams,
@@ -342,35 +343,10 @@ function PaceSection({ report, units }: { report: BodyGoalReport; units: UnitSys
   return (
     <section>
       <SectionTitle hint="projections, not deadlines">How long, at which pace</SectionTitle>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className={`grid grid-cols-1 gap-4 ${scenarios.length > 0 && p && p.rows.length > 0 ? 'xl:grid-cols-[3fr_2fr]' : ''}`}>
         {p && p.rows.length > 0 && (
           <Card className="p-4 md:p-6">
-            <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Pace options">
-              <table className="w-full text-sm text-left">
-                <thead>
-                  <tr className="border-b border-border text-xs text-text-secondary">
-                    <th scope="col" className="py-2 pr-3 font-medium">Pace</th>
-                    <th scope="col" className="py-2 pr-3 font-medium">Per week</th>
-                    <th scope="col" className="py-2 pr-3 font-medium">Weeks</th>
-                    <th scope="col" className="py-2 font-medium">Around</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {p.rows.map(r => (
-                    <tr key={r.id} className={`border-b border-border/50 ${r.id === 'chosen' ? 'font-medium text-text-primary' : 'text-text-primary'}`}>
-                      <td className="py-2 pr-3">{r.label}</td>
-                      <td className="py-2 pr-3 tnum whitespace-nowrap">{formatKg(r.kgPerWeek, units)} · {formatPct(r.pct, 2)}</td>
-                      <td className="py-2 pr-3 tnum">{formatWeeks(r.weeks)}</td>
-                      <td className="py-2 tnum whitespace-nowrap">{formatDayKeyLong(r.arrival)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="mt-3 space-y-1">
-              <DataStateNote>{report.band?.basis}</DataStateNote>
-              <DataStateNote>Slower usually costs a couple of weeks and keeps more muscle (or, when gaining, adds less fat).</DataStateNote>
-            </div>
+            <PaceScale report={report} units={units} />
           </Card>
         )}
         {scenarios.length > 0 && (
