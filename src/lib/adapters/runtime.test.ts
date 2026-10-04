@@ -98,11 +98,11 @@ describe('resolveDataset with several live sources', () => {
     expect(resolved.meta.dedupe?.rule).not.toContain('never added or averaged');
   });
 
-  it('tells the reader to connect Oura when nothing else is configured', async () => {
+  it('tells the reader to connect a source when nothing else is configured', async () => {
     const env = { ...ENV, HAE_API_URL: '', HAE_API_KEY: '' } as NodeJS.ProcessEnv;
     const error = await resolveDataset({ env, timezone: 'UTC', sources: ctx(env, false) }).catch(e => e);
     expect(error).toBeInstanceOf(LiveDataUnavailableError);
-    expect((error as LiveDataUnavailableError).detail).toContain('Connect Oura in Settings');
+    expect((error as LiveDataUnavailableError).detail).toContain('Connect a data source in Settings');
   });
 
   it('keeps the original message when no source is configured at all', async () => {

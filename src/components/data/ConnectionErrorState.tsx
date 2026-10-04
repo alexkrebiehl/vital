@@ -7,6 +7,7 @@
 // never replaced with demo data, so this state replaces the pages entirely and
 // offers a retry.
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { Card, Button, Badge, DataStateNote } from '@/components/ui/primitives';
@@ -51,6 +52,9 @@ export function ConnectionErrorState({ title, message, host, hint }: ConnectionE
           <Button variant="secondary" onClick={retry} disabled={pending || refreshing}>
             {pending || refreshing ? 'Retrying…' : 'Retry'}
           </Button>
+          <Link href="/settings?tab=connections" className="text-sm font-medium text-accent hover:underline">
+            Open Settings
+          </Link>
           <span className="text-[11px] text-text-secondary">
             Demo data is deliberately not substituted for a failed live read.
           </span>

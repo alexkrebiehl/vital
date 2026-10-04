@@ -119,7 +119,7 @@ export async function resolveDataset(deps: LiveDeps = {}): Promise<ResolvedDatas
         ? 'Live mode is selected but no live source is connected.'
         : 'Live mode is selected but the Health Auto Export API is not configured.',
       ouraWaiting
-        ? 'Connect Oura in Settings → Connections.'
+        ? 'Connect a data source in Settings → Connections.'
         : 'HAE_API_URL and HAE_API_KEY must both be set in the server environment.',
       haeHost(env)
     );

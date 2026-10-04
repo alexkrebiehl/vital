@@ -439,7 +439,7 @@ function sourceContext(deps: LiveDeps): SourceContext {
 /** The error for "no source is active", worded for what is actually missing. */
 function noSourceError(env: NodeJS.ProcessEnv): Error {
   const oura = readOuraConfig(env);
-  if (oura?.ok) return new NoLiveSourceError('Connect Oura in Settings → Connections.');
+  if (oura?.ok) return new NoLiveSourceError('Connect a data source in Settings → Connections.');
   return new HaeError(
     'Live mode is selected but the Health Auto Export API is not configured ' +
       '(HAE_API_URL and HAE_API_KEY must both be set).',

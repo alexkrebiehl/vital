@@ -677,7 +677,7 @@ describe('live dataset from HAE and Oura', () => {
     const upstream = twoSourceFetch();
     const error = await fetchLiveDatasetUncached(twoSourceDeps(OURA_ONLY_ENV, upstream.impl, false)).catch(e => e);
     expect(error).toBeInstanceOf(NoLiveSourceError);
-    expect((error as Error).message).toContain('Connect Oura in Settings');
+    expect((error as Error).message).toContain('Connect a data source in Settings');
     expect(upstream.ouraCalls).toHaveLength(0);
   });
 
