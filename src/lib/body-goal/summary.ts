@@ -37,7 +37,7 @@ export interface BodyGoalSummary {
   balanceKcalPerDay: number | null;
   /** The deficit (negative) or surplus per day the weight trend implies on its own. */
   balanceFromWeightTrendKcalPerDay: number | null;
-  targets: { kcal: [number, number] | null; proteinG: [number, number]; fatFloorG: number; carbsG: [number, number] | null; fiberG: [number, number] | null; checkIn: string } | null;
+  targets: { kcal: [number, number] | null; kcalOk: [number, number] | null; proteinG: [number, number]; proteinOkMinG: number; fatFloorG: number; carbsG: [number, number] | null; fiberG: [number, number] | null; checkIn: string } | null;
   flags: string[];
   /** Whether logged macros add up to logged calories; null when nothing is logged to check. */
   logConsistency: string | null;
@@ -86,7 +86,9 @@ export function bodyGoalSummary(report: BodyGoalReport, system: UnitSystem): Bod
     targets: targets
       ? {
           kcal: targets.calories ? [targets.calories.min, targets.calories.max] : null,
+          kcalOk: targets.caloriesOk ? [targets.caloriesOk.min, targets.caloriesOk.max] : null,
           proteinG: [targets.protein.min, targets.protein.max],
+          proteinOkMinG: targets.proteinOkFloor,
           fatFloorG: targets.fatFloor,
           carbsG: targets.carbs ? [targets.carbs.min, targets.carbs.max] : null,
           fiberG: targets.fiber ? [targets.fiber.min, targets.fiber.max] : null,

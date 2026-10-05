@@ -97,6 +97,15 @@ export const FIBER_G_PER_1000_KCAL = 14;
 
 /** Half-width of the calorie target range. */
 export const CALORIE_RANGE_HALF = 75;
+/**
+ * Half-width of the wider "OK" calorie range, as a share of the target's
+ * middle. A day's intake swings and food logs are commonly off by 10 % or
+ * more, so a day within this of the target is fine; the weekly average is
+ * what moves the trend.
+ */
+export const CALORIE_OK_SHARE = 0.1;
+/** The "OK" protein floor, as a share of the target floor. */
+export const PROTEIN_OK_SHARE = 0.85;
 
 /** Share of a weight change assumed to be lean mass in the "realistic" composition scenario. */
 export const REALISTIC_LEAN_SHARE = { cut: 0.2, bulk: 0.4 } as const;

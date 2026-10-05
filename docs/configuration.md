@@ -197,8 +197,10 @@ pace. It is set from the Body page and stored in the `body_goals` table (migrati
   sections, the month table and the macro check appear only once food is logged. With neither a
   food log nor basal energy there is no calorie number, and the pages say so.
 - **Eating to the targets.** With a goal and a food log, the Nutrition page opens with calories
-  and protein over the last four weeks: how many complete logged days were in the calorie range and
-  at the protein floor, and each day as a dot against the target. Days without a log are gaps, and
+  and protein over the last four weeks, each with a target range and a wider OK range. The calorie
+  target is only ±75 kcal wide, so a day within about 10 % of its middle counts as OK, and protein
+  down to 85 % of the floor is OK. The cards count the logged days within the OK range, say how many
+  were on target, and draw each day as a dot against both ranges. Days without a log are gaps, and
   partial logs are drawn hollow and not counted.
 - **Useful before a goal.** Without a goal the Body page still reads the data: the energy balance,
   which way weight is going (losing or gaining more than 0.25 % of body weight a week, otherwise

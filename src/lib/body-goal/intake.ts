@@ -11,7 +11,7 @@ import { mean } from '../analytics/stats';
 import { TREND_DAYS } from './constants';
 import { derivedFat } from './consistency';
 import { splitLoggedDays } from './energy';
-import type { NutritionTargets } from './targets';
+import type { NutritionTargets, Range } from './targets';
 import { between, type DayValue } from './trend';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -129,9 +129,14 @@ export interface Adherence {
   partialDays: number;
   /** Complete days with calories inside the target range. */
   caloriesInRange: number | null;
+  /** Outside the target range but inside the OK range. */
+  caloriesOk: number | null;
+  /** Above or below the OK range. */
   caloriesAbove: number | null;
   caloriesBelow: number | null;
   proteinAtFloor: number;
+  /** Under the protein floor but at the OK floor or more. */
+  proteinOk: number;
   proteinDays: number;
   fiberAtTarget: number | null;
   fiberDays: number;
@@ -140,6 +145,8 @@ export interface Adherence {
   /** Mean logged values over the complete days. */
   averages: { kcal: number | null; protein: number | null; carbs: number | null; fat: number | null; derivedFat: number | null; fiber: number | null };
 }
+
+const inside = (v: number, r: Range) => v >= r.min && v <= r.max;
 
 export function adherence(series: (id: string) => DayValue[], today: string, targets: NutritionTargets): Adherence {
   const to = addDays(today, -1);
@@ -153,6 +160,7 @@ export function adherence(series: (id: string) => DayValue[], today: string, tar
   const fat = map('dietary_fat_total');
   const fiber = map('dietary_fiber');
   const cal = targets.calories;
+  const ok = targets.caloriesOk ?? cal;
   const proteinKeys = keys.filter(k => protein.has(k));
   const fiberKeys = keys.filter(k => fiber.has(k));
   const derived = keys.filter(k => protein.has(k) && carbs.has(k)).map(k => derivedFat(kcal.get(k)!, protein.get(k)!, carbs.get(k)!));
@@ -167,10 +175,12 @@ export function adherence(series: (id: string) => DayValue[], today: string, tar
     to,
     completeDays: keys.length,
     partialDays: split.partial.length,
-    caloriesInRange: cal ? keys.filter(k => kcal.get(k)! >= cal.min && kcal.get(k)! <= cal.max).length : null,
-    caloriesAbove: cal ? keys.filter(k => kcal.get(k)! > cal.max).length : null,
-    caloriesBelow: cal ? keys.filter(k => kcal.get(k)! < cal.min).length : null,
+    caloriesInRange: cal ? keys.filter(k => inside(kcal.get(k)!, cal)).length : null,
+    caloriesOk: cal && ok ? keys.filter(k => !inside(kcal.get(k)!, cal) && inside(kcal.get(k)!, ok)).length : null,
+    caloriesAbove: ok ? keys.filter(k => kcal.get(k)! > ok.max).length : null,
+    caloriesBelow: ok ? keys.filter(k => kcal.get(k)! < ok.min).length : null,
     proteinAtFloor: proteinKeys.filter(k => protein.get(k)! >= targets.proteinFloor).length,
+    proteinOk: proteinKeys.filter(k => protein.get(k)! < targets.proteinFloor && protein.get(k)! >= targets.proteinOkFloor).length,
     proteinDays: proteinKeys.length,
     fiberAtTarget: targets.fiber ? fiberKeys.filter(k => fiber.get(k)! >= targets.fiber!.min).length : null,
     fiberDays: fiberKeys.length,

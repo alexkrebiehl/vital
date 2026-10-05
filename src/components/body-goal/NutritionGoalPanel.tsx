@@ -92,10 +92,18 @@ function TargetsSection({ report, units }: { report: BodyGoalReport; units: Unit
   const days = (n: number | null, of: number) => (n === null || of === 0 ? '—' : `${n} of ${of}`);
   const phase = report.phase.phase!;
   const rows = [
-    t.calories && { label: 'Calories', target: formatRange(t.calories, 'kcal'), logged: formatKcal(a.averages.kcal), met: days(a.caloriesInRange, a.completeDays), metNote: 'in range' },
+    t.calories && {
+      label: 'Calories',
+      target: formatRange(t.calories, 'kcal'),
+      ok: t.caloriesOk ? `OK ${formatRange(t.caloriesOk, 'kcal')}` : null,
+      logged: formatKcal(a.averages.kcal),
+      met: days(a.caloriesInRange, a.completeDays),
+      metNote: 'on target',
+    },
     {
       label: 'Protein',
       target: `${formatRange(t.protein, 'g')}${t.proteinPerLeanKg ? ` · ${formatPerWeightRange(t.proteinPerLeanKg, units)} lean` : ''}`,
+      ok: `OK from ${t.proteinOkFloor} g`,
       logged: formatGrams(a.averages.protein),
       met: days(a.proteinAtFloor, a.proteinDays),
       metNote: `at ${t.proteinFloor} g or more`,
@@ -134,7 +142,10 @@ function TargetsSection({ report, units }: { report: BodyGoalReport; units: Unit
               {rows.map(r => (
                 <tr key={r.label} className="border-b border-border/50 text-text-primary">
                   <td className="py-2.5 pr-4">{r.label}</td>
-                  <td className="py-2.5 pr-4 tnum">{r.target}</td>
+                  <td className="py-2.5 pr-4 tnum">
+                    {r.target}
+                    {'ok' in r && r.ok && <span className="block text-xs text-text-secondary">{r.ok}</span>}
+                  </td>
                   {logged && <td className="py-2.5 pr-4 tnum">{r.logged}</td>}
                   {logged && (
                     <td className="py-2.5 tnum text-[12px]">

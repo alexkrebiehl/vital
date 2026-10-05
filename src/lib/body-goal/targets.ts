@@ -7,6 +7,7 @@
 // prescription to the gram.
 
 import {
+  CALORIE_OK_SHARE,
   CALORIE_RANGE_HALF,
   CHECK_IN_ADJUST_KCAL,
   CHECK_IN_WEEKS,
@@ -16,6 +17,7 @@ import {
   KCAL_PER_G,
   KCAL_PER_KG,
   PROTEIN_G_PER_KG,
+  PROTEIN_OK_SHARE,
 } from './constants';
 import type { GoalPhase } from './phase';
 
@@ -27,6 +29,8 @@ export interface Range {
 export interface NutritionTargets {
   /** kcal/day, or null without a maintenance estimate. */
   calories: Range | null;
+  /** A wider range around the calorie target that is still fine on a given day. */
+  caloriesOk: Range | null;
   /** The daily energy difference the pace asks for (negative = deficit). */
   dailyEnergyDelta: number;
   protein: Range;
@@ -34,6 +38,8 @@ export interface NutritionTargets {
   proteinPerLeanKg: Range | null;
   /** The lowest protein worth hitting every day: the bottom of the range. */
   proteinFloor: number;
+  /** Below the floor but still fine on a given day: at least this much. */
+  proteinOkFloor: number;
   fatFloor: number;
   /** A typical fat intake once calories allow it. */
   fat: Range | null;
@@ -60,12 +66,15 @@ export function nutritionTargets(input: {
   const fatFloor = round(FAT_FLOOR_G_PER_KG * weightKg, 5);
 
   let calories: Range | null = null;
+  let caloriesOk: Range | null = null;
   let fat: Range | null = null;
   let carbs: Range | null = null;
   let fiber: Range | null = null;
   if (maintenance !== null) {
     const mid = maintenance + dailyEnergyDelta;
     calories = { min: round(mid - CALORIE_RANGE_HALF, 25), max: round(mid + CALORIE_RANGE_HALF, 25) };
+    const okHalf = Math.max(CALORIE_RANGE_HALF * 2, CALORIE_OK_SHARE * mid);
+    caloriesOk = { min: round(mid - okHalf, 25), max: round(mid + okHalf, 25) };
     const fatTypical = Math.max(fatFloor, (FAT_TYPICAL_SHARE * mid) / KCAL_PER_G.fat);
     fat = { min: fatFloor, max: round(Math.max(fatFloor, fatTypical * 1.15), 5) };
     const proteinMid = (protein.min + protein.max) / 2;
@@ -80,10 +89,12 @@ export function nutritionTargets(input: {
 
   return {
     calories,
+    caloriesOk,
     dailyEnergyDelta,
     protein,
     proteinPerLeanKg: leanKg ? { min: protein.min / leanKg, max: protein.max / leanKg } : null,
     proteinFloor: protein.min,
+    proteinOkFloor: round(PROTEIN_OK_SHARE * protein.min, 5),
     fatFloor,
     fat,
     carbs,

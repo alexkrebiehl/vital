@@ -304,7 +304,25 @@ describe('adherence', () => {
     const partial = a.days.filter(d => d.log === 'partial');
     expect(partial.map(d => d.kcal)).toEqual([900, 900]);
     expect(a.days.filter(d => d.log === 'complete')).toHaveLength(a.completeDays);
-    expect(a.caloriesInRange! + a.caloriesAbove! + a.caloriesBelow!).toBe(a.completeDays);
+    expect(a.caloriesInRange! + a.caloriesOk! + a.caloriesAbove! + a.caloriesBelow!).toBe(a.completeDays);
+    expect(a.proteinAtFloor + a.proteinOk).toBeLessThanOrEqual(a.proteinDays);
+  });
+
+  it('counts days a little off the narrow calorie target as OK, not off', () => {
+    const targets = nutritionTargets({ phase: 'cut', maintenance: 2700, paceKgPerWeek: -0.4, weightKg: 79, leanKg: 64 });
+    // 2,700 − 440 = 2,260 a day: target 2,175–2,325, OK about ±10 %.
+    expect(targets.calories).toEqual({ min: 2175, max: 2325 });
+    expect(targets.caloriesOk).toEqual({ min: 2025, max: 2475 });
+    expect(targets.proteinOkFloor).toBe(105);
+    const series = (id: string) => {
+      const days = Array.from({ length: 28 }, (_, i) => addDays(TODAY, -28 + i));
+      if (id === 'dietary_energy') return days.map((key, i) => ({ key, value: [2250, 2400, 2100, 1800][i % 4] }));
+      if (id === 'dietary_protein') return days.map((key, i) => ({ key, value: [130, 110, 90, 140][i % 4] }));
+      return [];
+    };
+    const a = adherence(series, TODAY, targets);
+    expect([a.caloriesInRange, a.caloriesOk, a.caloriesAbove, a.caloriesBelow]).toEqual([7, 14, 0, 7]);
+    expect([a.proteinAtFloor, a.proteinOk]).toEqual([14, 7]);
   });
 });
 
