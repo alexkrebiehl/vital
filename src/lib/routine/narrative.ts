@@ -20,6 +20,7 @@
 import { createProvider, supportsCompletion } from '../analyst/provider';
 import { extractJsonObject, extractNumericTokens, numberIsTraceableTo, derivationsOf } from '../analyst/validate';
 import { resolveBriefingEngine } from '../briefing/engine';
+import { registerPurger } from '../sources/purge';
 import type { UnitSystem } from '../prefs';
 import type { NarrativeView } from './narrative-types';
 import type { PathProgress, RoutineOverview } from './progress';
@@ -53,6 +54,14 @@ function store(): Store {
   g[KEY] ??= { done: new Map(), inFlight: new Map(), failedAt: new Map() };
   return g[KEY]!;
 }
+
+// The text describes the latest sessions, which any removed source may have fed.
+registerPurger('routine.narrative', removedIds => {
+  if (removedIds.length === 0) return;
+  const held = store();
+  held.done.clear();
+  held.failedAt.clear();
+});
 
 export function resetNarrativeCacheForTests(): void {
   const g = globalThis as typeof globalThis & { [KEY]?: Store };

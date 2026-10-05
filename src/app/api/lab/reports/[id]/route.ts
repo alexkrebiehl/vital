@@ -9,6 +9,7 @@
 // The id is passed through as a query parameter: Postgres casts it to UUID and
 // reports a malformed id as "no such report" rather than as a 500.
 
+import { reconcileQuietly } from '@/lib/sources/purge';
 import { NextResponse } from 'next/server';
 import { deleteStoredBytes } from '@/lib/lab/storage';
 import { resolveLabConfig } from '@/lib/lab/config';
@@ -76,6 +77,10 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
     const config = resolveLabConfig();
     fileRemoved = await deleteStoredBytes(config.dir, report.sourceSha256);
   }
+
+  // The last report going makes the lab source inactive: notice it now, so the
+  // conversations that used lab results are hidden at once (plan §8).
+  await reconcileQuietly();
 
   return NextResponse.json({ deleted: true, reportId: id, fileRemoved }, { status: 200, headers: NO_STORE });
 }

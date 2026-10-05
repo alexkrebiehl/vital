@@ -1,6 +1,6 @@
 // ── Body goal store: Postgres (SERVER ONLY) ──────────────
 //
-// The `body_goals` table (db/migrations/0010). Postgres is the only backend,
+// The `body_goals` table (db/migrations/0012). Postgres is the only backend,
 // like the profile: a missing database is reported, never replaced by a file.
 // Every pg* function takes its client, so the SQL and row mapping run against
 // an injected stand-in in the offline tests.

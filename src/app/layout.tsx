@@ -17,7 +17,7 @@ import { GeistMono } from 'geist/font/mono';
 import './globals.css';
 import { AppShell } from '@/components/shell/AppShell';
 import { DatasetProvider } from '@/components/data/DatasetProvider';
-import { ConnectionErrorState } from '@/components/data/ConnectionErrorState';
+import { LiveGate } from '@/components/data/LiveGate';
 import { FALLBACK_CLIENT_META } from '@/components/data/fallback-meta';
 import { LiveDataUnavailableError, resolveDataset, type ResolvedDataset } from '@/lib/adapters/runtime';
 import { readProfileState } from '@/lib/profile/store';
@@ -132,16 +132,15 @@ export default async function RootLayout({
               the theme when the server's value differs from this device's cache. */}
           <PrefsSync />
           <AppShell profile={profile} profileStored={profileStored}>
-            {failure ? (
-              <ConnectionErrorState
-                title={failure.title}
-                message={failure.message}
-                host={failure.host}
-                hint={failure.hint}
-              />
-            ) : (
-              children
-            )}
+            <LiveGate
+              failure={
+                failure
+                  ? { title: failure.title, message: failure.message, host: failure.host, hint: failure.hint }
+                  : null
+              }
+            >
+              {children}
+            </LiveGate>
           </AppShell>
         </DatasetProvider>
       </body>

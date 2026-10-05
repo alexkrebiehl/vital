@@ -164,7 +164,7 @@ configuration:
 ## The body goal (Body → Overview)
 
 A **body goal** is a target body weight or a target body-fat percentage, and optionally your own
-pace. It is set from the Body page and stored in the `body_goals` table (migration `0010`):
+pace. It is set from the Body page and stored in the `body_goals` table (migration `0012`):
 
 | | |
 |---|---|
@@ -321,6 +321,27 @@ records, and the request is bounded.
   `Regenerate` re-probes. A local server on the host is reachable as `host.docker.internal`
   (`extra_hosts` is already set in `docker-compose.yml`); `VITAL_LLM_API_KEY` is optional for a
   loopback/LAN server. This switch affects the briefing only — the analyst keeps using `ANALYST_*`.
+
+## Oura Ring and source removal
+
+Oura is optional and configured only through environment variables (all server-side). The steps,
+the measure table and the merge rule are in [Data sources](data-sources.md#oura-ring).
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `OURA_CLIENT_ID`, `OURA_CLIENT_SECRET` | empty | From your app at <https://cloud.ouraring.com/oauth/applications>. An empty client id turns Oura off |
+| `OURA_REDIRECT_URI` | none | Must exactly match a redirect URI registered on the Oura app, e.g. `http://localhost:8080/api/sources/oura/callback` |
+| `VITAL_SECRET_KEY` | none | 32 random bytes, base64 (`openssl rand -base64 32`). Encrypts the stored tokens. Required when Oura is configured |
+| `OURA_SCOPES` | `daily heartrate workout spo2` | Scopes requested. Any scope not granted is skipped and reported in Settings |
+| `OURA_PREFERRED_FOR` | `sleep,recovery` | Groups where the ring wins over the watch: `sleep`, `recovery`, `activity`, `heart`, `workouts` |
+| `OURA_CACHE_TTL_SECONDS` | `300` | Same meaning as `HAE_CACHE_TTL_SECONDS` |
+| `OURA_HEARTRATE_LOOKBACK_DAYS` | `30` | Heart rate is about 288 samples a day, so less history is read |
+| `OURA_HEARTRATE_CHUNK_DAYS` | `7` | Heart-rate request window |
+| `OURA_API_URL` | Oura's API | Override only for tests or the sandbox |
+| `VITAL_SOURCE_PURGE_GRACE_DAYS` | `7` | Days a removed source's analyst conversations stay hidden before they are deleted. **Delete now** in Settings skips the wait |
+
+`VITAL_DATA_MODE=live` needs at least one of Health Auto Export (`HAE_API_URL` + `HAE_API_KEY`) or a
+connected Oura. If neither is available the app says so; it never falls back to demo data.
 
 ## Safety properties of the live path
 

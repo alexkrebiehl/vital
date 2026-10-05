@@ -5,10 +5,12 @@ import {
   aggregatePerDay,
   buildLiveDataset,
   normalizeBloodPressure,
+  normalizeBloodPressureWithCounts,
   normalizeHeartRateDaily,
   normalizeSimpleMetric,
   normalizeSleep,
   normalizeWorkouts,
+  normalizeWorkoutsWithCounts,
   round,
   type IntervalValue,
   type RawBloodPressureRecord,
@@ -23,6 +25,7 @@ import {
   seriesFor,
   setActiveDataset,
 } from '@/lib/adapters/dataset';
+import { SLEEP_ONE_PER_NIGHT_RULE, sourceLabel } from '@/lib/adapters/sources';
 import { addDays, dayKey, diffDays, trailingWindow } from '@/lib/analytics/windows';
 import { compareWindows } from '@/lib/analytics/comparisons';
 import type { HealthFixtures } from '@/lib/metrics/types';
@@ -190,7 +193,7 @@ describe('sleep composition (SPEC §9)', () => {
   const sleep = normalizeSleep(
     samples.metrics.sleep_analysis as unknown as RawSleepRecord[],
     CTX
-  );
+  ).observations;
   const latest = sleep[sleep.length - 1];
 
   it('assigns each episode to its waking date', () => {
@@ -215,7 +218,7 @@ describe('sleep composition (SPEC §9)', () => {
   });
 
   it('keeps awake time separate from time asleep', () => {
-    const syntheticNight = normalizeSleep(synthetic.hours, CTX)[0];
+    const syntheticNight = normalizeSleep(synthetic.hours, CTX).observations[0];
     expect(syntheticNight.asleepMinutes).toBeCloseTo(360, 6);
     expect(syntheticNight.inBedMinutes).toBeCloseTo(480, 6);
     expect(syntheticNight.durationMinutes).toBeCloseTo(390, 6);
@@ -228,7 +231,7 @@ describe('sleep composition (SPEC §9)', () => {
       [{ date: '2026-09-16T05:00:00.000Z', source: 'watch', awake: 0.1, core: 5, deep: 1, rem: 1, inBed: 0.5,
         inBedStart: '2026-09-16T05:00:00.000Z', inBedEnd: '2026-09-16T05:05:00.000Z' }],
       CTX
-    )[0];
+    ).observations[0];
     expect(odd.inBedMinutes).toBeGreaterThanOrEqual(odd.asleepMinutes);
   });
 });
@@ -260,7 +263,7 @@ describe('a sleep episode exported twice', () => {
         { ...episode, date: '2026-08-09T22:00:00.000Z' },
       ],
       CTX
-    );
+    ).observations;
 
     expect(nights).toHaveLength(1);
     expect(nights[0].date).toBe('2026-08-09');
@@ -286,7 +289,7 @@ describe('a sleep episode exported twice', () => {
         { ...fragment, date: '2026-08-14T21:00:00.000Z', inBedEnd: '2026-08-14T22:59:38.000Z', awake: 0.4012375479274326 },
       ],
       CTX
-    );
+    ).observations;
 
     expect(nights).toHaveLength(2);
     expect(nights.map(n => n.inBedMinutes)).toEqual([126.4, 196.1]);
@@ -336,6 +339,180 @@ describe('a sleep episode exported twice', () => {
   });
 });
 
+// ── One episode per wake-up day (SLEEP_ONE_PER_NIGHT_RULE) ─
+describe('one sleep episode per wake-up day', () => {
+  const WATCH = "Sample's Apple Watch";
+  const PHONE = "Sample's iPhone";
+  const base = { awake: 0.1, inBed: 0 };
+  const night = (over: Partial<RawSleepRecord>): RawSleepRecord => ({
+    date: '2026-09-10T12:00:00.000Z',
+    source: WATCH,
+    core: 4,
+    deep: 1,
+    rem: 1.5,
+    inBedStart: '2026-09-10T04:00:00.000Z',
+    inBedEnd: '2026-09-10T12:00:00.000Z',
+    ...base,
+    ...over,
+  });
+
+  it('keeps the longer of two same-source episodes and counts the other', () => {
+    const { observations, dropped } = normalizeSleep(
+      [
+        night({ core: 1, deep: 0.2, rem: 0.3, inBedStart: '2026-09-10T10:00:00.000Z', date: '2026-09-10T13:00:00.000Z' }),
+        night({}),
+      ],
+      CTX
+    );
+    expect(observations).toHaveLength(1);
+    expect(observations[0].asleepMinutes).toBe(390);
+    expect(dropped).toEqual({ repeats: 0, lowerRankedSource: 0, extraEpisodes: 1, total: 1 });
+  });
+
+  it('keeps the watch over the phone on the same day', () => {
+    const { observations, dropped } = normalizeSleep(
+      [night({ source: PHONE, core: 6, deep: 1, rem: 1.5 }), night({})],
+      CTX
+    );
+    expect(observations).toHaveLength(1);
+    expect(observations[0].source).toBe(sourceLabel(WATCH));
+    expect(observations[0].asleepMinutes).toBe(390);
+    expect(dropped.lowerRankedSource).toBe(1);
+    expect(dropped.total).toBe(1);
+  });
+
+  it('lets a staged episode beat an in-bed-only record', () => {
+    const { observations } = normalizeSleep(
+      [
+        night({ core: 0, deep: 0, rem: 0, inBedStart: '2026-09-10T02:00:00.000Z', awake: 0.2 }),
+        night({ core: 3, deep: 0.5, rem: 1 }),
+      ],
+      CTX
+    );
+    expect(observations).toHaveLength(1);
+    expect(observations[0].asleepMinutes).toBe(270);
+  });
+
+  it('breaks an asleep tie by the longest in-bed window, then the earliest bedtime', () => {
+    const longer = night({ inBedStart: '2026-09-10T03:00:00.000Z' });
+    const shorter = night({ inBedStart: '2026-09-10T05:00:00.000Z' });
+    expect(normalizeSleep([shorter, longer], CTX).observations[0].bedtime).toBe(longer.inBedStart);
+
+    const early = night({ inBedStart: '2026-09-10T04:00:00.000Z', inBedEnd: '2026-09-10T11:00:00.000Z' });
+    const late = night({ inBedStart: '2026-09-10T05:00:00.000Z', inBedEnd: '2026-09-10T12:00:00.000Z' });
+    expect(normalizeSleep([late, early], CTX).observations[0].bedtime).toBe(early.inBedStart);
+  });
+
+  it('counts an exact repeat separately from an extra episode', () => {
+    const a = night({});
+    const { observations, dropped } = normalizeSleep(
+      [a, { ...a, date: '2026-09-10T13:00:00.000Z' }, night({ core: 1, deep: 0, rem: 0 })],
+      CTX
+    );
+    expect(observations).toHaveLength(1);
+    expect(dropped).toEqual({ repeats: 1, lowerRankedSource: 0, extraEpisodes: 1, total: 2 });
+  });
+
+  it('leaves days with one episode unchanged and reports no drops', () => {
+    const records = (samples.metrics.sleep_analysis as unknown as RawSleepRecord[]);
+    const days = new Map<string, number>();
+    for (const r of records) days.set(dayKey(r.date, TZ), (days.get(dayKey(r.date, TZ)) ?? 0) + 1);
+    const single = records.filter(r => days.get(dayKey(r.date, TZ)) === 1);
+    const { observations, dropped } = normalizeSleep(single, CTX);
+    expect(dropped.total).toBe(0);
+    expect(observations).toHaveLength(single.length);
+    // Every kept night is the record it came from, field for field.
+    for (const r of single) {
+      const o = observations.find(x => x.date === dayKey(r.date, TZ))!;
+      expect(o.bedtime).toBe(r.inBedStart ?? r.sleepStart ?? '');
+      expect(o.stages.deep).toBeCloseTo(round((r.deep ?? 0) * 60, 1), 6);
+      expect(o.stages.core).toBeCloseTo(round((r.core ?? 0) * 60, 1), 6);
+    }
+  });
+
+  it('is applied in the assembled dataset and reported in the stats', () => {
+    const built = buildLiveDataset(
+      {
+        metrics: {
+          sleep_analysis: [night({}), night({ core: 1, deep: 0, rem: 0, date: '2026-09-10T13:00:00.000Z' })] as unknown[],
+        },
+        workouts: [],
+      },
+      { tz: TZ, now: '2026-09-17T18:00:00.000Z', referenceKey: REFERENCE }
+    );
+    expect((built.dataset.metrics['sleep_analysis'] as unknown[]).length).toBe(1);
+    expect(built.stats.droppedRecords).toBe(1);
+    const row = built.provenance.find(p => p.metricId === 'sleep_analysis')!;
+    expect(row.recordsRead).toBe(2);
+    expect(row.recordsKept).toBe(1);
+    expect(row.dedupeRule).toContain(SLEEP_ONE_PER_NIGHT_RULE);
+  });
+});
+
+// ── One reading synced by two apps (cuff_first) ──────────
+describe('blood pressure from two devices', () => {
+  const CUFF = "Sample's Cuff App";
+  const WATCH = "Sample's Apple Watch";
+  const T0 = Date.parse('2026-09-10T15:00:00.000Z');
+  const at = (minutes: number) => new Date(T0 + minutes * 60_000).toISOString();
+  const reading = (minutes: number, source: string, systolic = 120, diastolic = 80): RawBloodPressureRecord => ({
+    date: at(minutes),
+    source,
+    systolic,
+    diastolic,
+  });
+
+  it('treats two devices one minute apart with the same values as one reading', () => {
+    const { observations, dropped } = normalizeBloodPressureWithCounts(
+      [reading(0, WATCH), reading(1, CUFF)],
+      CTX
+    );
+    expect(observations).toHaveLength(1);
+    // The cuff outranks the watch under cuff_first, whichever arrived first.
+    expect(observations[0].source).toBe(sourceLabel(CUFF));
+    expect(dropped).toEqual({ total: 1 });
+  });
+
+  it('keeps two readings from the same device one minute apart', () => {
+    const { observations, dropped } = normalizeBloodPressureWithCounts(
+      [reading(0, CUFF), reading(1, CUFF)],
+      CTX
+    );
+    expect(observations).toHaveLength(2);
+    expect(dropped.total).toBe(0);
+  });
+
+  it('keeps two devices ten minutes apart as two readings', () => {
+    expect(normalizeBloodPressure([reading(0, CUFF), reading(10, WATCH)], CTX)).toHaveLength(2);
+  });
+
+  it('keeps two devices that disagree by more than 3 mmHg', () => {
+    expect(normalizeBloodPressure([reading(0, CUFF), reading(1, WATCH, 124, 80)], CTX)).toHaveLength(2);
+    expect(normalizeBloodPressure([reading(0, CUFF), reading(1, WATCH, 120, 84)], CTX)).toHaveLength(2);
+    expect(normalizeBloodPressure([reading(0, CUFF), reading(1, WATCH, 123, 77)], CTX)).toHaveLength(1);
+  });
+
+  it('merges at exactly 2 minutes and not at 2 minutes and a second', () => {
+    expect(normalizeBloodPressure([reading(0, CUFF), reading(2, WATCH)], CTX)).toHaveLength(1);
+    const late = { ...reading(2, WATCH), date: new Date(T0 + 2 * 60_000 + 1000).toISOString() };
+    expect(normalizeBloodPressure([reading(0, CUFF), late], CTX)).toHaveLength(2);
+  });
+
+  it('keeps the values as recorded and never averages the pair', () => {
+    const [kept] = normalizeBloodPressure([reading(0, CUFF, 121.5, 79.5), reading(0, WATCH, 123, 78)], CTX);
+    expect([kept.systolic, kept.diastolic]).toEqual([121.5, 79.5]);
+  });
+
+  it('is applied in the assembled stats', () => {
+    const built = buildLiveDataset(
+      { metrics: { blood_pressure: [reading(0, WATCH), reading(1, CUFF)] as unknown[] }, workouts: [] },
+      { tz: TZ, now: '2026-09-17T18:00:00.000Z', referenceKey: REFERENCE }
+    );
+    expect((built.dataset.metrics['blood_pressure'] as unknown[]).length).toBe(1);
+    expect(built.stats.droppedRecords).toBe(1);
+  });
+});
+
 describe('blood pressure and workouts', () => {
   it('keeps every blood pressure reading as a paired observation', () => {
     const bp = normalizeBloodPressure(
@@ -361,15 +538,94 @@ describe('blood pressure and workouts', () => {
     expect(first).toBeDefined();
     expect(String(first.duration_minutes)).not.toContain('1697040339311');
     expect(first.duration_minutes).toBeCloseTo(39.2, 6);
-    expect(Number.isInteger(first.calories_burned)).toBe(true);
+    expect(Number.isInteger(first.calories_burned as number)).toBe(true);
     expect(first.distance_km).toBeUndefined();
     expect(first.avg_heart_rate).toBeUndefined();
     expect(first.max_heart_rate).toBeUndefined();
     // Every session is rounded the same way.
     for (const w of workouts) {
       expect(String(w.duration_minutes)).not.toMatch(/\d{6,}/);
-      expect(Number.isInteger(w.calories_burned)).toBe(true);
+      expect(w.calories_burned === null || Number.isInteger(w.calories_burned)).toBe(true);
     }
+  });
+
+  describe('overlapping workouts', () => {
+    const T0 = Date.parse('2026-09-10T15:00:00.000Z');
+    const at = (m: number) => new Date(T0 + m * 60_000).toISOString();
+    const raw = (over: Record<string, unknown>) => ({
+      id: 'a',
+      workout_type: 'Running',
+      start_time: at(0),
+      end_time: at(30),
+      duration_minutes: 30,
+      calories_burned: 200,
+      ...over,
+    });
+
+    it('collapses an 80% overlap to one record and counts the other', () => {
+      const { workouts, dropped } = normalizeWorkoutsWithCounts(
+        [raw({ id: 'a' }), raw({ id: 'b', start_time: at(6), end_time: at(36) })],
+        CTX
+      );
+      expect(workouts).toHaveLength(1);
+      expect(dropped).toEqual({ repeats: 0, overlapping: 1, total: 1 });
+    });
+
+    it('keeps back-to-back workouts with a 1-minute gap as two', () => {
+      const { workouts, dropped } = normalizeWorkoutsWithCounts(
+        [raw({ id: 'a' }), raw({ id: 'b', start_time: at(31), end_time: at(61) })],
+        CTX
+      );
+      expect(workouts).toHaveLength(2);
+      expect(dropped.total).toBe(0);
+    });
+
+    it('keeps the record with a known calorie value over one without', () => {
+      const out = normalizeWorkouts(
+        [raw({ id: 'a', calories_burned: null, duration_minutes: 40, end_time: at(40) }), raw({ id: 'z' })],
+        CTX
+      );
+      expect(out).toHaveLength(1);
+      expect(out[0].id).toBe('z');
+      expect(out[0].calories_burned).toBe(200);
+    });
+
+    it('then the longer duration, then the lower id', () => {
+      const longer = normalizeWorkouts(
+        [raw({ id: 'a' }), raw({ id: 'b', end_time: at(40), duration_minutes: 40 })],
+        CTX
+      );
+      expect(longer.map(w => w.id)).toEqual(['b']);
+      const tie = normalizeWorkouts([raw({ id: 'b' }), raw({ id: 'a' })], CTX);
+      expect(tie.map(w => w.id)).toEqual(['a']);
+    });
+
+    it('counts an id repeat and an overlap separately', () => {
+      const { workouts, dropped } = normalizeWorkoutsWithCounts(
+        [raw({ id: 'a' }), raw({ id: 'a' }), raw({ id: 'b', start_time: at(2), end_time: at(32) })],
+        CTX
+      );
+      expect(workouts).toHaveLength(1);
+      expect(dropped).toEqual({ repeats: 1, overlapping: 1, total: 2 });
+    });
+
+    it('leaves unknown calories null, never zero', () => {
+      const out = normalizeWorkouts(
+        [raw({ id: 'a', calories_burned: null }), raw({ id: 'b', start_time: at(90), end_time: at(120), calories_burned: undefined })],
+        CTX
+      );
+      expect(out).toHaveLength(2);
+      expect(out.map(w => w.calories_burned)).toEqual([null, null]);
+    });
+
+    it('is reported in the assembled stats', () => {
+      const built = buildLiveDataset(
+        { metrics: {}, workouts: [raw({ id: 'a' }), raw({ id: 'b', start_time: at(3), end_time: at(33) })] },
+        { tz: TZ, now: '2026-09-17T18:00:00.000Z', referenceKey: REFERENCE }
+      );
+      expect(built.dataset.workouts).toHaveLength(1);
+      expect(built.stats.droppedRecords).toBe(1);
+    });
   });
 
   it('de-duplicates a session exported more than once', () => {
@@ -503,5 +759,78 @@ describe('windowing and baselines against a 56-day history', () => {
     expect(REFERENCE_KEY).toBe('2026-09-17');
     expect(seriesFor('resting_heart_rate').length).toBeGreaterThan(100);
     expect(dayKey('2026-09-17T12:00:00.000Z', TZ)).toBe('2026-09-17');
+  });
+});
+
+
+// ── excludeFamilies: a ring that is connected directly is not read twice ──
+
+describe('excludeFamilies', () => {
+  const watch = "Sample's Apple Watch";
+  const ring = "Sample's Oura";
+  const ctx = { ...CTX };
+  const exclude = { ...CTX, excludeFamilies: ['ring' as const] };
+  const stepMapping = METRIC_MAPPINGS.find(m => m.metricId === 'step_count')!;
+  const steps = (date: string, qty: number, source: string): RawSimpleRecord => ({ date, qty, units: 'count', source });
+
+  it('drops ring-only records from a simple metric', () => {
+    const records = [
+      steps('2026-09-10T12:00:00-05:00', 1000, ring),
+      steps('2026-09-11T12:00:00-05:00', 2000, watch),
+    ];
+    const kept = normalizeSimpleMetric(stepMapping, records, exclude)!;
+    expect(kept.observations.map(o => [o.date, o.qty])).toEqual([['2026-09-11', 2000]]);
+    const all = normalizeSimpleMetric(stepMapping, records, ctx)!;
+    expect(all.observations.map(o => o.date)).toEqual(['2026-09-10', '2026-09-11']);
+  });
+
+  it('keeps the watch part of a composite source', () => {
+    const records = [steps('2026-09-10T12:00:00-05:00', 1500, `${watch}|${ring}`)];
+    const out = normalizeSimpleMetric(stepMapping, records, exclude)!;
+    expect(out.observations).toHaveLength(1);
+  });
+
+  it('returns nothing for a metric whose records are all from the ring', () => {
+    expect(normalizeSimpleMetric(stepMapping, [steps('2026-09-10T12:00:00-05:00', 1, ring)], exclude)).toBeNull();
+  });
+
+  it('drops a ring-only sleep episode and keeps a watch one', () => {
+    const night = (date: string, source: string): RawSleepRecord => ({
+      date: `${date}T07:00:00-05:00`, source, deep: 1, rem: 1.5, core: 4, awake: 0.5,
+      inBedStart: `${date}T00:00:00-05:00`, inBedEnd: `${date}T07:00:00-05:00`,
+    });
+    const records = [night('2026-09-10', ring), night('2026-09-11', watch)];
+    expect(normalizeSleep(records, exclude).observations.map(o => o.date)).toEqual(['2026-09-11']);
+    expect(normalizeSleep(records, ctx).observations.map(o => o.date)).toEqual(['2026-09-10', '2026-09-11']);
+  });
+
+  it('drops a ring-only daily heart rate and a ring-only blood-pressure reading', () => {
+    const hr = [
+      { date: '2026-09-10T12:00:00-05:00', Avg: 70, Max: 90, Min: 55, units: 'count/min', source: ring },
+      { date: '2026-09-11T12:00:00-05:00', Avg: 72, Max: 95, Min: 56, units: 'count/min', source: watch },
+    ];
+    expect(normalizeHeartRateDaily(hr, exclude).map(d => d.date)).toEqual(['2026-09-11']);
+    expect(normalizeHeartRateDaily(hr, ctx)).toHaveLength(2);
+    const bp = [{ date: '2026-09-10T08:00:00-05:00', systolic: 120, diastolic: 80, units: 'mmHg', source: ring }];
+    expect(normalizeBloodPressure(bp, exclude)).toEqual([]);
+    expect(normalizeBloodPressure(bp, ctx)).toHaveLength(1);
+  });
+
+  it('drops a workout whose source is the ring, and keeps one that names none', () => {
+    const w = (id: string, start: string, source?: string) => ({
+      id, workout_type: 'Walking', start_time: start, end_time: start.replace('T10', 'T11'), duration_minutes: 60,
+      calories_burned: 100, ...(source ? { source } : {}),
+    });
+    const records = [w('a', '2026-09-10T10:00:00-05:00', ring), w('b', '2026-09-12T10:00:00-05:00'), w('c', '2026-09-14T10:00:00-05:00', watch)];
+    expect(normalizeWorkouts(records, exclude).map(r => r.id)).toEqual(['b', 'c']);
+    expect(normalizeWorkouts(records, ctx).map(r => r.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('changes nothing for a whole dataset when the list is empty or absent', () => {
+    const raw = { metrics: { step_count: [steps('2026-09-10T12:00:00-05:00', 1000, ring)] }, workouts: [] };
+    const base = buildLiveDataset(raw, { tz: TZ, now: '2026-09-17T12:00:00-05:00', referenceKey: REFERENCE });
+    expect(buildLiveDataset(raw, { tz: TZ, now: '2026-09-17T12:00:00-05:00', referenceKey: REFERENCE, excludeFamilies: [] })).toEqual(base);
+    const dropped = buildLiveDataset(raw, { tz: TZ, now: '2026-09-17T12:00:00-05:00', referenceKey: REFERENCE, excludeFamilies: ['ring'] });
+    expect(dropped.dataset.metrics['step_count']).toBeUndefined();
   });
 });

@@ -4,7 +4,7 @@ Where Vital reads your health and workout data from, how demo and live modes dif
 
 [← Back to the README](../README.md)
 
-> **Trademarks.** Health Auto Export, Apple Health, Hevy and every other source named here are
+> **Trademarks.** Health Auto Export, Apple Health, Oura, Hevy and every other source named here are
 > trademarks of their respective owners and are mentioned only to describe compatibility. Vital is not
 > affiliated with or endorsed by any of them, and this applies equally to sources added later. See
 > [Trademarks and affiliations](../README.md#trademarks-and-affiliations).
@@ -13,9 +13,10 @@ Where Vital reads your health and workout data from, how demo and live modes dif
 
 # Data sources
 
-**Vital supports exactly one health-data source today: Apple Health, via the Health Auto Export app for
+**Vital supports two health-data sources: Apple Health, via the Health Auto Export app for
 iPhone, paired with a self-hosted metrics API server —
-[HealthyApps/health-auto-export-server](https://github.com/HealthyApps/health-auto-export-server).**
+[HealthyApps/health-auto-export-server](https://github.com/HealthyApps/health-auto-export-server) —
+and, optionally, the Oura Ring through Oura's own cloud API (see [Oura Ring](#oura-ring)).**
 
 The chain has three links, and Vital implements only the last one:
 
@@ -29,9 +30,9 @@ What that means in practice:
 
 - **The metrics API server is not optional.** Apple Health has no public cloud API, a web app
   cannot read HealthKit, and the phone cannot be queried directly. Point `HAE_API_URL` at your
-  `health-auto-export-server` instance and set `HAE_API_KEY` to its token, or run in `demo` mode.
-- **No other source is supported, partially or otherwise.** There is no direct HealthKit or iCloud
-  bridge; no Google Fit, Android or Samsung Health; no Garmin, Fitbit, Withings or Oura; no Apple
+  `health-auto-export-server` instance and set `HAE_API_KEY` to its token, or run in `demo` mode, or use Oura alone (live mode needs at least one of the two).
+- **No other health source is supported, partially or otherwise.** There is no direct HealthKit or iCloud
+  bridge; no Google Fit, Android or Samsung Health; no Garmin, Fitbit or Withings; no Apple
   Health `export.xml` upload and no CSV/JSON import. The adapter layer knows one wire protocol, and
   the pipeline panel lists only the stages this build can actually check.
 - **Demo mode is not a source.** `VITAL_DATA_MODE=demo` serves the committed fixtures
@@ -113,6 +114,151 @@ days, usually right after a manual export at a different time grouping. To repai
    that the export added beside the original readings.
 
 After that, keep to step 3 above.
+
+## Oura Ring
+
+Oura is an optional second live source. It is read server-to-server through Oura's cloud API, and
+it works on its own (no Health Auto Export needed) or next to it. Oura retired personal access
+tokens, so a token cannot be pasted into `.env`: Vital signs in with OAuth2 (authorization code
+with PKCE) and you press **Connect** in *Settings → Connections*.
+
+### Set it up
+
+1. Register an app at <https://cloud.ouraring.com/oauth/applications>. Add one redirect URI that
+   matches your Vital address exactly, for example `http://localhost:8080/api/sources/oura/callback`.
+2. Generate an encryption key for the stored tokens: `openssl rand -base64 32`.
+3. Set these in `.env` and restart:
+
+```bash
+OURA_CLIENT_ID=your-client-id
+OURA_CLIENT_SECRET=your-client-secret
+OURA_REDIRECT_URI=http://localhost:8080/api/sources/oura/callback
+VITAL_SECRET_KEY=output-of-openssl-rand
+# OURA_PREFERRED_FOR=sleep,recovery
+```
+
+4. Open *Settings → Connections* and press **Connect**. Approve the scopes on Oura's page.
+
+Vital requests the scopes `daily heartrate workout spo2`. VO2 max needs one more scope, `heart_health`, which is off by default: add it to `OURA_SCOPES` (and enable *Heart Health* on your Oura app) and reconnect to include it. You can grant fewer: the endpoints whose
+scope was not granted are skipped, and Settings says which. Leave `OURA_CLIENT_ID` empty and Oura
+is off. Every `OURA_*` variable is listed in `.env.example`.
+
+### Connecting when Vital runs on another machine
+
+Oura allows a plain `http://` redirect address only for `localhost`. The redirect is followed by
+your **browser**, not by Oura's servers, so Vital never has to be reachable from the internet. If
+your browser is on a different computer from Vital (a home server, a NAS), carry `localhost`
+across with an SSH tunnel for the few seconds the sign-in takes:
+
+1. Set the redirect address to `localhost` in `.env`, and register the same string with Oura
+   (scheme, host, port and path must match exactly), then run `docker compose up -d`:
+
+   ```bash
+   OURA_REDIRECT_URI=http://localhost:8080/api/sources/oura/callback
+   ```
+
+2. On the computer that runs your browser, open the tunnel (`vital.example.lan` stands for
+   however you reach the server):
+
+   ```bash
+   ssh -L 8080:localhost:8080 you@vital.example.lan
+   ```
+
+3. Browse to `http://localhost:8080`, open *Settings → Connections* and press **Connect**. Start
+   from `localhost`, not from the server's name: the sign-in state lives in a cookie tied to the
+   host name, so a different host fails the state check.
+4. Close the tunnel when Oura shows as connected. Vital keeps the encrypted refresh token and
+   renews it itself, so day-to-day use at the server's normal address is unaffected. You only need
+   the tunnel again to reconnect after revoking access.
+
+If port 8080 is taken on the browser's computer, use another local port (`-L 9090:localhost:8080`)
+and put that port in the redirect address and in Oura's portal. If you get a "state mismatch" error, try
+another browser: some refuse `Secure` cookies over `http://localhost`.
+
+Alternatively, serve Vital over HTTPS (a reverse proxy with a certificate your browser trusts) and
+register the `https://` address as the redirect.
+
+### What is stored
+
+Only the encrypted access and refresh tokens, in Postgres. **No Oura reading is ever stored**: not
+in the database, not in a file, not in a log. Readings are fetched on demand, held in server memory
+for `OURA_CACHE_TTL_SECONDS` (default 300), and dropped on restart, on Disconnect, or when Oura is
+removed from `.env`. Vital shows no Oura score (readiness, sleep, activity, stress, resilience or
+cardiovascular age): only the measurements.
+
+### What is the same measure and what is not
+
+Mixing two different measures under one metric would draw a trend that does not exist, so Vital
+merges only measures that mean the same thing.
+
+| Oura field | Vital metric | Same as Apple Health's? | What Vital does |
+|---|---|---|---|
+| Sleep periods: bed time, time in bed, total sleep, deep, light, REM and awake time | Sleep (light sleep shown as core) | Yes, the stages map one to one | Merged under the priority rule |
+| Average breathing rate during sleep | Respiratory rate | Yes (breaths per minute) | Merged |
+| Daily average blood oxygen | Blood oxygen saturation (%) | Yes | Merged |
+| Daily steps | Steps | Yes | Merged |
+| Active calories | Active energy (kcal) | Yes | Merged |
+| VO2 max | VO2 max | Both are estimates in ml/kg/min | Merged |
+| Heart rate samples | Heart rate, daily mean | Yes | Merged |
+| Workouts | Workouts (distance in km) | The same session can appear in both | Merged; overlapping sessions count once |
+| Average HRV during sleep | Overnight HRV (RMSSD), new | **No.** Oura reports RMSSD overnight; Apple reports SDNN | Shown as its own metric |
+| Lowest heart rate during sleep | Lowest overnight heart rate, new | **No.** It is not Apple's resting heart rate | Shown as its own metric |
+| Temperature deviation | Temperature deviation, new | **No.** A change from your baseline, not a wrist temperature | Shown as its own metric |
+| Equivalent walking distance | none | **No.** An energy equivalent, not a distance | Not used |
+| Breathing disturbance index | none | **No.** Apple's metric is a count | Not used |
+| Readiness, sleep and activity scores, stress, resilience, cardiovascular age | none | Vendor scores | Excluded |
+
+### How the two sources are merged
+
+- **Daily metric in both sources:** the preferred source for that metric group supplies the day.
+  The other source fills only the days the preferred one lacks. Values are never summed or
+  averaged across sources.
+- **Sleep:** one episode per night, from the preferred source; the other fills only nights with
+  none.
+- **Workouts:** the union of both. An Oura and an Apple workout that overlap by at least half of
+  the shorter one (with five minutes of slack) are one workout, and the preferred source's record
+  is kept.
+- **Preference:** `OURA_PREFERRED_FOR` lists the groups where the ring wins over the watch, from
+  `sleep`, `recovery` (breathing rate, blood oxygen), `activity` (steps, active energy), `heart`
+  (heart rate, VO2 max) and `workouts`. The default is `sleep,recovery`. The three ring-only
+  metrics need no preference.
+- **No double counting:** the Oura app also writes into Apple Health, so Health Auto Export can
+  carry the same nights. While Oura is connected, Vital ignores ring-sourced records coming through
+  Health Auto Export and reads them once, directly. If Oura is not connected, nothing changes.
+- **If one source fails** and the other works, you get the working one's data and the failure is
+  shown in Settings and the pipeline panel. If both fail, the app reports the live source as
+  unavailable; it never substitutes demo data.
+
+### Removed sources
+
+A source counts as removed when its configuration is deleted from `.env` and the container
+restarted, when you press **Disconnect** (OAuth sources), or when the last lab report is deleted.
+After that, Vital behaves as if the source had never existed:
+
+| Where the source's data or anything derived from it can live | When it is removed |
+|---|---|
+| Live data, route cache, workout sessions (all in memory) | Dropped at once |
+| Pages and charts | Rebuilt from the remaining sources |
+| Daily briefing (in memory) | Dropped and written again from the remaining sources |
+| Analyst conversations and thread memory (Postgres) | Hidden at once. A conversation that used a removed source is deleted whole, after `VITAL_SOURCE_PURGE_GRACE_DAYS` (default 7) or immediately with **Delete now** |
+| Stored OAuth credential (Postgres) | Deleted on Disconnect, and again by the purge |
+| Lab reports and files | The existing per-report delete; deleting the last one triggers the conversation purge |
+| Logs | Nothing to purge: Vital logs outcomes, never values or tokens |
+
+Settings → Connections lists each removed source in a **Removed sources** card: the date it was
+removed, how many conversations are hidden, and when they will be deleted, with a **Delete now**
+button (after a confirmation). The same action is `DELETE /api/sources/{id}/data?confirm=yes`; it is
+refused with 409 while the source is still active. The purge deletes the conversations tagged with the
+source (their messages go with them), its stored credential and its lifecycle record in one
+transaction. It runs at boot and whenever the set of sources changes; `VITAL_SOURCE_PURGE_GRACE_DAYS=0`
+deletes at the next of those. If the source comes back before the purge, nothing is lost.
+
+Kept on purpose, because they are configuration and not data: your profile, preferences, training
+plans (targets, never observations) and activity-map areas.
+
+One consequence: if you remove Oura but the Oura app still writes into Apple Health, those readings
+come back through Health Auto Export. That is Health Auto Export's own data, and the result matches
+what Vital showed before Oura was ever connected. To drop them, stop Oura writing to Apple Health.
 
 ## Workout sources (detailed training data)
 

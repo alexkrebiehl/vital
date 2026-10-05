@@ -2,7 +2,7 @@
 //
 // Decides which dataset the app is serving, exactly once per request:
 //
-//   VITAL_DATA_MODE=live  → fetch + normalize the Health Auto Export history
+//   VITAL_DATA_MODE=live  → fetch + normalize every active live source and merge them
 //   VITAL_DATA_MODE=demo  → the committed fixtures (the default, and the fallback
 //                           for any environment that does not opt in)
 //
@@ -12,8 +12,11 @@
 import type { HealthFixtures } from '../metrics/types';
 import { FIXTURES, dataMode, datasetMeta, setActiveDataset, type DataMode, type DatasetMeta } from './dataset';
 import { dayKey } from '../analytics/windows';
-import { haeHost, readHaeConfig } from './hae';
+import { haeHost } from './hae';
 import { loadLiveDataset, type LiveDeps } from './live';
+import { readOuraConfig } from './oura/config';
+import { activeHealthSources, defaultContext } from '../sources/registry';
+import { reconcileQuietly } from '../sources/purge';
 import { liveCache, liveCacheTtlMs } from './cache';
 import type { ProvenanceRow } from './normalize';
 import type { QualityJob } from './quality';
@@ -67,10 +70,13 @@ function toClientMeta(
   host: string | null,
   env: NodeJS.ProcessEnv,
   provenance: ProvenanceRow[],
-  dedupe: ClientDatasetMeta['dedupe']
+  dedupe: ClientDatasetMeta['dedupe'],
+  sourceErrors?: ClientDatasetMeta['sourceErrors'],
+  activeSources?: string[]
 ): ClientDatasetMeta {
+  // No source is named here: pages never say where data came from (Settings does).
   const summary = mode === 'live'
-    ? `Live Health Auto Export data, as of ${meta.dataAsOf.slice(0, 10)}. ${meta.observationCount} daily observations across ${meta.metricCount} metrics.`
+    ? `Live data, as of ${meta.dataAsOf.slice(0, 10)}. ${meta.observationCount} daily observations across ${meta.metricCount} metrics.`
     : `Demo dataset: ${meta.observationCount} observations across ${meta.metricCount} metrics, reference day ${meta.referenceKey}.`;
   return {
     mode,
@@ -90,6 +96,8 @@ function toClientMeta(
     dedupe,
     provenance,
     summary,
+    ...(sourceErrors && sourceErrors.length > 0 ? { sourceErrors } : {}),
+    ...(activeSources ? { activeSources } : {}),
   };
 }
 
@@ -112,10 +120,16 @@ export async function resolveDataset(deps: LiveDeps = {}): Promise<ResolvedDatas
     };
   }
 
-  if (!readHaeConfig(env)) {
+  const active = await activeHealthSources(deps.sources ?? defaultContext(env));
+  if (active.length === 0) {
+    const ouraWaiting = readOuraConfig(env)?.ok === true;
     throw new LiveDataUnavailableError(
-      'Live mode is selected but the Health Auto Export API is not configured.',
-      'HAE_API_URL and HAE_API_KEY must both be set in the server environment.',
+      ouraWaiting
+        ? 'Live mode is selected but no live source is connected.'
+        : 'Live mode is selected but the Health Auto Export API is not configured.',
+      ouraWaiting
+        ? 'Connect a data source in Settings → Connections.'
+        : 'HAE_API_URL and HAE_API_KEY must both be set in the server environment.',
       haeHost(env)
     );
   }
@@ -153,13 +167,15 @@ export async function resolveDataset(deps: LiveDeps = {}): Promise<ResolvedDatas
       env,
       result.provenance,
       {
-        rule: SOURCE_DEDUPE_RULE,
+        rule: result.mergeRule ? `${SOURCE_DEDUPE_RULE} ${result.mergeRule}` : SOURCE_DEDUPE_RULE,
         droppedRecords: result.stats.droppedRecords,
         droppedIntervals: result.stats.droppedIntervals,
-      }
+      },
+      result.sourceErrors,
+      active.filter(id => id === 'hae' || id === 'oura')
     ),
     serverMeta: meta,
-    quality: result.quality,
+    quality: result.quality ?? null,
   };
 }
 
@@ -168,6 +184,10 @@ export async function resolveDataset(deps: LiveDeps = {}): Promise<ResolvedDatas
  * so route handlers read exactly what the pages are showing. Idempotent.
  */
 export async function installDataset(deps: LiveDeps = {}): Promise<ResolvedDataset> {
+  // A source that went away since the last request is purged BEFORE anything is
+  // built, so nothing it contributed can be read back (plan §8).
+  const env = deps.env ?? process.env;
+  await reconcileQuietly(deps.sources ?? defaultContext(env));
   const resolved = await resolveDataset(deps);
   if (resolved.mode === 'demo' && dataMode() !== 'demo') {
     // A process that previously served live data must not keep serving it in

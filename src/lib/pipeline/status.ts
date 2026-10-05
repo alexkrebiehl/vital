@@ -6,6 +6,9 @@
 //     configured HAE_API_URL (HAE_PROBE_METRIC, default resting_heart_rate),
 //     with a hard timeout. Healthy is only ever reported when the probe actually
 //     answered with an array of records.
+//   * Oura — a bounded read-only probe (daily_sleep, last two days) when Oura is
+//     configured and connected; "not configured" and "not connected" are
+//     reported as such and make no request.
 //   * Intelligence — the dataset the app is serving is read for real and its
 //     observation count and newest observation are reported.
 //   * Dashboard — the request itself is the check.
@@ -17,6 +20,9 @@ import { datasetMeta, type DatasetMeta } from '../adapters/dataset';
 import { cacheStatus, installDataset, readDataMode, LiveDataUnavailableError } from '../adapters/runtime';
 import { haeHost, readHaeConfig, type HaeProbeResult } from '../adapters/hae';
 import { probeHae } from '../adapters/hae';
+import { probeOura, type OuraProbeResult } from '../adapters/oura';
+import { readOuraConfig } from '../adapters/oura/config';
+import type { PoolLike } from '../db/pool';
 import { loadTrainingData } from '../workout-sources/store';
 import type { QualityJob } from '../adapters/quality';
 import type {
@@ -59,6 +65,45 @@ export interface PipelineDeps {
   skipDataset?: boolean;
   /** Dataset summary supplied by the caller (tests). */
   datasetSummary?: PipelineDatasetSummary;
+  /** Replaces the process Postgres pool for Oura's credential (tests). */
+  ouraClient?: PoolLike | null;
+}
+
+/** The Oura stage: every status comes from the probe, or from the configuration when no request was made. */
+function ouraStage(env: NodeJS.ProcessEnv, probe: OuraProbeResult | null): PipelineStage {
+  const read = readOuraConfig(env);
+  const base = { id: 'oura_api' as const, name: 'Oura Ring', observationCount: null, lastObservationAt: null };
+  if (read && !read.ok) {
+    return {
+      ...base,
+      status: 'unconfigured',
+      detail: `Oura is partly configured: ${read.reason}`,
+      derivedFrom: 'Configuration check only; no request was made.',
+    };
+  }
+  if (!read || !probe) {
+    return {
+      ...base,
+      status: 'unconfigured',
+      detail: 'Oura is not configured (OURA_CLIENT_ID is not set).',
+      derivedFrom: 'Configuration check only; no request was made.',
+    };
+  }
+  if (probe.outcome === 'needs_reconnect' && probe.httpStatus === null) {
+    return {
+      ...base,
+      status: 'unconfigured',
+      detail: `${probe.detail} Connect it in Settings → Connections.`,
+      derivedFrom: 'Credential check only; no request was made to Oura.',
+    };
+  }
+  const ok = probe.outcome === 'ok';
+  return {
+    ...base,
+    status: ok ? 'healthy' : 'degraded',
+    detail: ok ? `Oura answered a read-only probe with ${probe.records} record(s) in ${probe.durationMs} ms.` : probe.detail,
+    derivedFrom: `GET /v2/usercollection/daily_sleep for the last 2 days with a ${PROBE_TIMEOUT_MS} ms timeout (outcome: ${probe.outcome}).`,
+  };
 }
 
 function toProbe(result: HaeProbeResult | null, config: PipelineConfig, env: NodeJS.ProcessEnv): PipelineProbe {
@@ -174,6 +219,13 @@ export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<Pi
   const probe = toProbe(probeResult, config, env);
   const probeOk = probe.outcome === 'ok';
 
+  // ── 1b. Probe Oura (only when configured; a missing credential makes no request) ──
+  const ouraConfigured = readOuraConfig(env)?.ok === true;
+  const ouraProbe = ouraConfigured
+    ? await probeOura({ env, fetchImpl: deps.fetchImpl, client: deps.ouraClient }, now)
+    : null;
+  const ouraOk = ouraProbe?.outcome === 'ok';
+
   // ── 2. Read the dataset the app is actually serving ───
   let summary: PipelineDatasetSummary;
   let qualityJob: QualityJob | null = null;
@@ -234,6 +286,7 @@ export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<Pi
       observationCount: summary.observationCount,
       lastObservationAt: summary.lastObservationAt,
     },
+    ouraStage(env, ouraProbe),
     qualityStage(qualityJob, mode, summary),
     {
       id: 'intelligence',
@@ -241,7 +294,7 @@ export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<Pi
       status: summary.error ? 'degraded' : summary.observationCount > 0 ? 'healthy' : 'degraded',
       detail: summary.error
         ? `The dataset could not be read, so no baseline, comparison or summary was produced: ${summary.error}`
-        : `Baselines, comparisons and summaries were computed locally from the ${summary.source === 'live' ? 'live Health Auto Export history' : 'committed demo dataset'}: ` +
+        : `Baselines, comparisons and summaries were computed locally from the ${summary.source === 'live' ? 'live health history' : 'committed demo dataset'}: ` +
           `${summary.observationCount} daily observations across ${summary.metricCount} metrics and ${summary.workouts} workouts. ` +
           `Newest observation ${dayOf(summary.lastObservationAt)}.`,
       derivedFrom: summary.error
@@ -264,9 +317,11 @@ export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<Pi
   const healthy = stages.filter(s => s.status === 'healthy').length;
   const cache = cacheStatus();
   const summarySentence = mode === 'live'
-    ? probeOk
+    ? probeOk || ouraOk
       ? `Live mode: ${healthy} of ${stages.length} stages confirmed by real checks; ${summary.observationCount} observations as of ${dayOf(summary.lastObservationAt)}.`
-      : `Live mode, but the export API did not answer (${probe.outcome}). ${healthy} of ${stages.length} stages confirmed; the dashboard is showing a connection error rather than demo data.`
+      : !config.healthApiConfigured
+        ? `Live mode, but no live source answered. ${healthy} of ${stages.length} stages confirmed; the dashboard is showing a connection error rather than demo data.`
+        : `Live mode, but the export API did not answer (${probe.outcome}). ${healthy} of ${stages.length} stages confirmed; the dashboard is showing a connection error rather than demo data.`
     : probeOk
       ? `Demo mode: the committed fixtures are being served. The configured export server answered a probe, but every number on the dashboard still comes from the fixtures. ${healthy} of ${stages.length} stages confirmed by real checks.`
       : `Demo mode: the committed fixtures are being served, and nothing upstream could be confirmed. ${healthy} of ${stages.length} stages are confirmed healthy.`;

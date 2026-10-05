@@ -6,7 +6,7 @@
 // which one it is depends on where the data says the reader is now, so the goal
 // never has to be re-entered when they cross it.
 //
-// CONFIGURATION ONLY (db/migrations/0010): a target, a pace and the day it was
+// CONFIGURATION ONLY (db/migrations/0012): a target, a pace and the day it was
 // set. Where the reader started is read from the health data on `startedOn`
 // every time, and is never stored.
 //

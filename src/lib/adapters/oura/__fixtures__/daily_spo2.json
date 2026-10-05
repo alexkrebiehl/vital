@@ -1,0 +1,75 @@
+{
+  "data": [
+    {
+      "id": "spo2-0",
+      "day": "2026-09-20",
+      "spo2_percentage": {
+        "average": 95.5
+      },
+      "breathing_disturbance_index": 4
+    },
+    {
+      "id": "spo2-1",
+      "day": "2026-09-21",
+      "spo2_percentage": {
+        "average": 96.0
+      },
+      "breathing_disturbance_index": 4
+    },
+    {
+      "id": "spo2-2",
+      "day": "2026-09-22",
+      "spo2_percentage": {
+        "average": 96.5
+      },
+      "breathing_disturbance_index": 4
+    },
+    {
+      "id": "spo2-4",
+      "day": "2026-09-24",
+      "spo2_percentage": {
+        "average": 95.5
+      },
+      "breathing_disturbance_index": 4
+    },
+    {
+      "id": "spo2-5",
+      "day": "2026-09-25",
+      "spo2_percentage": {
+        "average": 96.0
+      },
+      "breathing_disturbance_index": 4
+    },
+    {
+      "id": "spo2-6",
+      "day": "2026-09-26",
+      "spo2_percentage": null,
+      "breathing_disturbance_index": 4
+    },
+    {
+      "id": "spo2-7",
+      "day": "2026-09-27",
+      "spo2_percentage": {
+        "average": 97.0
+      },
+      "breathing_disturbance_index": 4
+    },
+    {
+      "id": "spo2-8",
+      "day": "2026-09-28",
+      "spo2_percentage": {
+        "average": 95.5
+      },
+      "breathing_disturbance_index": 4
+    },
+    {
+      "id": "spo2-9",
+      "day": "2026-09-29",
+      "spo2_percentage": {
+        "average": 96.0
+      },
+      "breathing_disturbance_index": 4
+    }
+  ],
+  "next_token": null
+}

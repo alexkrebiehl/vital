@@ -16,13 +16,15 @@ import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  Bell, Clock, Database, Dumbbell, Info, Palette, Ruler, Save, Shield, Trash2, TriangleAlert, UserRound,
+  Bell, Clock, Database, Dumbbell, Info, Palette, Plug, Ruler, Save, Shield, Trash2, TriangleAlert, UserRound,
 } from 'lucide-react';
 import { getAllMetrics, getMetric } from '@/lib/metrics';
 import { convertValue, displayUnit, formatMetricWithUnit, hasConversion } from '@/lib/metrics/format';
 import { coverageFact, coverageSentence } from '@/lib/analytics/coverage';
 import { formatDayKeyLong } from '@/lib/analytics/windows';
-import { REFERENCE_KEY, unavailableReasonFor } from '@/lib/adapters/dataset';
+import { REFERENCE_KEY, metricHasData, unavailableReasonFor } from '@/lib/adapters/dataset';
+import { useDatasetMeta } from '@/components/data/DatasetProvider';
+import { listedMetrics } from '@/lib/metrics/listed';
 import {
   applyTheme, clearPreferences, getPreferencesState, loadPreferences,
   savePreferencesResult, subscribePreferences, syncPreferences,
@@ -38,6 +40,8 @@ import { useProfile } from '@/components/profile/ProfileProvider';
 import { LabUpload } from '@/components/settings/LabUpload';
 import { MapProvidersCard } from '@/components/settings/MapProviders';
 import { DataQualitySection } from '@/components/settings/DataQuality';
+import { OuraConnection } from '@/components/settings/OuraConnection';
+import { RemovedSources } from '@/components/settings/RemovedSources';
 import {
   PROFILE_NAME_MAX,
   PROFILE_NOTES_MAX,
@@ -518,8 +522,40 @@ function Field({ label, hint, children }: { label: string; hint: string; childre
 
 // ── Data tab ────────────────────────────────────────────
 
+/** Which measures each source supplies, built from the coverage records. */
+function SourceSummary({ metrics }: { metrics: { id: string; displayName: string }[] }) {
+  const bySource = new Map<string, string[]>();
+  for (const m of metrics) {
+    const fact = coverageFact(m.id);
+    if (!fact) continue;
+    for (const name of fact.sources) {
+      const list = bySource.get(name) ?? [];
+      list.push(m.displayName);
+      bySource.set(name, list);
+    }
+  }
+  if (bySource.size === 0) return null;
+  const rows = [...bySource.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+  return (
+    <div className="rounded-control border border-border p-4 mb-4" aria-label="Measures by source">
+      <div className="text-sm font-medium text-text-primary mb-2">Where each measure comes from</div>
+      <dl className="grid gap-2">
+        {rows.map(([name, list]) => (
+          <div key={name}>
+            <dt className="text-xs font-medium text-text-primary">
+              {name} <span className="font-normal text-text-secondary">· {list.length} {list.length === 1 ? 'measure' : 'measures'}</span>
+            </dt>
+            <dd className="text-xs text-text-secondary leading-relaxed">{list.join(', ')}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 function DataTab() {
-  const metrics = useMemo(() => getAllMetrics(), []);
+  const activeSources = useDatasetMeta().activeSources;
+  const metrics = useMemo(() => listedMetrics(getAllMetrics(), activeSources, metricHasData), [activeSources]);
   const categories = useMemo(() => [...new Set(metrics.map(m => m.category))], [metrics]);
 
   return (
@@ -533,6 +569,7 @@ function DataTab() {
           Coverage counts the days on which a value exists. Missing days are excluded from every calculation and never
           counted as zero.
         </p>
+        <SourceSummary metrics={metrics} />
         <div className="grid gap-3">
           {metrics.map(m => {
             const fact = coverageFact(m.id);
@@ -636,6 +673,8 @@ function DataTab() {
 // ── Connections tab ─────────────────────────────────────
 
 function ConnectionsTab() {
+  const router = useRouter();
+  const ouraNotice = useSearchParams().get('oura');
   const [report, setReport] = useState<PipelineStatusReport | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -758,6 +797,19 @@ function ConnectionsTab() {
           </DataStateNote>
         </div>
       </Card>
+
+      <Card className="p-6">
+        <OuraConnection
+          heading={title => <SectionHead icon={<Plug size={18} className="text-text-secondary" />} title={title} />}
+          noticeParam={ouraNotice}
+          onChanged={() => router.refresh()}
+        />
+      </Card>
+
+      <RemovedSources
+        heading={title => <SectionHead icon={<Trash2 size={18} className="text-text-secondary" />} title={title} />}
+        onChanged={() => router.refresh()}
+      />
 
       <Card className="p-6">
         <MapProvidersCard heading={(icon, title) => <SectionHead icon={icon} title={title} />} />

@@ -58,7 +58,7 @@ describe('conversations — no database configured', () => {
 
   it('answers the question and says plainly that it was not persisted', async () => {
     const response = await okResponse();
-    const outcome = await appendExchange({ client: null }, null, 'How has my sleep changed over the last month?', response);
+    const outcome = await appendExchange({ client: null }, null, 'How has my sleep changed over the last month?', response, ['hae']);
     expect(outcome.ok).toBe(true);
     expect(outcome.ok && outcome.outcome.persisted).toBe(false);
     expect(outcome.ok && outcome.outcome.reason).toBe(NO_DATABASE_REASON);
@@ -97,7 +97,7 @@ describe('conversations — create, list, read', () => {
     // A turn added to the OLDER conversation updates its `updated_at`. It must not
     // lift it above the conversation that was started later - that is the bug the
     // owner reported: his newest conversation sitting second in the list.
-    await appendExchange({ client: db }, firstId, 'How is my HRV trending?', await okResponse('How is my HRV trending?'));
+    await appendExchange({ client: db }, firstId, 'How is my HRV trending?', await okResponse('How is my HRV trending?'), ['hae']);
 
     const listed = await listConversationsForApi({ client: db });
     expect(listed.ok && listed.conversations.map(c => c.id)).toEqual([secondId, firstId]);
@@ -126,7 +126,7 @@ describe('conversations — create, list, read', () => {
     const db = new FakeAnalystDb();
     const created = await createConversationForApi({ client: db }, 'Draft');
     const id = created.ok ? created.data.id : 0;
-    await appendExchange({ client: db }, id, 'How is my HRV trending?', await okResponse('How is my HRV trending?'));
+    await appendExchange({ client: db }, id, 'How is my HRV trending?', await okResponse('How is my HRV trending?'), ['hae']);
     expect(db.messageCountOf(id)).toBe(2);
 
     const renamed = await renameConversationForApi({ client: db }, id, 'HRV review');

@@ -21,10 +21,50 @@ interface Interval {
   end_time: string;
 }
 
+/** Two instants, ISO strings. Shared by every source that has a start and an end. */
+export interface TimeSpan {
+  start: string;
+  end: string;
+}
+
+export interface IntervalMatchOptions {
+  /** Share of the shorter interval that must overlap. Default `MATCH_MIN_OVERLAP`. */
+  minOverlap?: number;
+  /** `a` is widened by this much on both sides before it is compared. Default `MATCH_SLACK_MS`. */
+  slackMs?: number;
+}
+
 function overlapShare(aStart: number, aEnd: number, bStart: number, bEnd: number): number {
   const overlap = Math.min(aEnd, bEnd) - Math.max(aStart, bStart);
   const shorter = Math.max(1, Math.min(aEnd - aStart, bEnd - bStart));
   return overlap / shorter;
+}
+
+/**
+ * How much of the shorter interval is shared, in [.., 1]; `null` when either
+ * interval cannot be read. `a` is widened by `slackMs` on both sides, and `b`
+ * is treated as at least one minute long.
+ */
+export function intervalOverlapShare(a: TimeSpan, b: TimeSpan, slackMs: number = MATCH_SLACK_MS): number | null {
+  const as = Date.parse(a.start) - slackMs;
+  const ae = Date.parse(a.end) + slackMs;
+  const bs = Date.parse(b.start);
+  const be = Date.parse(b.end);
+  if (![as, ae, bs, be].every(Number.isFinite)) return null;
+  return overlapShare(as, ae, bs, Math.max(be, bs + 60_000));
+}
+
+/**
+ * True when two intervals are the same session: the overlap covers at least
+ * `minOverlap` of the shorter one, after `a` is widened by `slackMs`.
+ */
+export function intervalsMatch(
+  a: TimeSpan,
+  b: TimeSpan,
+  { minOverlap = MATCH_MIN_OVERLAP, slackMs = MATCH_SLACK_MS }: IntervalMatchOptions = {}
+): boolean {
+  const share = intervalOverlapShare(a, b, slackMs);
+  return share !== null && share >= minOverlap;
 }
 
 /** The session that is the same workout as `workout`, or null. */
@@ -32,20 +72,15 @@ export function matchSession<S extends Pick<TrainingSession, 'startTime' | 'endT
   workout: Interval,
   sessions: S[]
 ): S | null {
-  const ws = Date.parse(workout.start_time) - MATCH_SLACK_MS;
-  const we = Date.parse(workout.end_time) + MATCH_SLACK_MS;
-  if (!Number.isFinite(ws) || !Number.isFinite(we)) return null;
+  const span: TimeSpan = { start: workout.start_time, end: workout.end_time };
   let best: S | null = null;
   let bestShare = 0;
   for (const s of sessions) {
-    const ss = Date.parse(s.startTime);
-    const se = Date.parse(s.endTime);
-    if (!Number.isFinite(ss) || !Number.isFinite(se)) continue;
-    const share = overlapShare(ws, we, ss, Math.max(se, ss + 60_000));
-    if (share > bestShare) {
+    const share = intervalOverlapShare(span, { start: s.startTime, end: s.endTime });
+    if (share !== null && share > bestShare) {
       best = s;
       bestShare = share;
     }
   }
-  return bestShare >= MATCH_MIN_OVERLAP ? best : null;
+  return best && intervalsMatch(span, { start: best.startTime, end: best.endTime }) ? best : null;
 }

@@ -1,4 +1,4 @@
--- ── 0010 — body goals ───────────────────────────────────────────────────────
+-- ── 0012 — body goals ───────────────────────────────────────────────────────
 --
 -- Body → Overview and Body → Nutrition are read against a goal the reader sets:
 -- a target body weight or a target body-fat percentage, and optionally the pace

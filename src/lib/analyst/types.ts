@@ -117,7 +117,10 @@ export interface RetrievedWorkouts {
   sessions: number;
   sessionsPerWeek: number;
   minutes: number;
-  calories: number;
+  /** Total of the sessions that recorded calories; null when none did. */
+  calories: number | null;
+  /** Sessions that recorded calories; the others are left out of the total. */
+  calorieSessions: number;
   byType: { type: string; count: number; minutes: number }[];
   /** Sessions in the final 30 days and the 30 before that. */
   recent: number;

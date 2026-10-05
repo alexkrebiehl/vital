@@ -82,12 +82,17 @@ export function formatMetricWithUnit(metricId: string, value: number, system: Un
   return unit ? `${text} ${unit}` : text;
 }
 
+/** A signed-by-nature formatter (temperature deviation) already prints '+'; a delta adds its own sign. */
+function unsigned(text: string): string {
+  return text.replace(/^\+/, '');
+}
+
 /** Signed delta, e.g. '+1.3' / '−3' / 'no change'. */
 export function formatDeltaValue(metricId: string, delta: number, system: UnitSystem = 'metric'): string {
   if (!isFinite(delta)) return '—';
   if (delta === 0) return NO_CHANGE;
   const sign = delta > 0 ? '+' : '-';
-  return `${sign}${formatMetricValue(metricId, Math.abs(delta), system)}`;
+  return `${sign}${unsigned(formatMetricValue(metricId, Math.abs(delta), system))}`;
 }
 
 /** Signed delta with unit, e.g. '+1.3 bpm'. */
@@ -95,7 +100,7 @@ export function formatDeltaWithUnit(metricId: string, delta: number, system: Uni
   if (!isFinite(delta)) return '—';
   if (delta === 0) return NO_CHANGE;
   const sign = delta > 0 ? '+' : '-';
-  return `${sign}${formatMetricWithUnit(metricId, Math.abs(delta), system)}`;
+  return `${sign}${unsigned(formatMetricWithUnit(metricId, Math.abs(delta), system))}`;
 }
 
 /**

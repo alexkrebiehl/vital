@@ -182,10 +182,19 @@ function buildReport(
       : `Against the preceding period (${comparisonRangeLabel(window)}), ${listPhrase(comparisonSentences)}.`;
 
   // ── Paragraph 3: activity and workouts ───────────────
+  const calorieValues = sessions.flatMap(w => (w.calories_burned === null ? [] : [w.calories_burned]));
+  const calorieClause =
+    calorieValues.length === 0
+      ? ' (calories not recorded)'
+      : ` and ${calorieValues.reduce((a, c) => a + c, 0)} kcal${
+          calorieValues.length < sessions.length
+            ? ` (${calorieValues.length} of ${sessions.length} recorded calories)`
+            : ''
+        }`;
   const paragraph3 =
     sessions.length === 0
       ? `No workouts were recorded in this period.`
-      : `${sessions.length} ${sessions.length === 1 ? 'workout was' : 'workouts were'} recorded, totalling ${workoutMinutes} minutes and ${sessions.reduce((a, w) => a + w.calories_burned, 0)} kcal across ${listPhrase(
+      : `${sessions.length} ${sessions.length === 1 ? 'workout was' : 'workouts were'} recorded, totalling ${workoutMinutes} minutes${calorieClause} across ${listPhrase(
           [...new Set(sessions.map(s => s.workout_type))].map(t => `${sessions.filter(s => s.workout_type === t).length} ${t.toLowerCase()}`)
         )}.`;
 

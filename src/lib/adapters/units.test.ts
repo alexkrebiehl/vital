@@ -4,6 +4,7 @@ import {
   canConvertUnit,
   convertUnit,
   convertUnitBack,
+  convertDeltaUnit,
 } from '@/lib/adapters/units';
 
 const ROUND_TRIP: [number, string, string][] = [
@@ -55,5 +56,25 @@ describe('unit conversion (SPEC §9)', () => {
 
   it('propagates a non-finite value rather than inventing one', () => {
     expect(Number.isNaN(convertUnit(NaN, 'lb', 'kg'))).toBe(true);
+  });
+});
+
+describe('delta conversion', () => {
+  it('scales a temperature difference without the +32 offset', () => {
+    expect(convertDeltaUnit(1, 'degC', 'degF')).toBeCloseTo(1.8, 9);
+    expect(convertDeltaUnit(-0.5, 'degC', 'degF')).toBeCloseTo(-0.9, 9);
+    expect(convertDeltaUnit(0, 'degC', 'degF')).toBe(0);
+    expect(convertDeltaUnit(1.8, 'degF', 'degC')).toBeCloseTo(1, 9);
+  });
+
+  it('is not the absolute conversion', () => {
+    // An absolute 1 °C is 33.8 °F; a 1 °C difference is 1.8 °F.
+    expect(convertDeltaUnit(1, 'degC', 'degF')).not.toBeCloseTo(1 * 1.8 + 32, 3);
+  });
+
+  it('keeps an identical unit and refuses an unknown pair', () => {
+    expect(convertDeltaUnit(0.3, 'degC', 'degC')).toBe(0.3);
+    expect(() => convertDeltaUnit(1, 'lb', 'kg')).toThrow(/No delta conversion/);
+    expect(Number.isNaN(convertDeltaUnit(NaN, 'degC', 'degF'))).toBe(true);
   });
 });
