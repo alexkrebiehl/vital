@@ -187,8 +187,9 @@ pace. It is set from the Body page and stored in the `body_goals` table (migrati
   dialog; so does a weight target whose projected body fat lands there. It is advice, never a
   block. With sex unset the note names both.
 - **Maintenance two ways.** From the weight trend (mean logged calories on complete days minus the
-  four-week weight slope × 7,700 kcal/kg; needs 10 complete logged days and 4 weigh-ins) and from
-  the device (basal + active energy). The weight-trend estimate is used when there is one.
+  four-week weight slope × 7,700 kcal/kg, which the page shows as about 3,500 kcal/lb in imperial
+  units; needs 10 complete logged days and 4 weigh-ins) and from the device (basal + active
+  energy). The weight-trend estimate is used when there is one.
   Logged days under 60 % of the window's median are treated as partial logs and left out.
 - **No food log needed.** Most people do not count calories. Without one, the goal is tracked from
   weigh-ins alone: the weight trend gives the daily deficit or surplus, the watch gives maintenance

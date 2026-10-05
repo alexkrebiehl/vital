@@ -24,7 +24,7 @@ import type { BodyGoalReport } from '@/lib/body-goal/report';
 import type { BodyGoal } from '@/lib/body-goal/types';
 import type { UnitSystem } from '@/lib/prefs';
 import type { GoalLoad } from './useBodyGoal';
-import { formatGrams, formatKcal, formatRange, formatRate } from './format';
+import { formatGrams, formatKcal, formatPerWeightRange, formatRange, formatRate, weightUnit } from './format';
 
 const KG_PER_LB = 0.45359237;
 
@@ -95,7 +95,7 @@ function TargetsSection({ report, units }: { report: BodyGoalReport; units: Unit
     t.calories && { label: 'Calories', target: formatRange(t.calories, 'kcal'), logged: formatKcal(a.averages.kcal), met: days(a.caloriesInRange, a.completeDays), metNote: 'in range' },
     {
       label: 'Protein',
-      target: `${formatRange(t.protein, 'g')}${t.proteinPerLeanKg ? ` · ${t.proteinPerLeanKg.min.toFixed(1)}–${t.proteinPerLeanKg.max.toFixed(1)} g per kg lean` : ''}`,
+      target: `${formatRange(t.protein, 'g')}${t.proteinPerLeanKg ? ` · ${formatPerWeightRange(t.proteinPerLeanKg, units)} lean` : ''}`,
       logged: formatGrams(a.averages.protein),
       met: days(a.proteinAtFloor, a.proteinDays),
       metNote: `at ${t.proteinFloor} g or more`,
@@ -148,7 +148,7 @@ function TargetsSection({ report, units }: { report: BodyGoalReport; units: Unit
         </div>
         <div className="mt-3 space-y-1">
           <DataStateNote>
-            {calorieNote} Protein is set per kg of body weight, higher in a deficit to keep muscle.
+            {calorieNote} Protein is set per {weightUnit(units)} of body weight, higher in a deficit to keep muscle.
           </DataStateNote>
           <DataStateNote>{t.checkIn}</DataStateNote>
           {logged ? (

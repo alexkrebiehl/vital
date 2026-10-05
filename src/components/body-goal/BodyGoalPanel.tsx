@@ -33,6 +33,7 @@ import {
   formatGrams,
   formatKcal,
   formatKg,
+  formatEnergyPerWeight,
   formatPct,
   formatRange,
   formatRate,
@@ -268,7 +269,7 @@ function EnergySection({ data, hasGoal, units }: { data: BodyReading; hasGoal: b
   const trendRow = e.trendBalance !== null && {
     label: 'Daily balance, from your weight trend',
     value: formatSignedKcal(e.trendBalance),
-    note: `${e.trendBalance < 0 ? 'A deficit' : 'A surplus'} of about this much a day is what moving ${formatRate(e.weightRateKgPerWeek!, units)} takes (7,700 kcal per kg). It needs only weigh-ins.`,
+    note: `${e.trendBalance < 0 ? 'A deficit' : 'A surplus'} of about this much a day is what moving ${formatRate(e.weightRateKgPerWeek!, units)} takes (${formatEnergyPerWeight(units)}). It needs only weigh-ins.`,
   };
   const deviceRow = {
     label: 'Maintenance, device estimate',
@@ -293,7 +294,7 @@ function EnergySection({ data, hasGoal, units }: { data: BodyReading; hasGoal: b
       {
         label: 'Maintenance, from your weight trend',
         value: e.adaptive !== null ? `${formatKcal(e.adaptive)}/day` : '—',
-        note: e.adaptive !== null ? 'Logged intake minus the weight trend in energy (7,700 kcal per kg).' : e.adaptiveReason ?? undefined,
+        note: e.adaptive !== null ? `Logged intake minus the weight trend in energy (${formatEnergyPerWeight(units)}).` : e.adaptiveReason ?? undefined,
       },
       deviceRow,
     );

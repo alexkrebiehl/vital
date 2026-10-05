@@ -5,6 +5,7 @@
 
 import { convertValue, displayUnit, toCanonicalValue } from '@/lib/metrics/format';
 import type { UnitSystem } from '@/lib/prefs';
+import { KCAL_PER_KG } from '@/lib/body-goal/constants';
 import { formatKg, formatSignedKg } from '@/lib/body-goal/report';
 import type { Range } from '@/lib/body-goal/targets';
 import type { TrendFit } from '@/lib/body-goal/pace';
@@ -23,6 +24,26 @@ export function kgToInput(kg: number, units: UnitSystem): number {
 /** A number typed in display units → kg. */
 export function inputToKg(value: number, units: UnitSystem): number {
   return toCanonicalValue(value, 'kg', units);
+}
+
+/** Display weight units in one kg: 1, or about 2.2 lb. */
+function unitsPerKg(units: UnitSystem): number {
+  return convertValue(1, 'kg', units);
+}
+
+/** The energy in a unit of body weight, as the notes cite it: "7,700 kcal per kg", or "about 3,500 kcal per lb". */
+export function formatEnergyPerWeight(units: UnitSystem): string {
+  const perUnit = KCAL_PER_KG / unitsPerKg(units);
+  return perUnit === KCAL_PER_KG
+    ? `${KCAL_PER_KG.toLocaleString('en-US')} kcal per ${weightUnit(units)}`
+    : `about ${(Math.round(perUnit / 100) * 100).toLocaleString('en-US')} kcal per ${weightUnit(units)}`;
+}
+
+/** A g-per-kg range in the reader's units: "2.0–2.7 g per kg", or "0.91–1.22 g per lb". */
+export function formatPerWeightRange(range: Range, units: UnitSystem): string {
+  const per = unitsPerKg(units);
+  const digits = per === 1 ? 1 : 2;
+  return `${(range.min / per).toFixed(digits)}–${(range.max / per).toFixed(digits)} g per ${weightUnit(units)}`;
 }
 
 export function formatRate(kgPerWeek: number, units: UnitSystem): string {
