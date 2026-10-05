@@ -16,6 +16,7 @@ import { haeHost, readHaeConfig } from './hae';
 import { loadLiveDataset, type LiveDeps } from './live';
 import { liveCache, liveCacheTtlMs } from './cache';
 import type { ProvenanceRow } from './normalize';
+import type { QualityJob } from './quality';
 import type { ClientDatasetMeta } from './meta';
 import { SOURCE_DEDUPE_RULE } from './sources';
 import { readProfile } from '../profile/store';
@@ -53,6 +54,11 @@ export interface ResolvedDataset {
   meta: ClientDatasetMeta;
   /** Server-side meta of the installed dataset (after `install`). */
   serverMeta: DatasetMeta | null;
+  /**
+   * The data-quality checks on the live export, running in the background or
+   * done; null in demo mode (the fixtures are not an export).
+   */
+  quality: QualityJob | null;
 }
 
 function toClientMeta(
@@ -102,6 +108,7 @@ export async function resolveDataset(deps: LiveDeps = {}): Promise<ResolvedDatas
       dataset: null,
       meta: toClientMeta('demo', meta, haeHost(env), env, [], null),
       serverMeta: meta,
+      quality: null,
     };
   }
 
@@ -152,6 +159,7 @@ export async function resolveDataset(deps: LiveDeps = {}): Promise<ResolvedDatas
       }
     ),
     serverMeta: meta,
+    quality: result.quality,
   };
 }
 

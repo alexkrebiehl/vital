@@ -82,6 +82,24 @@ versions, so the setting names below describe what to look for rather than quote
    can also ask the server directly:
    `GET /api/metrics/step_count?from=2026-06-01&to=2026-06-30` with the read token.
 
+**Settings → Connections → Data pipeline** runs these checks for you under **Data quality**. They
+run in the background after each load of the live data, so no page waits for them; the panel
+shows that they are running until the result is ready. It reads the records as the server stores them, before they are
+added up per day. Each finding explains what it found, lists the affected days, and gives the
+steps that fix it:
+
+| Check | What it flags |
+|---|---|
+| Overlapping exports | Hourly totals stored beside the finer records they already contain, so daily sums count that activity twice (step 3) |
+| Duplicate readings | A weigh-in or similar reading stored again as an on-the-hour copy |
+| Missing days | Steps, energy or distance absent on days the watch recorded heart rate or other activity (steps 2 and 5) |
+| History that starts late | A metric, usually food, that begins long after the rest of the history (step 5) |
+| New data arriving | Nothing new from the watch for 36 hours: the automation has stopped, or posts elsewhere (step 1) |
+
+A finding whose affected days are all more than 90 days old is shown as a **note**, not a
+problem: recent figures (the trends, baselines and body goal) are not affected, and fixing it
+only completes the older history. The checks only report; they never change the data.
+
 ### If the data already mixes groupings
 
 The symptom is daily steps, active energy or basal energy at roughly double the usual on some

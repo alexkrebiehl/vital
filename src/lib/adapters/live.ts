@@ -50,6 +50,7 @@ import {
   normalizeWorkouts,
 } from './normalize';
 import { splitSources, sourceRuleExplanationFor } from './sources';
+import { compactFrom, startQualityJob, type QualityJob, type QualityJobInput } from './quality';
 
 /** Rolling window fetched from upstream. Covers the observed 56-day history many times over. */
 export const LIVE_LOOKBACK_DAYS = 400;
@@ -96,6 +97,11 @@ export interface LiveDatasetResult {
   timezone: string;
   sources: string[];
   cacheTtlSeconds: number;
+  /**
+   * The data-quality checks (see `quality.ts`), started once this load is done
+   * and run in the background so they never hold the data up.
+   */
+  quality: QualityJob;
 }
 
 function resolveTimezone(deps: LiveDeps): string {
@@ -220,13 +226,21 @@ export async function fetchLiveDatasetUncached(deps: LiveDeps = {}): Promise<Liv
   const sourceSet = new Set<string>();
   const allDayKeys: string[] = [];
   const allInstants: string[] = [];
+  const qualityMetrics: QualityJobInput['metrics'] = [];
 
   // ── Simple metrics: one bounded request each ──────────
   const simpleTasks = METRIC_MAPPINGS.map(mapping => async () => {
     const records = await fetchMetricRecords(mapping.hae, window, requestDeps);
     recordsRead += records.length;
     for (const r of records) if (typeof r.date === 'string') allInstants.push(r.date);
+    // The quality checks need the records as stored, before they are summed per
+    // day: pack what they read now, since the raw records are dropped below.
+    // Averaged metrics are checked only for how recent they are.
+    const packed =
+      mapping.aggregation === 'mean' ? null : compactFrom(records, r => (typeof r.qty === 'number' ? r.qty : NaN));
     const normalized = normalizeSimpleMetric(mapping, records, ctx);
+    const newest = normalized ? Date.parse(normalized.coverage.lastObservation) : NaN;
+    qualityMetrics.push({ metricId: mapping.metricId, aggregation: mapping.aggregation, data: packed, newest: Number.isFinite(newest) ? newest : null });
     if (!normalized) return;
     metrics[mapping.metricId] = normalized.observations;
     coverage[mapping.metricId] = normalized.coverage;
@@ -363,6 +377,15 @@ export async function fetchLiveDatasetUncached(deps: LiveDeps = {}): Promise<Liv
     timezone,
     sources: [...sourceSet].sort(),
     cacheTtlSeconds: liveCacheTtlMs(env) / 1000,
+    quality: startQualityJob({
+      metrics: qualityMetrics,
+      daysByMetric: Object.fromEntries(
+        Object.entries(metrics).map(([id, series]) => [id, (series as { date: string }[]).map(o => String(o.date).slice(0, 10))])
+      ),
+      referenceKey,
+      now,
+      tz: timezone,
+    }),
   };
 }
 

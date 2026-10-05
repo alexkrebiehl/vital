@@ -55,8 +55,10 @@ What is still demo or unwired in this build, exhaustively:
     provider that is misconfigured or fails is reported honestly — the feature never
     substitutes demo output for a model reply.
 - **The pipeline panel checks only the stages this build actually has.** Health Auto Export and
-  Health API are probed for real; Intelligence is computed locally from the dataset the app is
-  serving; Dashboard *is* the request. There is no ingestion job, no timer and no schedule, and
+  Health API are probed for real; Data quality checks the live export's records for activity
+  counted twice, duplicate readings, missing days, a late start and a stalled automation, each
+  with its fix (see [Data sources](data-sources.md#setting-up-health-auto-export-for-complete-data));
+  Intelligence is computed locally from the dataset the app is serving; Dashboard *is* the request. There is no ingestion job, no timer and no schedule, and
   the panel says so. The Apple Health and MongoDB stages were removed: neither is a source this
   build can ever read or check, so listing them was a permanent `unknown` that implied a
   connection that does not exist.

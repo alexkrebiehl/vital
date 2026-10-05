@@ -18,6 +18,7 @@ import { cacheStatus, installDataset, readDataMode, LiveDataUnavailableError } f
 import { haeHost, readHaeConfig, type HaeProbeResult } from '../adapters/hae';
 import { probeHae } from '../adapters/hae';
 import { loadTrainingData } from '../workout-sources/store';
+import type { QualityJob } from '../adapters/quality';
 import type {
   PipelineConfig,
   PipelineDatasetSummary,
@@ -100,6 +101,61 @@ function summariseDataset(meta: DatasetMeta, error: string | null): PipelineData
   };
 }
 
+/**
+ * The data-quality stage: the checks run on the live export's raw records while
+ * it was loaded. Degraded when any finding is a problem or a warning; notes
+ * alone (a food log that starts late, a gap more than 90 days back) leave it
+ * healthy.
+ */
+function qualityStage(job: QualityJob | null, mode: 'demo' | 'live', summary: PipelineDatasetSummary): PipelineStage {
+  if (job && job.state !== 'ready') {
+    return {
+      id: 'data_quality',
+      name: 'Data quality',
+      status: 'unknown',
+      detail:
+        job.state === 'computing'
+          ? 'Checking the export’s records in the background. Nothing else waits for it; the result appears below when it is ready.'
+          : `The checks could not finish: ${job.error ?? 'unknown error'}.`,
+      derivedFrom: 'The checks run after the live data has loaded.',
+      observationCount: null,
+      lastObservationAt: null,
+    };
+  }
+  const quality = job?.value ?? null;
+  if (!quality) {
+    return {
+      id: 'data_quality',
+      name: 'Data quality',
+      status: mode === 'demo' ? 'unconfigured' : 'unknown',
+      detail:
+        mode === 'demo'
+          ? 'Demo mode: the fixtures are not an export, so there is nothing to check for gaps or duplicates.'
+          : 'The live export could not be read, so its records could not be checked.',
+      derivedFrom: 'No live records were available to check.',
+      observationCount: null,
+      lastObservationAt: null,
+    };
+  }
+  const serious = quality.findings.filter(f => f.severity !== 'info');
+  const notes = quality.findings.filter(f => f.severity === 'info');
+  const flagged = quality.checks.filter(c => c.outcome === 'flagged').length;
+  return {
+    id: 'data_quality',
+    name: 'Data quality',
+    status: serious.length ? 'degraded' : 'healthy',
+    detail: serious.length
+      ? `${serious.length} finding${serious.length === 1 ? '' : 's'} to fix: ${serious.map(f => f.title.toLowerCase()).join('; ')}.` +
+        `${notes.length ? ` Also ${notes.length} note${notes.length === 1 ? '' : 's'}.` : ''} Each is listed below with how to fix it.`
+      : notes.length
+        ? `No recent problems. ${notes.length} note${notes.length === 1 ? '' : 's'} about older history or the food log: ${notes.map(f => f.title.toLowerCase()).join('; ')}.`
+        : `All ${quality.checks.length} checks passed: no activity counted twice, no reading stored twice, no missing days, and new data is arriving.`,
+    derivedFrom: `${quality.checks.length} checks on the export's records as stored, before daily aggregation (${flagged} flagged).`,
+    observationCount: summary.observationCount,
+    lastObservationAt: summary.lastObservationAt,
+  };
+}
+
 function dayOf(iso: string | null): string {
   return iso ? iso.slice(0, 10) : 'unknown';
 }
@@ -120,6 +176,7 @@ export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<Pi
 
   // ── 2. Read the dataset the app is actually serving ───
   let summary: PipelineDatasetSummary;
+  let qualityJob: QualityJob | null = null;
   if (deps.datasetSummary) {
     summary = deps.datasetSummary;
   } else if (deps.skipDataset) {
@@ -128,6 +185,7 @@ export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<Pi
     try {
       const resolved = await installDataset({ env, fetchImpl: deps.fetchImpl, now: deps.now ? () => new Date(deps.now!()) : undefined });
       summary = summariseDataset(resolved.serverMeta ?? datasetMeta(), null);
+      qualityJob = resolved.quality;
     } catch (error) {
       const detail =
         error instanceof LiveDataUnavailableError
@@ -176,6 +234,7 @@ export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<Pi
       observationCount: summary.observationCount,
       lastObservationAt: summary.lastObservationAt,
     },
+    qualityStage(qualityJob, mode, summary),
     {
       id: 'intelligence',
       name: 'Intelligence',
@@ -226,6 +285,10 @@ export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<Pi
       keys: cache.keys.length,
     },
     workoutSources,
+    // Never awaited: the checks finish in the background and the panel fetches
+    // /api/pipeline/quality for them.
+    quality: qualityJob?.value ?? null,
+    qualityState: qualityJob ? qualityJob.state : 'unavailable',
     dataAsOf: summary.lastObservationAt,
     checkedAt: new Date(now()).toISOString(),
     summary: summarySentence,
