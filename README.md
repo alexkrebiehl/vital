@@ -305,6 +305,7 @@ own terms and usage policies, and are not provided by Vital.
 | [Reference](docs/reference.md) | Every route, what is demo-only in this build, and the quality commands |
 | [Privacy and security](docs/privacy-and-security.md) | What is stored, what is sent where, and what to put in front of it |
 | [Changelog](CHANGELOG.md) | What was added, removed, fixed and changed in each release |
+| [Releasing](docs/releasing.md) | How the changelog is kept, and what happens at a release |
 
 ## Good to know
 
