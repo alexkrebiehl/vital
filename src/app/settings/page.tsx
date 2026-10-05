@@ -521,6 +521,37 @@ function Field({ label, hint, children }: { label: string; hint: string; childre
 
 // ── Data tab ────────────────────────────────────────────
 
+/** Which measures each source supplies, built from the coverage records. */
+function SourceSummary({ metrics }: { metrics: { id: string; displayName: string }[] }) {
+  const bySource = new Map<string, string[]>();
+  for (const m of metrics) {
+    const fact = coverageFact(m.id);
+    if (!fact) continue;
+    for (const name of fact.sources) {
+      const list = bySource.get(name) ?? [];
+      list.push(m.displayName);
+      bySource.set(name, list);
+    }
+  }
+  if (bySource.size === 0) return null;
+  const rows = [...bySource.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+  return (
+    <div className="rounded-control border border-border p-4 mb-4" aria-label="Measures by source">
+      <div className="text-sm font-medium text-text-primary mb-2">Where each measure comes from</div>
+      <dl className="grid gap-2">
+        {rows.map(([name, list]) => (
+          <div key={name}>
+            <dt className="text-xs font-medium text-text-primary">
+              {name} <span className="font-normal text-text-secondary">· {list.length} {list.length === 1 ? 'measure' : 'measures'}</span>
+            </dt>
+            <dd className="text-xs text-text-secondary leading-relaxed">{list.join(', ')}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 function DataTab() {
   const activeSources = useDatasetMeta().activeSources;
   const metrics = useMemo(() => listedMetrics(getAllMetrics(), activeSources, metricHasData), [activeSources]);
@@ -537,6 +568,7 @@ function DataTab() {
           Coverage counts the days on which a value exists. Missing days are excluded from every calculation and never
           counted as zero.
         </p>
+        <SourceSummary metrics={metrics} />
         <div className="grid gap-3">
           {metrics.map(m => {
             const fact = coverageFact(m.id);
