@@ -95,7 +95,7 @@ function TargetsSection({ report, units }: { report: BodyGoalReport; units: Unit
     t.calories && {
       label: 'Calories',
       target: formatRange(t.calories, 'kcal'),
-      ok: t.caloriesOk ? `OK ${formatRange(t.caloriesOk, 'kcal')}` : null,
+      note: t.caloriesOk ? `OK ${formatRange(t.caloriesOk, 'kcal')}` : null,
       logged: formatKcal(a.averages.kcal),
       met: days(a.caloriesInRange, a.completeDays),
       metNote: 'on target',
@@ -103,13 +103,13 @@ function TargetsSection({ report, units }: { report: BodyGoalReport; units: Unit
     {
       label: 'Protein',
       target: `${formatRange(t.protein, 'g')}${t.proteinPerLeanKg ? ` · ${formatPerWeightRange(t.proteinPerLeanKg, units)} lean` : ''}`,
-      ok: `OK from ${t.proteinOkFloor} g`,
+      note: `OK from ${t.proteinOkFloor} g`,
       logged: formatGrams(a.averages.protein),
       met: days(a.proteinAtFloor, a.proteinDays),
       metNote: `at ${t.proteinFloor} g or more`,
     },
-    t.carbs && { label: 'Carbs', target: formatRange(t.carbs, 'g'), logged: formatGrams(a.averages.carbs), met: '', metNote: 'the rest of the calories' },
-    { label: derived ? 'Fat (derived†)' : 'Fat', target: `at least ${t.fatFloor} g${t.fat ? ` · typically ${formatRange(t.fat, 'g')}` : ''}`, logged: formatGrams(fatAvg), met: '', metNote: 'floor for hormone health' },
+    t.carbs && { label: 'Carbs', target: formatRange(t.carbs, 'g'), note: 'the rest of the calories', logged: formatGrams(a.averages.carbs), met: '', metNote: '' },
+    { label: derived ? 'Fat (derived†)' : 'Fat', target: `at least ${t.fatFloor} g${t.fat ? ` · typically ${formatRange(t.fat, 'g')}` : ''}`, note: 'the floor supports hormone health', logged: formatGrams(fatAvg), met: '', metNote: '' },
     t.fiber && { label: 'Fiber', target: formatRange(t.fiber, 'g'), logged: formatGrams(a.averages.fiber), met: days(a.fiberAtTarget, a.fiberDays), metNote: 'at target' },
   ].filter((r): r is NonNullable<typeof r> & object => Boolean(r));
   const maintenance = report.energy.maintenance;
@@ -144,7 +144,7 @@ function TargetsSection({ report, units }: { report: BodyGoalReport; units: Unit
                   <td className="py-2.5 pr-4">{r.label}</td>
                   <td className="py-2.5 pr-4 tnum">
                     {r.target}
-                    {'ok' in r && r.ok && <span className="block text-xs text-text-secondary">{r.ok}</span>}
+                    {'note' in r && r.note && <span className="block text-xs text-text-secondary">{r.note}</span>}
                   </td>
                   {logged && <td className="py-2.5 pr-4 tnum">{r.logged}</td>}
                   {logged && (
