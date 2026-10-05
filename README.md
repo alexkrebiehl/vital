@@ -304,6 +304,7 @@ own terms and usage policies, and are not provided by Vital.
 | [Running it](docs/running.md) | Docker in detail, the database, local development, changing the port, CI and published images |
 | [Reference](docs/reference.md) | Every route, what is demo-only in this build, and the quality commands |
 | [Privacy and security](docs/privacy-and-security.md) | What is stored, what is sent where, and what to put in front of it |
+| [Changelog](CHANGELOG.md) | What was added, removed, fixed and changed in each release |
 
 ## Good to know
 
