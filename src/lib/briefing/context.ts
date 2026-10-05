@@ -49,9 +49,12 @@ import { formatMetricWithUnit, formatPercent } from '../metrics/format';
 import type { UnitSystem } from '../prefs';
 import { ageInYears, type VitalProfile } from '../profile/types';
 import { goalFocus } from './goals';
+import type { BodyGoal } from '../body-goal/types';
+import { goalSummaryFromDataset } from '../body-goal/dataset';
+import type { BodyGoalSummary } from '../body-goal/summary';
 
 /** Bumped when the context shape changes, so a cached briefing is not reused. */
-export const BRIEFING_CONTEXT_VERSION = 3;
+export const BRIEFING_CONTEXT_VERSION = 4;
 
 export const BRIEFING_EVALUATED_DAYS = 7;
 export const BRIEFING_PRIOR_DAYS = 7;
@@ -88,6 +91,16 @@ export const CORE_BRIEFING_METRICS: string[] = [
   'dietary_energy',
   'vo2max',
   'blood_pressure',
+];
+
+/** The measurements a body goal is read through, most relevant first. */
+export const BODY_GOAL_METRICS: string[] = [
+  'weight_body_mass',
+  'body_fat_percentage',
+  'lean_body_mass',
+  'dietary_energy',
+  'dietary_protein',
+  'active_energy',
 ];
 
 /** Metrics that are expected to be sparse; their coverage is stated, not hidden. */
@@ -178,6 +191,11 @@ export interface BriefingContext {
    * briefing is the usual all-round summary.
    */
   goalFocus: { metricNames: string[]; sleepIsAGoal: boolean; recognised: boolean } | null;
+  /**
+   * The body goal the reader set on the Body page, and what the data says about
+   * it (the same numbers the page shows). Null when no goal is set.
+   */
+  bodyGoal: BodyGoalSummary | null;
   windows: {
     evaluatedDays: number;
     priorDays: number;
@@ -514,7 +532,7 @@ export function buildBriefingContext(
    * `profile` defaults to the stored one, so the greeting and the briefing agree
    * about the person's name without the caller having to thread it through.
    */
-  options: { maxContextTokens?: number; profile?: VitalProfile | null } = {}
+  options: { maxContextTokens?: number; profile?: VitalProfile | null; bodyGoal?: BodyGoal | null } = {}
 ): BriefingContext {
   const maxContextTokens = options.maxContextTokens ?? BRIEFING_CONTEXT_MAX_TOKENS;
   // The stored profile is injected by the caller (it may live in Postgres and
@@ -528,7 +546,17 @@ export function buildBriefingContext(
   // The goals decide what comes first. The metrics that bear on them lead the list
   // (so they survive the token bound and the model reads them first); the usual core
   // metrics follow. With no goals this is exactly the old order.
-  const focus = goalFocus(profile?.notes ?? null);
+  // A body goal is a goal too: its measurements lead, ahead of anything the
+  // goals text adds.
+  const bodyGoal = options.bodyGoal ? goalSummaryFromDataset(options.bodyGoal, system, profile?.sex ?? null) : null;
+  const textFocus = goalFocus(profile?.notes ?? null);
+  const focus = bodyGoal
+    ? {
+        ...textFocus,
+        recognised: true,
+        metricIds: [...new Set([...BODY_GOAL_METRICS, ...textFocus.metricIds])],
+      }
+    : textFocus;
   const metricOrder = [...focus.metricIds, ...CORE_BRIEFING_METRICS.filter(id => !focus.metricIds.includes(id))];
 
   const withData: BriefingMetricFact[] = [];
@@ -554,6 +582,7 @@ export function buildBriefingContext(
           recognised: true,
         }
       : null,
+    bodyGoal,
     windows: {
       evaluatedDays: BRIEFING_EVALUATED_DAYS,
       priorDays: BRIEFING_PRIOR_DAYS,

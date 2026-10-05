@@ -4,6 +4,7 @@
 // that renders it. This module has only type imports, so the browser can use it
 // without pulling the server probe into the client bundle.
 
+import type { DataQualityReport } from '../adapters/quality';
 import type { WorkoutSourceStatus } from '../workout-sources/types';
 
 export type StageStatus = 'healthy' | 'degraded' | 'unknown' | 'unconfigured';
@@ -12,6 +13,7 @@ export type StageId =
   | 'health_auto_export'
   | 'health_api'
   | 'oura_api'
+  | 'data_quality'
   | 'intelligence'
   | 'dashboard';
 
@@ -95,6 +97,19 @@ export interface PipelineStatusReport {
   cache: PipelineCacheInfo;
   /** Detailed-workout sources (Hevy, …): configured or not, and what each holds. */
   workoutSources: WorkoutSourceStatus[];
+  /**
+   * Problems in what the export delivered — overlapping exports, duplicate
+   * readings, missing days, a late start, a stalled automation — each with its
+   * fix. Null when no live export was read (demo mode, or the load failed).
+   */
+  quality: DataQualityReport | null;
+  /**
+   * Where the checks are: they run in the background after the live data
+   * loads, so the report never waits for them. `computing` means fetch
+   * /api/pipeline/quality for the result; `unavailable` means no live export
+   * was read.
+   */
+  qualityState: 'ready' | 'computing' | 'failed' | 'unavailable';
   /** Reference day / instant of the dataset driving the dashboard. */
   dataAsOf: string | null;
   checkedAt: string;
@@ -114,6 +129,15 @@ export const PIPELINE_ORDER: StageId[] = [
   'health_auto_export',
   'health_api',
   'oura_api',
+  'data_quality',
   'intelligence',
   'dashboard',
 ];
+
+/** GET /api/pipeline/quality: the data-quality checks, once they have finished. */
+export interface PipelineQualityResponse {
+  state: 'ready' | 'computing' | 'failed' | 'unavailable';
+  quality: DataQualityReport | null;
+  /** Why there is no report, when there is none. */
+  detail: string | null;
+}

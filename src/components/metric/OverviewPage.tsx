@@ -59,6 +59,7 @@ import { ContourField } from '@/components/art/ContourField';
 import { Spark } from '@/components/art/Spark';
 import { CATEGORY_VAR, type ArtCategory } from '@/components/art/categories';
 import { useDatasetMeta } from '@/components/data/DatasetProvider';
+import { GoalTile } from '@/components/body-goal/GoalTile';
 
 const USED_BRIEFING_METRICS = ['resting_heart_rate', 'heart_rate_variability', 'sleep_analysis', 'step_count'] as const;
 
@@ -430,6 +431,9 @@ export function OverviewPage({ initialGreeting }: { initialGreeting: string }) {
           </div>
         </Card>
       </div>
+
+      {/* ── The body goal, when one is set ─────────── */}
+      <GoalTile />
 
       {/* ── C. Core health signals ─────────────────── */}
       {/* Owner request 2: a signal with no observation in the 30-day window is

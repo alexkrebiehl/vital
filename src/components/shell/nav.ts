@@ -11,7 +11,7 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   LayoutDashboard, TrendingUp, Heart, FlaskConical, Activity, Moon, Weight,
-  UtensilsCrossed, Dumbbell, Lightbulb, Bot, Settings, Pill, Palette,
+  Dumbbell, Lightbulb, Bot, Settings, Pill, Palette,
 } from 'lucide-react';
 import { getMetric } from '@/lib/metrics/registry';
 import type { MetricCategory } from '@/lib/metrics/types';
@@ -62,8 +62,18 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
   { id: 'sleep', label: 'Sleep', href: '/sleep', icon: Moon, description: 'Sleep analysis', placement: 'main' },
-  { id: 'body', label: 'Body', href: '/body', icon: Weight, description: 'Weight and body metrics', placement: 'main' },
-  { id: 'nutrition', label: 'Nutrition', href: '/nutrition', icon: UtensilsCrossed, description: 'Dietary intake', placement: 'main' },
+  {
+    id: 'body',
+    label: 'Body',
+    href: '/body',
+    icon: Weight,
+    description: 'Weight, body composition and your goal',
+    placement: 'main',
+    children: [
+      { id: 'overview', label: 'Overview', href: '/body', description: 'Weight, body composition and your goal', exact: true },
+      { id: 'nutrition', label: 'Nutrition', href: '/body/nutrition', description: 'Dietary intake against your goal' },
+    ],
+  },
   {
     id: 'workouts',
     label: 'Workouts',
@@ -105,16 +115,16 @@ interface DetailRoute {
   label: (param: string) => string;
 }
 
-/** Which section's page a metric belongs on. */
-const METRIC_SECTION: Record<MetricCategory, string> = {
-  cardiovascular: 'health',
-  respiratory: 'health',
-  recovery: 'health',
-  vitals: 'health',
-  sleep: 'sleep',
-  activity: 'activity',
-  body: 'body',
-  nutrition: 'nutrition',
+/** Which section (and page within it) a metric belongs on. */
+const METRIC_PARENT: Record<MetricCategory, ParentRef> = {
+  cardiovascular: { section: 'health' },
+  respiratory: { section: 'health' },
+  recovery: { section: 'health' },
+  vitals: { section: 'health' },
+  sleep: { section: 'sleep' },
+  activity: { section: 'activity' },
+  body: { section: 'body', page: 'overview' },
+  nutrition: { section: 'body', page: 'nutrition' },
 };
 
 export const DETAIL_ROUTES: DetailRoute[] = [
@@ -137,7 +147,7 @@ export const DETAIL_ROUTES: DetailRoute[] = [
     segments: ['metric', ':metricId'],
     parent: id => {
       const metric = getMetric(id);
-      return { section: metric ? METRIC_SECTION[metric.category] ?? 'overview' : 'overview' };
+      return (metric && METRIC_PARENT[metric.category]) || { section: 'overview' };
     },
     label: id => getMetric(id)?.displayName ?? id,
   },

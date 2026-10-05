@@ -163,14 +163,7 @@ export function SeriesCard({
         <div className={`${emphasis ? 'text-[40px] md:text-[46px]' : 'text-[32px] md:text-[36px]'} font-semibold tnum leading-none tracking-[-0.035em] text-text-primary`}>
           {summary.latestValue}
         </div>
-        {summary.valid ? (
-          <span className="mb-0.5 inline-flex items-center gap-1 rounded-md bg-surface-muted px-2 py-1 text-xs text-text-primary ring-1 ring-inset ring-border">
-            <ChangeCue direction={summary.direction} value={summary.changeValue} percent={summary.changePercent} />
-            <span className="text-text-secondary">vs prior {days}d</span>
-          </span>
-        ) : (
-          <span className="mb-0.5 text-xs text-text-secondary">Not enough paired observations for a {days}-day comparison.</span>
-        )}
+        <ChangeBadge summary={summary} days={days} className="mb-0.5" />
       </div>
 
       <div role="img" aria-label={sparkLabel} className="my-4">
@@ -202,6 +195,18 @@ export function SeriesCard({
         <ChevronRight size={14} aria-hidden="true" className="transition-transform group-hover:translate-x-0.5" />
       </Link>
     </Card>
+  );
+}
+
+/** The "−8.2 lb −4.4 % vs prior 30d" badge, or why there is no comparison. */
+export function ChangeBadge({ summary, days, className = '' }: { summary: SeriesSummary; days: number; className?: string }) {
+  return summary.valid ? (
+    <span className={`inline-flex items-center gap-1 rounded-md bg-surface-muted px-2 py-1 text-xs text-text-primary ring-1 ring-inset ring-border ${className}`}>
+      <ChangeCue direction={summary.direction} value={summary.changeValue} percent={summary.changePercent} />
+      <span className="text-text-secondary">vs prior {days}d</span>
+    </span>
+  ) : (
+    <span className={`text-xs text-text-secondary ${className}`}>Not enough paired observations for a {days}-day comparison.</span>
   );
 }
 

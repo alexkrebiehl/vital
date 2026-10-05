@@ -39,6 +39,7 @@ import { FreshnessIndicator } from '@/components/shell/FreshnessIndicator';
 import { useProfile } from '@/components/profile/ProfileProvider';
 import { LabUpload } from '@/components/settings/LabUpload';
 import { MapProvidersCard } from '@/components/settings/MapProviders';
+import { DataQualitySection } from '@/components/settings/DataQuality';
 import { OuraConnection } from '@/components/settings/OuraConnection';
 import { RemovedSources } from '@/components/settings/RemovedSources';
 import {
@@ -402,7 +403,7 @@ function AccountTab() {
 
             <Field
               label="Sex"
-              hint="Used only to pick sex-specific reference intervals for lab results, and never inferred from an uploaded document."
+              hint="Used only to pick sex-specific reference intervals for lab results and to read body fat for a body goal (the recommended pace, and a caution on very low targets). Never inferred from an uploaded document or body data; left unset, no sex is assumed."
             >
               <Select
                 value={draft.sex ?? ''}
@@ -677,9 +678,11 @@ function ConnectionsTab() {
   const [report, setReport] = useState<PipelineStatusReport | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  // `quiet` refreshes in place (after the data-quality checks finish) instead
+  // of blanking the panel back to its loading state.
+  const load = useCallback(async (quiet = false) => {
     setError(null);
-    setReport(null);
+    if (!quiet) setReport(null);
     try {
       const res = await fetch('/api/pipeline/status', { cache: 'no-store' });
       if (!res.ok) throw new Error(`The status endpoint answered HTTP ${res.status}.`);
@@ -692,6 +695,8 @@ function ConnectionsTab() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const refreshQuietly = useCallback(() => void load(true), [load]);
 
   return (
     <div className="space-y-5">
@@ -745,6 +750,7 @@ function ConnectionsTab() {
                 </li>
               ))}
             </ol>
+            <DataQualitySection report={report} onReady={refreshQuietly} />
             <div className="mt-4">
               <DataStateNote>
                 A stage is marked healthy only when its status is known from a real check. Unknown is a valid state and

@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { ChevronRight, Info, UtensilsCrossed } from 'lucide-react';
 import { getMetric, getMetricsByCategory } from '@/lib/metrics';
 import { formatMetricWithUnit } from '@/lib/metrics/format';
-import { REFERENCE_KEY, coverageFor, seriesFor, seriesInWindow } from '@/lib/adapters/dataset';
+import { REFERENCE_KEY, coverageFor, metricHasData, seriesFor, seriesInWindow } from '@/lib/adapters/dataset';
 import {
   ASSOCIATION_NOTE,
   computeRelationship,
@@ -23,6 +23,9 @@ import { RangeControl } from '@/components/ui/RangeControl';
 import { MetricChart, TrendFigure } from '@/components/charts';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { DomainHeader, SectionTitle, MetricGrid } from './DomainShared';
+import { NutritionGoalPanel } from '@/components/body-goal/NutritionGoalPanel';
+import { NutritionAdherence } from '@/components/body-goal/NutritionAdherence';
+import { useBodyGoal, useGoalReport } from '@/components/body-goal/useBodyGoal';
 
 const LOGGED_WINDOW_DAYS = 30;
 
@@ -68,6 +71,9 @@ const ASSOCIATION_PAIRS: {
 export function NutritionPage() {
   const { units } = useUnits();
   const [range, setRange] = useState(String(LOGGED_WINDOW_DAYS));
+  const { state: goalState, active: goal } = useBodyGoal();
+  const report = useGoalReport(goal);
+  const goalPanel = <NutritionGoalPanel state={goalState} active={goal} report={report} />;
 
   const days = Number(range);
   const window = trailingWindow(REFERENCE_KEY, days);
@@ -92,13 +98,34 @@ export function NutritionPage() {
     m => !HEADLINE.includes(m.id as (typeof HEADLINE)[number])
   );
 
+  // Most people do not log food. With nothing logged anywhere in the dataset the
+  // logged-intake sections would be empty tables, so the page is the goal's
+  // targets alone and says why.
+  const anyLogged = HEADLINE.some(id => metricHasData(id)) || extraNutrients.some(m => metricHasData(m.id));
+  if (!anyLogged) {
+    return (
+      <div className="space-y-8">
+        <DomainHeader
+          title="Nutrition"
+          eyebrow="Body"
+          subtitle="What to eat for your goal. No food is logged in your data, which is fine: daily targets come from your weight, your weight trend and your watch, not from a food log."
+        />
+        {goalPanel}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <DomainHeader
         title="Nutrition"
+        eyebrow="Body"
         aside={<HeroFigure metricId="dietary_energy" category="nutrition" days={30} />}
         subtitle={`Logged dietary intake across ${windowRangeLabel(window)}. These are entries you recorded, not measurements of what you ate.`}
       />
+
+      {/* ── Calories and protein against the goal's targets ── */}
+      <NutritionAdherence report={report} />
 
       {/* ── The logged-intake statement ─────────────── */}
       <Card variant="accent" className="p-5" as="section">
@@ -116,7 +143,10 @@ export function NutritionPage() {
         </div>
       </Card>
 
-      {/* ── Date range: always reachable, and it drives every figure on the page ── */}
+      {/* ── The goal: targets, month by month, log consistency ── */}
+      {goalPanel}
+
+      {/* ── Date range: drives every figure below ── */}
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-xs font-medium text-text-secondary">Date range</span>
         <RangeControl value={range} onChange={setRange} ariaLabel="Logged intake date range" />

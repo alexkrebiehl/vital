@@ -64,6 +64,7 @@ import { buildBriefing } from '../analytics/narrative';
 import { REFERENCE_KEY } from '../adapters/dataset';
 import type { UnitSystem } from '../prefs';
 import { ageInYears, defaultProfile, type VitalProfile } from '../profile/types';
+import type { BodyGoal } from '../body-goal/types';
 import { briefingSchedule, briefingTimeLabel, type BriefingSchedule } from './schedule';
 import {
   BRIEFING_CONTEXT_VERSION,
@@ -98,6 +99,11 @@ export interface BriefingDeps {
   now?: () => Date;
   /** Test seam: an explicit profile instead of the one on disk. */
   profile?: VitalProfile;
+  /**
+   * The active body goal, read once per request by the caller like the
+   * profile. Omitted or null: the briefing has no goal block.
+   */
+  bodyGoal?: BodyGoal | null;
   /**
    * Test seam: produce the model text for a context without any network. Left
    * undefined in production, where the resolved engine is used.
@@ -297,9 +303,12 @@ export function briefingCacheKey(
   schedule: BriefingSchedule,
   system: UnitSystem = 'metric',
   profile?: VitalProfile | null,
+  bodyGoal?: BodyGoal | null,
   sources: string = currentSourceKey()
 ): string {
-  return `briefing:v${BRIEFING_CONTEXT_VERSION}:${schedule.coversDay}:${profileFingerprint(profile)}:${system}:${sources || '-'}`;
+  // A new or edited goal changes what the briefing is about, so it is a new briefing.
+  const goal = bodyGoal ? `g${bodyGoal.id.slice(0, 8)}r${bodyGoal.revision}` : 'g-';
+  return `briefing:v${BRIEFING_CONTEXT_VERSION}:${schedule.coversDay}:${profileFingerprint(profile)}:${goal}:${system}:${sources || '-'}`;
 }
 
 // ── Fallback ────────────────────────────────────────────
@@ -458,8 +467,8 @@ function resolve(deps: BriefingDeps): Resolved {
     system,
     profile,
     schedule,
-    key: briefingCacheKey(schedule, system, profile),
-    context: buildBriefingContext(system, { profile }),
+    key: briefingCacheKey(schedule, system, profile, deps.bodyGoal ?? null),
+    context: buildBriefingContext(system, { profile, bodyGoal: deps.bodyGoal ?? null }),
   };
 }
 

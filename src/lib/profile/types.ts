@@ -28,10 +28,13 @@ export interface VitalProfile {
   dateOfBirth: string | null;
   /**
    * The person's sex, or `null` when unset. Set BY THE OWNER ONLY, and it exists
-   * for one purpose: choosing sex-specific reference intervals when scoring lab
-   * results (see `@/lib/lab/status`). It is NEVER inferred from an uploaded
-   * document; with it unset a sex-specific band is not used and the result stays
-   * unscored rather than being defaulted to one sex.
+   * for two purposes: choosing sex-specific reference intervals when scoring lab
+   * results (see `@/lib/lab/status`), and reading body fat against sex-specific
+   * levels for a body goal — the recommended cutting pace and the caution on a
+   * very low body-fat target (see `@/lib/body-goal/pace` and `composition`). It
+   * is NEVER inferred from an uploaded document or from body data. With it unset
+   * no sex is assumed: a lab result stays unscored and the body goal uses the
+   * general pace range, rather than either defaulting to one sex.
    */
   sex: ProfileSex | null;
   /**

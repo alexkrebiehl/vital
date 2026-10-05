@@ -16,8 +16,8 @@ Routes, what is still demo or unwired in this build, and the quality commands.
 | `/activity` | Steps, exercise and movement |
 | `/activity/maps` | Maps of where outdoor workouts went, with highlights |
 | `/sleep` | Nights, stages, consistency |
-| `/body` | Weight, body composition |
-| `/nutrition` | Logged dietary intake |
+| `/body` | Weight and body composition: the weight trend's pace, maintenance calories and how recovery and lean mass are holding up, with or without a body goal; a goal adds progress, projections and targets |
+| `/body/nutrition` | Logged dietary intake, with how logged days met the goal's calorie and protein targets over the last four weeks, daily targets for the goal, a month-by-month log and a check that macros add up to calories (`/nutrition` redirects here) |
 | `/medications` | Logged doses, today and per medication |
 | `/lab`, `/lab/[analyteKey]` | Lab results, and one analyte over time |
 | `/workouts` | The training routine dashboard |
@@ -32,7 +32,7 @@ Routes, what is still demo or unwired in this build, and the quality commands.
 | `/metric/[metricId]` | One metric in detail |
 
 The API lives under `/api/*`: `activity-coverage`, `activity-maps`, `analyst` (with `conversations`
-and `stream`), `briefing`, `geocode`, `lab`, `medications`, `pipeline/status`, `preferences`,
+and `stream`), `body-goal`, `briefing`, `geocode`, `lab`, `medications`, `pipeline/status`, `preferences`,
 `profile`, `routine`, `workout-sources` and a `health` liveness probe.
 
 ---
@@ -55,8 +55,10 @@ What is still demo or unwired in this build, exhaustively:
     provider that is misconfigured or fails is reported honestly — the feature never
     substitutes demo output for a model reply.
 - **The pipeline panel checks only the stages this build actually has.** Health Auto Export and
-  Health API are probed for real; Intelligence is computed locally from the dataset the app is
-  serving; Dashboard *is* the request. There is no ingestion job, no timer and no schedule, and
+  Health API are probed for real; Data quality checks the live export's records for activity
+  counted twice, duplicate readings, missing days, a late start and a stalled automation, each
+  with its fix (see [Data sources](data-sources.md#setting-up-health-auto-export-for-complete-data));
+  Intelligence is computed locally from the dataset the app is serving; Dashboard *is* the request. There is no ingestion job, no timer and no schedule, and
   the panel says so. The Apple Health and MongoDB stages were removed: neither is a source this
   build can ever read or check, so listing them was a permanent `unknown` that implied a
   connection that does not exist.

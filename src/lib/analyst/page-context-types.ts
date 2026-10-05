@@ -10,7 +10,8 @@ export type PageContextRef =
   | { kind: 'routine' }
   | { kind: 'routine-path'; pathId: string }
   | { kind: 'routine-workout'; templateId: string }
-  | { kind: 'routine-untracked'; name: string };
+  | { kind: 'routine-untracked'; name: string }
+  | { kind: 'body-goal' };
 
 const MAX_ID_CHARS = 120;
 
@@ -35,6 +36,8 @@ export function parsePageContextRef(raw: unknown): PageContextRef | null {
       const templateId = text(r.templateId);
       return templateId ? { kind: 'routine-workout', templateId } : null;
     }
+    case 'body-goal':
+      return { kind: 'body-goal' };
     case 'routine-untracked': {
       const name = text(r.name);
       return name ? { kind: 'routine-untracked', name } : null;

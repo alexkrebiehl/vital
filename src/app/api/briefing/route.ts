@@ -24,6 +24,7 @@
 
 import { NextResponse } from 'next/server';
 import { readBriefing, regenerateBriefing } from '@/lib/briefing';
+import { readActiveBodyGoal } from '@/lib/body-goal/server';
 import { readProfile } from '@/lib/profile/store';
 import type { UnitSystem } from '@/lib/prefs';
 import { LiveDataUnavailableError, installDataset } from '@/lib/adapters/runtime';
@@ -58,8 +59,8 @@ export async function GET(request: Request) {
       { status: 503, headers: NO_STORE }
     );
   }
-  const profile = await readProfile();
-  return NextResponse.json(readBriefing({ system, profile }), { status: 200, headers: NO_STORE });
+  const [profile, bodyGoal] = await Promise.all([readProfile(), readActiveBodyGoal()]);
+  return NextResponse.json(readBriefing({ system, profile, bodyGoal }), { status: 200, headers: NO_STORE });
 }
 
 export async function POST(request: Request) {
@@ -72,10 +73,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const profile = await readProfile();
+  const [profile, bodyGoal] = await Promise.all([readProfile(), readActiveBodyGoal()]);
 
   try {
-    return NextResponse.json(await regenerateBriefing({ system, profile }), { status: 200, headers: NO_STORE });
+    return NextResponse.json(await regenerateBriefing({ system, profile, bodyGoal }), { status: 200, headers: NO_STORE });
   } catch (error) {
     // The day is left uncached, so the next read serves the computed briefing
     // with this reason attached. Nothing is retried here.
