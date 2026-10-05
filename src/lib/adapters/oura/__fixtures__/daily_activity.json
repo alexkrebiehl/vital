@@ -1,0 +1,85 @@
+{
+  "data": [
+    {
+      "id": "act-0",
+      "day": "2026-09-20",
+      "steps": 6000,
+      "active_calories": 310,
+      "equivalent_walking_distance": 4800,
+      "score": null
+    },
+    {
+      "id": "act-1",
+      "day": "2026-09-21",
+      "steps": 6731,
+      "active_calories": 327,
+      "equivalent_walking_distance": 5300,
+      "score": null
+    },
+    {
+      "id": "act-2",
+      "day": "2026-09-22",
+      "steps": 7462,
+      "active_calories": 344,
+      "equivalent_walking_distance": 5800,
+      "score": null
+    },
+    {
+      "id": "act-3",
+      "day": "2026-09-23",
+      "steps": 8193,
+      "active_calories": 361,
+      "equivalent_walking_distance": 6300,
+      "score": null
+    },
+    {
+      "id": "act-4",
+      "day": "2026-09-24",
+      "steps": 8924,
+      "active_calories": 378,
+      "equivalent_walking_distance": 6800,
+      "score": null
+    },
+    {
+      "id": "act-5",
+      "day": "2026-09-25",
+      "steps": 9655,
+      "active_calories": 395,
+      "equivalent_walking_distance": 7300,
+      "score": null
+    },
+    {
+      "id": "act-6",
+      "day": "2026-09-26",
+      "steps": 10386,
+      "active_calories": 412,
+      "equivalent_walking_distance": 7800,
+      "score": null
+    },
+    {
+      "id": "act-7",
+      "day": "2026-09-27",
+      "steps": 11117,
+      "active_calories": 429,
+      "equivalent_walking_distance": 8300,
+      "score": null
+    },
+    {
+      "id": "act-8",
+      "day": "2026-09-28",
+      "steps": 11848,
+      "active_calories": 446,
+      "equivalent_walking_distance": 8800,
+      "score": null
+    },
+    {
+      "id": "act-9",
+      "day": "2026-09-29",
+      "steps": 12579,
+      "active_calories": 463,
+      "equivalent_walking_distance": 9300,
+      "score": null
+    }
+  ],
+  "next_token": null
+}

@@ -90,7 +90,7 @@ describe('the live normalizer', () => {
         },
       ],
       { tz: 'America/Chicago', referenceKey: '2026-09-17', windowStartKey: '2026-09-17' }
-    );
+    ).observations;
     expect(night.stages).toEqual({ deep: 60, rem: 60, core: 300, awake: 15 });
     expect(night.asleepMinutes).toBe(420);
     // In bed comes from the timestamps, so it can be a little longer than

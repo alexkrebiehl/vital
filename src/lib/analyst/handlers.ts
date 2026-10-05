@@ -475,7 +475,11 @@ const workoutFrequency: AnalystHandler = {
       };
     }
     const observed = [
-      `${w.sessions} workouts were recorded across ${windowRangeLabel(w.window)}, totalling ${w.minutes} minutes and ${w.calories} kcal.`,
+      `${w.sessions} workouts were recorded across ${windowRangeLabel(w.window)}, totalling ${w.minutes} minutes${
+        w.calories === null
+          ? '; none of them recorded calories'
+          : ` and ${w.calories} kcal (${w.calorieSessions} of ${w.sessions} recorded calories)`
+      }.`,
       `That is ${w.sessionsPerWeek.toFixed(1)} recorded workouts per 7-day block.`,
       `The most recent 30 days contain ${w.recent} recorded workouts and the 30 days before that contain ${w.prior}.`,
       `By activity type: ${w.byType.map(t => `${t.type} ${t.count} (${t.minutes} min)`).join(', ')}.`,

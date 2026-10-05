@@ -319,7 +319,7 @@ function isoDate(year: string, month: string, day: string): string | null {
  * standalone printed date in the RESULTS region of the page.
  *
  * The results region starts a third of the way across, which is what keeps the
- * patient line ("Date of Birth: Jun 20, 1976") and a document's own date range
+ * patient line ("Date of Birth: Jan 01, 1900") and a document's own date range
  * out: their dates are inside longer runs, or sit at the left margin.
  */
 function findHeaderLine(page: number, lines: Omit<LayoutLine, 'lineNo'>[], lineNumbers: number[], width: number): PageHeader | null {

@@ -166,15 +166,15 @@ describe('an episode exported twice', () => {
         full,
         // Same window, same totals, a different export instant.
         { ...full, date: '2026-09-10T22:00:00.000Z' },
-        // Same start instant but a different window and different totals: a real,
-        // separate episode and never merged.
+        // Same start instant but a different window and different totals: a
+        // second episode of the same wake-up day. The night keeps one episode,
+        // the one with more time asleep (SLEEP_ONE_PER_NIGHT_RULE), never a sum.
         { ...full, inBedEnd: '2026-09-10T22:00:00.000Z', core: 9, awake: 0.4 },
       ],
       { tz: 'America/Chicago', referenceKey: '2026-09-11', windowStartKey: '2026-09-10' }
-    );
-    expect(normalized).toHaveLength(2);
-    expect(normalized[0].stages.core).toBe(300);
-    expect(normalized[1].stages.core).toBe(540);
+    ).observations;
+    expect(normalized).toHaveLength(1);
+    expect(normalized[0].stages.core).toBe(540);
   });
 });
 

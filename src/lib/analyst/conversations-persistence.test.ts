@@ -31,7 +31,7 @@ describe('conversations — persistence rules', () => {
   it('saves an answer that was shown, with its text, provenance and evidence', async () => {
     const db = new FakeAnalystDb();
     const response = await okResponse();
-    const outcome = await appendExchange({ client: db }, null, QUESTION, response);
+    const outcome = await appendExchange({ client: db }, null, QUESTION, response, ['hae']);
     expect(outcome.ok && outcome.outcome.persisted).toBe(true);
 
     const [user, assistant] = db.allMessages();
@@ -54,7 +54,7 @@ describe('conversations — persistence rules', () => {
 
   it('names a new conversation from its opening question', async () => {
     const db = new FakeAnalystDb();
-    const outcome = await appendExchange({ client: db }, null, QUESTION, await okResponse());
+    const outcome = await appendExchange({ client: db }, null, QUESTION, await okResponse(), ['hae']);
     expect(outcome.ok && outcome.outcome.conversation?.title).toBe(deriveTitle(QUESTION));
   });
 
@@ -62,7 +62,7 @@ describe('conversations — persistence rules', () => {
     const db = new FakeAnalystDb();
     const created = await createConversationForApi({ client: db }, 'My review');
     const id = created.ok ? created.data.id : 0;
-    const outcome = await appendExchange({ client: db }, id, QUESTION, await okResponse());
+    const outcome = await appendExchange({ client: db }, id, QUESTION, await okResponse(), ['hae']);
     expect(outcome.ok && outcome.outcome.conversation?.title).toBe('My review');
   });
 
@@ -72,7 +72,7 @@ describe('conversations — persistence rules', () => {
     expect(response.status).toBe('unsupported');
     expect(response.answer).toBeNull();
 
-    await appendExchange({ client: db }, null, 'Why is the moon made of cheese?', response);
+    await appendExchange({ client: db }, null, 'Why is the moon made of cheese?', response, ['hae']);
     const assistant = db.allMessages().find(m => m.role === 'assistant')!;
     // The fallback text the reader saw is stored, with its honest attribution.
     expect(assistant.content).toBe(response.message);
@@ -88,7 +88,7 @@ describe('conversations — persistence rules', () => {
     const discarded = '{"title":"unvalidated RAW MODEL BLOB"';
     const response = await askAnalyst({ query: 'What changed this week?' }, { env: DEMO_ENV });
     const forged = { ...response, status: 'error' as const, answer: null, message: "The model's reply could not be read as an answer." };
-    await appendExchange({ client: db }, null, 'What changed this week?', forged);
+    await appendExchange({ client: db }, null, 'What changed this week?', forged, ['hae']);
 
     const assistant = db.allMessages().find(m => m.role === 'assistant')!;
     expect(assistant.content).toBe("The model's reply could not be read as an answer.");
@@ -115,7 +115,7 @@ describe('conversations — the per-conversation cap', () => {
       expect(inserted.ok).toBe(true);
     }
 
-    const refused = await appendExchange({ client: db }, id, QUESTION, await okResponse());
+    const refused = await appendExchange({ client: db }, id, QUESTION, await okResponse(), ['hae']);
     expect(refused.ok).toBe(false);
     expect(!refused.ok && refused.status).toBe(409);
     expect(!refused.ok && refused.error).toContain(`${MAX_CONVERSATION_MESSAGES}-turn limit`);
@@ -124,7 +124,7 @@ describe('conversations — the per-conversation cap', () => {
 
   it('reports appending to an unknown conversation as 404', async () => {
     const db = new FakeAnalystDb();
-    const result = await appendExchange({ client: db }, 777, QUESTION, await okResponse());
+    const result = await appendExchange({ client: db }, 777, QUESTION, await okResponse(), ['hae']);
     expect(result.ok).toBe(false);
     expect(!result.ok && result.status).toBe(404);
   });
@@ -135,9 +135,9 @@ describe('conversations — memory comes from the stored thread', () => {
     const db = new FakeAnalystDb();
     expect(await memoryTurnsFor({ client: db }, 1)).toEqual([]);
 
-    const first = await appendExchange({ client: db }, null, QUESTION, await okResponse());
+    const first = await appendExchange({ client: db }, null, QUESTION, await okResponse(), ['hae']);
     const id = first.ok ? first.outcome.conversation!.id : 0;
-    await appendExchange({ client: db }, id, 'And what about the month before that?', await okResponse('How has my sleep changed over the last month?'));
+    await appendExchange({ client: db }, id, 'And what about the month before that?', await okResponse('How has my sleep changed over the last month?'), ['hae']);
 
     const memory = await memoryTurnsFor({ client: db }, id);
     expect(memory).toHaveLength(4);
@@ -156,7 +156,7 @@ describe('conversations — memory comes from the stored thread', () => {
   it('serves a stored conversation back with its evidence intact', async () => {
     const db = new FakeAnalystDb();
     const response = await okResponse();
-    const first = await appendExchange({ client: db }, null, QUESTION, response);
+    const first = await appendExchange({ client: db }, null, QUESTION, response, ['hae']);
     const id = first.ok ? first.outcome.conversation!.id : 0;
 
     const read = await readConversationForApi({ client: db }, id);
@@ -164,5 +164,29 @@ describe('conversations — memory comes from the stored thread', () => {
     const assistant = read.ok ? read.data.messages.find(m => m.role === 'assistant')! : null;
     expect(assistant?.payload?.answer?.evidence.length).toBe(response.answer?.evidence.length);
     expect(assistant?.payload?.answer?.followUps).toEqual(response.answer?.followUps);
+  });
+});
+
+describe('conversations — source tags', () => {
+  it('stores the tags on the answer and keeps the conversation tagged with their union', async () => {
+    const db = new FakeAnalystDb();
+    const first = await appendExchange({ client: db }, null, QUESTION, await okResponse(), ['oura']);
+    const id = first.ok ? first.outcome.conversation!.id : 0;
+    expect(db.sourceIdsOf(id)).toEqual(['oura']);
+
+    await appendExchange({ client: db }, id, 'And my steps?', await okResponse('And my steps?'), ['hae']);
+    expect(db.sourceIdsOf(id)).toEqual(['hae', 'oura']);
+
+    const assistants = db.allMessages().filter(m => m.role === 'assistant');
+    expect(assistants.map(m => m.source_ids)).toEqual([['oura'], ['hae']]);
+    // A question carries no source: only an answer is derived from data.
+    expect(db.allMessages().filter(m => m.role === 'user').every(m => (m.source_ids as string[]).length === 0)).toBe(true);
+  });
+
+  it('writes the tags once, sorted and distinct', async () => {
+    const db = new FakeAnalystDb();
+    await appendExchange({ client: db }, null, QUESTION, await okResponse(), ['oura', 'hae', 'oura']);
+    const insert = db.calls.filter(c => /INSERT INTO analyst_messages/.test(c.text)).at(-1)!;
+    expect(insert.params[12]).toEqual(['hae', 'oura']);
   });
 });

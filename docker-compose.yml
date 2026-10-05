@@ -96,6 +96,20 @@ services:
       HEVY_API_URL: "${HEVY_API_URL:-}"
       HEVY_CACHE_TTL_SECONDS: "${HEVY_CACHE_TTL_SECONDS:-300}"
       WORKOUT_SOURCE_LOOKBACK_DAYS: "${WORKOUT_SOURCE_LOOKBACK_DAYS:-400}"
+      # ── Oura Ring (optional second live source, server-side only) ───────────
+      # Empty OURA_CLIENT_ID disables Oura. VITAL_SECRET_KEY encrypts the
+      # stored OAuth tokens and is required once Oura is configured.
+      OURA_CLIENT_ID: "${OURA_CLIENT_ID:-}"
+      OURA_CLIENT_SECRET: "${OURA_CLIENT_SECRET:-}"
+      OURA_REDIRECT_URI: "${OURA_REDIRECT_URI:-}"
+      OURA_SCOPES: "${OURA_SCOPES:-}"
+      OURA_CACHE_TTL_SECONDS: "${OURA_CACHE_TTL_SECONDS:-300}"
+      OURA_HEARTRATE_LOOKBACK_DAYS: "${OURA_HEARTRATE_LOOKBACK_DAYS:-30}"
+      OURA_HEARTRATE_CHUNK_DAYS: "${OURA_HEARTRATE_CHUNK_DAYS:-7}"
+      OURA_PREFERRED_FOR: "${OURA_PREFERRED_FOR:-sleep,recovery}"
+      OURA_API_URL: "${OURA_API_URL:-}"
+      VITAL_SECRET_KEY: "${VITAL_SECRET_KEY:-}"
+      VITAL_SOURCE_PURGE_GRACE_DAYS: "${VITAL_SOURCE_PURGE_GRACE_DAYS:-7}"
       # Activity maps: routes held in memory, place search, street tiles.
       # Empty values fall back to the defaults (see .env.example).
       ROUTE_CACHE_MAX_POINTS: "${ROUTE_CACHE_MAX_POINTS:-}"

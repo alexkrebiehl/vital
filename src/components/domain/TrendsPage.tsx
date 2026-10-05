@@ -3,6 +3,8 @@
 import { useMemo, useState } from 'react';
 import { Search, X, Info } from 'lucide-react';
 import { getAllMetrics, getMetric, searchMetrics } from '@/lib/metrics';
+import { listedMetrics } from '@/lib/metrics/listed';
+import { useDatasetMeta } from '@/components/data/DatasetProvider';
 import { describeChange, formatMetricWithUnit, formatPercent } from '@/lib/metrics/format';
 import { seriesFor, metricHasData, REFERENCE_KEY, WINDOW_START_KEY } from '@/lib/adapters/dataset';
 import {
@@ -442,7 +444,9 @@ function MetricPicker({
   onChange: (ids: string[]) => void;
 }) {
   const [query, setQuery] = useState('');
-  const matches = query.trim() ? searchMetrics(query.trim()).slice(0, 8) : getAllMetrics().slice(0, 8);
+  const activeSources = useDatasetMeta().activeSources;
+  const listed = (ms: MetricDefinition[]) => listedMetrics(ms, activeSources, metricHasData);
+  const matches = (query.trim() ? listed(searchMetrics(query.trim())) : listed(getAllMetrics())).slice(0, 8);
 
   const toggle = (id: string) => {
     if (selected.includes(id)) {
@@ -527,6 +531,7 @@ function MetricSelect({
     const q = query.trim();
     return q ? searchMetrics(q).slice(0, 6) : getAllMetrics().slice(0, 6);
   }, [query]);
+  const activeSources = useDatasetMeta().activeSources;
 
   return (
     <div>
@@ -537,7 +542,7 @@ function MetricSelect({
         aria-label={label}
         className="w-full bg-surface border border-border rounded-control px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-accent min-h-[44px]"
       >
-        {getAllMetrics().map(m => (
+        {listedMetrics(getAllMetrics(), activeSources, metricHasData).map(m => (
           <option key={m.id} value={m.id}>
             {m.displayName}{metricHasData(m.id) ? '' : ' — no data in dataset'}
           </option>

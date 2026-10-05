@@ -26,6 +26,8 @@ import { appendExchange, memoryTurnsFor, resolveConversations } from '@/lib/anal
 import { parsePageContextRef } from '@/lib/analyst/page-context-types';
 import type { UnitSystem } from '@/lib/prefs';
 import { LiveDataUnavailableError, installDataset } from '@/lib/adapters/runtime';
+import type { ProvenanceRow } from '@/lib/adapters/normalize';
+import { tagResponse } from '@/lib/sources/tagging';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -62,8 +64,9 @@ export async function POST(request: Request) {
   // Read the same dataset the pages are serving, in whichever bundle this route
   // handler was compiled into. A live failure is reported, never replaced with
   // demo data (SPEC §10).
+  let provenance: ProvenanceRow[] = [];
   try {
-    await installDataset();
+    provenance = (await installDataset()).meta.provenance;
   } catch (error) {
     const detail = error instanceof LiveDataUnavailableError ? error.detail : 'The dataset could not be loaded.';
     return NextResponse.json(
@@ -95,7 +98,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const outcome = await appendExchange({}, raw.conversationId, question.query, response);
+  const outcome = await appendExchange({}, raw.conversationId, question.query, response, await tagResponse(response, provenance));
   if (!outcome.ok) {
     // The conversation vanished or hit its turn cap: report it rather than
     // appending to the wrong thread or silently dropping the turn.

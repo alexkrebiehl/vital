@@ -17,7 +17,9 @@ npm-debug.log*
 .DS_Store
 *.tsbuildinfo
 README.md
-# The live profile is personal data and must never be baked into an image. The
-# container reads it from the ./data bind mount at run time instead.
-data/profile.json
-data/profile.json.tmp
+# Everything under data/ is personal and must never be baked into an image: the live
+# profile, the training plans, and the lab documents a person uploads (data/lab/*.pdf).
+# Nothing in it is tracked by git or needed to build; the container reads it from the
+# ./data bind mount at run time instead. (A build from a git checkout, as CI does, never
+# sees it; a build from a working folder, as `docker compose build` does, would.)
+data

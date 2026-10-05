@@ -271,11 +271,11 @@ describe('rejection reasons', () => {
     expect(classifyLine('Result Trends', true)).toBe('document_title');
     expect(classifyLine('Results limited to those after Apr 8, 2021.', true)).toBe('notice_line');
     expect(classifyLine('Mar 3, 2019 - Nov 2, 2021 (Table 1 of 1)', true)).toBe('table_caption');
-    expect(classifyLine('Sample Person Date of Birth: Jun 20, 1976', true)).toBe('identity_line');
+    expect(classifyLine('Sample Person Date of Birth: Jan 01, 1900', true)).toBe('identity_line');
     expect(classifyLine('Component', true)).toBe('column_header');
     expect(classifyLine('Fasting? Yes Yes Yes', false)).toBe('non_metric_row');
     expect(classifyLine('6399 - CBC (includes Differential and Platelets) [BLOOD]', false)).toBe('order_entry');
-    expect(classifyLine('09/16/2026', false)).toBe('not_a_result_line');
+    expect(classifyLine('01/01/2000', false)).toBe('not_a_result_line');
     expect(classifyLine('Page # 1', false)).toBe('not_a_result_line');
     expect(classifyLine('   ', false)).toBe('empty');
     expect(classifyLine('Sodium', false)).toBeNull();

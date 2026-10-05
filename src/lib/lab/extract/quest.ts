@@ -6,9 +6,9 @@
 // two RESULT COLUMNS the report chose:
 //
 //     Test Name        In Range     Out Of Range     Reference Range     Lab
-//     COLOR            YELLOW                        YELLOW              IG
-//     SPECIFIC GRAVITY 1.017                        1.001-1.035
-//     KETONES                           1+          NEGATIVE            IG
+//     SAMPLE COLOR     AMBER                         AMBER               IG
+//     SAMPLE RATIO     1.000                         0.500-1.500
+//     SAMPLE MARKER                     2+          NEGATIVE            IG
 //
 // THE COLUMN *IS* THE FLAG. There is no `High`/`Low` token anywhere in this
 // layout: a value printed in the `Out Of Range` column is the report's own

@@ -1,0 +1,130 @@
+{
+  "data": [
+    {
+      "bpm": 52,
+      "source": "awake",
+      "timestamp": "2026-09-20T03:30:00+00:00"
+    },
+    {
+      "bpm": 68,
+      "source": "rest",
+      "timestamp": "2026-09-20T09:30:00+00:00"
+    },
+    {
+      "bpm": 74,
+      "source": "sleep",
+      "timestamp": "2026-09-20T13:30:00+00:00"
+    },
+    {
+      "bpm": 90,
+      "source": "workout",
+      "timestamp": "2026-09-20T17:30:00+00:00"
+    },
+    {
+      "bpm": 61,
+      "source": "live",
+      "timestamp": "2026-09-20T22:30:00+00:00"
+    },
+    {
+      "bpm": 53,
+      "source": "rest",
+      "timestamp": "2026-09-21T03:30:00+00:00"
+    },
+    {
+      "bpm": 69,
+      "source": "sleep",
+      "timestamp": "2026-09-21T09:30:00+00:00"
+    },
+    {
+      "bpm": 75,
+      "source": "workout",
+      "timestamp": "2026-09-21T13:30:00+00:00"
+    },
+    {
+      "bpm": 91,
+      "source": "live",
+      "timestamp": "2026-09-21T17:30:00+00:00"
+    },
+    {
+      "bpm": 62,
+      "source": "session",
+      "timestamp": "2026-09-21T22:30:00+00:00"
+    },
+    {
+      "bpm": 54,
+      "source": "sleep",
+      "timestamp": "2026-09-22T03:30:00+00:00"
+    },
+    {
+      "bpm": 70,
+      "source": "workout",
+      "timestamp": "2026-09-22T09:30:00+00:00"
+    },
+    {
+      "bpm": 76,
+      "source": "live",
+      "timestamp": "2026-09-22T13:30:00+00:00"
+    },
+    {
+      "bpm": 92,
+      "source": "session",
+      "timestamp": "2026-09-22T17:30:00+00:00"
+    },
+    {
+      "bpm": 63,
+      "source": "awake",
+      "timestamp": "2026-09-22T22:30:00+00:00"
+    },
+    {
+      "bpm": 55,
+      "source": "workout",
+      "timestamp": "2026-09-23T03:30:00+00:00"
+    },
+    {
+      "bpm": 71,
+      "source": "live",
+      "timestamp": "2026-09-23T09:30:00+00:00"
+    },
+    {
+      "bpm": 77,
+      "source": "session",
+      "timestamp": "2026-09-23T13:30:00+00:00"
+    },
+    {
+      "bpm": 93,
+      "source": "awake",
+      "timestamp": "2026-09-23T17:30:00+00:00"
+    },
+    {
+      "bpm": 64,
+      "source": "rest",
+      "timestamp": "2026-09-23T22:30:00+00:00"
+    },
+    {
+      "bpm": 56,
+      "source": "live",
+      "timestamp": "2026-09-24T03:30:00+00:00"
+    },
+    {
+      "bpm": 72,
+      "source": "session",
+      "timestamp": "2026-09-24T09:30:00+00:00"
+    },
+    {
+      "bpm": 78,
+      "source": "awake",
+      "timestamp": "2026-09-24T13:30:00+00:00"
+    },
+    {
+      "bpm": 94,
+      "source": "rest",
+      "timestamp": "2026-09-24T17:30:00+00:00"
+    },
+    {
+      "bpm": 65,
+      "source": "sleep",
+      "timestamp": "2026-09-24T22:30:00+00:00"
+    }
+  ],
+  "next_token": null
+}

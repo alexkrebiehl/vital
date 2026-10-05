@@ -273,6 +273,8 @@ export type AppendExchangeResult =
  *     the store because the service never returned it;
  *   * the assistant turn's content is the text the reader saw and its
  *     attribution is the same provenance line the UI shows;
+ *   * `sourceIds` tags the answer with the sources whose data entered it, so a
+ *     removed source can hide and then delete the conversation (plan §8);
  *   * the per-conversation cap refuses the exchange with a clear reason (409)
  *     rather than silently truncating the thread.
  */
@@ -280,7 +282,8 @@ export async function appendExchange(
   deps: ConversationDeps,
   rawConversationId: unknown,
   question: string,
-  response: AnalystResponse
+  response: AnalystResponse,
+  sourceIds: string[]
 ): Promise<AppendExchangeResult> {
   const { availability, client } = resolveConversations(deps);
   if (!availability.available || !client) {
@@ -337,6 +340,8 @@ export async function appendExchange(
         attribution: attributionFor(response),
         handlerId: response.handlerId,
         payload: buildStoredPayload(response),
+        // Which sources fed this answer (tags only); see sources/tagging.ts.
+        sourceIds,
       },
       MAX_CONVERSATION_MESSAGES
     );

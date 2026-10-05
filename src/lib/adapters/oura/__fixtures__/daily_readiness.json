@@ -1,0 +1,75 @@
+{
+  "data": [
+    {
+      "id": "rdy-0",
+      "day": "2026-09-20",
+      "score": 70,
+      "temperature_deviation": -0.3,
+      "temperature_trend_deviation": 0.1
+    },
+    {
+      "id": "rdy-1",
+      "day": "2026-09-21",
+      "score": 71,
+      "temperature_deviation": -0.23,
+      "temperature_trend_deviation": 0.1
+    },
+    {
+      "id": "rdy-2",
+      "day": "2026-09-22",
+      "score": 72,
+      "temperature_deviation": -0.16,
+      "temperature_trend_deviation": 0.1
+    },
+    {
+      "id": "rdy-3",
+      "day": "2026-09-23",
+      "score": null,
+      "temperature_deviation": -0.09,
+      "temperature_trend_deviation": 0.1
+    },
+    {
+      "id": "rdy-4",
+      "day": "2026-09-24",
+      "score": 74,
+      "temperature_deviation": -0.02,
+      "temperature_trend_deviation": 0.1
+    },
+    {
+      "id": "rdy-5",
+      "day": "2026-09-25",
+      "score": 75,
+      "temperature_deviation": 0.05,
+      "temperature_trend_deviation": 0.1
+    },
+    {
+      "id": "rdy-6",
+      "day": "2026-09-26",
+      "score": 76,
+      "temperature_deviation": 0.12,
+      "temperature_trend_deviation": 0.1
+    },
+    {
+      "id": "rdy-7",
+      "day": "2026-09-27",
+      "score": 77,
+      "temperature_deviation": 0.19,
+      "temperature_trend_deviation": 0.1
+    },
+    {
+      "id": "rdy-8",
+      "day": "2026-09-28",
+      "score": 78,
+      "temperature_deviation": null,
+      "temperature_trend_deviation": 0.1
+    },
+    {
+      "id": "rdy-9",
+      "day": "2026-09-29",
+      "score": 79,
+      "temperature_deviation": 0.33,
+      "temperature_trend_deviation": 0.1
+    }
+  ],
+  "next_token": null
+}

@@ -30,13 +30,20 @@ import { convertUnit } from './units';
 import {
   dedupeByInterval,
   dedupeSameInstant,
+  deviceNameKey,
   sourceLabel,
+  sourceRank,
   sourceRuleFor,
+  SLEEP_ONE_PER_NIGHT_RULE,
+  SLEEP_REPEAT_RULE,
+  excludesSource,
   splitSources,
   SOURCE_DEDUPE_RULE,
+  type SourceFamily,
   sourceRuleExplanationFor,
   type SourcedRecord,
 } from './sources';
+import { intervalsMatch } from '@/lib/workout-sources/match';
 
 // ── Upstream record shapes (only the fields actually present) ──
 
@@ -87,7 +94,10 @@ export interface RawWorkoutRecord {
   start_time?: string;
   end_time?: string;
   duration_minutes?: number;
-  calories_burned?: number;
+  /** HAE sends `null` when the session has no active-energy value. */
+  calories_burned?: number | null;
+  /** HAE sends no source on a workout today; honoured for `excludeFamilies` if one ever arrives. */
+  source?: string;
 }
 
 // ── Metric mapping table ────────────────────────────────
@@ -243,6 +253,18 @@ export interface NormalizeContext {
   referenceKey: string;
   /** First day of the dataset window (for expected-day counts). */
   windowStartKey: string;
+  /**
+   * Device families to leave out. A record is dropped only when every device
+   * that contributed to it is in one of these families. Used to read ring data
+   * once, through its own connection, rather than again through Health Auto Export.
+   */
+  excludeFamilies?: SourceFamily[];
+}
+
+/** Records not left out by `ctx.excludeFamilies`. */
+function allowed<T extends { source?: string }>(records: T[], ctx: NormalizeContext): T[] {
+  const families = ctx.excludeFamilies;
+  return families && families.length > 0 ? records.filter(r => !excludesSource(r.source, families)) : records;
 }
 
 function pickField(record: RawSimpleRecord, field: MetricMapping['field']): number | null {
@@ -264,6 +286,7 @@ export function normalizeSimpleMetric(
   ctx: NormalizeContext
 ): NormalizedMetric | null {
   const meta = getMetric(mapping.metricId);
+  records = allowed(records, ctx);
   if (!meta || records.length === 0) return null;
 
   const rule = sourceRuleFor(mapping.metricId);
@@ -335,7 +358,7 @@ export function normalizeHeartRateDaily(
   const meta = getMetric('heart_rate');
   const canonical = meta?.canonicalUnit ?? 'bpm';
   const byDay = new Map<string, { avg: number[]; max: number[]; min: number[]; sources: string[] }>();
-  for (const r of records) {
+  for (const r of allowed(records, ctx)) {
     if (typeof r.Avg !== 'number') continue;
     const key = dayKey(r.date, ctx.tz);
     const rawUnit = r.units ?? 'count/min';
@@ -392,6 +415,22 @@ export function heartRateObservations(daily: DailyHeartRate[]): (MetricObservati
  * night in every average. A record with no window falls back to its export
  * instant, so two exports without a window are never merged on totals alone.
  */
+/** Records `normalizeSleep` set aside, by reason. `total` is their sum. */
+export interface SleepDropCounts {
+  /** The same episode exported more than once. */
+  repeats: number;
+  /** Episodes from a lower-ranked device family than another that day. */
+  lowerRankedSource: number;
+  /** Other episodes from the kept family on a day that keeps one. */
+  extraEpisodes: number;
+  total: number;
+}
+
+export interface SleepResult {
+  observations: SleepObservation[];
+  dropped: SleepDropCounts;
+}
+
 export function sleepRepeatIdentity(record: RawSleepRecord): string {
   const start = record.inBedStart ?? record.sleepStart;
   const end = record.inBedEnd ?? record.sleepEnd;
@@ -426,12 +465,12 @@ export function sleepRepeatIdentity(record: RawSleepRecord): string {
  * Exact repeats collapse to one night using the project's source-priority
  * convention (`dedupeSameInstant` + `SLEEP_REPEAT_RULE` in `sources.ts`).
  */
-export function normalizeSleep(records: RawSleepRecord[], ctx: NormalizeContext): SleepObservation[] {
+export function normalizeSleep(records: RawSleepRecord[], ctx: NormalizeContext): SleepResult {
   const rule = sourceRuleFor('sleep_analysis');
-  const sourced = records.map(r => ({ ...r, source: r.source ?? '' }));
-  const { kept } = dedupeSameInstant(sourced, rule, sleepRepeatIdentity);
+  const sourced = allowed(records, ctx).map(r => ({ ...r, source: r.source ?? '' }));
+  const { kept, duplicates } = dedupeSameInstant(sourced, rule, sleepRepeatIdentity);
 
-  const out: SleepObservation[] = [];
+  const candidates: { obs: SleepObservation; rank: number }[] = [];
   for (const r of kept) {
     const key = dayKey(r.date, ctx.tz);
     const toMin = (x: number | undefined) => (typeof x === 'number' && Number.isFinite(x) ? x * 60 : 0);
@@ -455,7 +494,7 @@ export function normalizeSleep(records: RawSleepRecord[], ctx: NormalizeContext)
       inBedMinutes = round(asleepMinutes + awake, 1);
     }
 
-    out.push({
+    const obs: SleepObservation = {
       date: key,
       bedtime: start ?? '',
       wakeTime: end ?? '',
@@ -470,30 +509,128 @@ export function normalizeSleep(records: RawSleepRecord[], ctx: NormalizeContext)
         awake: round(awake, 1),
       },
       source: sourceLabel(r.source),
-    });
+    };
+    candidates.push({ obs, rank: sourceRank(r.source, rule) });
   }
-  return out.sort((a, b) => a.date.localeCompare(b.date));
+
+  // One episode per wake-up day: best-ranked family first, then the most time
+  // asleep, then the longest in-bed window, then the earliest bedtime.
+  const byDay = new Map<string, { obs: SleepObservation; rank: number }[]>();
+  for (const c of candidates) {
+    const list = byDay.get(c.obs.date);
+    if (list) list.push(c);
+    else byDay.set(c.obs.date, [c]);
+  }
+  const observations: SleepObservation[] = [];
+  let lowerRankedSource = 0;
+  let extraEpisodes = 0;
+  for (const group of byDay.values()) {
+    const bestRank = Math.min(...group.map(c => c.rank));
+    const contenders = group.filter(c => c.rank === bestRank);
+    lowerRankedSource += group.length - contenders.length;
+    contenders.sort(
+      (x, y) =>
+        y.obs.asleepMinutes - x.obs.asleepMinutes ||
+        y.obs.inBedMinutes - x.obs.inBedMinutes ||
+        x.obs.bedtime.localeCompare(y.obs.bedtime)
+    );
+    extraEpisodes += contenders.length - 1;
+    observations.push(contenders[0].obs);
+  }
+  observations.sort((a, b) => a.date.localeCompare(b.date));
+  return {
+    observations,
+    dropped: {
+      repeats: duplicates,
+      lowerRankedSource,
+      extraEpisodes,
+      total: duplicates + lowerRankedSource + extraEpisodes,
+    },
+  };
 }
 
 // ── Blood pressure ──────────────────────────────────────
 
-/** Every reading is kept individually: systolic/diastolic is a paired value. */
+/** Two readings this close in time may be one reading synced by two apps. */
+export const BP_SAME_READING_WINDOW_MS = 2 * 60_000;
+/** …and only when systolic and diastolic each differ by no more than this. */
+export const BP_SAME_READING_TOLERANCE_MMHG = 3;
+
+/**
+ * Every reading is kept individually: systolic/diastolic is a paired value.
+ *
+ * The one exception is a reading synced by two apps. Readings from two
+ * different devices within 2 minutes of each other whose systolic and
+ * diastolic each differ by at most 3 mmHg are one reading; the higher-ranked
+ * source under `cuff_first` is kept and the other is dropped, never averaged.
+ * Two readings from the same device are never merged.
+ */
 export function normalizeBloodPressure(
   records: RawBloodPressureRecord[],
   ctx: NormalizeContext
 ): BloodPressureObservation[] {
-  const out: BloodPressureObservation[] = [];
-  for (const r of records) {
+  return normalizeBloodPressureWithCounts(records, ctx).observations;
+}
+
+export function normalizeBloodPressureWithCounts(
+  records: RawBloodPressureRecord[],
+  ctx: NormalizeContext
+): { observations: BloodPressureObservation[]; dropped: { total: number } } {
+  const rule = sourceRuleFor('blood_pressure');
+  // The instant is kept here, before the day is cut, and does not leave this function.
+  interface Reading {
+    instant: number;
+    deviceKey: string;
+    rank: number;
+    observation: BloodPressureObservation;
+  }
+  const readings: Reading[] = [];
+  for (const r of allowed(records, ctx)) {
     if (typeof r.systolic !== 'number' || typeof r.diastolic !== 'number') continue;
-    out.push({
-      date: dayKey(r.date, ctx.tz),
-      systolic: r.systolic,
-      diastolic: r.diastolic,
-      units: 'mmHg',
-      source: sourceLabel(r.source),
+    const source = r.source ?? '';
+    readings.push({
+      instant: Date.parse(r.date),
+      deviceKey: splitSources(source).map(deviceNameKey).sort().join('|'),
+      rank: sourceRank(source, rule),
+      observation: {
+        date: dayKey(r.date, ctx.tz),
+        systolic: r.systolic,
+        diastolic: r.diastolic,
+        units: 'mmHg',
+        source: sourceLabel(r.source),
+      },
     });
   }
-  return out.sort((a, b) => a.date.localeCompare(b.date));
+  readings.sort(
+    (a, b) =>
+      (Number.isFinite(a.instant) ? a.instant : Infinity) - (Number.isFinite(b.instant) ? b.instant : Infinity) ||
+      a.observation.date.localeCompare(b.observation.date)
+  );
+
+  const sameReading = (a: Reading, b: Reading): boolean =>
+    Number.isFinite(a.instant) &&
+    Number.isFinite(b.instant) &&
+    a.deviceKey !== b.deviceKey &&
+    Math.abs(a.instant - b.instant) <= BP_SAME_READING_WINDOW_MS &&
+    Math.abs(a.observation.systolic - b.observation.systolic) <= BP_SAME_READING_TOLERANCE_MMHG &&
+    Math.abs(a.observation.diastolic - b.observation.diastolic) <= BP_SAME_READING_TOLERANCE_MMHG;
+
+  const kept: Reading[] = [];
+  let dropped = 0;
+  for (const reading of readings) {
+    const i = kept.findIndex(k => sameReading(k, reading));
+    if (i === -1) {
+      kept.push(reading);
+      continue;
+    }
+    dropped += 1;
+    // Strictly better rank replaces; a tie keeps the earlier reading.
+    if (reading.rank < kept[i].rank) kept[i] = reading;
+  }
+  return {
+    observations: kept.map(k => k.observation).sort((a, b) => a.date.localeCompare(b.date)),
+    dropped: { total: dropped },
+  };
 }
 
 // ── Workouts ────────────────────────────────────────────
@@ -504,35 +641,101 @@ export function normalizeBloodPressure(
  * shows those fields as "not recorded for this session".
  *
  * `duration_minutes` arrives as a long float (39.1697040339311) and is rounded
- * to one decimal; calories are rounded to whole kcal.
+ * to one decimal; calories are rounded to whole kcal. Calories the source did not record stay
+ * `null`.
  */
 export function normalizeWorkouts(records: RawWorkoutRecord[], ctx: NormalizeContext): WorkoutRecord[] {
-  const byId = new Map<string, WorkoutRecord>();
-  for (const r of records) {
+  return normalizeWorkoutsWithCounts(records, ctx).workouts;
+}
+
+/** Records `normalizeWorkoutsWithCounts` set aside, by reason. `total` is their sum. */
+export interface WorkoutDropCounts {
+  /** The same id exported more than once. */
+  repeats: number;
+  /** A different id for a session that overlaps one already kept. */
+  overlapping: number;
+  total: number;
+}
+
+/**
+ * `normalizeWorkouts` plus what it dropped.
+ *
+ * Calories that the source did not record stay `null`: they are never written
+ * as zero and never enter a sum. After the id de-duplication, two workouts
+ * whose intervals match (`intervalsMatch`) are one. HAE carries no source on a
+ * workout, so the record to keep is chosen by what it knows: more known fields
+ * (calories known beats unknown), then the longer duration, then the lower id.
+ * The other record is dropped, never merged, and counted.
+ */
+export function normalizeWorkoutsWithCounts(
+  records: RawWorkoutRecord[],
+  ctx: NormalizeContext
+): { workouts: WorkoutRecord[]; dropped: WorkoutDropCounts } {
+  interface Candidate {
+    record: WorkoutRecord;
+    known: number;
+  }
+  const byId = new Map<string, Candidate>();
+  let repeats = 0;
+  for (const r of allowed(records, ctx)) {
     if (!r.start_time || !r.end_time || !r.workout_type) continue;
     const id = r.id && String(r.id).trim().length > 0
       ? String(r.id)
       : `${r.workout_type}:${r.start_time}`;
+    const calories = typeof r.calories_burned === 'number' && Number.isFinite(r.calories_burned)
+      ? Math.round(r.calories_burned)
+      : null;
+    const durationKnown = typeof r.duration_minutes === 'number' && Number.isFinite(r.duration_minutes);
     const record: WorkoutRecord = {
       id,
       workout_type: r.workout_type,
       start_time: r.start_time,
       end_time: r.end_time,
       duration_minutes: round(
-        typeof r.duration_minutes === 'number' ? r.duration_minutes : minutesBetween(r.start_time, r.end_time),
+        durationKnown ? (r.duration_minutes as number) : minutesBetween(r.start_time, r.end_time),
         1
       ),
-      calories_burned: Math.round(
-        typeof r.calories_burned === 'number' ? r.calories_burned : NaN
-      ),
+      calories_burned: calories,
       source: 'Health Auto Export',
     };
-    if (!Number.isFinite(record.calories_burned)) record.calories_burned = 0;
     // The same session can be exported twice; the id is the identity.
-    if (!byId.has(id)) byId.set(id, record);
+    if (byId.has(id)) {
+      repeats += 1;
+      continue;
+    }
+    byId.set(id, { record, known: (calories !== null ? 1 : 0) + (durationKnown ? 1 : 0) });
   }
-  void ctx;
-  return [...byId.values()].sort((a, b) => a.start_time.localeCompare(b.start_time));
+
+  const better = (x: Candidate, y: Candidate): boolean => {
+    if (x.known !== y.known) return x.known > y.known;
+    if (x.record.duration_minutes !== y.record.duration_minutes) {
+      return x.record.duration_minutes > y.record.duration_minutes;
+    }
+    return x.record.id < y.record.id;
+  };
+  const span = (c: Candidate) => ({ start: c.record.start_time, end: c.record.end_time });
+  const same = (x: Candidate, y: Candidate) =>
+    intervalsMatch(span(x), span(y)) || intervalsMatch(span(y), span(x));
+
+  const kept: Candidate[] = [];
+  let overlapping = 0;
+  const ordered = [...byId.values()].sort(
+    (x, y) =>
+      x.record.start_time.localeCompare(y.record.start_time) || x.record.id.localeCompare(y.record.id)
+  );
+  for (const candidate of ordered) {
+    const i = kept.findIndex(k => same(k, candidate));
+    if (i === -1) {
+      kept.push(candidate);
+      continue;
+    }
+    overlapping += 1;
+    if (better(candidate, kept[i])) kept[i] = candidate;
+  }
+  return {
+    workouts: kept.map(k => k.record).sort((x, y) => x.start_time.localeCompare(y.start_time)),
+    dropped: { repeats, overlapping, total: repeats + overlapping },
+  };
 }
 
 function minutesBetween(start: string, end: string): number {
@@ -563,6 +766,8 @@ export interface BuildOptions {
   now: string;
   /** Reference (current) day key; defaults to the day of `now` in `tz`. */
   referenceKey?: string;
+  /** Device families whose records are left out; see `NormalizeContext`. */
+  excludeFamilies?: SourceFamily[];
 }
 
 export interface BuiltDataset {
@@ -585,6 +790,11 @@ export interface ProvenanceRow {
   lastDay: string | null;
   unitConversions: string[];
   dedupeRule: string;
+}
+
+/** Everything the sleep de-duplication does, quoted in the provenance panel. */
+export function sleepDedupeRule(): string {
+  return [sourceRuleExplanationFor('sleep_analysis'), SLEEP_REPEAT_RULE, SLEEP_ONE_PER_NIGHT_RULE].join(' ');
 }
 
 const AGGREGATION_LABEL: Record<string, string> = {
@@ -625,7 +835,7 @@ export function buildLiveDataset(raw: RawMetricBundle, options: BuildOptions): B
   firstInstants.sort();
   const windowStartKey = firstInstants.length > 0 ? dayKey(firstInstants[0], tz) : referenceKey;
 
-  const ctx: NormalizeContext = { tz, referenceKey, windowStartKey };
+  const ctx: NormalizeContext = { tz, referenceKey, windowStartKey, excludeFamilies: options.excludeFamilies };
 
   const metrics: Record<string, MetricObservation[] | SleepObservation[] | BloodPressureObservation[]> = {};
   const coverage: Record<string, MetricCoverage> = {};
@@ -665,7 +875,8 @@ export function buildLiveDataset(raw: RawMetricBundle, options: BuildOptions): B
   // Sleep
   const sleepRaw = (raw.metrics[SLEEP_HAE_METRIC] ?? []) as RawSleepRecord[];
   if (sleepRaw.length > 0) {
-    const sleep = normalizeSleep(sleepRaw, ctx);
+    const { observations: sleep, dropped: sleepDropped } = normalizeSleep(sleepRaw, ctx);
+    droppedRecords += sleepDropped.total;
     metrics['sleep_analysis'] = sleep;
     coverage['sleep_analysis'] = coverageOf(
       sleep.map(s => s.date),
@@ -688,14 +899,15 @@ export function buildLiveDataset(raw: RawMetricBundle, options: BuildOptions): B
       firstDay: sleep[0]?.date ?? null,
       lastDay: sleep[sleep.length - 1]?.date ?? null,
       unitConversions: ['hr → min'],
-      dedupeRule: sourceRuleExplanationFor('sleep_analysis'),
+      dedupeRule: sleepDedupeRule(),
     });
   }
 
   // Blood pressure
   const bpRaw = (raw.metrics[BLOOD_PRESSURE_HAE_METRIC] ?? []) as RawBloodPressureRecord[];
   if (bpRaw.length > 0) {
-    const bp = normalizeBloodPressure(bpRaw, ctx);
+    const { observations: bp, dropped: bpDropped } = normalizeBloodPressureWithCounts(bpRaw, ctx);
+    droppedRecords += bpDropped.total;
     metrics['blood_pressure'] = bp;
     coverage['blood_pressure'] = coverageOf(
       bp.map(b => b.date),
@@ -753,7 +965,8 @@ export function buildLiveDataset(raw: RawMetricBundle, options: BuildOptions): B
     });
   }
 
-  const workouts = normalizeWorkouts(raw.workouts, ctx);
+  const { workouts, dropped: workoutsDropped } = normalizeWorkoutsWithCounts(raw.workouts, ctx);
+  droppedRecords += workoutsDropped.total;
 
   const asOf = newestInstant(raw);
 

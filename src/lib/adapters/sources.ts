@@ -10,7 +10,7 @@
 // THE RULE (stated once, here, and surfaced in the provenance UI):
 //
 //   1. Split a composite source on `|` into its contributing devices.
-//   2. Classify each device into a family (watch, phone, scale, cuff, other).
+//   2. Classify each device into a family (watch, ring, phone, scale, cuff, other).
 //   3. For each metric and each aggregation interval (one calendar day for every
 //      metric in this build), find the highest-priority family that has any
 //      record in that interval, and keep only the records whose best family is
@@ -22,12 +22,13 @@
 //      totals, not by the export timestamp, so an episode that was exported
 //      twice is one night (`SLEEP_REPEAT_RULE` below, applied in
 //      `normalizeSleep`). Two records that share a start instant but differ in
-//      window or totals are two episodes and both are kept.
+//      window or totals are two episodes of one night, and the night keeps one
+//      of them (`SLEEP_ONE_PER_NIGHT_RULE` below).
 //
 // The effect is "one device per metric per interval" — no double counting — and
 // the dropped-source counts are reported so the UI can say what was set aside.
 
-export type SourceFamily = 'watch' | 'phone' | 'scale' | 'cuff' | 'other';
+export type SourceFamily = 'watch' | 'ring' | 'phone' | 'scale' | 'cuff' | 'other';
 
 export interface SourceRule {
   /** Ordered device families, highest priority first. */
@@ -46,17 +47,17 @@ export interface SourceRule {
  */
 export const SOURCE_RULES: Record<string, SourceRule> = {
   watch_first: {
-    priority: ['watch', 'phone', 'cuff', 'scale', 'other'],
+    priority: ['watch', 'ring', 'phone', 'cuff', 'scale', 'other'],
     explanation:
       'The Apple Watch is preferred, and the phone is used only for intervals the watch did not record.',
   },
   scale_first: {
-    priority: ['scale', 'other'],
+    priority: ['scale', 'ring', 'other'],
     explanation:
       'Body measurements come from the connected scale; records from another source are kept only when the scale has none for that day.',
   },
   cuff_first: {
-    priority: ['cuff', 'watch', 'phone', 'other'],
+    priority: ['cuff', 'watch', 'ring', 'phone', 'other'],
     explanation: 'The blood-pressure cuff that took the reading is preferred.',
   },
 };
@@ -115,10 +116,27 @@ export function familyOf(name: string): SourceFamily {
   const key = deviceNameKey(name);
   if (!key) return 'other';
   if (/\bwatch\b/.test(key)) return 'watch';
+  // A ring only orders ring data that a phone app relayed through Health Auto
+  // Export. It is never used to choose between the watch and a directly
+  // connected ring; that choice is `merge.ts`'s.
+  if (/\boura\b|\bring\b/.test(key)) return 'ring';
   if (/(iphone|\bphone\b)/.test(key)) return 'phone';
   if (/renpho|scale|withings|eufy|fitbit aria/.test(key)) return 'scale';
   if (/vihealth|qardio|omron|cuff|blood pressure|bp monitor/.test(key)) return 'cuff';
   return 'other';
+}
+
+/**
+ * True when a record must be left out because every device that contributed to
+ * it is in one of `families`. A composite such as `"Apple Watch|Oura"` keeps its
+ * watch part, and a record that names no device is never excluded: nothing says
+ * it came from an excluded family.
+ */
+export function excludesSource(source: string | null | undefined, families: readonly SourceFamily[] | undefined): boolean {
+  if (!families || families.length === 0) return false;
+  const devices = splitSources(source);
+  if (devices.length === 0) return false;
+  return devices.every(d => families.includes(familyOf(d)));
 }
 
 /** Family rank for a record's (possibly composite) source; lower is better. */
@@ -244,3 +262,18 @@ export const SLEEP_REPEAT_RULE =
   'A repeated sleep export is one night, not two: an episode is identified by its ' +
   'in-bed window and its recorded totals, and the highest-priority record is kept.';
 
+
+/**
+ * The stated one-episode-per-night rule, shown in the provenance panel.
+ *
+ * A device can record the same night twice with different windows (a fragment
+ * and a longer episode). Each wake-up day keeps one episode: only the
+ * best-ranked device family is considered, and within it the episode with the
+ * most time asleep wins, then the longest in-bed window, then the earliest
+ * bedtime. Every other episode is set aside and counted, never added.
+ */
+export const SLEEP_ONE_PER_NIGHT_RULE =
+  'A wake-up day keeps one sleep episode: the best-ranked device that recorded it, and ' +
+  'within that device the episode with the most time asleep (then the longest time in ' +
+  'bed, then the earliest bedtime). The other episodes are set aside and counted, ' +
+  'never added.';

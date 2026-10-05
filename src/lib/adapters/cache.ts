@@ -16,6 +16,8 @@
 // The cache lives in the server process only. Nothing here is ever serialised to
 // the browser.
 
+import { registerPurger } from '../sources/purge';
+
 export interface CacheStats {
   keys: string[];
   /** Age in ms of the oldest entry, or null when empty. */
@@ -53,7 +55,7 @@ export class TtlCache {
    * TTL-lapsed entry is served immediately and refreshed in the background; only
    * a key with no entry at all makes the caller wait for upstream.
    */
-  async getOrLoad<T>(key: string, loader: () => Promise<T>): Promise<T> {
+  async getOrLoad<T>(key: string, loader: () => Promise<T>, ttlMs?: number): Promise<T> {
     const now = Date.now();
     const hit = this.entries.get(key);
     if (hit && hit.expiresAt > now) {
@@ -79,13 +81,13 @@ export class TtlCache {
       // that same single refresh.
       this.staleHits += 1;
       this.revalidations += 1;
-      this.start(key, loader);
+      this.start(key, loader, ttlMs);
       return hit.value as T;
     }
 
     // Genuinely cold (no entry): block on one shared upstream pass.
     this.misses += 1;
-    return (await this.start(key, loader)) as T;
+    return (await this.start(key, loader, ttlMs)) as T;
   }
 
   /**
@@ -93,7 +95,7 @@ export class TtlCache {
    * is replaced only when the load succeeds, so a failed refresh leaves any
    * stale value in place to keep serving.
    */
-  private start(key: string, loader: () => Promise<unknown>): Promise<unknown> {
+  private start(key: string, loader: () => Promise<unknown>, ttlMs?: number): Promise<unknown> {
     const existing = this.inFlight.get(key);
     if (existing) return existing;
 
@@ -103,7 +105,7 @@ export class TtlCache {
       this.entries.set(key, {
         value,
         storedAt,
-        expiresAt: storedAt + this.ttlMs(),
+        expiresAt: storedAt + (ttlMs ?? this.ttlMs()),
       });
       return value;
     })();
@@ -195,3 +197,25 @@ export function liveCacheTtlMs(env: NodeJS.ProcessEnv = process.env): number {
   if (Number.isFinite(raw) && raw > 0) return Math.round(raw * 1000);
   return 300_000;
 }
+
+// ── Source removal ──────────────────────────────────────
+//
+// The live dataset (merged from every active source) and the Oura contribution
+// sit in `liveCache`. When the set of active sources changes, both go: a dataset
+// built with a removed source must not be served, and the contribution of a
+// source that is gone must not be held. The next request rebuilds from what
+// remains (see `sources/purge.ts` and the plan's §8).
+
+/** Keys of the merged live dataset: `live-dataset:<tz>:<lookback>:<sources>`. */
+export const LIVE_CACHE_PREFIX = 'live-dataset:';
+/** Keys of the Oura contribution: `oura:<tz>:<lookback>`. */
+export const OURA_CACHE_PREFIX = 'oura:';
+
+/** Drop every held live dataset and Oura contribution. */
+export function clearLiveCaches(): void {
+  for (const key of liveCache.stats().keys) {
+    if (key.startsWith(LIVE_CACHE_PREFIX) || key.startsWith(OURA_CACHE_PREFIX)) liveCache.clear(key);
+  }
+}
+
+registerPurger('adapters.cache', () => clearLiveCaches());

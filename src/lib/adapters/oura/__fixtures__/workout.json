@@ -1,0 +1,38 @@
+{
+  "data": [
+    {
+      "id": "wk-1",
+      "activity": "cycling",
+      "label": null,
+      "calories": 412.4,
+      "distance": 18250.5,
+      "intensity": "moderate",
+      "source": "manual",
+      "start_datetime": "2026-09-21T12:00:00-05:00",
+      "end_datetime": "2026-09-21T12:50:00-05:00"
+    },
+    {
+      "id": "wk-2",
+      "activity": "strength_training",
+      "label": "Leg day",
+      "calories": null,
+      "distance": null,
+      "intensity": "hard",
+      "source": "manual",
+      "start_datetime": "2026-09-23T17:00:00-05:00",
+      "end_datetime": "2026-09-23T17:40:00-05:00"
+    },
+    {
+      "id": "wk-3",
+      "activity": "walking",
+      "label": null,
+      "calories": null,
+      "distance": 2500,
+      "intensity": "easy",
+      "source": "autodetected",
+      "start_datetime": "2026-09-26T08:00:00-05:00",
+      "end_datetime": "2026-09-26T08:30:00-05:00"
+    }
+  ],
+  "next_token": null
+}

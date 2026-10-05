@@ -181,10 +181,49 @@ dataset, so you can explore every page before connecting anything.
 
 ### Connect your own data
 
+Vital reads live data from one or both of these sources. Set up either, or both; with neither it
+shows the demo dataset.
+
+**Health Auto Export (HAE)**
+
 1. Run a [Health Auto Export metrics server](https://github.com/HealthyApps/health-auto-export-server)
    and point the iPhone app at it.
-2. In `.env`, set `VITAL_DATA_MODE=live`, `HAE_API_URL` and `HAE_API_KEY`.
+2. In `.env`, set `VITAL_DATA_MODE=live` and the server address and key:
+
+   ```bash
+   VITAL_DATA_MODE=live
+   HAE_API_URL=http://your-hae-server:3001
+   HAE_API_KEY=your-hae-key
+   ```
+
 3. Restart: `docker compose up -d`.
+
+**Oura Ring**
+
+Oura works on its own or next to HAE. It signs in with OAuth, so a token cannot be pasted into
+`.env`.
+
+1. Register an app at <https://cloud.ouraring.com/oauth/applications> with the redirect address
+   below.
+2. In `.env`, set `VITAL_DATA_MODE=live` and the app's details, plus a key that encrypts the stored
+   login (`openssl rand -base64 32`):
+
+   ```bash
+   VITAL_DATA_MODE=live
+   OURA_CLIENT_ID=your-client-id
+   OURA_CLIENT_SECRET=your-client-secret
+   OURA_REDIRECT_URI=http://localhost:8080/api/sources/oura/callback
+   VITAL_SECRET_KEY=output-of-openssl-rand
+   ```
+
+3. Restart: `docker compose up -d`, then open *Settings → Connections* and press **Connect**.
+
+Oura only accepts a plain `http://` redirect for `localhost`. If your browser is on a different
+computer from Vital, use a short SSH tunnel to connect; see
+[Connecting when Vital runs on another machine](docs/data-sources.md#connecting-when-vital-runs-on-another-machine).
+With both sources connected, Vital uses one source per measure per day and never adds the two
+together; the rules, and what happens when you remove a source, are in
+[Data sources and modes](docs/data-sources.md).
 
 ### Turn on the AI analyst and briefing
 
@@ -236,7 +275,7 @@ otherwise connected to** any company or product it can read from or talk to.
 
 All product names, service names, logos and trademarks that appear in this repository, its
 documentation or the application — including, without limitation, **Apple**, **Apple Health**,
-**Apple Watch** and **iPhone** (Apple Inc.); **Health Auto Export**; **Hevy**; **Quest Diagnostics**;
+**Apple Watch** and **iPhone** (Apple Inc.); **Health Auto Export**; **Oura** (Oura Health Oy); **Hevy**; **Quest Diagnostics**;
 **MyChart** and **Epic** (Epic Systems Corporation); and the names of AI providers and models such as
 **OpenAI**, **Anthropic**, **OpenRouter**, **LM Studio**, **Ollama** and **llama.cpp**; and the map
 and place-search services behind Activity → Maps — **CARTO**, **OpenStreetMap** (including its
@@ -260,11 +299,13 @@ own terms and usage policies, and are not provided by Vital.
 | | |
 |---|---|
 | [Configuration](docs/configuration.md) | The analyst and its providers, the profile and goals, the training routine, the daily briefing |
-| [Data sources and modes](docs/data-sources.md) | Health Auto Export, Hevy, demo vs live data, de-duplication and the adapters |
+| [Data sources and modes](docs/data-sources.md) | Health Auto Export, Oura, Hevy, demo vs live data, de-duplication and the adapters |
 | [Architecture](docs/architecture.md) | How the app is put together, and what that shape costs |
 | [Running it](docs/running.md) | Docker in detail, the database, local development, changing the port, CI and published images |
 | [Reference](docs/reference.md) | Every route, what is demo-only in this build, and the quality commands |
 | [Privacy and security](docs/privacy-and-security.md) | What is stored, what is sent where, and what to put in front of it |
+| [Changelog](CHANGELOG.md) | What was added, removed, fixed and changed in each release |
+| [Releasing](docs/releasing.md) | How the changelog is kept, and what happens at a release |
 
 ## Good to know
 

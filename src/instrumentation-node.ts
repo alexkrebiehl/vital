@@ -5,12 +5,17 @@
 
 export async function warmUp(): Promise<void> {
   const started = Date.now();
+  // Notice a source that was removed while the process was down (its
+  // configuration emptied, a credential gone) and hide what came from it. A
+  // registry that cannot be read is not a removal: nothing happens then.
+  const { reconcileQuietly } = await import('@/lib/sources/purge');
+  await reconcileQuietly();
   const { warmLiveDataset } = await import('@/lib/adapters/live');
   const { readProfile } = await import('@/lib/profile/store');
   // Warm the entry requests will hit: the dataset is cut in the profile's zone.
   const { timezone } = await readProfile();
   const warm = warmLiveDataset({ timezone });
-  if (!warm) return; // demo mode, or the export API is not configured
+  if (!warm) return; // demo mode, or no live source is configured
 
   console.log('[vital] live dataset cache warm-up started (read-only cache fill).');
   void warm.then(outcome => {

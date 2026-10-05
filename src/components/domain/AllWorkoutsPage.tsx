@@ -125,7 +125,15 @@ export function AllWorkoutsPage() {
               sub={`${filtered.totals.sessions ? formatDurationHm(filtered.totals.minutesPerSession) : '0:00'} per session`}
               title={`${Math.round(filtered.totals.minutes)} min recorded in total`}
             />
-            <TotalCard label="Active calories" value={String(Math.round(filtered.totals.calories))} sub="recorded by the source" />
+            <TotalCard
+              label="Active calories"
+              value={filtered.totals.calorieSessions === 0 ? 'Not recorded' : String(Math.round(filtered.totals.calories))}
+              sub={
+                filtered.totals.calorieSessions === 0
+                  ? 'no session in view recorded calories'
+                  : `${filtered.totals.calorieSessions} of ${filtered.totals.sessions} sessions recorded calories`
+              }
+            />
             <TotalCard
               label="Distance"
               value={
@@ -192,7 +200,9 @@ export function AllWorkoutsPage() {
                     <span className="text-sm font-medium text-text-primary w-24 shrink-0">{w.workout_type}</span>
                     <span className="text-xs text-text-secondary tnum w-32 shrink-0">{formatDayKeyLong(w.key)}</span>
                     <span className="text-xs text-text-primary tnum">{w.duration_minutes} min</span>
-                    <span className="text-xs text-text-primary tnum">{w.calories_burned} kcal</span>
+                    <span className="text-xs text-text-primary tnum">
+                      {w.calories_burned === null ? 'Calories not recorded' : `${w.calories_burned} kcal`}
+                    </span>
                     {w.hasDistance ? (
                       <span className="text-xs text-text-secondary tnum">{w.distance_km!.toFixed(1)} km</span>
                     ) : (
@@ -401,7 +411,10 @@ function WorkoutDetail({
         />
         <DetailRow label="Average heart rate" value={view.hasHeartRate ? `${view.avg_heart_rate} bpm` : 'Not recorded for this session'} />
         <DetailRow label="Maximum heart rate" value={view.hasHeartRate ? `${view.max_heart_rate} bpm` : 'Not recorded for this session'} />
-        <DetailRow label="Active calories" value={`${view.calories_burned} kcal`} />
+        <DetailRow
+          label="Active calories"
+          value={view.calories_burned === null ? 'Not recorded for this session' : `${view.calories_burned} kcal`}
+        />
         <DetailRow label="Record id" value={view.id} />
       </dl>
 
@@ -431,7 +444,12 @@ function WorkoutDetail({
                 {comparison.avgHeartRate.count} sessions that recorded it.
               </li>
             )}
-            <li>Calories: {view.calories_burned} kcal against an average of {comparison.calories.average.toFixed(0)} kcal.</li>
+            {view.calories_burned !== null && comparison.calories.comparable && (
+              <li>
+                Calories: {view.calories_burned} kcal against an average of {comparison.calories.average.toFixed(0)} kcal
+                over {comparison.calories.count} sessions that recorded calories.
+              </li>
+            )}
           </ul>
         )}
         <div className="mt-2">

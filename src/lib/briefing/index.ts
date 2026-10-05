@@ -32,7 +32,11 @@
 //
 // Generation happens ONCE PER LOCAL CALENDAR DAY, and the cache key says so:
 //
-//     briefing:v<contextVersion>:<day>:<profileFingerprint>:<unit system>
+//     briefing:v<contextVersion>:<day>:<profileFingerprint>:<unit system>:<sources>
+//
+// `<sources>` is the set of active data sources (`hae+oura`). A briefing written
+// from HAE and Oura is therefore never served once Oura is gone, and a removal
+// also drops every held briefing (see `sources/purge.ts`).
 //
 // The key carries no dataset identity. Health Auto Export lands new observations
 // all day long, and a briefing that regenerated whenever one arrived would be a
@@ -81,6 +85,7 @@ import type {
   BriefingView,
 } from './types';
 import { COMPUTED_ATTRIBUTION, modelAttribution } from './attribution';
+import { currentSourceKey, registerPurger } from '../sources/purge';
 
 export type { BriefingEngineKind, BriefingPayload, BriefingTraceability, BriefingView };
 export { COMPUTED_ATTRIBUTION, modelAttribution };
@@ -220,6 +225,13 @@ export function clearBriefingCache(): void {
   state.attempts.clear();
 }
 
+// A removed source: every held briefing may have been written from it, and the
+// attempt records say "this day was tried". Both go, so the briefing is written
+// again, from what remains.
+registerPurger('briefing', removedIds => {
+  if (removedIds.length > 0) clearBriefingCache();
+});
+
 /**
  * Has this day already had a generation attempted? Once true, the day is
  * terminal for the automatic path — a failed day must not be retried on every
@@ -284,9 +296,10 @@ function profileFingerprint(profile: VitalProfile | null | undefined): string {
 export function briefingCacheKey(
   schedule: BriefingSchedule,
   system: UnitSystem = 'metric',
-  profile?: VitalProfile | null
+  profile?: VitalProfile | null,
+  sources: string = currentSourceKey()
 ): string {
-  return `briefing:v${BRIEFING_CONTEXT_VERSION}:${schedule.coversDay}:${profileFingerprint(profile)}:${system}`;
+  return `briefing:v${BRIEFING_CONTEXT_VERSION}:${schedule.coversDay}:${profileFingerprint(profile)}:${system}:${sources || '-'}`;
 }
 
 // ── Fallback ────────────────────────────────────────────

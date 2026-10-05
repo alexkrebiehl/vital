@@ -15,6 +15,13 @@ export interface DedupeSummary {
   droppedIntervals: number;
 }
 
+/** A source that failed while another served the data. Fixed text: never a token or a value. */
+export interface SourceError {
+  sourceId: string;
+  kind: string;
+  message: string;
+}
+
 /**
  * Everything the browser needs to label the data honestly.
  */
@@ -33,6 +40,8 @@ export interface ClientDatasetMeta {
   metricCount: number;
   workouts: number;
   sources: string[];
+  /** Ids of the health sources read for this dataset (`hae`, `oura`); absent in demo mode. */
+  activeSources?: string[];
   /** Host of the data source (never the token). */
   host: string | null;
   cacheTtlSeconds: number;
@@ -40,4 +49,6 @@ export interface ClientDatasetMeta {
   provenance: ProvenanceRow[];
   /** Human sentence for the freshness control. */
   summary: string;
+  /** Present only when a source failed and the other's data was served. */
+  sourceErrors?: SourceError[];
 }

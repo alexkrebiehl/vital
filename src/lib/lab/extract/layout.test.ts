@@ -288,7 +288,7 @@ describe('document furniture', () => {
         item('Result Trends', 36, 718),
         item('Results limited to those after Apr 8, 2021.', 36, 700),
         item('Sample Person', 36, 681),
-        item('Date of Birth: Jun 20, 1976', 118, 681),
+        item('Date of Birth: Jan 01, 1900', 118, 681),
         item('Mar 3, 2019 - Nov 2, 2021 (Table 1 of 1)', 48, 648),
         ...headerRow(),
         item('Fasting?', 56, 618),

@@ -90,3 +90,25 @@ export function convertUnitBack(value: number, from: string, to: string): number
 export function isCanonical(from: string, to: string): boolean {
   return normaliseUnit(from) === normaliseUnit(to);
 }
+
+/**
+ * Conversions for a *difference* between two values. A difference scales but is
+ * never offset: a 1 °C rise is a 1.8 °F rise, not 33.8 °F. Kept apart from
+ * `UNIT_CONVERSIONS`, which are for absolute readings.
+ */
+export const DELTA_CONVERSIONS: UnitConversion[] = [
+  { from: 'degC', to: 'degF', factor: 9 / 5 },
+  { from: 'degF', to: 'degC', factor: 5 / 9 },
+];
+
+export function convertDeltaUnit(value: number, from: string, to: string): number {
+  const f = normaliseUnit(from);
+  const t = normaliseUnit(to);
+  if (!isFinite(value)) return NaN;
+  if (f === t) return value;
+  const rule = DELTA_CONVERSIONS.find(r => r.from === f && r.to === t);
+  if (!rule) {
+    throw new Error(`No delta conversion is defined from "${from}" to "${to}".`);
+  }
+  return value * rule.factor;
+}

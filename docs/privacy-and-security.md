@@ -43,10 +43,21 @@ What Vital does and does not do with your data, and what to put in front of it b
   with your other configuration (often a box around home, which is why it is never logged).
   Routes and heart rate are read live from Health Auto Export, held in server memory only, and
   never written to the database or to disk.
+- **Oura calls are server-to-server only.** The browser never talks to Oura and never sees a token.
+  The sign-in `state` and PKCE verifier travel in a short-lived, encrypted, `httpOnly` cookie
+  scoped to the Oura routes. Vital stores only the OAuth tokens, encrypted at rest with
+  `VITAL_SECRET_KEY` (AES-256-GCM); no Oura reading is written to the database, a file or a log.
+  Back up and protect that key: without it a stored connection cannot be read, and anyone who
+  has it and the database can.
+- **Vital has no login.** Anyone who can reach it can press **Connect** or **Disconnect** on
+  Oura. Put your own authentication in front of it before exposing it.
+- **Removing a source removes what Vital holds, not what you copied.** See *Removed sources* in
+  [Data sources](data-sources.md#removed-sources). Screenshots and exports you made yourself, and
+  Postgres backups taken before the purge, are outside Vital's reach.
 - **Deploy on a private LAN or VPN, or behind an authenticated reverse proxy.** The container
   has no built-in authentication or TLS: anyone who can reach the port sees the dashboard.
   Put an authenticating reverse proxy in front of it before exposing it beyond a trusted
   network.
 - **No HIPAA compliance or production-security claims.** This is a demo build for personal
-  use: no audit logging, no encryption at rest, no multi-user isolation, no rate limiting,
+  use: no audit logging, no encryption at rest (apart from the stored Oura tokens), no multi-user isolation, no rate limiting,
   no hardened base-image supply chain process.

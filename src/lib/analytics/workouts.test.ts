@@ -11,6 +11,7 @@ import {
   workoutTypes,
   workoutViews,
   WORKOUT_COMPARISON_RULE,
+  type WorkoutView,
 } from '@/lib/analytics';
 
 describe('workout day keys (dataset timezone, not UTC slices)', () => {
@@ -152,5 +153,30 @@ describe('workout frequency blocks', () => {
     const total = blocks.reduce((a, b) => a + b.count, 0);
     const inRange = workoutViews().filter(v => v.key >= blocks[0].startKey && v.key <= REFERENCE_KEY);
     expect(total).toBe(inRange.length);
+  });
+});
+
+describe('workout calories that were not recorded', () => {
+  const view = (id: string, calories: number | null) =>
+    ({ id, duration_minutes: 30, calories_burned: calories, hasDistance: false, hasHeartRate: false }) as unknown as WorkoutView;
+
+  it('leaves unknown calories out of the totals and counts the sessions that have them', () => {
+    const totals = workoutTotals([view('a', 100), view('b', null), view('c', 50)]);
+    expect(totals.calories).toBe(150);
+    expect(totals.calorieSessions).toBe(2);
+    expect(totals.sessions).toBe(3);
+  });
+
+  it('reports no total at all, not zero, when no session recorded calories', () => {
+    const totals = workoutTotals([view('a', null)]);
+    expect(Number.isNaN(totals.calories)).toBe(true);
+    expect(totals.calorieSessions).toBe(0);
+  });
+
+  it('leaves unknown calories out of a comparison', () => {
+    const views = ['a', 'b', 'c', 'd', 'e'].map((id, i) => ({ ...view(id, i === 0 ? null : 100), workout_type: 'Running' }) as WorkoutView);
+    const cmp = workoutGroupComparison(views, 'Running');
+    expect(cmp.calories.count).toBe(4);
+    expect(cmp.calories.average).toBe(100);
   });
 });

@@ -18,6 +18,7 @@
 // Sessions are health data: they are never written to the database.
 
 import { TtlCache } from '../adapters/cache';
+import { registerPurger } from '../sources/purge';
 import { readDataMode } from '../adapters/runtime';
 import demoFixtures from '../../data/training-fixtures.json';
 import { enabledSources, sourceLookbackDays, WORKOUT_SOURCE_PLUGINS } from './registry';
@@ -61,6 +62,24 @@ function processStore(): ProcessStore {
   }
   return g[STORE_KEY]!;
 }
+
+/**
+ * Drop what a removed workout-detail source synced: its sessions, its exercise
+ * catalogue (both live in `states`), its last error, its TTL and its cache
+ * entry. Sessions of other sources stay. A source id that is not a registered
+ * plugin (hae, oura, lab) holds nothing here.
+ */
+export function purgeTrainingSources(removedIds: string[]): void {
+  const store = processStore();
+  for (const id of removedIds) {
+    store.states.delete(id);
+    store.errors.delete(id);
+    store.ttlBySource.delete(id);
+    store.cache.clear(id);
+  }
+}
+
+registerPurger('workout-sources.store', purgeTrainingSources);
 
 /** Drop every held session. Tests only. */
 export function resetTrainingStoreForTests(): void {

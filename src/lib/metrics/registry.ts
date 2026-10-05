@@ -713,6 +713,75 @@ def({
   sourceNames: [],
 });
 
+// ── Ring-only metrics ─────────────────────────────────
+// Measures only a ring records. They are deliberately separate from the watch's
+// HRV (SDNN), resting heart rate and wrist temperature: a different quantity
+// must never share a metric id. Display names do not name the device.
+const RING_ONLY = 'Recorded by a connected ring';
+
+function fmtSignedC(v: number) {
+  const r = Math.round(v * 100) / 100;
+  const sign = r > 0 ? '+' : r < 0 ? '-' : '';
+  return `${sign}${Math.abs(r).toFixed(2)} °C`;
+}
+
+def({
+  id: 'hrv_rmssd_sleep',
+  displayName: 'Overnight HRV (RMSSD)',
+  aliases: ['rmssd', 'overnight hrv', 'sleep hrv'],
+  category: 'cardiovascular',
+  canonicalUnit: 'ms',
+  shortUnit: 'ms',
+  dataType: 'continuous',
+  aggregationStrategy: 'avg',
+  defaultRange: '30d',
+  decimalPlaces: 0,
+  formatter: (v) => `${fmt0(v)} ms`,
+  tickFormatter: tick0,
+  minObservations: 3,
+  demoAvailable: false,
+  unavailableReason: RING_ONLY,
+  sourceNames: [],
+});
+
+def({
+  id: 'lowest_heart_rate_sleep',
+  displayName: 'Lowest Overnight Heart Rate',
+  aliases: ['lowest sleeping heart rate', 'overnight low heart rate'],
+  category: 'cardiovascular',
+  canonicalUnit: 'bpm',
+  shortUnit: 'bpm',
+  dataType: 'continuous',
+  aggregationStrategy: 'avg',
+  defaultRange: '30d',
+  decimalPlaces: 0,
+  formatter: (v) => `${fmt0(v)} bpm`,
+  tickFormatter: tick0,
+  minObservations: 3,
+  demoAvailable: false,
+  unavailableReason: RING_ONLY,
+  sourceNames: [],
+});
+
+def({
+  id: 'temperature_deviation',
+  displayName: 'Temperature Deviation',
+  aliases: ['temperature trend', 'skin temperature deviation'],
+  category: 'recovery',
+  canonicalUnit: 'degC',
+  shortUnit: '°C',
+  dataType: 'continuous',
+  aggregationStrategy: 'avg',
+  defaultRange: '30d',
+  decimalPlaces: 2,
+  formatter: fmtSignedC,
+  tickFormatter: (v) => (v > 0 ? '+' : '') + v.toFixed(1),
+  minObservations: 3,
+  demoAvailable: false,
+  unavailableReason: RING_ONLY,
+  sourceNames: [],
+});
+
 // ── Accessors ─────────────────────────────────────────
 
 export function getMetric(id: string): MetricDefinition | undefined {

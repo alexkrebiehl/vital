@@ -216,7 +216,10 @@ function buildWorkouts(spec: WorkoutSpec, refKey: string): { workouts: Retrieved
       sessions: inWindow.length,
       sessionsPerWeek: mean(weeks.map(w => w.count)),
       minutes: inWindow.reduce((a, v) => a + v.duration_minutes, 0),
-      calories: inWindow.reduce((a, v) => a + v.calories_burned, 0),
+      calories: inWindow.some(v => v.calories_burned !== null)
+        ? inWindow.reduce((a, v) => a + (v.calories_burned ?? 0), 0)
+        : null,
+      calorieSessions: inWindow.filter(v => v.calories_burned !== null).length,
       byType: [...types.values()].sort((a, b) => b.count - a.count || a.type.localeCompare(b.type)),
       recent: views.filter(v => containsDay(recentWindow, v.key)).length,
       prior: views.filter(v => containsDay(priorWindow, v.key)).length,
