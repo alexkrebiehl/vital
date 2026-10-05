@@ -10,6 +10,7 @@
 // them. Without a goal the same scale shows only the measured trend, read
 // against the range for the direction weight is going.
 
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { formatDayKeyLong, formatDayKeyShort } from '@/lib/analytics/windows';
 import { BULK_RISK_PCT, CUT_RISK_PCT } from '@/lib/body-goal/constants';
 import type { PaceBand } from '@/lib/body-goal/pace';
@@ -35,11 +36,48 @@ interface Marker {
   tone: 'plan' | 'trend';
 }
 
-/** Place a label so it never runs off either edge of the scale. */
+/** Place a short tick label so it never runs off either edge of the scale. */
 function anchor(x: number): string {
   if (x < 14) return 'translateX(0)';
   if (x > 86) return 'translateX(-100%)';
   return 'translateX(-50%)';
+}
+
+/**
+ * A marker's label, centred over its point where it fits and pushed inside the
+ * scale where it would not. A marker label is wider than a tick's, so how far
+ * in it must sit depends on the width of the card: it is measured, and
+ * measured again whenever the scale is resized (a phone turned, a sidebar
+ * opened). Until then the label falls back to the fixed-threshold anchor.
+ */
+function ScaleLabel({ pos, className, style, children }: { pos: number; className: string; style: CSSProperties; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [left, setLeft] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const label = ref.current;
+    const scale = label?.offsetParent as HTMLElement | null;
+    if (!label || !scale) return;
+    const place = () => {
+      const width = scale.clientWidth;
+      const own = label.offsetWidth;
+      const centred = (pos / 100) * width - own / 2;
+      setLeft(Math.max(0, Math.min(width - own, centred)));
+    };
+    place();
+    const observer = new ResizeObserver(place);
+    observer.observe(scale);
+    observer.observe(label);
+    return () => observer.disconnect();
+  }, [pos]);
+  return (
+    <div
+      ref={ref}
+      className={className}
+      style={left === null ? { ...style, left: `${pos}%`, transform: anchor(pos) } : { ...style, left }}
+    >
+      {children}
+    </div>
+  );
 }
 
 /** The scale for a goal: the measured trend and the pace in use, with arrival dates. */
@@ -178,16 +216,17 @@ function PaceScaleView({
           const clipped = m.pct > maxPct;
           return (
             <div key={m.id} aria-hidden="true">
-              <div
+              <ScaleLabel
+                pos={pos}
                 className="absolute rounded-control border bg-surface px-2 py-1 shadow-sm whitespace-nowrap"
-                style={{ top: labelTop, left: `${pos}%`, transform: anchor(pos), borderColor: color }}
+                style={{ top: labelTop, borderColor: color }}
               >
                 <div className="text-[11px] font-medium text-text-primary leading-tight">{m.title}</div>
                 <div className="text-[11px] tnum text-text-secondary leading-tight">
                   {perWeek(m.pct)}/week{clipped ? ' (off the scale)' : ''}
                   {m.arrival && ` · ${formatWeeks(m.arrival.weeks)} · ${formatDayKeyShort(m.arrival.day)}`}
                 </div>
-              </div>
+              </ScaleLabel>
               <div className="absolute w-px" style={{ top: labelTop + 38, height: barTop - labelTop - 38 + BAR / 2, left: `${pos}%`, background: color }} />
               <div
                 className="absolute rounded-full border-2"
