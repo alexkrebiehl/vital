@@ -40,6 +40,8 @@ export interface ClientDatasetMeta {
   metricCount: number;
   workouts: number;
   sources: string[];
+  /** Ids of the health sources read for this dataset (`hae`, `oura`); absent in demo mode. */
+  activeSources?: string[];
   /** Host of the data source (never the token). */
   host: string | null;
   cacheTtlSeconds: number;

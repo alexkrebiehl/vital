@@ -22,7 +22,9 @@ import { getAllMetrics, getMetric } from '@/lib/metrics';
 import { convertValue, displayUnit, formatMetricWithUnit, hasConversion } from '@/lib/metrics/format';
 import { coverageFact, coverageSentence } from '@/lib/analytics/coverage';
 import { formatDayKeyLong } from '@/lib/analytics/windows';
-import { REFERENCE_KEY, unavailableReasonFor } from '@/lib/adapters/dataset';
+import { REFERENCE_KEY, metricHasData, unavailableReasonFor } from '@/lib/adapters/dataset';
+import { useDatasetMeta } from '@/components/data/DatasetProvider';
+import { listedMetrics } from '@/lib/metrics/listed';
 import {
   applyTheme, clearPreferences, getPreferencesState, loadPreferences,
   savePreferencesResult, subscribePreferences, syncPreferences,
@@ -520,7 +522,8 @@ function Field({ label, hint, children }: { label: string; hint: string; childre
 // ── Data tab ────────────────────────────────────────────
 
 function DataTab() {
-  const metrics = useMemo(() => getAllMetrics(), []);
+  const activeSources = useDatasetMeta().activeSources;
+  const metrics = useMemo(() => listedMetrics(getAllMetrics(), activeSources, metricHasData), [activeSources]);
   const categories = useMemo(() => [...new Set(metrics.map(m => m.category))], [metrics]);
 
   return (

@@ -276,6 +276,9 @@ const SPECS = {
   heart: { metricId: 'heart_rate', upstream: 'heartrate.bpm', aggregation: 'mean', frequency: 'continuous', rule: 'Every sample of a local day is averaged, whatever its source tag.', conversions: [] },
 } satisfies Record<string, Spec>;
 
+/** Every metric id this source can contribute. */
+export const OURA_METRIC_IDS: ReadonlySet<string> = new Set(Object.values(SPECS).map(s => s.metricId));
+
 export function normalizeOura(raw: OuraRawBundle, ctx: NormalizeContext): OuraContribution {
   const metrics: OuraContribution['metrics'] = {};
   const coverage: OuraContribution['coverage'] = {};

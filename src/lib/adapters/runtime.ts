@@ -65,7 +65,8 @@ function toClientMeta(
   env: NodeJS.ProcessEnv,
   provenance: ProvenanceRow[],
   dedupe: ClientDatasetMeta['dedupe'],
-  sourceErrors?: ClientDatasetMeta['sourceErrors']
+  sourceErrors?: ClientDatasetMeta['sourceErrors'],
+  activeSources?: string[]
 ): ClientDatasetMeta {
   // No source is named here: pages never say where data came from (Settings does).
   const summary = mode === 'live'
@@ -90,6 +91,7 @@ function toClientMeta(
     provenance,
     summary,
     ...(sourceErrors && sourceErrors.length > 0 ? { sourceErrors } : {}),
+    ...(activeSources ? { activeSources } : {}),
   };
 }
 
@@ -162,7 +164,8 @@ export async function resolveDataset(deps: LiveDeps = {}): Promise<ResolvedDatas
         droppedRecords: result.stats.droppedRecords,
         droppedIntervals: result.stats.droppedIntervals,
       },
-      result.sourceErrors
+      result.sourceErrors,
+      active.filter(id => id === 'hae' || id === 'oura')
     ),
     serverMeta: meta,
   };
