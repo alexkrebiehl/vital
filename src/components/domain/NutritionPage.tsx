@@ -24,6 +24,8 @@ import { MetricChart, TrendFigure } from '@/components/charts';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { DomainHeader, SectionTitle, MetricGrid } from './DomainShared';
 import { NutritionGoalPanel } from '@/components/body-goal/NutritionGoalPanel';
+import { NutritionAdherence } from '@/components/body-goal/NutritionAdherence';
+import { useBodyGoal, useGoalReport } from '@/components/body-goal/useBodyGoal';
 
 const LOGGED_WINDOW_DAYS = 30;
 
@@ -69,6 +71,9 @@ const ASSOCIATION_PAIRS: {
 export function NutritionPage() {
   const { units } = useUnits();
   const [range, setRange] = useState(String(LOGGED_WINDOW_DAYS));
+  const { state: goalState, active: goal } = useBodyGoal();
+  const report = useGoalReport(goal);
+  const goalPanel = <NutritionGoalPanel state={goalState} active={goal} report={report} />;
 
   const days = Number(range);
   const window = trailingWindow(REFERENCE_KEY, days);
@@ -105,7 +110,7 @@ export function NutritionPage() {
           eyebrow="Body"
           subtitle="What to eat for your goal. No food is logged in your data, which is fine: daily targets come from your weight, your weight trend and your watch, not from a food log."
         />
-        <NutritionGoalPanel />
+        {goalPanel}
       </div>
     );
   }
@@ -118,6 +123,9 @@ export function NutritionPage() {
         aside={<HeroFigure metricId="dietary_energy" category="nutrition" days={30} />}
         subtitle={`Logged dietary intake across ${windowRangeLabel(window)}. These are entries you recorded, not measurements of what you ate.`}
       />
+
+      {/* ── Calories and protein against the goal's targets ── */}
+      <NutritionAdherence report={report} />
 
       {/* ── The logged-intake statement ─────────────── */}
       <Card variant="accent" className="p-5" as="section">
@@ -136,7 +144,7 @@ export function NutritionPage() {
       </Card>
 
       {/* ── The goal: targets, month by month, log consistency ── */}
-      <NutritionGoalPanel />
+      {goalPanel}
 
       {/* ── Date range: drives every figure below ── */}
       <div className="flex flex-wrap items-center gap-3">

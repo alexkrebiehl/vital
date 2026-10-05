@@ -21,17 +21,17 @@ import { macroConsistency, type MacroConsistency } from '@/lib/body-goal/consist
 import { monthlyIntake, type Adherence, type MonthIntake } from '@/lib/body-goal/intake';
 import { PHASE_LABEL } from '@/lib/body-goal/phase';
 import type { BodyGoalReport } from '@/lib/body-goal/report';
+import type { BodyGoal } from '@/lib/body-goal/types';
 import type { UnitSystem } from '@/lib/prefs';
-import { useBodyGoal, useGoalReport } from './useBodyGoal';
+import type { GoalLoad } from './useBodyGoal';
 import { formatGrams, formatKcal, formatRange, formatRate } from './format';
 
 const KG_PER_LB = 0.45359237;
 
-export function NutritionGoalPanel() {
+/** The page loads the goal once and shares its report with the adherence cards at the top. */
+export function NutritionGoalPanel({ state, active, report }: { state: GoalLoad; active: BodyGoal | null; report: BodyGoalReport | null }) {
   const { units } = useUnits();
   const meta = useDatasetMeta();
-  const { state, active } = useBodyGoal();
-  const report = useGoalReport(active);
 
   // Without a goal the month table and the consistency check still stand on their own.
   const standalone = useMemo(

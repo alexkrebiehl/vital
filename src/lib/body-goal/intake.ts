@@ -113,6 +113,15 @@ export function monthlyIntake(
   return rows;
 }
 
+/** One day of the adherence window, logged or not. */
+export interface AdherenceDay {
+  key: string;
+  /** complete: counted; partial: logged but left out (see splitLoggedDays); none: nothing logged. */
+  log: 'complete' | 'partial' | 'none';
+  kcal: number | null;
+  protein: number | null;
+}
+
 export interface Adherence {
   from: string;
   to: string;
@@ -126,6 +135,8 @@ export interface Adherence {
   proteinDays: number;
   fiberAtTarget: number | null;
   fiberDays: number;
+  /** Every day of the window, oldest first, unlogged days included as gaps. */
+  days: AdherenceDay[];
   /** Mean logged values over the complete days. */
   averages: { kcal: number | null; protein: number | null; carbs: number | null; fat: number | null; derivedFat: number | null; fiber: number | null };
 }
@@ -145,6 +156,12 @@ export function adherence(series: (id: string) => DayValue[], today: string, tar
   const proteinKeys = keys.filter(k => protein.has(k));
   const fiberKeys = keys.filter(k => fiber.has(k));
   const derived = keys.filter(k => protein.has(k) && carbs.has(k)).map(k => derivedFat(kcal.get(k)!, protein.get(k)!, carbs.get(k)!));
+  const partial = new Map(split.partial.map(d => [d.key, d.value]));
+  const days: AdherenceDay[] = [];
+  for (let key = from; key <= to; key = addDays(key, 1)) {
+    const log = kcal.has(key) ? 'complete' : partial.has(key) ? 'partial' : 'none';
+    days.push({ key, log, kcal: kcal.get(key) ?? partial.get(key) ?? null, protein: log === 'none' ? null : protein.get(key) ?? null });
+  }
   return {
     from,
     to,
@@ -157,6 +174,7 @@ export function adherence(series: (id: string) => DayValue[], today: string, tar
     proteinDays: proteinKeys.length,
     fiberAtTarget: targets.fiber ? fiberKeys.filter(k => fiber.get(k)! >= targets.fiber!.min).length : null,
     fiberDays: fiberKeys.length,
+    days,
     averages: {
       kcal: meanOn(kcal, keys),
       protein: meanOn(protein, keys),

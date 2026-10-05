@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { addDays } from '../analytics/windows';
 import {
+  adherence,
   bodyFatLevel,
   bodyGoalReport,
   bodyReading,
@@ -285,6 +286,25 @@ describe('monthly intake', () => {
     expect(sep.daysAtProteinFloor).toBe(sep.completeDays);
     expect(sep.proteinPerKg!).toBeGreaterThan(2);
     expect(rows[2].to).toBe(addDays(TODAY, -1));
+  });
+});
+
+describe('adherence', () => {
+  it('lists every day of the window, with unlogged days as gaps and partial logs marked', () => {
+    const data = cutSeries();
+    const gap = addDays(TODAY, -5);
+    data.dietary_energy = data.dietary_energy.filter(d => d.key !== gap);
+    data.dietary_protein = data.dietary_protein.filter(d => d.key !== gap);
+    const targets = nutritionTargets({ phase: 'cut', maintenance: 2600, paceKgPerWeek: -0.5, weightKg: 79, leanKg: 64 });
+    const a = adherence(lookup(data), TODAY, targets);
+    expect(a.days).toHaveLength(28);
+    expect(a.days[0].key).toBe(a.from);
+    expect(a.days[27].key).toBe(addDays(TODAY, -1));
+    expect(a.days.find(d => d.key === gap)).toEqual({ key: gap, log: 'none', kcal: null, protein: null });
+    const partial = a.days.filter(d => d.log === 'partial');
+    expect(partial.map(d => d.kcal)).toEqual([900, 900]);
+    expect(a.days.filter(d => d.log === 'complete')).toHaveLength(a.completeDays);
+    expect(a.caloriesInRange! + a.caloriesAbove! + a.caloriesBelow!).toBe(a.completeDays);
   });
 });
 
