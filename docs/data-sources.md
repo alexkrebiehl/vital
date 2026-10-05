@@ -41,6 +41,61 @@ What that means in practice:
   shape, and a unit mapping. Nothing else in the app changes, because both modes produce the same
   dataset.
 
+## Setting up Health Auto Export for complete data
+
+Vital can only show what reaches the metrics server, and the server stores exactly what the app
+sends it. Most "missing data" is a setup problem on the phone, not in Vital. These settings keep
+the history complete and stop it from being counted twice. The app's menus change between
+versions, so the setting names below describe what to look for rather than quote the app.
+
+1. **Send everything to one server: the one Vital reads.** Every automation and every manual
+   export should post to the same `…/api/data` URL that Vital's `HAE_API_URL` points at, with the
+   server's write token in the `api-key` header. With a second server in the picture (an old
+   local one, a test copy), the phone can export to one while Vital reads the other. The data is
+   then "missing" in Vital even though the app reported success.
+2. **Use the REST API automation, JSON format, and select every metric you want to see.**
+   Nutrition (dietary energy, protein, carbohydrates, total fat, fiber and the rest) is a
+   separate group of metrics in the app. If it isn't selected, the Nutrition page and the body
+   goal's energy balance stay empty however long you log food.
+3. **Choose one time grouping and keep it: 1 hour is recommended.** The app can send every
+   individual sample or totals per minute, hour or day. Vital works with any of them, but the
+   server merges two records only when their timestamp and source match exactly. Data re-sent
+   at a different grouping is stored *beside* what is already there. Vital then adds both
+   together, so steps, active and basal energy, distance and calories count twice on every day
+   where the two overlap. Hourly totals are a good default for three reasons:
+   - The payloads stay small.
+   - Health has already counted steps that the iPhone and the Watch recorded at the same time
+     once.
+   - Food logged at a meal time lines up with the hour.
+4. **Re-send a few recent days on every sync, not only what is new.** A food entry back-dated or
+   edited after its day was synced never reaches the server if each sync sends only what is new
+   since the last one. Re-sending a trailing window (the last several days) is safe at the same
+   time grouping, because the server updates matching records instead of adding them.
+5. **Backfill the history once, with the phone unlocked.** A new automation only sends from now
+   on. Run a manual export over your whole history, at the **same time grouping** as the
+   automation. iOS blocks apps from reading Health data while the phone is locked, so keep the
+   app open until the export finishes. Split very long ranges into months.
+6. **Check that the data arrived; the app's success message is not proof.** The server answers
+   "N metrics saved successfully", where N is the number of metric *types* in the upload, not
+   records. An upload whose metrics carry no data gets the same answer. Afterwards, open
+   **Settings → Data & coverage** in Vital and check that the days you expect are covered. You
+   can also ask the server directly:
+   `GET /api/metrics/step_count?from=2026-06-01&to=2026-06-30` with the read token.
+
+### If the data already mixes groupings
+
+The symptom is daily steps, active energy or basal energy at roughly double the usual on some
+days, usually right after a manual export at a different time grouping. To repair it:
+
+1. **Back up the server's database first.** For the reference server this is
+   `mongodump --db health-auto-export --gzip --archive=…`.
+2. **Remove the finer records that the coarser totals already contain.** For each summed metric
+   and each hour that has an hourly total, delete the other records inside that hour.
+3. **Remove duplicate readings.** For weight, heart rate and other readings, delete the copies
+   that the export added beside the original readings.
+
+After that, keep to step 3 above.
+
 ## Workout sources (detailed training data)
 
 Apple Health knows a strength session only as "Strength Training" with a duration and calories.

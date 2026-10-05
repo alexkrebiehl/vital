@@ -199,6 +199,14 @@ dataset, so you can explore every page before connecting anything.
 2. In `.env`, set `VITAL_DATA_MODE=live`, `HAE_API_URL` and `HAE_API_KEY`.
 3. Restart: `docker compose up -d`.
 
+For complete data, follow
+[Setting up Health Auto Export for complete data](docs/data-sources.md#setting-up-health-auto-export-for-complete-data).
+The short version:
+- Send every export to the server Vital reads.
+- Select the nutrition metrics as well.
+- Pick one time grouping (1 hour) and never mix it.
+- Backfill your history once, with the phone unlocked.
+
 ### Turn on the AI analyst and briefing
 
 Add a model in `.env`. A hosted one:
