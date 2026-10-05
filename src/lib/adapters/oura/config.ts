@@ -8,7 +8,7 @@ import { readSecretKey } from '@/lib/secrets/crypto';
 
 export const OURA_DEFAULT_API_URL = 'https://api.ouraring.com';
 export const OURA_AUTHORIZE_URL = 'https://cloud.ouraring.com/oauth/authorize';
-export const OURA_DEFAULT_SCOPES = ['daily', 'heartrate', 'workout', 'spo2', 'heart_health'] as const;
+export const OURA_DEFAULT_SCOPES = ['daily', 'heartrate', 'workout', 'spo2'] as const;
 export const OURA_DEFAULT_CACHE_TTL_SECONDS = 300;
 export const OURA_DEFAULT_HEARTRATE_LOOKBACK_DAYS = 30;
 export const OURA_DEFAULT_HEARTRATE_CHUNK_DAYS = 7;

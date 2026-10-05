@@ -80,7 +80,7 @@ describe('readOuraConfig', () => {
       clientId: 'sample-client-id',
       clientSecret: 'sample-client-secret-value',
       redirectUri: BASE.OURA_REDIRECT_URI,
-      scopes: ['daily', 'heartrate', 'workout', 'spo2', 'heart_health'],
+      scopes: ['daily', 'heartrate', 'workout', 'spo2'],
       apiUrl: 'https://api.ouraring.com',
       cacheTtlSeconds: 300,
       heartrateLookbackDays: 30,
