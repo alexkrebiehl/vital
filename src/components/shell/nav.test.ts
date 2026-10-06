@@ -46,8 +46,9 @@ describe('resolveTrail', () => {
 
   it("files a metric under its category's section, labelled by its name", () => {
     const trail = resolveTrail('/metric/sleep_analysis');
-    expect(trail.section?.id).toBe('sleep');
-    expect(trail.crumbs.map(c => c.label)).toEqual(['Sleep', 'Sleep']);
+    expect(trail.section?.id).toBe('health');
+    expect(trail.page?.id).toBe('sleep');
+    expect(trail.crumbs.map(c => c.label)).toEqual(['Health', 'Sleep', 'Sleep']);
   });
 
   it('files an unknown metric under Overview, labelled by its id', () => {
@@ -55,10 +56,31 @@ describe('resolveTrail', () => {
   });
 
   it('labels a lab analyte by its registered name (alias keys too), and an unknown one by its key', () => {
-    expect(labels('/lab/ldl_c')).toEqual(['Lab', 'LDL cholesterol']);
-    expect(labels('/lab/glucose~urine')[0]).toBe('Lab');
-    expect(labels('/lab/ldl')).toEqual(['Lab', 'LDL cholesterol']);
-    expect(labels('/lab/not_an_analyte')).toEqual(['Lab', 'not_an_analyte']);
+    expect(labels('/lab/ldl_c')).toEqual(['Health', 'Lab', 'LDL cholesterol']);
+    expect(labels('/lab/glucose~urine').slice(0, 2)).toEqual(['Health', 'Lab']);
+    expect(labels('/lab/ldl')).toEqual(['Health', 'Lab', 'LDL cholesterol']);
+    expect(labels('/lab/not_an_analyte')).toEqual(['Health', 'Lab', 'not_an_analyte']);
+  });
+
+  it('folds Lab, Medications, Sleep and Body under Health, each lighting its own page', () => {
+    for (const [path, page, label] of [
+      ['/health', 'overview', 'Health'],
+      ['/lab', 'lab', 'Lab'],
+      ['/medications', 'medications', 'Medications'],
+      ['/sleep', 'sleep', 'Sleep'],
+      ['/body', 'body', 'Body'],
+    ] as const) {
+      const trail = resolveTrail(path);
+      expect(trail.section?.id).toBe('health');
+      expect(trail.page?.id).toBe(page);
+      expect(trail.crumbs.at(-1)?.label).toBe(label);
+    }
+    expect(labels('/sleep')).toEqual(['Health', 'Sleep']);
+  });
+
+  it('no longer lists those four as top-level rows', () => {
+    const ids = NAV_SECTIONS.map(s => s.id);
+    for (const id of ['lab', 'medications', 'sleep', 'body']) expect(ids).not.toContain(id);
   });
 
   it('matches on whole segments only', () => {
@@ -84,11 +106,18 @@ describe('the registry', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("keeps every page inside its section's path", () => {
-    for (const section of NAV_SECTIONS) {
+  it("keeps every page inside its section's path, except Health's, which gathers its own", () => {
+    for (const section of NAV_SECTIONS.filter(s => s.id !== 'health')) {
       for (const page of section.children ?? []) {
         expect(page.href === section.href || page.href.startsWith(`${section.href}/`)).toBe(true);
       }
+    }
+  });
+
+  it('gives the pages inside a section distinct ids', () => {
+    for (const section of NAV_SECTIONS) {
+      const ids = (section.children ?? []).map(p => p.id);
+      expect(new Set(ids).size).toBe(ids.length);
     }
   });
 

@@ -10,8 +10,8 @@
 
 import type { LucideIcon } from 'lucide-react';
 import {
-  LayoutDashboard, TrendingUp, Heart, FlaskConical, Activity, Moon, Weight,
-  UtensilsCrossed, Dumbbell, Lightbulb, Bot, Settings, Pill, Palette,
+  LayoutDashboard, TrendingUp, Heart, Activity,
+  UtensilsCrossed, Dumbbell, Lightbulb, Bot, Settings, Palette,
 } from 'lucide-react';
 import { getMetric } from '@/lib/metrics/registry';
 import type { MetricCategory } from '@/lib/metrics/types';
@@ -46,9 +46,21 @@ export interface NavSection extends NavPage {
 export const NAV_SECTIONS: NavSection[] = [
   { id: 'overview', label: 'Overview', href: '/', icon: LayoutDashboard, description: 'Daily health briefing', placement: 'main', primary: true, exact: true },
   { id: 'trends', label: 'Trends', href: '/trends', icon: TrendingUp, description: 'What changed over time', placement: 'main', primary: true },
-  { id: 'health', label: 'Health', href: '/health', icon: Heart, description: 'Cardiovascular summary', placement: 'main' },
-  { id: 'lab', label: 'Lab', href: '/lab', icon: FlaskConical, description: 'Lab results imported from PDFs', placement: 'main' },
-  { id: 'medications', label: 'Medications', href: '/medications', icon: Pill, description: 'Medications and supplements', placement: 'main' },
+  {
+    id: 'health',
+    label: 'Health',
+    href: '/health',
+    icon: Heart,
+    description: 'Cardiovascular summary',
+    placement: 'main',
+    children: [
+      { id: 'overview', label: 'Overview', href: '/health', description: 'Cardiovascular summary', exact: true },
+      { id: 'lab', label: 'Lab', href: '/lab', description: 'Lab results imported from PDFs' },
+      { id: 'medications', label: 'Medications', href: '/medications', description: 'Medications and supplements' },
+      { id: 'sleep', label: 'Sleep', href: '/sleep', description: 'Sleep analysis' },
+      { id: 'body', label: 'Body', href: '/body', description: 'Weight and body metrics' },
+    ],
+  },
   {
     id: 'activity',
     label: 'Activity',
@@ -61,8 +73,6 @@ export const NAV_SECTIONS: NavSection[] = [
       { id: 'maps', label: 'Maps', searchLabel: 'Activity maps', href: '/activity/maps', description: 'Where outdoor workouts went' },
     ],
   },
-  { id: 'sleep', label: 'Sleep', href: '/sleep', icon: Moon, description: 'Sleep analysis', placement: 'main' },
-  { id: 'body', label: 'Body', href: '/body', icon: Weight, description: 'Weight and body metrics', placement: 'main' },
   { id: 'nutrition', label: 'Nutrition', href: '/nutrition', icon: UtensilsCrossed, description: 'Dietary intake', placement: 'main' },
   {
     id: 'workouts',
@@ -105,16 +115,16 @@ interface DetailRoute {
   label: (param: string) => string;
 }
 
-/** Which section's page a metric belongs on. */
-const METRIC_SECTION: Record<MetricCategory, string> = {
-  cardiovascular: 'health',
-  respiratory: 'health',
-  recovery: 'health',
-  vitals: 'health',
-  sleep: 'sleep',
-  activity: 'activity',
-  body: 'body',
-  nutrition: 'nutrition',
+/** Where a metric's page sits: the section, and the page inside it when it has several. */
+const METRIC_PARENT: Record<MetricCategory, ParentRef> = {
+  cardiovascular: { section: 'health', page: 'overview' },
+  respiratory: { section: 'health', page: 'overview' },
+  recovery: { section: 'health', page: 'overview' },
+  vitals: { section: 'health', page: 'overview' },
+  sleep: { section: 'health', page: 'sleep' },
+  activity: { section: 'activity' },
+  body: { section: 'health', page: 'body' },
+  nutrition: { section: 'nutrition' },
 };
 
 export const DETAIL_ROUTES: DetailRoute[] = [
@@ -130,14 +140,14 @@ export const DETAIL_ROUTES: DetailRoute[] = [
   },
   {
     segments: ['lab', ':analyteKey'],
-    parent: () => ({ section: 'lab' }),
+    parent: () => ({ section: 'health', page: 'lab' }),
     label: key => analyteByKey(analyteKeyOfSeriesId(key))?.displayName ?? key,
   },
   {
     segments: ['metric', ':metricId'],
     parent: id => {
       const metric = getMetric(id);
-      return { section: metric ? METRIC_SECTION[metric.category] ?? 'overview' : 'overview' };
+      return (metric && METRIC_PARENT[metric.category]) || { section: 'overview' };
     },
     label: id => getMetric(id)?.displayName ?? id,
   },
@@ -209,8 +219,9 @@ export function resolveTrail(pathname: string): Trail {
   // The deepest registered page that covers the path wins, so /workouts/all
   // lights History rather than Workouts' own landing page.
   // A page ties with its section's own href (Workouts' Overview), and wins it.
-  const candidates = NAV_SECTIONS.filter(section => covers(section.href, path, section.exact)).flatMap(section => [
-    { section, page: null as NavPage | null },
+  // A section's pages are matched on their own paths, which need not sit under the section's.
+  const candidates = NAV_SECTIONS.flatMap(section => [
+    ...(covers(section.href, path, section.exact) ? [{ section, page: null as NavPage | null }] : []),
     ...(section.children ?? []).map(page => ({ section, page })),
   ]);
   let best: { section: NavSection; page: NavPage | null; depth: number } | null = null;
