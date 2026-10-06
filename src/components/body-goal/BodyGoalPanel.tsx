@@ -12,7 +12,7 @@
 // projections from a pace.
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { ChevronRight, Target } from 'lucide-react';
 import { Badge, Button, Card, DataStateNote, EmptyState, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { useUnits } from '@/components/ui/UnitsProvider';
@@ -20,11 +20,13 @@ import { DiscussButton } from '@/components/analyst/DiscussDialog';
 import { SectionTitle } from '@/components/domain/DomainShared';
 import { formatDayKeyLong } from '@/lib/analytics/windows';
 import { STEADY_PCT, TREND_DAYS } from '@/lib/body-goal/constants';
+import { energyEquation } from '@/lib/body-goal/energy';
 import { DIRECTION_LABEL, PHASE_LABEL, type GoalPhase } from '@/lib/body-goal/phase';
 import type { BodyReading } from '@/lib/body-goal/reading';
 import type { BodyGoalReport } from '@/lib/body-goal/report';
 import type { EffectStatus } from '@/lib/body-goal/effects';
 import type { UnitSystem } from '@/lib/prefs';
+import { EnergyEquation } from './EnergyEquation';
 import { GoalDialog } from './GoalDialog';
 import { GoalTrack } from './GoalTrack';
 import { PaceScale, TrendPaceScale } from './PaceScale';
@@ -265,7 +267,9 @@ function suggestions(report: BodyGoalReport): string[] {
 
 function EnergySection({ data, hasGoal, units }: { data: BodyReading; hasGoal: boolean; units: UnitSystem }) {
   const e = data.energy;
-  const rows: { label: string; value: string; note?: string }[] = [];
+  const eq = energyEquation(e);
+  const rows: { label: string; value?: string; note?: string }[] = [];
+  const daysNote = `${e.days.complete.length} complete logged days in the last ${TREND_DAYS}${e.days.partial.length ? `; ${e.days.partial.length} partial log${e.days.partial.length === 1 ? '' : 's'} left out (${e.days.partial.map(d => formatDayKeyLong(d.key)).join(', ')})` : ''}`;
   const trendRow = e.trendBalance !== null && {
     label: 'Daily balance, from your weight trend',
     value: formatSignedKcal(e.trendBalance),
@@ -279,7 +283,34 @@ function EnergySection({ data, hasGoal, units }: { data: BodyReading; hasGoal: b
       : e.deviceReason ?? undefined,
   };
 
-  if (!e.foodLogged) {
+  // Both maintenance estimates exist only with a logged sum whose out is the
+  // weight trend; they then sit side by side instead of as two rows.
+  const compared = eq?.out.source === 'weight-trend' && e.adaptive !== null && e.device !== null;
+
+  if (eq) {
+    // The sum leads; the rows below say where each of its terms comes from.
+    if (eq.in.source === 'logged') {
+      rows.push({ label: 'Calories in, logged', note: daysNote });
+      if (eq.out.source === 'weight-trend' && e.device === null) {
+        rows.push({
+          label: 'Calories out, from your weight trend',
+          note: `Logged intake minus the weight trend in energy (${formatEnergyPerWeight(units)}).`,
+        });
+        rows.push(deviceRow);
+      } else if (eq.out.source === 'device') {
+        rows.push({ label: 'Calories out, device estimate', note: [deviceRow.note, e.adaptiveReason].filter(Boolean).join(' ') });
+      }
+    } else {
+      rows.push(
+        { label: 'Balance, from your weight trend', note: trendRow ? trendRow.note : undefined },
+        { label: 'Calories out, device estimate', note: deviceRow.note },
+        {
+          label: 'Calories in, implied',
+          note: `What eating must average for weight to move as it does: maintenance plus the balance. It is not measured.${e.foodLogged ? ` ${e.adaptiveReason ?? daysNote}` : ''}`,
+        },
+      );
+    }
+  } else if (!e.foodLogged) {
     // The common case: no food log. Everything here comes from weigh-ins and the watch.
     if (trendRow) rows.push(trendRow);
     if (e.device !== null) rows.push(deviceRow);
@@ -289,7 +320,7 @@ function EnergySection({ data, hasGoal, units }: { data: BodyReading; hasGoal: b
       {
         label: 'Logged intake',
         value: e.intake !== null ? `${formatKcal(e.intake)}/day` : '—',
-        note: `${e.days.complete.length} complete logged days in the last ${TREND_DAYS}${e.days.partial.length ? `; ${e.days.partial.length} partial log${e.days.partial.length === 1 ? '' : 's'} left out (${e.days.partial.map(d => formatDayKeyLong(d.key)).join(', ')})` : ''}`,
+        note: daysNote,
       },
       {
         label: 'Maintenance, from your weight trend',
@@ -309,31 +340,103 @@ function EnergySection({ data, hasGoal, units }: { data: BodyReading; hasGoal: b
     }
   }
 
+  // Everything behind the numbers. Under the sum it starts collapsed; without a
+  // sum it is the whole card.
+  const details = (
+    <>
+      <dl className="divide-y divide-border">
+        {rows.map(r => (
+          <div key={r.label} className="py-2.5 grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-x-4">
+            <dt className="text-sm text-text-primary">{r.label}</dt>
+            {r.value && <dd className="text-sm font-medium tnum text-text-primary sm:text-right">{r.value}</dd>}
+            {r.note && <dd className="text-[11px] text-text-secondary sm:col-span-2">{r.note}</dd>}
+          </div>
+        ))}
+      </dl>
+      {compared && <MaintenanceComparison energy={e} units={units} />}
+      <div className="mt-3 space-y-1">
+        {e.agreementText && !compared && <DataStateNote>{e.agreementText}</DataStateNote>}
+        {!e.foodLogged && (
+          <DataStateNote>
+            No food is logged, which is fine — {hasGoal ? 'the goal is tracked' : 'the balance comes'} from your weigh-ins. If you
+            do log meals in an app that writes to Apple Health, maintenance is also worked out from what you eat and how your
+            weight moves.{eq && ' Until then, calories in is implied from how your weight moves.'}
+          </DataStateNote>
+        )}
+      </div>
+    </>
+  );
+
   return (
     <section>
       <SectionTitle hint={`last ${TREND_DAYS} days${e.foodLogged ? ' · logged days only' : ''}`}>Energy balance</SectionTitle>
       <Card className="p-4 md:p-6">
-        <dl className="divide-y divide-border">
-          {rows.map(r => (
-            <div key={r.label} className="py-2.5 grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-x-4">
-              <dt className="text-sm text-text-primary">{r.label}</dt>
-              <dd className="text-sm font-medium tnum text-text-primary sm:text-right">{r.value}</dd>
-              {r.note && <dd className="text-[11px] text-text-secondary sm:col-span-2">{r.note}</dd>}
-            </div>
-          ))}
-        </dl>
-        <div className="mt-3 space-y-1">
-          {e.agreementText && <DataStateNote>{e.agreementText}</DataStateNote>}
-          {!e.foodLogged && (
-            <DataStateNote>
-              No food is logged, which is fine — {hasGoal ? 'the goal is tracked' : 'the balance comes'} from your weigh-ins. If you
-              do log meals in an app that writes to Apple Health, maintenance is also worked out from what you eat and how your
-              weight moves.
-            </DataStateNote>
-          )}
-        </div>
+        {eq ? (
+          <>
+            <EnergyEquation eq={eq} loggedDays={e.days.complete.length} units={units} />
+            <details className="mt-4">
+              <summary className="cursor-pointer text-xs font-medium text-primary">How these are worked out</summary>
+              <div className="mt-2">{details}</div>
+            </details>
+          </>
+        ) : (
+          details
+        )}
       </Card>
     </section>
+  );
+}
+
+/**
+ * Calories out measured two ways, side by side: from the food log and the
+ * weight trend, and from the watch. They estimate the same thing
+ * independently, so how far apart they are says how far either can be trusted.
+ */
+function MaintenanceComparison({ energy: e, units }: { energy: BodyReading['energy']; units: UnitSystem }) {
+  const gap = Math.round(Math.abs(e.adaptive! - e.device!));
+  const agree = e.agreement === 'agree';
+  const ways = [
+    {
+      label: 'From your weight trend',
+      value: e.adaptive!,
+      note: `Logged intake minus the weight trend in energy (${formatEnergyPerWeight(units)}). Used in the sum above.`,
+    },
+    {
+      label: 'From your watch',
+      value: e.device!,
+      note: `Basal ${formatKcal(e.deviceBasal)} + active ${formatKcal(e.deviceActive)}, ${e.deviceDays} days. Basal is computed from body weight, so it falls as weight falls.`,
+    },
+  ];
+  return (
+    <div className="mt-1 border-t border-border pt-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-text-primary">Calories out, measured two ways</p>
+        <Badge variant={agree ? 'success' : 'default'}>
+          {agree ? `Agree within ${gap.toLocaleString('en-US')} kcal/day` : `${gap.toLocaleString('en-US')} kcal/day apart`}
+        </Badge>
+      </div>
+      <p className="mt-0.5 text-[11px] text-text-secondary">
+        Two independent estimates of the same number — what you burn in a day.
+      </p>
+      {/* Narrow screens: one box, a line per estimate. Wider: two cards with "vs" between. */}
+      <div className="mt-3 rounded-xl border border-border sm:rounded-none sm:border-0 sm:grid sm:grid-cols-[1fr_auto_1fr] sm:items-stretch sm:gap-3">
+        {ways.map((w, i) => (
+          <Fragment key={w.label}>
+            {i === 1 && (
+              <span className="hidden sm:block self-center text-center text-xs text-text-secondary" aria-hidden="true">
+                vs
+              </span>
+            )}
+            <div className={`grid grid-cols-[1fr_auto] items-baseline gap-x-3 px-4 py-3 sm:block sm:rounded-xl sm:border sm:border-border ${i === 1 ? 'border-t border-border' : ''}`}>
+              <p className="text-sm text-text-primary sm:text-xs sm:text-text-secondary">{w.label}</p>
+              <p className="text-sm font-semibold tnum text-text-primary sm:mt-0.5 sm:text-base">{formatKcal(w.value)}/day</p>
+              <p className="col-span-2 mt-0.5 text-[11px] text-text-secondary">{w.note}</p>
+            </div>
+          </Fragment>
+        ))}
+      </div>
+      {e.agreementText && <p className="mt-2 text-[11px] text-text-secondary">{e.agreementText}</p>}
+    </div>
   );
 }
 

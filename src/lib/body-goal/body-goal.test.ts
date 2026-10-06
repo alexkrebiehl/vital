@@ -9,6 +9,7 @@ import {
   changeToTarget,
   effectivePace,
   energyBalance,
+  energyEquation,
   goalPhase,
   goalTrack,
   lowBodyFatNote,
@@ -130,6 +131,15 @@ describe('energy balance', () => {
     expect(e.maintenanceSource).toBe('weight-trend');
     expect(e.balance!).toBeLessThan(-900);
     expect(['agree', 'trend-higher']).toContain(e.agreement);
+  });
+
+  it('reads logged intake minus maintenance as the balance', () => {
+    const e = energyBalance(lookup(cutSeries()), TODAY);
+    const eq = energyEquation(e)!;
+    expect(eq.in).toEqual({ kcal: e.intake, source: 'logged' });
+    expect(eq.out).toEqual({ kcal: e.adaptive, source: 'weight-trend' });
+    expect(eq.balance.source).toBe('intake');
+    expect(eq.in.kcal - eq.out.kcal).toBeCloseTo(eq.balance.kcal, 6);
   });
 
   it('says why it cannot estimate maintenance without enough logs', () => {
@@ -418,6 +428,24 @@ describe('without a food log (most people)', () => {
     expect(summary.logConsistency).toBeNull();
     expect(summary.intakeKcalPerDay).toBeNull();
     expect(summary.balanceFromWeightTrendKcalPerDay!).toBeLessThan(-900);
+  });
+
+  it('implies intake from the watch and the weight trend', () => {
+    const e = energyBalance(lookup(noFood()), TODAY);
+    const eq = energyEquation(e)!;
+    expect(eq.out).toEqual({ kcal: e.device, source: 'device' });
+    expect(eq.balance).toEqual({ kcal: e.trendBalance, source: 'weight-trend' });
+    expect(eq.in.source).toBe('implied');
+    expect(eq.in.kcal).toBeCloseTo(e.device! + e.trendBalance!, 6);
+  });
+
+  it('has no equation with no food log and no watch', () => {
+    const data = noFood();
+    delete (data as Record<string, unknown>).basal_energy_burned;
+    delete (data as Record<string, unknown>).active_energy;
+    const e = energyBalance(lookup(data), TODAY);
+    expect(e.trendBalance).not.toBeNull();
+    expect(energyEquation(e)).toBeNull();
   });
 
   it('still gives protein and fat targets and a pace with no food log and no watch', () => {
