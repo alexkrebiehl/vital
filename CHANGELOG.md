@@ -12,6 +12,9 @@ _Release in progress: the date is set when the version is tagged._
 ### Added
 
 - Add a Health Auto Export connection that is saved from Settings: the endpoint is checked with a read-only request before it is stored, and the API key is encrypted in Postgres and shown only as its last four characters ([`9338f02`](https://github.com/echupkin/vital/commit/9338f02), [`e886e00`](https://github.com/echupkin/vital/commit/e886e00))
+- Add body goals: set a target weight or body-fat percentage, optionally with your own pace, and read Body and Nutrition against it ([`a372b0c`](https://github.com/echupkin/vital/commit/a372b0c))
+- Add calorie and protein adherence with an OK range beside each daily target on Nutrition, now at Body → Nutrition ([`7a793ad`](https://github.com/echupkin/vital/commit/7a793ad), [`d225c50`](https://github.com/echupkin/vital/commit/d225c50))
+- Add data-quality checks to the Settings data pipeline panel: doubled activity, duplicate readings, missing days, late-starting history and a stopped automation ([`f2297b7`](https://github.com/echupkin/vital/commit/f2297b7))
 - Add a Health Auto Export card to Settings → Connections with an endpoint field, a masked key field, Change and Disconnect ([`d3ac6b6`](https://github.com/echupkin/vital/commit/d3ac6b6))
 - Show only Settings until a source is connected and its data loads, in live mode: the sidebar and top navigation are hidden, every other page redirects to Settings → Connections, and a banner gives the reason with a Retry ([`2f183d5`](https://github.com/echupkin/vital/commit/2f183d5))
 - Generate `VITAL_SECRET_KEY` with `npm run db:init`, so a new install can store encrypted credentials ([`8ed463f`](https://github.com/echupkin/vital/commit/8ed463f))
