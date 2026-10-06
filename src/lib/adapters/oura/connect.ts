@@ -43,7 +43,7 @@ const NO_STORE = 'private, no-store';
  * Connect and disconnect change the active set: reconcile so everything held in
  * memory for a source that just went away is purged now, not at the next page.
  */
-async function reconcileAfterChange(env: NodeJS.ProcessEnv, deps: ConnectDeps): Promise<void> {
+export async function reconcileAfterChange(env: NodeJS.ProcessEnv, deps: ConnectDeps): Promise<void> {
   let client: PoolLike | null = null;
   try {
     client = deps.client === undefined ? getPool(env) : deps.client;
@@ -62,7 +62,7 @@ async function bindLogin(env: NodeJS.ProcessEnv, client: PoolLike, cfg: OuraConf
   );
 }
 
-function json(body: unknown, status: number, extra: Record<string, string> = {}): Response {
+export function json(body: unknown, status: number, extra: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { 'Content-Type': 'application/json', 'Cache-Control': NO_STORE, ...extra },
