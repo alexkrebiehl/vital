@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1] - 2026-10-06
+
+_Release in progress: the date is set when the version is tagged._
+
+### Changed
+
+- Fold Lab, Medications, Sleep and Body under Health in the sidebar, which expands like Activity and Workouts and opens by itself on any of its pages; breadcrumbs for those pages now start with Health ([`ed096fc`](https://github.com/echupkin/vital/commit/ed096fc))
+
 ## [0.3.0] - 2026-10-04
 
 _Release in progress: the date is set when the version is tagged._
@@ -120,6 +128,7 @@ _Documentation only; this version was merged but never tagged._
 
 - Fix analyst conversations being ordered by when they were last touched instead of when they were asked ([`2e9a981`](https://github.com/echupkin/vital/commit/2e9a981))
 
+[0.3.1]: https://github.com/echupkin/vital/releases/tag/v0.3.1
 [0.3.0]: https://github.com/echupkin/vital/releases/tag/v0.3.0
 [0.2.4]: https://github.com/echupkin/vital/releases/tag/v0.2.4
 [0.2.3]: https://github.com/echupkin/vital/releases/tag/v0.2.3
