@@ -13,7 +13,7 @@ import {
   upstreamWindow,
   warmLiveDataset,
 } from '@/lib/adapters/live';
-import { HaeError, fetchMetricRecords, probeHae, readHaeConfig } from '@/lib/adapters/hae';
+import { HaeError, fetchMetricRecords, probeHae, buildHaeConfig, resolveHaeConfig } from '@/lib/adapters/hae';
 import { liveCache, setCacheTtlForTests } from '@/lib/adapters/cache';
 import { resetToDemoDataset, setActiveDataset } from '@/lib/adapters/dataset';
 import { workoutDayKey } from '@/lib/analytics/workouts';
@@ -23,12 +23,19 @@ import type { SourceContext } from '@/lib/sources/registry';
 
 const TOKEN = 'test-read-token-do-not-log';
 const ENV = {
-  HAE_API_URL: 'http://hae.test:3001',
-  HAE_API_KEY: TOKEN,
   HAE_CACHE_TTL_SECONDS: '300',
   HAE_PROBE_METRIC: 'resting_heart_rate',
   VITAL_DATA_MODE: 'live',
 } as unknown as NodeJS.ProcessEnv;
+
+// The connection is stored in Postgres, never read from the environment: tests inject it.
+const HAE_CONFIG = buildHaeConfig('http://hae.test:3001', TOKEN, ENV);
+const HAE_SOURCES: SourceContext = {
+  env: ENV,
+  hasCredential: async id => id === 'hae',
+  labReportCount: async () => 0,
+};
+const HAE_DEPS = { haeConfig: HAE_CONFIG, sources: HAE_SOURCES };
 
 const NOW = new Date('2026-09-17T18:00:00.000Z');
 const METRICS = samples.metrics as unknown as Record<string, unknown[]>;
@@ -57,7 +64,7 @@ function payloadFor(url: string): unknown {
   return METRICS[metric] ?? [];
 }
 
-const DEPS = { env: ENV, fetchImpl: recordingFetch().impl, now: () => NOW, bypassCache: true };
+const DEPS = { ...HAE_DEPS, env: ENV, fetchImpl: recordingFetch().impl, now: () => NOW, bypassCache: true };
 
 /**
  * Serves the recorded samples, but can hold every response open behind a gate so
@@ -106,15 +113,15 @@ describe('HAE client (server-side only, SPEC §10 §11)', () => {
   it('reports not-configured without making a request', async () => {
     const { impl, calls } = recordingFetch();
     await expect(
-      fetchMetricRecords('resting_heart_rate', {}, { env: {} as NodeJS.ProcessEnv, fetchImpl: impl })
+      fetchMetricRecords('resting_heart_rate', {}, { env: {} as NodeJS.ProcessEnv, fetchImpl: impl, haeClient: null })
     ).rejects.toMatchObject({ kind: 'not_configured' });
     expect(calls).toHaveLength(0);
-    expect(readHaeConfig({} as NodeJS.ProcessEnv)).toBeNull();
+    expect(await resolveHaeConfig({ env: {} as NodeJS.ProcessEnv, haeClient: null })).toBeNull();
   });
 
   it('sends the read token in the api-key header and never in the URL', async () => {
     const { impl, calls } = recordingFetch();
-    await fetchMetricRecords('resting_heart_rate', { from: '2026-09-01T00:00:00.000Z' }, { env: ENV, fetchImpl: impl });
+    await fetchMetricRecords('resting_heart_rate', { from: '2026-09-01T00:00:00.000Z' }, { ...HAE_DEPS, env: ENV, fetchImpl: impl });
     expect(calls).toHaveLength(1);
     expect(calls[0].apiKey).toBe(TOKEN);
     expect(calls[0].url).not.toContain(TOKEN);
@@ -123,15 +130,15 @@ describe('HAE client (server-side only, SPEC §10 §11)', () => {
 
   it('rejects a non-array payload instead of treating it as "no data"', async () => {
     const impl = (async () => ({ ok: true, status: 200, json: async () => ({ error: 'nope' }) })) as unknown as typeof fetch;
-    await expect(fetchMetricRecords('vo2max', {}, { env: ENV, fetchImpl: impl })).rejects.toBeInstanceOf(HaeError);
-    await expect(fetchMetricRecords('vo2max', {}, { env: ENV, fetchImpl: impl })).rejects.toMatchObject({
+    await expect(fetchMetricRecords('vo2max', {}, { ...HAE_DEPS, env: ENV, fetchImpl: impl })).rejects.toBeInstanceOf(HaeError);
+    await expect(fetchMetricRecords('vo2max', {}, { ...HAE_DEPS, env: ENV, fetchImpl: impl })).rejects.toMatchObject({
       kind: 'invalid_payload',
     });
   });
 
   it('surfaces an HTTP error and a timeout as failures', async () => {
     const httpFail = (async () => ({ ok: false, status: 503, json: async () => [] })) as unknown as typeof fetch;
-    await expect(fetchMetricRecords('vo2max', {}, { env: ENV, fetchImpl: httpFail })).rejects.toMatchObject({
+    await expect(fetchMetricRecords('vo2max', {}, { ...HAE_DEPS, env: ENV, fetchImpl: httpFail })).rejects.toMatchObject({
       kind: 'http_error',
       httpStatus: 503,
     });
@@ -141,14 +148,14 @@ describe('HAE client (server-side only, SPEC §10 §11)', () => {
       err.name = 'AbortError';
       throw err;
     }) as unknown as typeof fetch;
-    await expect(fetchMetricRecords('vo2max', {}, { env: ENV, fetchImpl: abort })).rejects.toMatchObject({
+    await expect(fetchMetricRecords('vo2max', {}, { ...HAE_DEPS, env: ENV, fetchImpl: abort })).rejects.toMatchObject({
       kind: 'timeout',
     });
   });
 
   it('probes with a real request and counts the records it got back', async () => {
     const { impl } = recordingFetch();
-    const probe = await probeHae({ env: ENV, fetchImpl: impl });
+    const probe = await probeHae({ ...HAE_DEPS, env: ENV, fetchImpl: impl });
     expect(probe.outcome).toBe('ok');
     expect(probe.records).toBe(METRICS.resting_heart_rate.length);
     expect(probe.detail).toContain('/api/metrics/resting_heart_rate');
@@ -171,7 +178,7 @@ describe('live dataset assembly', () => {
   it('bounds every request by the lookback window', async () => {
     const { impl, calls } = recordingFetch();
     const window = upstreamWindow('2026-09-17', LIVE_LOOKBACK_DAYS);
-    await fetchLiveDatasetUncached({ env: ENV, fetchImpl: impl, now: () => NOW });
+    await fetchLiveDatasetUncached({ ...HAE_DEPS, env: ENV, fetchImpl: impl, now: () => NOW });
     expect(calls.length).toBeGreaterThan(10);
     for (const call of calls) {
       expect(call.url).toContain(encodeURIComponent(window.from).slice(0, 10));
@@ -189,7 +196,7 @@ describe('live dataset assembly', () => {
   it('throws rather than falling back to demo data when the source fails', async () => {
     const failing = (async () => ({ ok: false, status: 500, json: async () => [] })) as unknown as typeof fetch;
     await expect(
-      fetchLiveDatasetUncached({ env: ENV, fetchImpl: failing, now: () => NOW, bypassCache: true })
+      fetchLiveDatasetUncached({ ...HAE_DEPS, env: ENV, fetchImpl: failing, now: () => NOW, bypassCache: true })
     ).rejects.toBeInstanceOf(HaeError);
   });
 });
@@ -225,7 +232,7 @@ describe('live dataset timezone', () => {
     liveCache.clear();
     setCacheTtlForTests(60_000);
     const { impl, calls } = recordingFetch();
-    const deps = { env: ENV, fetchImpl: impl, now: () => NOW };
+    const deps = { ...HAE_DEPS, env: ENV, fetchImpl: impl, now: () => NOW };
     await loadLiveDataset({ ...deps, timezone: 'America/Chicago' });
     const onePass = calls.length;
     const moved = await loadLiveDataset({ ...deps, timezone: 'America/New_York' });
@@ -240,7 +247,7 @@ describe('cache and single flight', () => {
     setCacheTtlForTests(60_000);
     liveCache.clear();
     const { impl, calls } = recordingFetch();
-    const deps = { env: ENV, fetchImpl: impl, now: () => NOW };
+    const deps = { ...HAE_DEPS, env: ENV, fetchImpl: impl, now: () => NOW };
     await loadLiveDataset(deps);
     const afterFirst = calls.length;
     await loadLiveDataset(deps);
@@ -250,7 +257,7 @@ describe('cache and single flight', () => {
   it('collapses concurrent page loads into one upstream pass', async () => {
     liveCache.clear();
     const { impl, calls } = recordingFetch();
-    const deps = { env: ENV, fetchImpl: impl, now: () => NOW };
+    const deps = { ...HAE_DEPS, env: ENV, fetchImpl: impl, now: () => NOW };
     const [a, b, c] = await Promise.all([loadLiveDataset(deps), loadLiveDataset(deps), loadLiveDataset(deps)]);
     const onePass = calls.length;
     expect(a.dataset).toEqual(b.dataset);
@@ -279,7 +286,7 @@ describe('stale-while-revalidate (live dataset)', () => {
     liveCache.clear();
 
     const upstream = gatedFetch();
-    const deps = { env: ENV, fetchImpl: upstream.impl, now: () => NOW };
+    const deps = { ...HAE_DEPS, env: ENV, fetchImpl: upstream.impl, now: () => NOW };
     const priming = await loadLiveDataset(deps);
     const passesAfterPriming = upstream.calls.length;
     expect(passesAfterPriming).toBeGreaterThan(10);
@@ -290,7 +297,7 @@ describe('stale-while-revalidate (live dataset)', () => {
     upstream.close();
 
     const { impl: solo, calls: soloCalls } = recordingFetch();
-    await fetchLiveDatasetUncached({ env: ENV, fetchImpl: solo, now: () => NOW });
+    await fetchLiveDatasetUncached({ ...HAE_DEPS, env: ENV, fetchImpl: solo, now: () => NOW });
     const requestsPerPass = soloCalls.length;
 
     const before = liveCache.stats();
@@ -320,7 +327,7 @@ describe('stale-while-revalidate (live dataset)', () => {
     liveCache.clear();
 
     const upstream = gatedFetch();
-    const deps = { env: ENV, fetchImpl: upstream.impl, now: () => NOW };
+    const deps = { ...HAE_DEPS, env: ENV, fetchImpl: upstream.impl, now: () => NOW };
     const priming = await loadLiveDataset(deps);
     const passesAfterPriming = upstream.calls.length;
 
@@ -328,7 +335,7 @@ describe('stale-while-revalidate (live dataset)', () => {
     upstream.close();
 
     const { impl: solo, calls: soloCalls } = recordingFetch();
-    await fetchLiveDatasetUncached({ env: ENV, fetchImpl: solo, now: () => NOW });
+    await fetchLiveDatasetUncached({ ...HAE_DEPS, env: ENV, fetchImpl: solo, now: () => NOW });
     const requestsPerPass = soloCalls.length;
 
     const before = liveCache.stats();
@@ -351,10 +358,10 @@ describe('stale-while-revalidate (live dataset)', () => {
     setCacheTtlForTests(300_000);
     const upstream = gatedFetch();
     upstream.close();
-    const deps = { env: ENV, fetchImpl: upstream.impl, now: () => NOW };
+    const deps = { ...HAE_DEPS, env: ENV, fetchImpl: upstream.impl, now: () => NOW };
 
     const { impl: solo, calls: soloCalls } = recordingFetch();
-    await fetchLiveDatasetUncached({ env: ENV, fetchImpl: solo, now: () => NOW });
+    await fetchLiveDatasetUncached({ ...HAE_DEPS, env: ENV, fetchImpl: solo, now: () => NOW });
     const requestsPerPass = soloCalls.length;
 
     let settled = false;
@@ -378,20 +385,21 @@ describe('stale-while-revalidate (live dataset)', () => {
 });
 
 describe('boot warm-up', () => {
-  it('does nothing in demo mode or when no live source is configured', () => {
+  it('does nothing in demo mode, and reports when no live source is connected', async () => {
     liveCache.clear();
     expect(warmLiveDataset({ env: {} as NodeJS.ProcessEnv })).toBeNull();
     expect(
       warmLiveDataset({
-        env: { VITAL_DATA_MODE: 'demo', HAE_API_URL: 'http://hae.test:3001', HAE_API_KEY: TOKEN } as unknown as NodeJS.ProcessEnv,
+        env: { VITAL_DATA_MODE: 'demo' } as unknown as NodeJS.ProcessEnv,
+        haeConfig: HAE_CONFIG,
       })
     ).toBeNull();
-    expect(warmLiveDataset({ env: { VITAL_DATA_MODE: 'live' } as unknown as NodeJS.ProcessEnv })).toBeNull();
-    expect(
-      warmLiveDataset({
-        env: { VITAL_DATA_MODE: 'live', HAE_API_URL: 'http://hae.test:3001' } as unknown as NodeJS.ProcessEnv,
-      })
-    ).toBeNull();
+    // Live mode with nothing stored: an outcome, not a fill. The environment alone connects nothing.
+    const outcome = await warmLiveDataset({
+      env: { VITAL_DATA_MODE: 'live', HAE_API_URL: 'http://hae.test:3001', HAE_API_KEY: TOKEN } as unknown as NodeJS.ProcessEnv,
+      haeClient: null,
+    });
+    expect(outcome).toEqual({ ok: false, reason: 'No live source is connected yet.' });
     expect(liveCache.stats().inFlight).toBe(0);
   });
 
@@ -400,7 +408,7 @@ describe('boot warm-up', () => {
     setCacheTtlForTests(60_000);
     const upstream = gatedFetch();
     upstream.close(); // hold the pass open so it can be seen under way
-    const deps = { env: ENV, fetchImpl: upstream.impl, now: () => NOW };
+    const deps = { ...HAE_DEPS, env: ENV, fetchImpl: upstream.impl, now: () => NOW };
 
     const warm = warmLiveDataset(deps);
     expect(warm).not.toBeNull();
@@ -420,10 +428,10 @@ describe('boot warm-up', () => {
     liveCache.clear();
     setCacheTtlForTests(60_000);
     const upstream = gatedFetch();
-    const deps = { env: ENV, fetchImpl: upstream.impl, now: () => NOW };
+    const deps = { ...HAE_DEPS, env: ENV, fetchImpl: upstream.impl, now: () => NOW };
 
     const { impl: solo, calls: soloCalls } = recordingFetch();
-    await fetchLiveDatasetUncached({ env: ENV, fetchImpl: solo, now: () => NOW });
+    await fetchLiveDatasetUncached({ ...HAE_DEPS, env: ENV, fetchImpl: solo, now: () => NOW });
     const requestsPerPass = soloCalls.length;
 
     const before = liveCache.stats();
@@ -440,7 +448,7 @@ describe('boot warm-up', () => {
   it('reports a failed warm-up as an outcome instead of throwing or caching anything', async () => {
     liveCache.clear();
     const failing = (async () => ({ ok: false, status: 500, json: async () => [] })) as unknown as typeof fetch;
-    const warm = warmLiveDataset({ env: ENV, fetchImpl: failing, now: () => NOW });
+    const warm = warmLiveDataset({ ...HAE_DEPS, env: ENV, fetchImpl: failing, now: () => NOW });
     expect(warm).not.toBeNull();
 
     const outcome = await warm!;
@@ -536,8 +544,15 @@ function credentialPool(scopes = 'daily heartrate workout spo2 heart_health'): P
   return { query: async () => ({ rows: [row] }) };
 }
 
+const HAE_ENVS = new Set<NodeJS.ProcessEnv>([ENV, BOTH_ENV]);
+
 function sourcesCtx(env: NodeJS.ProcessEnv, connected: boolean): SourceContext {
-  return { env, hasCredential: async id => connected && id === 'oura', labReportCount: async () => 0 };
+  const hae = HAE_ENVS.has(env);
+  return {
+    env,
+    hasCredential: async id => (connected && id === 'oura') || (hae && id === 'hae'),
+    labReportCount: async () => 0,
+  };
 }
 
 const OURA_DOCS: Record<string, unknown[]> = {
@@ -602,6 +617,7 @@ function twoSourceDeps(env: NodeJS.ProcessEnv, fetchImpl: typeof fetch, connecte
     now: () => NOW,
     bypassCache: true,
     sources: sourcesCtx(env, connected),
+    haeConfig: HAE_CONFIG,
     ouraClient: credentialPool(),
   };
 }

@@ -8,13 +8,12 @@ import type { SourceContext } from '@/lib/sources/registry';
 function ctx(opts: { hae?: boolean; oura?: boolean } = {}): SourceContext {
   return {
     env: {
-      ...(opts.hae ? { HAE_API_URL: 'http://hae.test', HAE_API_KEY: 'k' } : {}),
       OURA_CLIENT_ID: 'c',
       OURA_CLIENT_SECRET: 's',
       OURA_REDIRECT_URI: 'http://localhost/cb',
       VITAL_SECRET_KEY: Buffer.alloc(32, 1).toString('base64'),
     } as unknown as NodeJS.ProcessEnv,
-    hasCredential: async id => Boolean(opts.oura) && id === 'oura',
+    hasCredential: async id => (Boolean(opts.oura) && id === 'oura') || (Boolean(opts.hae) && id === 'hae'),
     labReportCount: async () => 0,
   };
 }

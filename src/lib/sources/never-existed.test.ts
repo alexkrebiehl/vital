@@ -8,6 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import samples from '@/data/hae-samples.json';
 import { liveCache, setCacheTtlForTests } from '@/lib/adapters/cache';
+import { buildHaeConfig } from '@/lib/adapters/hae';
 import { loadLiveDataset, fetchLiveDatasetUncached } from '@/lib/adapters/live';
 import { encryptJson, keyId } from '@/lib/secrets/crypto';
 import type { PoolLike } from '@/lib/db/pool';
@@ -18,8 +19,6 @@ const NOW = new Date('2026-09-17T18:00:00.000Z');
 const METRICS = samples.metrics as unknown as Record<string, unknown[]>;
 const SECRET_KEY = Buffer.alloc(32, 7);
 const HAE_ENV = {
-  HAE_API_URL: 'http://hae.test:3001',
-  HAE_API_KEY: 'sample-hae-key',
   HAE_CACHE_TTL_SECONDS: '300',
   VITAL_DATA_MODE: 'live',
 } as unknown as NodeJS.ProcessEnv;
@@ -95,8 +94,11 @@ function credentialPool(): PoolLike {
   return { query: async () => ({ rows: [row] }) };
 }
 
+// Environments in which the Health Auto Export connection is stored (it is never read from the environment).
+const HAE_ENVS = new Set<NodeJS.ProcessEnv>([HAE_ENV, BOTH_ENV]);
+
 function ctx(env: NodeJS.ProcessEnv, ouraConnected: boolean): SourceContext {
-  return { env, hasCredential: async id => ouraConnected && id === 'oura', labReportCount: async () => 0 };
+  return { env, hasCredential: async id => (HAE_ENVS.has(env) && id === 'hae') || (ouraConnected && id === 'oura'), labReportCount: async () => 0 };
 }
 
 function deps(env: NodeJS.ProcessEnv, ouraConnected: boolean) {
@@ -106,6 +108,7 @@ function deps(env: NodeJS.ProcessEnv, ouraConnected: boolean) {
     now: () => NOW,
     timezone: 'UTC',
     sources: ctx(env, ouraConnected),
+    haeConfig: buildHaeConfig('http://hae.test:3001', 'sample-hae-key', env),
     ouraClient: credentialPool(),
   };
 }

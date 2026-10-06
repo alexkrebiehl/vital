@@ -31,16 +31,13 @@ export interface DataSourceDef {
   isActive(ctx: SourceContext): Promise<boolean>;
 }
 
-function filled(value: string | undefined): boolean {
-  return (value ?? '').trim().length > 0;
-}
-
 export const DATA_SOURCES: readonly DataSourceDef[] = [
   {
     id: 'hae',
     displayName: 'Health Auto Export',
     kind: 'health',
-    isActive: async ctx => filled(ctx.env.HAE_API_URL) && filled(ctx.env.HAE_API_KEY),
+    // Connected: a stored (encrypted) endpoint and key. The environment is never consulted.
+    isActive: async ctx => ctx.hasCredential('hae'),
   },
   {
     id: 'oura',

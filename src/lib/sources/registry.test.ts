@@ -18,7 +18,6 @@ function ctx(env: Record<string, string>, opts: { credentials?: string[]; labs?:
   };
 }
 
-const HAE = { HAE_API_URL: 'http://hae.test', HAE_API_KEY: 'k' };
 const OURA = {
   OURA_CLIENT_ID: 'id',
   OURA_CLIENT_SECRET: 'secret',
@@ -37,11 +36,15 @@ describe('source registry', () => {
     expect(await sourceSetKey(ctx({}))).toBe('');
   });
 
-  it('hae needs both the URL and the key', async () => {
-    expect(await activeSourceIds(ctx({ HAE_API_URL: 'http://hae.test' }))).toEqual([]);
-    expect(await activeSourceIds(ctx({ HAE_API_KEY: 'k' }))).toEqual([]);
-    expect(await activeSourceIds(ctx({ HAE_API_URL: ' ', HAE_API_KEY: 'k' }))).toEqual([]);
-    expect(await activeSourceIds(ctx(HAE))).toEqual(['hae']);
+  it('hae is active exactly when a credential is stored', async () => {
+    expect(await activeSourceIds(ctx({}))).toEqual([]);
+    expect(await activeSourceIds(ctx({}, { credentials: ['hae'] }))).toEqual(['hae']);
+  });
+
+  it('hae ignores HAE_API_URL and HAE_API_KEY, whatever they hold', async () => {
+    const env = { HAE_API_URL: 'http://hae.test', HAE_API_KEY: 'sample-key' };
+    expect(await activeSourceIds(ctx(env))).toEqual([]);
+    expect(await activeSourceIds(ctx(env, { credentials: ['hae'] }))).toEqual(['hae']);
   });
 
   it('oura needs configuration AND a stored credential', async () => {
@@ -68,13 +71,13 @@ describe('source registry', () => {
   });
 
   it('returns a sorted set and joins it with +', async () => {
-    const all = ctx({ ...HAE, ...OURA, HEVY_API_KEY: 'k' }, { credentials: ['oura'], labs: 2 });
+    const all = ctx({ ...OURA, HEVY_API_KEY: 'k' }, { credentials: ['hae', 'oura'], labs: 2 });
     expect(await activeSourceIds(all)).toEqual(['hae', 'hevy', 'lab', 'oura']);
-    expect(await sourceSetKey(ctx({ ...HAE, ...OURA }, { credentials: ['oura'], labs: 1 }))).toBe('hae+lab+oura');
+    expect(await sourceSetKey(ctx(OURA, { credentials: ['hae', 'oura'], labs: 1 }))).toBe('hae+lab+oura');
   });
 
   it('activeHealthSources keeps only health sources', async () => {
-    const all = ctx({ ...HAE, ...OURA, HEVY_API_KEY: 'k' }, { credentials: ['oura'], labs: 2 });
+    const all = ctx({ ...OURA, HEVY_API_KEY: 'k' }, { credentials: ['hae', 'oura'], labs: 2 });
     expect(await activeHealthSources(all)).toEqual(['hae', 'oura']);
     expect(await activeHealthSources(ctx({ HEVY_API_KEY: 'k' }, { labs: 1 }))).toEqual([]);
   });

@@ -3,7 +3,7 @@
 // Every status in this report comes from a real check performed in this process:
 //
 //   * Health Auto Export / Health API — a bounded read-only probe of the
-//     configured HAE_API_URL (HAE_PROBE_METRIC, default resting_heart_rate),
+//     stored endpoint (HAE_PROBE_METRIC, default resting_heart_rate),
 //     with a hard timeout. Healthy is only ever reported when the probe actually
 //     answered with an array of records.
 //   * Oura — a bounded read-only probe (daily_sleep, last two days) when Oura is
@@ -18,7 +18,7 @@
 
 import { datasetMeta, type DatasetMeta } from '../adapters/dataset';
 import { cacheStatus, installDataset, readDataMode, LiveDataUnavailableError } from '../adapters/runtime';
-import { haeHost, readHaeConfig, type HaeProbeResult } from '../adapters/hae';
+import { haeHost, resolveHaeConfig, type HaeConfig, type HaeProbeResult } from '../adapters/hae';
 import { probeHae } from '../adapters/hae';
 import { probeOura, type OuraProbeResult } from '../adapters/oura';
 import { readOuraConfig } from '../adapters/oura/config';
@@ -47,11 +47,13 @@ export { STAGE_STATUS_LABEL, PIPELINE_ORDER } from './types';
 
 export const PROBE_TIMEOUT_MS = 1500;
 
-export function readPipelineConfig(env: NodeJS.ProcessEnv = process.env): PipelineConfig {
-  const config = readHaeConfig(env);
+export async function readPipelineConfig(
+  deps: { env?: NodeJS.ProcessEnv; haeConfig?: HaeConfig | null; haeClient?: PoolLike | null } = {}
+): Promise<PipelineConfig> {
+  const config = await resolveHaeConfig(deps);
   return {
     healthApiConfigured: Boolean(config),
-    healthApiHost: haeHost(env),
+    healthApiHost: await haeHost({ ...deps, haeConfig: config }),
     probeMetric: config?.probeMetric ?? null,
   };
 }
@@ -66,6 +68,10 @@ export interface PipelineDeps {
   datasetSummary?: PipelineDatasetSummary;
   /** Replaces the process Postgres pool for Oura's credential (tests). */
   ouraClient?: PoolLike | null;
+  /** Use this Health Auto Export connection instead of the stored one (tests). */
+  haeConfig?: HaeConfig | null;
+  /** Replaces the process Postgres pool for the stored connection (tests). */
+  haeClient?: PoolLike | null;
 }
 
 /** The Oura stage: every status comes from the probe, or from the configuration when no request was made. */
@@ -114,7 +120,7 @@ function toProbe(result: HaeProbeResult | null, config: PipelineConfig, env: Nod
       outcome: 'not_configured',
       httpStatus: null,
       records: null,
-      detail: 'HAE_API_URL and HAE_API_KEY are not both set, so no request was made.',
+      detail: 'The data source is not connected, so no request was made.',
       durationMs: null,
     };
   }
@@ -153,12 +159,12 @@ function dayOf(iso: string | null): string {
 export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<PipelineStatusReport> {
   const env = deps.env ?? process.env;
   const now = deps.now ?? (() => Date.now());
-  const config = readPipelineConfig(env);
+  const config = await readPipelineConfig({ env, haeConfig: deps.haeConfig, haeClient: deps.haeClient });
   const mode = readDataMode(env);
 
   // ── 1. Probe the export API (only when configured) ────
   const probeResult = config.healthApiConfigured
-    ? await probeHae({ env, fetchImpl: deps.fetchImpl }, now)
+    ? await probeHae({ env, fetchImpl: deps.fetchImpl, haeConfig: deps.haeConfig, haeClient: deps.haeClient }, now)
     : null;
   const probe = toProbe(probeResult, config, env);
   const probeOk = probe.outcome === 'ok';
@@ -178,7 +184,7 @@ export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<Pi
     summary = summariseDataset(datasetMeta(), null);
   } else {
     try {
-      const resolved = await installDataset({ env, fetchImpl: deps.fetchImpl, now: deps.now ? () => new Date(deps.now!()) : undefined });
+      const resolved = await installDataset({ env, fetchImpl: deps.fetchImpl, haeConfig: deps.haeConfig, haeClient: deps.haeClient, now: deps.now ? () => new Date(deps.now!()) : undefined });
       summary = summariseDataset(resolved.serverMeta ?? datasetMeta(), null);
     } catch (error) {
       const detail =
@@ -203,7 +209,7 @@ export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<Pi
       name: 'Health Auto Export',
       status: !config.healthApiConfigured ? 'unconfigured' : probeOk ? 'healthy' : 'degraded',
       detail: !config.healthApiConfigured
-        ? 'No export server is configured (HAE_API_URL and HAE_API_KEY are not both set).'
+        ? 'The data source is not connected. Connect it in Settings → Connections.'
         : probeOk
           ? `The configured export server at ${config.healthApiHost ?? 'the configured host'} answered a read-only probe with ${probe.records ?? 0} record(s).`
           : `${probe.detail} The configured host is ${config.healthApiHost ?? 'unknown'}.`,

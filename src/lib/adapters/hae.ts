@@ -1,8 +1,9 @@
 // ── Health Auto Export HTTP client (server-side only) ───
 //
 // The only module in Vital that knows the upstream wire protocol. It reads
-// HAE_API_URL / HAE_API_KEY from the server environment, sends the read token as
-// the `api-key` header, validates that the response really is an array of
+// the stored connection (endpoint and key, encrypted in Postgres, see
+// `hae-store.ts`; the environment is never read for them), sends the read token
+// as the `api-key` header, validates that the response really is an array of
 // records, and never logs a response body or the token.
 //
 // Endpoints used (verified against the running server, see SPEC §10):
@@ -17,6 +18,8 @@
 // Nothing here is imported by browser code: the client bundle never receives the
 // token (see README "Live data" and the bundle check in the verification steps).
 
+import type { PoolLike } from '@/lib/db/pool';
+import { readStoredHae, recordHaeOutcome } from './hae-store';
 import type { RawSimpleRecord, RawWorkoutRecord } from './normalize';
 
 export type HaeFailureKind =
@@ -51,10 +54,17 @@ export interface HaeConfig {
 export const DEFAULT_PROBE_TIMEOUT_MS = 1500;
 export const DEFAULT_DATA_TIMEOUT_MS = 20_000;
 
-/** Read the configuration. Returns null when the API is not configured. */
-export function readHaeConfig(env: NodeJS.ProcessEnv = process.env): HaeConfig | null {
-  const url = (env.HAE_API_URL ?? '').trim().replace(/\/+$/, '');
-  const key = (env.HAE_API_KEY ?? '').trim();
+/**
+ * The configuration for an endpoint and key. The tuning (probe metric, cache
+ * TTL) is plain environment; the endpoint and key are never read from it.
+ */
+export function buildHaeConfig(
+  endpoint: string,
+  apiKey: string,
+  env: NodeJS.ProcessEnv = process.env
+): HaeConfig | null {
+  const url = endpoint.trim().replace(/\/+$/, '');
+  const key = apiKey.trim();
   if (!url || !key) return null;
   const ttl = Number(env.HAE_CACHE_TTL_SECONDS);
   return {
@@ -67,12 +77,24 @@ export function readHaeConfig(env: NodeJS.ProcessEnv = process.env): HaeConfig |
   };
 }
 
-/** Host of the configured API — safe to display, never the token. */
-export function haeHost(env: NodeJS.ProcessEnv = process.env): string | null {
-  const url = (env.HAE_API_URL ?? '').trim();
-  if (!url) return null;
+/**
+ * The connection to use: `deps.haeConfig` when a caller injected one (tests, and
+ * the candidate probe of a save), else the stored, encrypted one. Null when not
+ * connected or when the stored row cannot be read (it needs re-entry).
+ */
+export async function resolveHaeConfig(deps: RequestDeps = {}): Promise<HaeConfig | null> {
+  if (deps.haeConfig !== undefined) return deps.haeConfig;
+  const stored = await readStoredHae({ env: deps.env, haeClient: deps.haeClient });
+  if (stored.state !== 'ok') return null;
+  return buildHaeConfig(stored.endpoint, stored.apiKey, deps.env ?? process.env);
+}
+
+/** Host of the connected API: safe to display, never the key. */
+export async function haeHost(deps: RequestDeps = {}): Promise<string | null> {
+  const config = await resolveHaeConfig(deps);
+  if (!config) return null;
   try {
-    return new URL(url).host;
+    return new URL(config.baseUrl).host;
   } catch {
     return null;
   }
@@ -81,7 +103,13 @@ export function haeHost(env: NodeJS.ProcessEnv = process.env): string | null {
 export interface RequestDeps {
   env?: NodeJS.ProcessEnv;
   fetchImpl?: typeof fetch;
+  /** Use this connection instead of the stored one (tests, the pre-save probe). `null` = not connected. */
+  haeConfig?: HaeConfig | null;
+  /** Replaces the process Postgres pool when reading the stored connection (tests). */
+  haeClient?: PoolLike | null;
 }
+
+export const HAE_NOT_CONNECTED = 'The data source is not connected. Connect it in Settings → Connections.';
 
 function fetchOf(deps: RequestDeps = {}): typeof fetch {
   const impl = deps.fetchImpl ?? globalThis.fetch;
@@ -97,13 +125,10 @@ async function haeGetJson(
   deps: RequestDeps = {},
   timeoutMs?: number
 ): Promise<unknown> {
-  const config = readHaeConfig(deps.env ?? process.env);
-  if (!config) {
-    throw new HaeError(
-      'The Health Auto Export API is not configured (HAE_API_URL and HAE_API_KEY must both be set).',
-      'not_configured'
-    );
-  }
+  const config = await resolveHaeConfig(deps);
+  if (!config) throw new HaeError(HAE_NOT_CONNECTED, 'not_configured');
+  // Failures of the stored connection feed the Settings card; a candidate probe does not.
+  const track = deps.haeConfig === undefined;
 
   const fetchImpl = fetchOf(deps);
   const controller = new AbortController();
@@ -121,31 +146,38 @@ async function haeGetJson(
     });
   } catch (error) {
     const aborted = error instanceof Error && error.name === 'AbortError';
-    throw new HaeError(
+    const failure = new HaeError(
       aborted
         ? `The Health Auto Export API did not answer within ${limit} ms.`
         : 'The Health Auto Export API could not be reached.',
       aborted ? 'timeout' : 'network_error'
     );
+    if (track) recordHaeOutcome({ kind: failure.kind, message: failure.message });
+    throw failure;
   } finally {
     clearTimeout(timer);
   }
 
   if (!response.ok) {
-    throw new HaeError(
+    const failure = new HaeError(
       `The Health Auto Export API answered HTTP ${response.status} for ${pathAndQuery.split('?')[0]}.`,
       'http_error',
       response.status
     );
+    if (track) recordHaeOutcome({ kind: failure.kind, message: failure.message });
+    throw failure;
   }
 
   let body: unknown;
   try {
     body = await response.json();
   } catch {
-    throw new HaeError('The Health Auto Export API returned a body that is not JSON.', 'invalid_payload');
+    const failure = new HaeError('The Health Auto Export API returned a body that is not JSON.', 'invalid_payload');
+    if (track) recordHaeOutcome({ kind: failure.kind, message: failure.message });
+    throw failure;
   }
 
+  if (track) recordHaeOutcome(null);
   return body;
 }
 
@@ -255,14 +287,14 @@ export interface HaeProbeResult {
  * asks for a real metric and requires a real array back.
  */
 export async function probeHae(deps: RequestDeps = {}, now: () => number = Date.now): Promise<HaeProbeResult> {
-  const config = readHaeConfig(deps.env ?? process.env);
+  const config = await resolveHaeConfig(deps);
   if (!config) {
     return {
       outcome: 'network_error',
       httpStatus: null,
       durationMs: 0,
       records: 0,
-      detail: 'No Health Auto Export API is configured, so no probe was attempted.',
+      detail: 'The data source is not connected, so no probe was attempted.',
     };
   }
   const started = now();
@@ -271,10 +303,10 @@ export async function probeHae(deps: RequestDeps = {}, now: () => number = Date.
     // while staying tiny in payload.
     const to = new Date(started).toISOString();
     const from = new Date(started - 7 * 86400_000).toISOString();
-    const records = await fetchMetricRecords(
-      config.probeMetric,
-      { from, to },
-      deps
+    const records = await haeGetArray<RawSimpleRecord>(
+      `/api/metrics/${encodeURIComponent(config.probeMetric)}${metricQuery({ from, to })}`,
+      deps,
+      config.probeTimeoutMs
     );
     return {
       outcome: 'ok',
