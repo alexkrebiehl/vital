@@ -10,6 +10,7 @@ const config: OuraConfig = {
   clientId: 'sample-client',
   clientSecret: 'sample-secret',
   redirectUri: 'http://localhost:8080/cb',
+  loginClientId: null,
   scopes: ['daily'],
   apiUrl: 'https://api.example.test',
   cacheTtlSeconds: 300,

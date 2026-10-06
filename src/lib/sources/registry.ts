@@ -7,7 +7,7 @@
 // Activity is decided from configuration and from the existence of a credential
 // or a document. It never reads a health value and never calls a source's API.
 
-import { readOuraConfig } from '@/lib/adapters/oura/config';
+import { OURA_APP_SOURCE_ID } from '@/lib/adapters/oura/app-store';
 import { hasCredentialRow } from '@/lib/db/credentials-store';
 import { getPool, type PoolLike } from '@/lib/db/pool';
 import { hevyPlugin } from '@/lib/workout-sources/hevy';
@@ -43,8 +43,9 @@ export const DATA_SOURCES: readonly DataSourceDef[] = [
     id: 'oura',
     displayName: 'Oura Ring',
     kind: 'health',
-    // Configured AND connected: a usable configuration and a stored credential.
-    isActive: async ctx => readOuraConfig(ctx.env)?.ok === true && (await ctx.hasCredential('oura')),
+    // Configured AND connected: stored app credentials and a stored login. The environment
+    // is never consulted for the client ID, secret or redirect URI.
+    isActive: async ctx => (await ctx.hasCredential(OURA_APP_SOURCE_ID)) && (await ctx.hasCredential('oura')),
   },
   {
     id: 'hevy',

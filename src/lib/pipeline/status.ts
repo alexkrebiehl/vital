@@ -21,7 +21,8 @@ import { cacheStatus, installDataset, readDataMode, LiveDataUnavailableError } f
 import { haeHost, resolveHaeConfig, type HaeConfig, type HaeProbeResult } from '../adapters/hae';
 import { probeHae } from '../adapters/hae';
 import { probeOura, type OuraProbeResult } from '../adapters/oura';
-import { readOuraConfig } from '../adapters/oura/config';
+import { readOuraConfig, type OuraConfigResult } from '../adapters/oura/config';
+import type { StoredOuraApp } from '../adapters/oura/app-store';
 import type { PoolLike } from '../db/pool';
 import { loadTrainingData } from '../workout-sources/store';
 import type { QualityJob } from '../adapters/quality';
@@ -69,6 +70,8 @@ export interface PipelineDeps {
   datasetSummary?: PipelineDatasetSummary;
   /** Replaces the process Postgres pool for Oura's credential (tests). */
   ouraClient?: PoolLike | null;
+  /** Use these stored Oura app credentials instead of reading them (tests). */
+  ouraApp?: StoredOuraApp;
   /** Use this Health Auto Export connection instead of the stored one (tests). */
   haeConfig?: HaeConfig | null;
   /** Replaces the process Postgres pool for the stored connection (tests). */
@@ -76,8 +79,7 @@ export interface PipelineDeps {
 }
 
 /** The Oura stage: every status comes from the probe, or from the configuration when no request was made. */
-function ouraStage(env: NodeJS.ProcessEnv, probe: OuraProbeResult | null): PipelineStage {
-  const read = readOuraConfig(env);
+function ouraStage(read: OuraConfigResult, probe: OuraProbeResult | null): PipelineStage {
   const base = { id: 'oura_api' as const, name: 'Oura Ring', observationCount: null, lastObservationAt: null };
   if (read && !read.ok) {
     return {
@@ -91,7 +93,7 @@ function ouraStage(env: NodeJS.ProcessEnv, probe: OuraProbeResult | null): Pipel
     return {
       ...base,
       status: 'unconfigured',
-      detail: 'Oura is not configured (OURA_CLIENT_ID is not set).',
+      detail: 'Oura app credentials are not set. Enter them in Settings → Connections.',
       derivedFrom: 'Configuration check only; no request was made.',
     };
   }
@@ -226,9 +228,9 @@ export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<Pi
   const probeOk = probe.outcome === 'ok';
 
   // ── 1b. Probe Oura (only when configured; a missing credential makes no request) ──
-  const ouraConfigured = readOuraConfig(env)?.ok === true;
-  const ouraProbe = ouraConfigured
-    ? await probeOura({ env, fetchImpl: deps.fetchImpl, client: deps.ouraClient }, now)
+  const ouraRead = await readOuraConfig({ env, client: deps.ouraClient, ouraApp: deps.ouraApp });
+  const ouraProbe = ouraRead?.ok === true
+    ? await probeOura({ env, fetchImpl: deps.fetchImpl, client: deps.ouraClient, ouraApp: deps.ouraApp }, now)
     : null;
   const ouraOk = ouraProbe?.outcome === 'ok';
 
@@ -292,7 +294,7 @@ export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<Pi
       observationCount: summary.observationCount,
       lastObservationAt: summary.lastObservationAt,
     },
-    ouraStage(env, ouraProbe),
+    ouraStage(ouraRead, ouraProbe),
     qualityStage(qualityJob, mode, summary),
     {
       id: 'intelligence',

@@ -13,12 +13,16 @@ const HAE_TOKEN = 'sample-hae-token';
 const OURA_ACCESS = 'sample-oura-access';
 const ENV = {
   VITAL_DATA_MODE: 'live',
-  OURA_CLIENT_ID: 'sample-client',
-  OURA_CLIENT_SECRET: 'sample-secret',
-  OURA_REDIRECT_URI: 'http://localhost:8080/api/sources/oura/callback',
   OURA_API_URL: 'http://oura.test',
   VITAL_SECRET_KEY: KEY.toString('base64'),
 } as unknown as NodeJS.ProcessEnv;
+const OURA_APP = {
+  state: 'ok' as const,
+  clientId: 'sample-client',
+  clientSecret: 'sample-secret',
+  redirectUri: 'http://localhost:8080/api/sources/oura/callback',
+  loginClientId: null,
+};
 const HAE_CONFIG = buildHaeConfig('http://hae.test:3001', HAE_TOKEN, ENV);
 const NOW = new Date('2026-09-17T18:00:00.000Z');
 
@@ -50,7 +54,7 @@ function fetchWith(oura: 'ok' | 'fail') {
 // Only ENV has a stored Health Auto Export connection; the other environments have none.
 const ctx = (env: NodeJS.ProcessEnv, connected: boolean): SourceContext => ({
   env,
-  hasCredential: async id => (connected && id === 'oura') || (env === ENV && id === 'hae'),
+  hasCredential: async id => (connected && (id === 'oura' || id === 'oura-app')) || (env === ENV && id === 'hae'),
   labReportCount: async () => 0,
 });
 
@@ -64,7 +68,7 @@ describe('resolveDataset with several live sources', () => {
   it('words the summary without naming any source', async () => {
     const resolved = await resolveDataset({
       haeConfig: HAE_CONFIG, env: ENV, fetchImpl: fetchWith('ok'), now: () => NOW, timezone: 'UTC', bypassCache: true,
-      sources: ctx(ENV, true), ouraClient: pool,
+      sources: ctx(ENV, true), ouraClient: pool, ouraApp: OURA_APP,
     });
     expect(resolved.meta.summary).toMatch(/^Live data, as of 2026-09-\d\d\. \d+ daily observations across \d+ metrics\.$/);
     expect(resolved.meta.summary).not.toMatch(/oura|health auto export|ring/i);
@@ -74,7 +78,7 @@ describe('resolveDataset with several live sources', () => {
   it('reports a failed source in the meta and keeps serving the other', async () => {
     const resolved = await resolveDataset({
       haeConfig: HAE_CONFIG, env: ENV, fetchImpl: fetchWith('fail'), now: () => NOW, timezone: 'UTC', bypassCache: true,
-      sources: ctx(ENV, true), ouraClient: pool,
+      sources: ctx(ENV, true), ouraClient: pool, ouraApp: OURA_APP,
     });
     expect(resolved.meta.sourceErrors).toEqual([
       { sourceId: 'oura', kind: 'http_error', message: expect.any(String) },
@@ -86,7 +90,7 @@ describe('resolveDataset with several live sources', () => {
   it('quotes the merge rule next to the dedupe rule when both sources are read', async () => {
     const resolved = await resolveDataset({
       haeConfig: HAE_CONFIG, env: ENV, fetchImpl: fetchWith('ok'), now: () => NOW, timezone: 'UTC', bypassCache: true,
-      sources: ctx(ENV, true), ouraClient: pool,
+      sources: ctx(ENV, true), ouraClient: pool, ouraApp: OURA_APP,
     });
     expect(resolved.meta.dedupe?.rule).toContain('never added or averaged');
   });
@@ -94,7 +98,7 @@ describe('resolveDataset with several live sources', () => {
   it('keeps the dedupe rule alone for HAE only', async () => {
     const resolved = await resolveDataset({
       haeConfig: HAE_CONFIG, env: ENV, fetchImpl: fetchWith('ok'), now: () => NOW, timezone: 'UTC', bypassCache: true,
-      sources: ctx(ENV, false), ouraClient: pool,
+      sources: ctx(ENV, false), ouraClient: pool, ouraApp: OURA_APP,
     });
     expect(resolved.meta.dedupe?.rule).not.toContain('never added or averaged');
   });

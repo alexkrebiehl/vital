@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { resolvePipelineStatus } from '@/lib/pipeline/status';
 import { encryptJson, keyId } from '@/lib/secrets/crypto';
+import type { StoredOuraApp } from '@/lib/adapters/oura/app-store';
 import type { PoolLike } from '@/lib/db/pool';
 import type { PipelineDatasetSummary } from '@/lib/pipeline/types';
 
@@ -8,12 +9,16 @@ const KEY = Buffer.alloc(32, 3);
 const ACCESS = 'sample-oura-access';
 const NOW = Date.parse('2026-09-17T18:00:00.000Z');
 const OURA_ENV = {
-  OURA_CLIENT_ID: 'sample-client',
-  OURA_CLIENT_SECRET: 'sample-secret',
-  OURA_REDIRECT_URI: 'http://localhost:8080/api/sources/oura/callback',
   OURA_API_URL: 'http://oura.test',
   VITAL_SECRET_KEY: KEY.toString('base64'),
 } as unknown as NodeJS.ProcessEnv;
+const APP: StoredOuraApp = {
+  state: 'ok',
+  clientId: 'sample-client',
+  clientSecret: 'sample-secret',
+  redirectUri: 'http://localhost:8080/api/sources/oura/callback',
+  loginClientId: null,
+};
 const SUMMARY: PipelineDatasetSummary = {
   source: 'live', observationCount: 12, metricCount: 3, workouts: 0, referenceKey: '2026-09-17',
   windowStartKey: '2026-09-01', timezone: 'UTC', lastObservationAt: '2026-09-17T06:00:00.000Z', error: null,
@@ -37,23 +42,28 @@ function fetchReplying(status: number, calls: string[] = []): typeof fetch {
 }
 
 const run = (env: NodeJS.ProcessEnv, extra: Parameters<typeof resolvePipelineStatus>[0]) =>
-  resolvePipelineStatus({ env, now: () => NOW, skipDataset: true, ...extra });
+  resolvePipelineStatus({ env, now: () => NOW, skipDataset: true, ouraApp: APP, ...extra });
 
 describe('oura_api pipeline stage', () => {
-  it('is unconfigured, with no request, when Oura is not configured', async () => {
+  it('says the app credentials are not set, and points to Settings, with no request', async () => {
     const calls: string[] = [];
-    const report = await run({} as NodeJS.ProcessEnv, { fetchImpl: fetchReplying(200, calls), ouraClient: pool(true) });
+    const report = await run({} as NodeJS.ProcessEnv, {
+      fetchImpl: fetchReplying(200, calls),
+      ouraClient: pool(true),
+      ouraApp: { state: 'none' },
+    });
     const stage = report.stages.find(s => s.id === 'oura_api')!;
     expect(stage.status).toBe('unconfigured');
-    expect(stage.detail).toContain('OURA_CLIENT_ID');
+    expect(stage.detail).toContain('Oura app credentials are not set');
+    expect(stage.detail).toContain('Settings → Connections');
+    expect(stage.detail).not.toContain('OURA_CLIENT_ID');
     expect(calls).toHaveLength(0);
   });
 
-  it('names the variable that is missing when the configuration is partial', async () => {
-    const env = { OURA_CLIENT_ID: 'sample-client' } as unknown as NodeJS.ProcessEnv;
-    const stage = (await run(env, {})).stages.find(s => s.id === 'oura_api')!;
+  it('says the stored credentials must be entered again when they cannot be read', async () => {
+    const stage = (await run(OURA_ENV, { ouraApp: { state: 'needs_reentry' } })).stages.find(s => s.id === 'oura_api')!;
     expect(stage.status).toBe('unconfigured');
-    expect(stage.detail).toContain('OURA_CLIENT_SECRET');
+    expect(stage.detail).toContain('Settings');
   });
 
   it('is unconfigured, with no request, when configured but not connected', async () => {

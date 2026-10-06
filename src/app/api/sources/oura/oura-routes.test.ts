@@ -7,6 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { randomBytes } from 'node:crypto';
 import { fakeTable } from '@/lib/db/credentials-store.fake';
+import { clearOuraAppCache, readStoredOuraApp, saveStoredOuraApp } from '@/lib/adapters/oura/app-store';
 import { getCredential } from '@/lib/db/credentials-store';
 import { liveCache } from '@/lib/adapters/cache';
 import { OAUTH_COOKIE, openSession, sealSession } from '@/lib/adapters/oura/session';
@@ -38,13 +39,15 @@ const ORIGIN = 'http://localhost:8080';
 const CALLBACK = `${ORIGIN}/api/sources/oura/callback`;
 const NOW = Date.parse('2026-10-04T12:00:00Z');
 
-function configure(extra: Record<string, string> = {}) {
-  vi.stubEnv('OURA_CLIENT_ID', 'sample-client');
-  vi.stubEnv('OURA_CLIENT_SECRET', CLIENT_SECRET);
-  vi.stubEnv('OURA_REDIRECT_URI', CALLBACK);
+/** The app credentials are stored in Settings (encrypted in the table); the environment holds admin values only. */
+async function configure(extra: Record<string, string> = {}) {
   vi.stubEnv('OURA_API_URL', 'http://oura.test');
   vi.stubEnv('VITAL_SECRET_KEY', KEY.toString('base64'));
   for (const [k, v] of Object.entries(extra)) vi.stubEnv(k, v);
+  await saveStoredOuraApp(
+    { env: process.env },
+    { clientId: 'sample-client', clientSecret: CLIENT_SECRET, redirectUri: CALLBACK }
+  );
 }
 
 interface Seen {
@@ -59,6 +62,7 @@ let tokenReply: () => Response;
 beforeEach(() => {
   seen = [];
   db.rows.clear();
+  clearOuraAppCache();
   db.sent.length = 0;
   hoisted.compared = 0;
   liveCache.clear();
@@ -116,7 +120,7 @@ describe('GET /api/sources/oura/authorize', () => {
   });
 
   it('redirects to Oura with state and a PKCE challenge, and seals both in a cookie', async () => {
-    configure();
+    await configure();
     const res = await authorizeRoute(new Request(`${ORIGIN}/api/sources/oura/authorize`));
     expect(res.status).toBe(302);
     expect(res.headers.get('cache-control')).toBe('private, no-store');
@@ -144,7 +148,7 @@ describe('GET /api/sources/oura/authorize', () => {
   });
 
   it('marks the cookie Secure behind https', async () => {
-    configure();
+    await configure();
     const res = await authorizeRoute(
       new Request(`${ORIGIN}/api/sources/oura/authorize`, { headers: { 'x-forwarded-proto': 'https' } })
     );
@@ -154,7 +158,7 @@ describe('GET /api/sources/oura/authorize', () => {
 
 describe('GET /api/sources/oura/callback', () => {
   it('sends a refused sign-in back to Settings without any exchange', async () => {
-    configure();
+    await configure();
     const res = await callbackRoute(callbackRequest('error=access_denied'));
     expect(res.status).toBe(302);
     expect(res.headers.get('location')).toBe(`${ORIGIN}/settings?tab=connections&oura=denied`);
@@ -163,25 +167,25 @@ describe('GET /api/sources/oura/callback', () => {
   });
 
   it('rejects a missing cookie, with no exchange', async () => {
-    configure();
+    await configure();
     const res = await callbackRoute(callbackRequest('code=abc&state=whatever'));
     expect(res.status).toBe(400);
     expect(seen).toHaveLength(0);
-    expect(db.rows.size).toBe(0);
+    expect(db.rows.has('oura')).toBe(false);
   });
 
   it('rejects a state that does not match, comparing in constant time', async () => {
-    configure();
+    await configure();
     const { cookie } = await startSignIn();
     const res = await callbackRoute(callbackRequest('code=abc&state=not-the-state', cookie));
     expect(res.status).toBe(400);
     expect(hoisted.compared).toBeGreaterThan(0);
     expect(seen).toHaveLength(0);
-    expect(db.rows.size).toBe(0);
+    expect(db.rows.has('oura')).toBe(false);
   });
 
   it('rejects a missing state, a missing code and a tampered cookie', async () => {
-    configure();
+    await configure();
     const { state, cookie } = await startSignIn();
     expect((await callbackRoute(callbackRequest('code=abc', cookie))).status).toBe(400);
     expect((await callbackRoute(callbackRequest(`state=${state}`, cookie))).status).toBe(400);
@@ -191,7 +195,7 @@ describe('GET /api/sources/oura/callback', () => {
   });
 
   it('rejects a cookie sealed under another key', async () => {
-    configure();
+    await configure();
     const { state } = await startSignIn();
     const foreign = `${OAUTH_COOKIE}=${sealSession({ state, verifier: 'v', ts: NOW }, randomBytes(32))}`;
     expect((await callbackRoute(callbackRequest(`code=abc&state=${state}`, foreign))).status).toBe(400);
@@ -199,7 +203,7 @@ describe('GET /api/sources/oura/callback', () => {
   });
 
   it('rejects a sign-in older than ten minutes', async () => {
-    configure();
+    await configure();
     const { state, cookie } = await startSignIn();
     vi.setSystemTime(NOW + 10 * 60_000 + 1000);
     const res = await callbackRoute(callbackRequest(`code=abc&state=${state}`, cookie));
@@ -208,7 +212,7 @@ describe('GET /api/sources/oura/callback', () => {
   });
 
   it('exchanges the code, stores the encrypted tokens with the granted scopes and clears the caches', async () => {
-    configure();
+    await configure();
     liveCache.getOrLoad('live-dataset:UTC:400:hae', async () => 1);
     liveCache.getOrLoad('oura:UTC:400', async () => 1);
     liveCache.getOrLoad('something-else', async () => 1);
@@ -240,7 +244,7 @@ describe('GET /api/sources/oura/callback', () => {
   });
 
   it('stores the requested scopes when the reply does not list the granted ones', async () => {
-    configure();
+    await configure();
     tokenReply = () =>
       new Response(JSON.stringify({ access_token: ACCESS, refresh_token: REFRESH, expires_in: 3600 }), { status: 200 });
     const { state, cookie } = await startSignIn();
@@ -250,12 +254,12 @@ describe('GET /api/sources/oura/callback', () => {
   });
 
   it('reports a refused exchange without storing anything or leaking a secret', async () => {
-    configure();
+    await configure();
     tokenReply = () => new Response(JSON.stringify({ error: 'invalid_grant', detail: CLIENT_SECRET }), { status: 400 });
     const { state, cookie } = await startSignIn();
     const res = await callbackRoute(callbackRequest(`code=bad&state=${state}`, cookie));
     expect(res.status).toBe(502);
-    expect(db.rows.size).toBe(0);
+    expect(db.rows.has('oura')).toBe(false);
     await expectNoSecrets(res);
   });
 });
@@ -269,12 +273,12 @@ describe('GET /api/sources/oura', () => {
   });
 
   it('is ready to connect before the first sign-in', async () => {
-    configure();
+    await configure();
     expect(await (await statusRoute()).json()).toMatchObject({ configured: true, connected: false, needsReconnect: false });
   });
 
   it('reports scopes and missing scopes, and nothing secret, once connected', async () => {
-    configure();
+    await configure();
     const { state, cookie } = await startSignIn();
     await callbackRoute(callbackRequest(`code=c&state=${state}`, cookie));
     const res = await statusRoute();
@@ -305,7 +309,7 @@ describe('DELETE /api/sources/oura', () => {
   });
 
   it('revokes, deletes the credential, clears the caches and returns 204', async () => {
-    configure();
+    await configure();
     await connect();
     liveCache.getOrLoad('live-dataset:UTC:400:hae+oura', async () => 1);
     await liveCache.awaitIdle();
@@ -314,7 +318,9 @@ describe('DELETE /api/sources/oura', () => {
     expect(res.status).toBe(204);
     expect(res.headers.get('cache-control')).toBe('private, no-store');
     expect(await res.text()).toBe('');
-    expect(db.rows.size).toBe(0);
+    expect(db.rows.has('oura')).toBe(false);
+    // Disconnecting does not remove the app credentials, and the login no longer binds a client id.
+    expect(db.rows.has('oura-app')).toBe(true);
     expect(liveCache.stats().keys).toEqual([]);
     const revoke = seen.filter(s => s.url.includes('/oauth/revoke'));
     expect(revoke).toHaveLength(1);
@@ -322,12 +328,51 @@ describe('DELETE /api/sources/oura', () => {
   });
 
   it('deletes the credential even when Oura does not answer the revoke', async () => {
-    configure();
+    await configure();
     await connect();
     vi.stubGlobal('fetch', async () => {
       throw new Error('offline');
     });
     expect((await disconnectRoute()).status).toBe(204);
-    expect(db.rows.size).toBe(0);
+    expect(db.rows.has('oura')).toBe(false);
+  });
+});
+
+describe('the login and the client id it was issued for', () => {
+  async function connect() {
+    const { state, cookie } = await startSignIn();
+    await callbackRoute(callbackRequest(`code=c&state=${state}`, cookie));
+  }
+
+  it('records the client id on connect and clears it on disconnect', async () => {
+    await configure();
+    await connect();
+    const bound = await readStoredOuraApp({ env: process.env });
+    expect(bound.state === 'ok' && bound.loginClientId).toBe('sample-client');
+    await disconnectRoute();
+    const cleared = await readStoredOuraApp({ env: process.env });
+    expect(cleared.state === 'ok' && cleared.loginClientId).toBeNull();
+  });
+
+  it('keeps the login valid when the same client id is saved again', async () => {
+    await configure();
+    await connect();
+    const bound = await readStoredOuraApp({ env: process.env });
+    if (bound.state !== 'ok') throw new Error('expected stored credentials');
+    await saveStoredOuraApp({ env: process.env }, bound, { loginClientId: bound.loginClientId });
+    expect(await (await statusRoute()).json()).toMatchObject({ connected: true, needsReconnect: false });
+  });
+
+  it('marks the login as needing a reconnect, without deleting it, when the client id changed', async () => {
+    await configure();
+    await connect();
+    await saveStoredOuraApp(
+      { env: process.env },
+      { clientId: 'another-client', clientSecret: CLIENT_SECRET, redirectUri: CALLBACK },
+      { loginClientId: 'sample-client' }
+    );
+    const body = await (await statusRoute()).json();
+    expect(body).toMatchObject({ connected: false, needsReconnect: true });
+    expect(db.rows.has('oura')).toBe(true);
   });
 });

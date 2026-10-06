@@ -18,12 +18,8 @@ function ctx(env: Record<string, string>, opts: { credentials?: string[]; labs?:
   };
 }
 
-const OURA = {
-  OURA_CLIENT_ID: 'id',
-  OURA_CLIENT_SECRET: 'secret',
-  OURA_REDIRECT_URI: 'http://localhost:8080/cb',
-  VITAL_SECRET_KEY: randomBytes(32).toString('base64'),
-};
+const OURA = { VITAL_SECRET_KEY: randomBytes(32).toString('base64') };
+const BOTH = ['oura-app', 'oura'];
 
 describe('source registry', () => {
   it('lists every source once, with a display name and a kind', () => {
@@ -47,17 +43,18 @@ describe('source registry', () => {
     expect(await activeSourceIds(ctx(env, { credentials: ['hae'] }))).toEqual(['hae']);
   });
 
-  it('oura needs configuration AND a stored credential', async () => {
+  it('oura needs stored app credentials AND a stored login', async () => {
     expect(await activeSourceIds(ctx(OURA))).toEqual([]);
-    expect(await activeSourceIds(ctx({}, { credentials: ['oura'] }))).toEqual([]);
-    expect(await activeSourceIds(ctx(OURA, { credentials: ['oura'] }))).toEqual(['oura']);
+    expect(await activeSourceIds(ctx(OURA, { credentials: ['oura'] }))).toEqual([]);
+    expect(await activeSourceIds(ctx(OURA, { credentials: ['oura-app'] }))).toEqual([]);
+    expect(await activeSourceIds(ctx(OURA, { credentials: BOTH }))).toEqual(['oura']);
     expect(await activeSourceIds(ctx(OURA, { credentials: ['other'] }))).toEqual([]);
   });
 
-  it('oura is inactive when the configuration is unusable, even with a credential row', async () => {
-    const { OURA_CLIENT_SECRET: _s, ...noSecret } = OURA;
-    expect(await activeSourceIds(ctx(noSecret, { credentials: ['oura'] }))).toEqual([]);
-    expect(await activeSourceIds(ctx({ ...OURA, VITAL_SECRET_KEY: 'short' }, { credentials: ['oura'] }))).toEqual([]);
+  it('oura ignores OURA_CLIENT_ID, OURA_CLIENT_SECRET and OURA_REDIRECT_URI, whatever they hold', async () => {
+    const env = { OURA_CLIENT_ID: 'id', OURA_CLIENT_SECRET: 's', OURA_REDIRECT_URI: 'http://localhost/cb' };
+    expect(await activeSourceIds(ctx(env, { credentials: ['oura'] }))).toEqual([]);
+    expect(await activeSourceIds(ctx(env))).toEqual([]);
   });
 
   it('hevy is active when its API key is set', async () => {
@@ -71,13 +68,13 @@ describe('source registry', () => {
   });
 
   it('returns a sorted set and joins it with +', async () => {
-    const all = ctx({ ...OURA, HEVY_API_KEY: 'k' }, { credentials: ['hae', 'oura'], labs: 2 });
+    const all = ctx({ ...OURA, HEVY_API_KEY: 'k' }, { credentials: ['hae', ...BOTH], labs: 2 });
     expect(await activeSourceIds(all)).toEqual(['hae', 'hevy', 'lab', 'oura']);
-    expect(await sourceSetKey(ctx(OURA, { credentials: ['hae', 'oura'], labs: 1 }))).toBe('hae+lab+oura');
+    expect(await sourceSetKey(ctx(OURA, { credentials: ['hae', ...BOTH], labs: 1 }))).toBe('hae+lab+oura');
   });
 
   it('activeHealthSources keeps only health sources', async () => {
-    const all = ctx({ ...OURA, HEVY_API_KEY: 'k' }, { credentials: ['hae', 'oura'], labs: 2 });
+    const all = ctx({ ...OURA, HEVY_API_KEY: 'k' }, { credentials: ['hae', ...BOTH], labs: 2 });
     expect(await activeHealthSources(all)).toEqual(['hae', 'oura']);
     expect(await activeHealthSources(ctx({ HEVY_API_KEY: 'k' }, { labs: 1 }))).toEqual([]);
   });

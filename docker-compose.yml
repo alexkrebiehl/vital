@@ -95,11 +95,8 @@ services:
       HEVY_CACHE_TTL_SECONDS: "${HEVY_CACHE_TTL_SECONDS:-300}"
       WORKOUT_SOURCE_LOOKBACK_DAYS: "${WORKOUT_SOURCE_LOOKBACK_DAYS:-400}"
       # ── Oura Ring (optional second live source, server-side only) ───────────
-      # Empty OURA_CLIENT_ID disables Oura. VITAL_SECRET_KEY encrypts the
-      # stored OAuth tokens and is required once Oura is configured.
-      OURA_CLIENT_ID: "${OURA_CLIENT_ID:-}"
-      OURA_CLIENT_SECRET: "${OURA_CLIENT_SECRET:-}"
-      OURA_REDIRECT_URI: "${OURA_REDIRECT_URI:-}"
+      # The client ID, secret and redirect URI are entered in Settings → Connections.
+      # VITAL_SECRET_KEY encrypts them and the OAuth tokens.
       OURA_SCOPES: "${OURA_SCOPES:-}"
       OURA_CACHE_TTL_SECONDS: "${OURA_CACHE_TTL_SECONDS:-300}"
       OURA_HEARTRATE_LOOKBACK_DAYS: "${OURA_HEARTRATE_LOOKBACK_DAYS:-30}"

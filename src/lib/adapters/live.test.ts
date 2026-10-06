@@ -517,12 +517,16 @@ describe('HAE-only output is unchanged by the multi-source wiring', () => {
 const OURA_ACCESS = 'sample-oura-access-token';
 const OURA_REFRESH = 'sample-oura-refresh-token';
 const OURA_SECRET = 'sample-oura-client-secret';
+const OURA_APP = {
+  state: 'ok' as const,
+  clientId: 'sample-client',
+  clientSecret: OURA_SECRET,
+  redirectUri: 'http://localhost:8080/api/sources/oura/callback',
+  loginClientId: null,
+};
 const SECRET_KEY = Buffer.alloc(32, 7);
 const OURA_ONLY_ENV = {
   VITAL_DATA_MODE: 'live',
-  OURA_CLIENT_ID: 'sample-client',
-  OURA_CLIENT_SECRET: OURA_SECRET,
-  OURA_REDIRECT_URI: 'http://localhost:8080/api/sources/oura/callback',
   OURA_API_URL: 'http://oura.test',
   VITAL_SECRET_KEY: SECRET_KEY.toString('base64'),
 } as unknown as NodeJS.ProcessEnv;
@@ -552,7 +556,7 @@ function sourcesCtx(env: NodeJS.ProcessEnv, connected: boolean): SourceContext {
   const hae = HAE_ENVS.has(env);
   return {
     env,
-    hasCredential: async id => (connected && id === 'oura') || (hae && id === 'hae'),
+    hasCredential: async id => (connected && (id === 'oura' || id === 'oura-app')) || (hae && id === 'hae'),
     labReportCount: async () => 0,
   };
 }
@@ -620,7 +624,7 @@ function twoSourceDeps(env: NodeJS.ProcessEnv, fetchImpl: typeof fetch, connecte
     bypassCache: true,
     sources: sourcesCtx(env, connected),
     haeConfig: HAE_CONFIG,
-    ouraClient: credentialPool(),
+    ouraClient: credentialPool(), ouraApp: OURA_APP,
   };
 }
 
@@ -737,7 +741,7 @@ describe('live dataset from HAE and Oura', () => {
 
   it('skips collections whose scope was not granted', async () => {
     const upstream = twoSourceFetch();
-    await fetchLiveDatasetUncached({ ...twoSourceDeps(OURA_ONLY_ENV, upstream.impl), ouraClient: credentialPool('daily') });
+    await fetchLiveDatasetUncached({ ...twoSourceDeps(OURA_ONLY_ENV, upstream.impl), ouraClient: credentialPool('daily'), ouraApp: OURA_APP });
     const asked = upstream.ouraCalls.map(c => /usercollection\/([^?]+)/.exec(c.url)?.[1]).sort();
     expect(asked).toEqual(['daily_activity', 'daily_readiness', 'sleep']);
     for (const c of upstream.ouraCalls) expect(c.auth).toBe(`Bearer ${OURA_ACCESS}`);

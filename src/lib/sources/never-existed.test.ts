@@ -23,12 +23,16 @@ const HAE_ENV = {
   VITAL_DATA_MODE: 'live',
 } as unknown as NodeJS.ProcessEnv;
 const OURA_ENV = {
-  OURA_CLIENT_ID: 'sample-client',
-  OURA_CLIENT_SECRET: 'sample-client-secret',
-  OURA_REDIRECT_URI: 'http://localhost:8080/api/sources/oura/callback',
   OURA_API_URL: 'http://oura.test',
   VITAL_SECRET_KEY: SECRET_KEY.toString('base64'),
 } as unknown as NodeJS.ProcessEnv;
+const OURA_APP = {
+  state: 'ok' as const,
+  clientId: 'sample-client',
+  clientSecret: 'sample-client-secret',
+  redirectUri: 'http://localhost:8080/api/sources/oura/callback',
+  loginClientId: null,
+};
 const BOTH_ENV = { ...HAE_ENV, ...OURA_ENV } as NodeJS.ProcessEnv;
 
 const OURA_DOCS: Record<string, unknown[]> = {
@@ -97,19 +101,24 @@ function credentialPool(): PoolLike {
 // Environments in which the Health Auto Export connection is stored (it is never read from the environment).
 const HAE_ENVS = new Set<NodeJS.ProcessEnv>([HAE_ENV, BOTH_ENV]);
 
-function ctx(env: NodeJS.ProcessEnv, ouraConnected: boolean): SourceContext {
-  return { env, hasCredential: async id => (HAE_ENVS.has(env) && id === 'hae') || (ouraConnected && id === 'oura'), labReportCount: async () => 0 };
+function ctx(env: NodeJS.ProcessEnv, ouraConnected: boolean, appStored = ouraConnected): SourceContext {
+  return {
+    env,
+    hasCredential: async id =>
+      (HAE_ENVS.has(env) && id === 'hae') || (ouraConnected && id === 'oura') || (appStored && id === 'oura-app'),
+    labReportCount: async () => 0,
+  };
 }
 
-function deps(env: NodeJS.ProcessEnv, ouraConnected: boolean) {
+function deps(env: NodeJS.ProcessEnv, ouraConnected: boolean, appStored = ouraConnected) {
   return {
     env,
     fetchImpl: upstream(),
     now: () => NOW,
     timezone: 'UTC',
-    sources: ctx(env, ouraConnected),
+    sources: ctx(env, ouraConnected, appStored),
     haeConfig: buildHaeConfig('http://hae.test:3001', 'sample-hae-key', env),
-    ouraClient: credentialPool(),
+    ouraClient: credentialPool(), ouraApp: OURA_APP,
   };
 }
 
@@ -156,13 +165,13 @@ describe('removal means it never existed (dataset level)', () => {
     expect(heldText()).not.toContain('Oura Ring');
   });
 
-  it('removing the configuration (not only the credential) gives the same result', async () => {
+  it('removing the app credentials (not only the login) gives the same result', async () => {
     await reconcileActiveSources(ctx(BOTH_ENV, true));
     await loadLiveDataset(deps(BOTH_ENV, true));
 
-    const outcome = await reconcileActiveSources(ctx(HAE_ENV, true));
+    const outcome = await reconcileActiveSources(ctx(HAE_ENV, true, false));
     expect(outcome.removed).toEqual(['oura']);
-    const rebuilt = await loadLiveDataset(deps(HAE_ENV, true));
+    const rebuilt = await loadLiveDataset(deps(HAE_ENV, true, false));
 
     resetPurgeStateForTests();
     liveCache.clear();

@@ -11,14 +11,11 @@ import type { SourceContext } from '@/lib/sources/registry';
 
 function ctx(opts: { hae?: boolean; oura?: boolean; labs?: number } = {}): SourceContext {
   const env = {
-    OURA_CLIENT_ID: 'c',
-    OURA_CLIENT_SECRET: 's',
-    OURA_REDIRECT_URI: 'http://localhost/cb',
     VITAL_SECRET_KEY: Buffer.alloc(32, 1).toString('base64'),
   } as unknown as NodeJS.ProcessEnv;
   return {
     env,
-    hasCredential: async id => (Boolean(opts.oura) && id === 'oura') || (Boolean(opts.hae) && id === 'hae'),
+    hasCredential: async id => (Boolean(opts.oura) && (id === 'oura' || id === 'oura-app')) || (Boolean(opts.hae) && id === 'hae'),
     labReportCount: async () => opts.labs ?? 0,
   };
 }
