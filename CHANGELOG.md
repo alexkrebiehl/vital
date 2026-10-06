@@ -12,10 +12,14 @@ _Release in progress: the date is set when the version is tagged._
 ### Added
 
 - Add a Health Auto Export connection that is saved from Settings: the endpoint is checked with a read-only request before it is stored, and the API key is encrypted in Postgres and shown only as its last four characters ([`9338f02`](https://github.com/echupkin/vital/commit/9338f02), [`e886e00`](https://github.com/echupkin/vital/commit/e886e00))
+- Add a Health Auto Export card to Settings → Connections with an endpoint field, a masked key field, Change and Disconnect ([`d3ac6b6`](https://github.com/echupkin/vital/commit/d3ac6b6))
+- Show only Settings until a source is connected and its data loads, in live mode: the sidebar and top navigation are hidden, every other page redirects to Settings → Connections, and a banner gives the reason with a Retry ([`2f183d5`](https://github.com/echupkin/vital/commit/2f183d5))
 - Generate `VITAL_SECRET_KEY` with `npm run db:init`, so a new install can store encrypted credentials ([`8ed463f`](https://github.com/echupkin/vital/commit/8ed463f))
 
 ### Fixed
 
+- Wait up to 8 seconds when checking a new Health Auto Export endpoint, so a slow network does not fail a valid save ([`7aa627c`](https://github.com/echupkin/vital/commit/7aa627c))
+- Open the app with a full page load after the first save in Settings, so the sidebar returns at once ([`1a01fb7`](https://github.com/echupkin/vital/commit/1a01fb7))
 - Fix `npm run db:init` hanging on a system without `openssl` ([`8ed463f`](https://github.com/echupkin/vital/commit/8ed463f))
 
 ## [0.3.0] - 2026-10-04
