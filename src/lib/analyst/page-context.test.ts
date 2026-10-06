@@ -11,7 +11,8 @@ import { resolvePageContext } from './page-context';
 import { parsePageContextRef } from './page-context-types';
 import { retrieveGeneral } from './retrieval';
 import { askAnalyst } from './service';
-import { buildAnalystUserMessage, UNTRUSTED_END, UNTRUSTED_START } from './systemPrompt';
+import { buildAnalystUserMessage, buildOnDemandUserMessage, UNTRUSTED_END, UNTRUSTED_START } from './systemPrompt';
+import type { BodyGoalSummary } from '../body-goal/summary';
 
 const DEMO = { VITAL_DATA_MODE: 'demo' } as unknown as NodeJS.ProcessEnv;
 
@@ -32,6 +33,7 @@ describe('parsePageContextRef', () => {
     expect(parsePageContextRef({ kind: 'routine-path', pathId: 'horizontal-push' })).toEqual({ kind: 'routine-path', pathId: 'horizontal-push' });
     expect(parsePageContextRef({ kind: 'routine-workout', templateId: 'a' })).toEqual({ kind: 'routine-workout', templateId: 'a' });
     expect(parsePageContextRef({ kind: 'routine-untracked', name: ' Dips ' })).toEqual({ kind: 'routine-untracked', name: 'Dips' });
+    expect(parsePageContextRef({ kind: 'body-goal', extra: 'ignored' })).toEqual({ kind: 'body-goal' });
     for (const bad of [null, undefined, 'routine', [], {}, { kind: 'metric' }, { kind: 'routine-path' }, { kind: 'routine-path', pathId: 3 }, { kind: 'routine-path', pathId: '  ' }]) {
       expect(parsePageContextRef(bad)).toBeNull();
     }
@@ -44,6 +46,16 @@ describe('parsePageContextRef', () => {
 });
 
 describe('resolvePageContext', () => {
+  it('describes the body goal from the Body page without needing a plan', async () => {
+    const summary = { goal: 'Reach 15 % body fat', phase: 'Cutting' } as unknown as BodyGoalSummary;
+    const ctx = await resolvePageContext({ kind: 'body-goal' }, 'metric', deps(), async () => summary);
+    expect(ctx?.label).toMatch(/Body page/);
+    expect(ctx?.about).toMatch(/body goal/);
+    expect(JSON.parse(ctx!.json).bodyGoal.goal).toBe('Reach 15 % body fat');
+    const none = await resolvePageContext({ kind: 'body-goal' }, 'metric', deps(), async () => null);
+    expect(none?.label).toMatch(/no body goal is set/);
+  });
+
   it('is null without an active plan', async () => {
     expect(await resolvePageContext({ kind: 'routine' }, 'metric', deps())).toBeNull();
   });
@@ -166,5 +178,36 @@ describe('askAnalyst with a page context', () => {
     );
     expect(response.status).toBe('ok');
     expect(JSON.stringify(model.bodies[0])).not.toContain('The reader asked this from');
+  });
+});
+
+describe('the body goal in the analyst message', () => {
+  const goalContext = JSON.stringify({ bodyGoal: { goal: 'Reach 75 kg body weight', trend: { perWeek: -0.6 } } });
+
+  it('rides along as its own untrusted block, with no-deadline framing', () => {
+    const user = buildAnalystUserMessage({ question: 'Am I eating enough?', bundle: retrieveGeneral(REFERENCE_KEY), system: 'metric', goalContext });
+    const at = user.indexOf('The reader has set a body goal');
+    expect(at).toBeGreaterThan(-1);
+    expect(user.slice(at)).toMatch(/never deadlines/);
+    const block = user.slice(user.indexOf(UNTRUSTED_START, at), user.indexOf(UNTRUSTED_END, at));
+    expect(block).toContain('Reach 75 kg body weight');
+    const onDemand = buildOnDemandUserMessage({ question: 'Am I eating enough?', index: '{}', goalContext });
+    expect(onDemand).toContain('Reach 75 kg body weight');
+  });
+
+  it('is absent without a goal', () => {
+    const user = buildAnalystUserMessage({ question: 'How did I sleep?', bundle: retrieveGeneral(REFERENCE_KEY), system: 'metric' });
+    expect(user).not.toContain('The reader has set a body goal');
+  });
+
+  it('uses the page description instead of the routine wording for the Body page', () => {
+    const user = buildAnalystUserMessage({
+      question: 'How is this going?',
+      bundle: retrieveGeneral(REFERENCE_KEY),
+      system: 'metric',
+      pageContext: { label: 'the Body page', about: 'It is the body goal', json: goalContext },
+    });
+    expect(user).toContain('It is the body goal; it is below.');
+    expect(user).not.toContain('get_routine_progress');
   });
 });

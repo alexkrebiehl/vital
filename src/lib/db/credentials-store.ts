@@ -145,7 +145,7 @@ export async function putCredential(
 // A source configured by the user with a few secret string fields (Health Auto
 // Export: endpoint and API key). Same table, same cipher, same key rules. The
 // OAuth-only columns stay empty: `scopes` is '' and `access_expires_at` is NULL
-// (migration 0012).
+// (migration 0013).
 
 export type SecretConfigRead =
   | { needsReentry: false; sourceId: string; values: Record<string, string>; updatedAt: Date }

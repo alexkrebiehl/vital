@@ -5,6 +5,2744 @@
   "days": 180,
   "timezone": "America/Chicago",
   "metrics": {
+    "body_fat_percentage": [
+      {
+        "date": "2026-03-22T05:00:00.000Z",
+        "qty": 22.5,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-03-24T05:00:00.000Z",
+        "qty": 22,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-03-25T05:00:00.000Z",
+        "qty": 23,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-03-26T05:00:00.000Z",
+        "qty": 21.6,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-01T05:00:00.000Z",
+        "qty": 22.2,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-02T05:00:00.000Z",
+        "qty": 21.8,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-03T05:00:00.000Z",
+        "qty": 21.4,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-04T05:00:00.000Z",
+        "qty": 21,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-05T05:00:00.000Z",
+        "qty": 21.1,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-07T05:00:00.000Z",
+        "qty": 22.8,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-10T05:00:00.000Z",
+        "qty": 21.6,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-11T05:00:00.000Z",
+        "qty": 20.5,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-13T05:00:00.000Z",
+        "qty": 20.8,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-15T05:00:00.000Z",
+        "qty": 22.3,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-20T05:00:00.000Z",
+        "qty": 21.9,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-22T05:00:00.000Z",
+        "qty": 21.9,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-24T05:00:00.000Z",
+        "qty": 21.3,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-25T05:00:00.000Z",
+        "qty": 22.2,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-27T05:00:00.000Z",
+        "qty": 21.4,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-05-06T05:00:00.000Z",
+        "qty": 21.1,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-05-08T05:00:00.000Z",
+        "qty": 22.7,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-05-13T05:00:00.000Z",
+        "qty": 22.6,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-05-14T05:00:00.000Z",
+        "qty": 22.8,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-05-16T05:00:00.000Z",
+        "qty": 21.8,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-05-24T05:00:00.000Z",
+        "qty": 21.5,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-05-30T05:00:00.000Z",
+        "qty": 21.7,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-05-31T05:00:00.000Z",
+        "qty": 22.4,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-06-02T05:00:00.000Z",
+        "qty": 20.6,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-06-04T05:00:00.000Z",
+        "qty": 21.9,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-06-05T05:00:00.000Z",
+        "qty": 21.7,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-06-06T05:00:00.000Z",
+        "qty": 21.4,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-06-07T05:00:00.000Z",
+        "qty": 21.6,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-06-09T05:00:00.000Z",
+        "qty": 20.5,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-06-12T05:00:00.000Z",
+        "qty": 21.3,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-06-13T05:00:00.000Z",
+        "qty": 19.4,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-06-14T05:00:00.000Z",
+        "qty": 20.9,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-06-17T05:00:00.000Z",
+        "qty": 20.4,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-06-24T05:00:00.000Z",
+        "qty": 19.8,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-06-27T05:00:00.000Z",
+        "qty": 21.1,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-01T05:00:00.000Z",
+        "qty": 22,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-04T05:00:00.000Z",
+        "qty": 20.3,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-05T05:00:00.000Z",
+        "qty": 19.6,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-06T05:00:00.000Z",
+        "qty": 21.1,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-08T05:00:00.000Z",
+        "qty": 20.3,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-09T05:00:00.000Z",
+        "qty": 20.9,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-10T05:00:00.000Z",
+        "qty": 21.4,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-18T05:00:00.000Z",
+        "qty": 20.6,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-21T05:00:00.000Z",
+        "qty": 20.7,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-24T05:00:00.000Z",
+        "qty": 20.4,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-28T05:00:00.000Z",
+        "qty": 20,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-30T05:00:00.000Z",
+        "qty": 20.4,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-31T05:00:00.000Z",
+        "qty": 20.5,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-02T05:00:00.000Z",
+        "qty": 20.3,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-04T05:00:00.000Z",
+        "qty": 21,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-07T05:00:00.000Z",
+        "qty": 19.8,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-08T05:00:00.000Z",
+        "qty": 20.9,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-09T05:00:00.000Z",
+        "qty": 21.1,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-10T05:00:00.000Z",
+        "qty": 19.9,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-18T05:00:00.000Z",
+        "qty": 20.1,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-25T05:00:00.000Z",
+        "qty": 20,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-26T05:00:00.000Z",
+        "qty": 20,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-27T05:00:00.000Z",
+        "qty": 21.1,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-29T05:00:00.000Z",
+        "qty": 20.1,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-30T05:00:00.000Z",
+        "qty": 20.4,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-31T05:00:00.000Z",
+        "qty": 19.8,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-09-01T05:00:00.000Z",
+        "qty": 20.6,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-09-02T05:00:00.000Z",
+        "qty": 20.6,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-09-08T05:00:00.000Z",
+        "qty": 20.7,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-09-11T05:00:00.000Z",
+        "qty": 20.9,
+        "units": "%",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-09-14T05:00:00.000Z",
+        "qty": 20.2,
+        "units": "%",
+        "source": "Withings Scale"
+      }
+    ],
+    "lean_body_mass": [
+      {
+        "date": "2026-03-22T05:00:00.000Z",
+        "qty": 59.4,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-03-24T05:00:00.000Z",
+        "qty": 59.6,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-03-25T05:00:00.000Z",
+        "qty": 58.8,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-03-26T05:00:00.000Z",
+        "qty": 59.7,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-01T05:00:00.000Z",
+        "qty": 59.3,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-02T05:00:00.000Z",
+        "qty": 59.6,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-03T05:00:00.000Z",
+        "qty": 60.1,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-04T05:00:00.000Z",
+        "qty": 60.4,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-05T05:00:00.000Z",
+        "qty": 60.4,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-07T05:00:00.000Z",
+        "qty": 59.4,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-10T05:00:00.000Z",
+        "qty": 60.2,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-11T05:00:00.000Z",
+        "qty": 61.1,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-13T05:00:00.000Z",
+        "qty": 60.7,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-15T05:00:00.000Z",
+        "qty": 59.7,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-20T05:00:00.000Z",
+        "qty": 59.8,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-22T05:00:00.000Z",
+        "qty": 59.9,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-24T05:00:00.000Z",
+        "qty": 60.1,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-25T05:00:00.000Z",
+        "qty": 59.4,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-04-27T05:00:00.000Z",
+        "qty": 60.1,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-05-06T05:00:00.000Z",
+        "qty": 60.4,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-05-08T05:00:00.000Z",
+        "qty": 59,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-05-13T05:00:00.000Z",
+        "qty": 59,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-05-14T05:00:00.000Z",
+        "qty": 59.1,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-05-16T05:00:00.000Z",
+        "qty": 59.9,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-05-24T05:00:00.000Z",
+        "qty": 60.1,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-05-30T05:00:00.000Z",
+        "qty": 59.7,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-05-31T05:00:00.000Z",
+        "qty": 59,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-06-02T05:00:00.000Z",
+        "qty": 60.3,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-06-04T05:00:00.000Z",
+        "qty": 59.4,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-06-05T05:00:00.000Z",
+        "qty": 59.4,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-06-06T05:00:00.000Z",
+        "qty": 59.4,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-06-07T05:00:00.000Z",
+        "qty": 59.3,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-06-09T05:00:00.000Z",
+        "qty": 59.9,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-06-12T05:00:00.000Z",
+        "qty": 59.3,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-06-13T05:00:00.000Z",
+        "qty": 60.5,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-06-14T05:00:00.000Z",
+        "qty": 59.2,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-06-17T05:00:00.000Z",
+        "qty": 59.5,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-06-24T05:00:00.000Z",
+        "qty": 59.7,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-06-27T05:00:00.000Z",
+        "qty": 58.6,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-01T05:00:00.000Z",
+        "qty": 57.7,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-04T05:00:00.000Z",
+        "qty": 59,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-05T05:00:00.000Z",
+        "qty": 59.7,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-06T05:00:00.000Z",
+        "qty": 58.8,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-08T05:00:00.000Z",
+        "qty": 59.7,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-09T05:00:00.000Z",
+        "qty": 59.2,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-10T05:00:00.000Z",
+        "qty": 59,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-18T05:00:00.000Z",
+        "qty": 59.6,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-21T05:00:00.000Z",
+        "qty": 59.6,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-24T05:00:00.000Z",
+        "qty": 59.7,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-28T05:00:00.000Z",
+        "qty": 59.9,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-30T05:00:00.000Z",
+        "qty": 59.6,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-07-31T05:00:00.000Z",
+        "qty": 59.6,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-02T05:00:00.000Z",
+        "qty": 59.9,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-04T05:00:00.000Z",
+        "qty": 59.6,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-07T05:00:00.000Z",
+        "qty": 60.6,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-08T05:00:00.000Z",
+        "qty": 59.9,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-09T05:00:00.000Z",
+        "qty": 59.8,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-10T05:00:00.000Z",
+        "qty": 60.9,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-18T05:00:00.000Z",
+        "qty": 60.5,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-25T05:00:00.000Z",
+        "qty": 60.6,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-26T05:00:00.000Z",
+        "qty": 60.7,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-27T05:00:00.000Z",
+        "qty": 60.1,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-29T05:00:00.000Z",
+        "qty": 61,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-30T05:00:00.000Z",
+        "qty": 61,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-08-31T05:00:00.000Z",
+        "qty": 61.5,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-09-01T05:00:00.000Z",
+        "qty": 60.8,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-09-02T05:00:00.000Z",
+        "qty": 61.1,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-09-08T05:00:00.000Z",
+        "qty": 61,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-09-11T05:00:00.000Z",
+        "qty": 60.7,
+        "units": "kg",
+        "source": "Withings Scale"
+      },
+      {
+        "date": "2026-09-14T05:00:00.000Z",
+        "qty": 61.3,
+        "units": "kg",
+        "source": "Withings Scale"
+      }
+    ],
+    "basal_energy_burned": [
+      {
+        "date": "2026-03-21T05:00:00.000Z",
+        "qty": 1641,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-03-22T05:00:00.000Z",
+        "qty": 1658,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-03-23T05:00:00.000Z",
+        "qty": 1662,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-03-24T05:00:00.000Z",
+        "qty": 1678,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-03-25T05:00:00.000Z",
+        "qty": 1687,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-03-26T05:00:00.000Z",
+        "qty": 1643,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-03-27T05:00:00.000Z",
+        "qty": 1661,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-03-28T05:00:00.000Z",
+        "qty": 1695,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-03-29T05:00:00.000Z",
+        "qty": 1678,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-03-30T05:00:00.000Z",
+        "qty": 1635,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-03-31T05:00:00.000Z",
+        "qty": 1660,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-02T05:00:00.000Z",
+        "qty": 1693,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-03T05:00:00.000Z",
+        "qty": 1669,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-04T05:00:00.000Z",
+        "qty": 1636,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-05T05:00:00.000Z",
+        "qty": 1653,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-06T05:00:00.000Z",
+        "qty": 1668,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-08T05:00:00.000Z",
+        "qty": 1628,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-09T05:00:00.000Z",
+        "qty": 1688,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-10T05:00:00.000Z",
+        "qty": 1693,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-11T05:00:00.000Z",
+        "qty": 1710,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-12T05:00:00.000Z",
+        "qty": 1671,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-13T05:00:00.000Z",
+        "qty": 1704,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-14T05:00:00.000Z",
+        "qty": 1689,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-15T05:00:00.000Z",
+        "qty": 1669,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-16T05:00:00.000Z",
+        "qty": 1666,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-17T05:00:00.000Z",
+        "qty": 1692,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-18T05:00:00.000Z",
+        "qty": 1691,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-19T05:00:00.000Z",
+        "qty": 1697,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-20T05:00:00.000Z",
+        "qty": 1629,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-21T05:00:00.000Z",
+        "qty": 1639,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-22T05:00:00.000Z",
+        "qty": 1708,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-23T05:00:00.000Z",
+        "qty": 1649,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-24T05:00:00.000Z",
+        "qty": 1630,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-25T05:00:00.000Z",
+        "qty": 1683,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-26T05:00:00.000Z",
+        "qty": 1705,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-27T05:00:00.000Z",
+        "qty": 1647,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-28T05:00:00.000Z",
+        "qty": 1678,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-29T05:00:00.000Z",
+        "qty": 1666,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-04-30T05:00:00.000Z",
+        "qty": 1667,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-01T05:00:00.000Z",
+        "qty": 1667,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-02T05:00:00.000Z",
+        "qty": 1684,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-03T05:00:00.000Z",
+        "qty": 1659,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-04T05:00:00.000Z",
+        "qty": 1673,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-05T05:00:00.000Z",
+        "qty": 1672,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-06T05:00:00.000Z",
+        "qty": 1692,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-07T05:00:00.000Z",
+        "qty": 1665,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-08T05:00:00.000Z",
+        "qty": 1614,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-09T05:00:00.000Z",
+        "qty": 1592,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-10T05:00:00.000Z",
+        "qty": 1674,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-11T05:00:00.000Z",
+        "qty": 1604,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-12T05:00:00.000Z",
+        "qty": 1610,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-13T05:00:00.000Z",
+        "qty": 1656,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-14T05:00:00.000Z",
+        "qty": 1678,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-15T05:00:00.000Z",
+        "qty": 1668,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-16T05:00:00.000Z",
+        "qty": 1671,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-17T05:00:00.000Z",
+        "qty": 1623,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-18T05:00:00.000Z",
+        "qty": 1658,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-19T05:00:00.000Z",
+        "qty": 1702,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-20T05:00:00.000Z",
+        "qty": 1685,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-21T05:00:00.000Z",
+        "qty": 1660,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-22T05:00:00.000Z",
+        "qty": 1660,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-23T05:00:00.000Z",
+        "qty": 1692,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-24T05:00:00.000Z",
+        "qty": 1720,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-25T05:00:00.000Z",
+        "qty": 1654,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-26T05:00:00.000Z",
+        "qty": 1645,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-27T05:00:00.000Z",
+        "qty": 1682,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-28T05:00:00.000Z",
+        "qty": 1696,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-30T05:00:00.000Z",
+        "qty": 1717,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-05-31T05:00:00.000Z",
+        "qty": 1671,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-01T05:00:00.000Z",
+        "qty": 1622,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-02T05:00:00.000Z",
+        "qty": 1717,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-03T05:00:00.000Z",
+        "qty": 1663,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-05T05:00:00.000Z",
+        "qty": 1650,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-06T05:00:00.000Z",
+        "qty": 1649,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-07T05:00:00.000Z",
+        "qty": 1648,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-08T05:00:00.000Z",
+        "qty": 1624,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-09T05:00:00.000Z",
+        "qty": 1691,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-10T05:00:00.000Z",
+        "qty": 1696,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-11T05:00:00.000Z",
+        "qty": 1671,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-12T05:00:00.000Z",
+        "qty": 1638,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-13T05:00:00.000Z",
+        "qty": 1696,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-14T05:00:00.000Z",
+        "qty": 1679,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-15T05:00:00.000Z",
+        "qty": 1637,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-16T05:00:00.000Z",
+        "qty": 1635,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-17T05:00:00.000Z",
+        "qty": 1722,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-18T05:00:00.000Z",
+        "qty": 1691,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-19T05:00:00.000Z",
+        "qty": 1610,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-20T05:00:00.000Z",
+        "qty": 1702,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-21T05:00:00.000Z",
+        "qty": 1659,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-22T05:00:00.000Z",
+        "qty": 1701,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-23T05:00:00.000Z",
+        "qty": 1680,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-24T05:00:00.000Z",
+        "qty": 1676,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-25T05:00:00.000Z",
+        "qty": 1661,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-26T05:00:00.000Z",
+        "qty": 1676,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-27T05:00:00.000Z",
+        "qty": 1621,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-28T05:00:00.000Z",
+        "qty": 1672,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-29T05:00:00.000Z",
+        "qty": 1617,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-06-30T05:00:00.000Z",
+        "qty": 1595,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-01T05:00:00.000Z",
+        "qty": 1626,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-02T05:00:00.000Z",
+        "qty": 1607,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-03T05:00:00.000Z",
+        "qty": 1593,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-04T05:00:00.000Z",
+        "qty": 1692,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-05T05:00:00.000Z",
+        "qty": 1637,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-06T05:00:00.000Z",
+        "qty": 1626,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-07T05:00:00.000Z",
+        "qty": 1639,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-08T05:00:00.000Z",
+        "qty": 1641,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-09T05:00:00.000Z",
+        "qty": 1637,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-10T05:00:00.000Z",
+        "qty": 1634,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-11T05:00:00.000Z",
+        "qty": 1650,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-12T05:00:00.000Z",
+        "qty": 1656,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-13T05:00:00.000Z",
+        "qty": 1644,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-14T05:00:00.000Z",
+        "qty": 1640,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-16T05:00:00.000Z",
+        "qty": 1651,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-17T05:00:00.000Z",
+        "qty": 1672,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-18T05:00:00.000Z",
+        "qty": 1685,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-19T05:00:00.000Z",
+        "qty": 1643,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-20T05:00:00.000Z",
+        "qty": 1681,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-21T05:00:00.000Z",
+        "qty": 1706,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-22T05:00:00.000Z",
+        "qty": 1673,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-23T05:00:00.000Z",
+        "qty": 1664,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-24T05:00:00.000Z",
+        "qty": 1674,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-25T05:00:00.000Z",
+        "qty": 1637,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-26T05:00:00.000Z",
+        "qty": 1687,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-27T05:00:00.000Z",
+        "qty": 1662,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-28T05:00:00.000Z",
+        "qty": 1634,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-29T05:00:00.000Z",
+        "qty": 1683,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-30T05:00:00.000Z",
+        "qty": 1671,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-07-31T05:00:00.000Z",
+        "qty": 1656,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-01T05:00:00.000Z",
+        "qty": 1649,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-02T05:00:00.000Z",
+        "qty": 1752,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-03T05:00:00.000Z",
+        "qty": 1660,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-04T05:00:00.000Z",
+        "qty": 1652,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-05T05:00:00.000Z",
+        "qty": 1673,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-06T05:00:00.000Z",
+        "qty": 1614,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-07T05:00:00.000Z",
+        "qty": 1668,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-08T05:00:00.000Z",
+        "qty": 1688,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-09T05:00:00.000Z",
+        "qty": 1648,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-10T05:00:00.000Z",
+        "qty": 1680,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-11T05:00:00.000Z",
+        "qty": 1654,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-12T05:00:00.000Z",
+        "qty": 1701,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-13T05:00:00.000Z",
+        "qty": 1680,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-14T05:00:00.000Z",
+        "qty": 1682,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-15T05:00:00.000Z",
+        "qty": 1662,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-16T05:00:00.000Z",
+        "qty": 1676,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-17T05:00:00.000Z",
+        "qty": 1659,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-18T05:00:00.000Z",
+        "qty": 1635,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-19T05:00:00.000Z",
+        "qty": 1664,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-20T05:00:00.000Z",
+        "qty": 1686,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-21T05:00:00.000Z",
+        "qty": 1678,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-22T05:00:00.000Z",
+        "qty": 1678,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-23T05:00:00.000Z",
+        "qty": 1732,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-24T05:00:00.000Z",
+        "qty": 1705,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-25T05:00:00.000Z",
+        "qty": 1694,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-26T05:00:00.000Z",
+        "qty": 1701,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-27T05:00:00.000Z",
+        "qty": 1701,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-28T05:00:00.000Z",
+        "qty": 1698,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-30T05:00:00.000Z",
+        "qty": 1690,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-08-31T05:00:00.000Z",
+        "qty": 1697,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-09-02T05:00:00.000Z",
+        "qty": 1702,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-09-03T05:00:00.000Z",
+        "qty": 1708,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-09-05T05:00:00.000Z",
+        "qty": 1712,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-09-06T05:00:00.000Z",
+        "qty": 1756,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-09-07T05:00:00.000Z",
+        "qty": 1672,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-09-08T05:00:00.000Z",
+        "qty": 1675,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-09-09T05:00:00.000Z",
+        "qty": 1685,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-09-10T05:00:00.000Z",
+        "qty": 1719,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-09-11T05:00:00.000Z",
+        "qty": 1684,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-09-12T05:00:00.000Z",
+        "qty": 1691,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-09-13T05:00:00.000Z",
+        "qty": 1690,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-09-14T05:00:00.000Z",
+        "qty": 1759,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-09-15T05:00:00.000Z",
+        "qty": 1702,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-09-16T05:00:00.000Z",
+        "qty": 1682,
+        "units": "kcal",
+        "source": "Apple Watch"
+      },
+      {
+        "date": "2026-09-17T05:00:00.000Z",
+        "qty": 1647,
+        "units": "kcal",
+        "source": "Apple Watch"
+      }
+    ],
+    "dietary_fiber": [
+      {
+        "date": "2026-03-21T05:00:00.000Z",
+        "qty": 11,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-03-22T05:00:00.000Z",
+        "qty": 16,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-03-23T05:00:00.000Z",
+        "qty": 21,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-03-24T05:00:00.000Z",
+        "qty": 21,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-03-25T05:00:00.000Z",
+        "qty": 12,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-03-26T05:00:00.000Z",
+        "qty": 17,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-03-27T05:00:00.000Z",
+        "qty": 29,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-03-28T05:00:00.000Z",
+        "qty": 24,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-03-29T05:00:00.000Z",
+        "qty": 22,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-03-30T05:00:00.000Z",
+        "qty": 20,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-03-31T05:00:00.000Z",
+        "qty": 13,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-04-01T05:00:00.000Z",
+        "qty": 18,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-04-02T05:00:00.000Z",
+        "qty": 24,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-04-03T05:00:00.000Z",
+        "qty": 15,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-04-05T05:00:00.000Z",
+        "qty": 26,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-04-06T05:00:00.000Z",
+        "qty": 35,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-04-07T05:00:00.000Z",
+        "qty": 16,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-04-09T05:00:00.000Z",
+        "qty": 19,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-04-10T05:00:00.000Z",
+        "qty": 30,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-04-11T05:00:00.000Z",
+        "qty": 7,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-04-12T05:00:00.000Z",
+        "qty": 18,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-04-13T05:00:00.000Z",
+        "qty": 18,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-04-14T05:00:00.000Z",
+        "qty": 10,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-04-15T05:00:00.000Z",
+        "qty": 27,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-04-16T05:00:00.000Z",
+        "qty": 17,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-04-17T05:00:00.000Z",
+        "qty": 13,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-04-18T05:00:00.000Z",
+        "qty": 30,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-04-20T05:00:00.000Z",
+        "qty": 18,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-04-21T05:00:00.000Z",
+        "qty": 17,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-04-22T05:00:00.000Z",
+        "qty": 18,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-04-23T05:00:00.000Z",
+        "qty": 23,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-04-25T05:00:00.000Z",
+        "qty": 20,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-04-26T05:00:00.000Z",
+        "qty": 22,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-04-28T05:00:00.000Z",
+        "qty": 32,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-04-29T05:00:00.000Z",
+        "qty": 21,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-05-01T05:00:00.000Z",
+        "qty": 36,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-05-03T05:00:00.000Z",
+        "qty": 16,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-05-04T05:00:00.000Z",
+        "qty": 21,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-05-05T05:00:00.000Z",
+        "qty": 30,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-05-06T05:00:00.000Z",
+        "qty": 8,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-05-08T05:00:00.000Z",
+        "qty": 21,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-05-09T05:00:00.000Z",
+        "qty": 25,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-05-10T05:00:00.000Z",
+        "qty": 25,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-05-12T05:00:00.000Z",
+        "qty": 28,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-05-14T05:00:00.000Z",
+        "qty": 23,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-05-16T05:00:00.000Z",
+        "qty": 23,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-05-17T05:00:00.000Z",
+        "qty": 25,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-05-19T05:00:00.000Z",
+        "qty": 19,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-05-21T05:00:00.000Z",
+        "qty": 25,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-05-22T05:00:00.000Z",
+        "qty": 29,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-05-23T05:00:00.000Z",
+        "qty": 12,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-05-24T05:00:00.000Z",
+        "qty": 26,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-05-25T05:00:00.000Z",
+        "qty": 31,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-05-26T05:00:00.000Z",
+        "qty": 29,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-05-28T05:00:00.000Z",
+        "qty": 10,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-05-29T05:00:00.000Z",
+        "qty": 18,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-05-30T05:00:00.000Z",
+        "qty": 22,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-06-02T05:00:00.000Z",
+        "qty": 19,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-06-04T05:00:00.000Z",
+        "qty": 24,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-06-05T05:00:00.000Z",
+        "qty": 38,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-06-07T05:00:00.000Z",
+        "qty": 22,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-06-08T05:00:00.000Z",
+        "qty": 32,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-06-09T05:00:00.000Z",
+        "qty": 19,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-06-10T05:00:00.000Z",
+        "qty": 22,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-06-11T05:00:00.000Z",
+        "qty": 14,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-06-12T05:00:00.000Z",
+        "qty": 15,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-06-13T05:00:00.000Z",
+        "qty": 31,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-06-14T05:00:00.000Z",
+        "qty": 25,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-06-16T05:00:00.000Z",
+        "qty": 18,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-06-18T05:00:00.000Z",
+        "qty": 31,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-06-19T05:00:00.000Z",
+        "qty": 27,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-06-20T05:00:00.000Z",
+        "qty": 15,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-06-21T05:00:00.000Z",
+        "qty": 23,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-06-22T05:00:00.000Z",
+        "qty": 31,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-06-23T05:00:00.000Z",
+        "qty": 31,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-06-24T05:00:00.000Z",
+        "qty": 27,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-06-25T05:00:00.000Z",
+        "qty": 20,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-06-26T05:00:00.000Z",
+        "qty": 15,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-06-27T05:00:00.000Z",
+        "qty": 27,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-06-28T05:00:00.000Z",
+        "qty": 18,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-06-30T05:00:00.000Z",
+        "qty": 12,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-01T05:00:00.000Z",
+        "qty": 34,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-02T05:00:00.000Z",
+        "qty": 21,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-03T05:00:00.000Z",
+        "qty": 23,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-04T05:00:00.000Z",
+        "qty": 22,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-05T05:00:00.000Z",
+        "qty": 24,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-06T05:00:00.000Z",
+        "qty": 24,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-07T05:00:00.000Z",
+        "qty": 21,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-09T05:00:00.000Z",
+        "qty": 21,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-11T05:00:00.000Z",
+        "qty": 24,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-12T05:00:00.000Z",
+        "qty": 30,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-13T05:00:00.000Z",
+        "qty": 23,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-14T05:00:00.000Z",
+        "qty": 29,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-15T05:00:00.000Z",
+        "qty": 28,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-16T05:00:00.000Z",
+        "qty": 27,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-18T05:00:00.000Z",
+        "qty": 18,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-19T05:00:00.000Z",
+        "qty": 22,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-20T05:00:00.000Z",
+        "qty": 20,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-21T05:00:00.000Z",
+        "qty": 23,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-22T05:00:00.000Z",
+        "qty": 21,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-23T05:00:00.000Z",
+        "qty": 21,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-24T05:00:00.000Z",
+        "qty": 27,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-25T05:00:00.000Z",
+        "qty": 27,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-26T05:00:00.000Z",
+        "qty": 26,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-27T05:00:00.000Z",
+        "qty": 16,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-28T05:00:00.000Z",
+        "qty": 24,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-29T05:00:00.000Z",
+        "qty": 11,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-30T05:00:00.000Z",
+        "qty": 26,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-07-31T05:00:00.000Z",
+        "qty": 34,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-08-01T05:00:00.000Z",
+        "qty": 17,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-08-02T05:00:00.000Z",
+        "qty": 24,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-08-03T05:00:00.000Z",
+        "qty": 29,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-08-04T05:00:00.000Z",
+        "qty": 16,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-08-05T05:00:00.000Z",
+        "qty": 14,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-08-06T05:00:00.000Z",
+        "qty": 21,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-08-07T05:00:00.000Z",
+        "qty": 13,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-08-08T05:00:00.000Z",
+        "qty": 31,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-08-09T05:00:00.000Z",
+        "qty": 42,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-08-10T05:00:00.000Z",
+        "qty": 17,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-08-13T05:00:00.000Z",
+        "qty": 28,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-08-14T05:00:00.000Z",
+        "qty": 27,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-08-15T05:00:00.000Z",
+        "qty": 33,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-08-16T05:00:00.000Z",
+        "qty": 23,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-08-17T05:00:00.000Z",
+        "qty": 26,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-08-18T05:00:00.000Z",
+        "qty": 36,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-08-22T05:00:00.000Z",
+        "qty": 27,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-08-23T05:00:00.000Z",
+        "qty": 16,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-08-25T05:00:00.000Z",
+        "qty": 16,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-08-26T05:00:00.000Z",
+        "qty": 14,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-08-27T05:00:00.000Z",
+        "qty": 29,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-08-30T05:00:00.000Z",
+        "qty": 46,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-09-01T05:00:00.000Z",
+        "qty": 25,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-09-03T05:00:00.000Z",
+        "qty": 11,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-09-06T05:00:00.000Z",
+        "qty": 32,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-09-08T05:00:00.000Z",
+        "qty": 27,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-09-09T05:00:00.000Z",
+        "qty": 33,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-09-10T05:00:00.000Z",
+        "qty": 23,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-09-11T05:00:00.000Z",
+        "qty": 17,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-09-13T05:00:00.000Z",
+        "qty": 32,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-09-14T05:00:00.000Z",
+        "qty": 18,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-09-15T05:00:00.000Z",
+        "qty": 29,
+        "units": "g",
+        "source": "MyFitnessPal"
+      },
+      {
+        "date": "2026-09-16T05:00:00.000Z",
+        "qty": 21,
+        "units": "g",
+        "source": "MyFitnessPal"
+      }
+    ],
     "resting_heart_rate": [
       {
         "date": "2026-03-21T05:00:00.000Z",
@@ -32833,6 +35571,46 @@
     }
   ],
   "coverage": {
+    "body_fat_percentage": {
+      "firstObservation": "2026-03-22T05:00:00.000Z",
+      "lastObservation": "2026-09-14T05:00:00.000Z",
+      "observedDays": 70,
+      "expectedDays": 181,
+      "samplingFrequency": "2-3/week",
+      "sourceNames": [
+        "Withings Scale"
+      ]
+    },
+    "lean_body_mass": {
+      "firstObservation": "2026-03-22T05:00:00.000Z",
+      "lastObservation": "2026-09-14T05:00:00.000Z",
+      "observedDays": 70,
+      "expectedDays": 181,
+      "samplingFrequency": "2-3/week",
+      "sourceNames": [
+        "Withings Scale"
+      ]
+    },
+    "basal_energy_burned": {
+      "firstObservation": "2026-03-21T05:00:00.000Z",
+      "lastObservation": "2026-09-17T05:00:00.000Z",
+      "observedDays": 173,
+      "expectedDays": 181,
+      "samplingFrequency": "daily",
+      "sourceNames": [
+        "Apple Watch"
+      ]
+    },
+    "dietary_fiber": {
+      "firstObservation": "2026-03-21T05:00:00.000Z",
+      "lastObservation": "2026-09-16T05:00:00.000Z",
+      "observedDays": 142,
+      "expectedDays": 181,
+      "samplingFrequency": "daily",
+      "sourceNames": [
+        "MyFitnessPal"
+      ]
+    },
     "resting_heart_rate": {
       "firstObservation": "2026-03-21T05:00:00.000Z",
       "lastObservation": "2026-09-16T05:00:00.000Z",

@@ -53,6 +53,7 @@ const CONTEXT: BriefingContext = {
   unitSystem: 'metric',
   profile: { name: 'Test Person', ageYears: 47, goals: null },
   goalFocus: null,
+  bodyGoal: null,
   windows: {
     evaluatedDays: 7,
     priorDays: 7,

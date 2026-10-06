@@ -1,4 +1,4 @@
--- ── 0012 — source credentials: secret configuration rows ────────────────────
+-- ── 0013 — source credentials: secret configuration rows ────────────────────
 --
 -- Health Auto Export is configured from Settings: an endpoint and an API key,
 -- stored as one AES-256-GCM encrypted JSON document in the same table as the

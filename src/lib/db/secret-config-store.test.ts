@@ -61,8 +61,8 @@ describe('secret config store', () => {
     expect(await getSecretConfig(db, 'hae', k)).toBeNull();
   });
 
-  it('migration 0012 makes the expiry nullable and touches nothing else', () => {
-    const sql = readFileSync(join(process.cwd(), 'db/migrations/0012-source-credentials-secret-config.sql'), 'utf8');
+  it('migration 0013 makes the expiry nullable and touches nothing else', () => {
+    const sql = readFileSync(join(process.cwd(), 'db/migrations/0013-source-credentials-secret-config.sql'), 'utf8');
     const stmts = sql.split('\n').filter(l => !l.trim().startsWith('--') && l.trim());
     expect(stmts).toEqual(['ALTER TABLE source_credentials ALTER COLUMN access_expires_at DROP NOT NULL;']);
   });

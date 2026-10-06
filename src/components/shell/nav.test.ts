@@ -30,6 +30,22 @@ describe('resolveTrail', () => {
     expect(resolveTrail('/activity').page?.id).toBe('overview');
   });
 
+  it('places Nutrition under Body, and the Body landing page as its Overview', () => {
+    expect(labels('/body/nutrition')).toEqual(['Body', 'Nutrition']);
+    expect(resolveTrail('/body/nutrition').page?.id).toBe('nutrition');
+    expect(labels('/body')).toEqual(['Body']);
+    expect(resolveTrail('/body').page?.id).toBe('overview');
+    expect(NAV_SECTIONS.some(s => s.id === 'nutrition')).toBe(false);
+  });
+
+  it('files a nutrition metric under Body › Nutrition and a body metric under Body', () => {
+    const protein = resolveTrail('/metric/dietary_protein');
+    expect(protein.section?.id).toBe('body');
+    expect(protein.page?.id).toBe('nutrition');
+    expect(protein.crumbs.map(c => c.label)).toEqual(['Body', 'Nutrition', 'Protein']);
+    expect(labels('/metric/weight_body_mass')).toEqual(['Body', 'Weight']);
+  });
+
   it('puts a progression path under the Plan, which stays the active page', () => {
     const trail = resolveTrail('/workouts/routine/pull-up');
     expect(trail.crumbs).toEqual([
@@ -62,13 +78,12 @@ describe('resolveTrail', () => {
     expect(labels('/lab/not_an_analyte')).toEqual(['Health', 'Lab', 'not_an_analyte']);
   });
 
-  it('folds Lab, Medications, Sleep and Body under Health, each lighting its own page', () => {
+  it('folds Lab, Medications and Sleep under Health, each lighting its own page', () => {
     for (const [path, page, label] of [
       ['/health', 'overview', 'Health'],
       ['/lab', 'lab', 'Lab'],
       ['/medications', 'medications', 'Medications'],
       ['/sleep', 'sleep', 'Sleep'],
-      ['/body', 'body', 'Body'],
     ] as const) {
       const trail = resolveTrail(path);
       expect(trail.section?.id).toBe('health');
@@ -78,9 +93,11 @@ describe('resolveTrail', () => {
     expect(labels('/sleep')).toEqual(['Health', 'Sleep']);
   });
 
-  it('no longer lists those four as top-level rows', () => {
+  it('no longer lists those three as top-level rows, and keeps Body as its own section', () => {
     const ids = NAV_SECTIONS.map(s => s.id);
-    for (const id of ['lab', 'medications', 'sleep', 'body']) expect(ids).not.toContain(id);
+    for (const id of ['lab', 'medications', 'sleep']) expect(ids).not.toContain(id);
+    expect(ids).toContain('body');
+    expect(resolveTrail('/body/nutrition').section?.id).toBe('body');
   });
 
   it('matches on whole segments only', () => {

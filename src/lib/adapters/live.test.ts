@@ -501,7 +501,9 @@ describe('LiveHealthDataAdapter', () => {
 
 describe('HAE-only output is unchanged by the multi-source wiring', () => {
   it('serialises to the exact bytes the single-source version produced', async () => {
-    const result = await fetchLiveDatasetUncached(DEPS);
+    // The data-quality job is a background task on the side, not part of the data.
+    const { quality, ...result } = await fetchLiveDatasetUncached(DEPS);
+    expect(quality?.state).toBeDefined();
     const text = JSON.stringify(result);
     expect({ bytes: text.length, sha256: createHash('sha256').update(text).digest('hex') }).toEqual({
       bytes: 20405,

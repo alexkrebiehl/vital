@@ -10,8 +10,8 @@
 
 import type { LucideIcon } from 'lucide-react';
 import {
-  LayoutDashboard, TrendingUp, Heart, Activity,
-  UtensilsCrossed, Dumbbell, Lightbulb, Bot, Settings, Palette,
+  LayoutDashboard, TrendingUp, Heart, Activity, Weight,
+  Dumbbell, Lightbulb, Bot, Settings, Palette,
 } from 'lucide-react';
 import { getMetric } from '@/lib/metrics/registry';
 import type { MetricCategory } from '@/lib/metrics/types';
@@ -58,7 +58,6 @@ export const NAV_SECTIONS: NavSection[] = [
       { id: 'lab', label: 'Lab', href: '/lab', description: 'Lab results imported from PDFs' },
       { id: 'medications', label: 'Medications', href: '/medications', description: 'Medications and supplements' },
       { id: 'sleep', label: 'Sleep', href: '/sleep', description: 'Sleep analysis' },
-      { id: 'body', label: 'Body', href: '/body', description: 'Weight and body metrics' },
     ],
   },
   {
@@ -73,7 +72,18 @@ export const NAV_SECTIONS: NavSection[] = [
       { id: 'maps', label: 'Maps', searchLabel: 'Activity maps', href: '/activity/maps', description: 'Where outdoor workouts went' },
     ],
   },
-  { id: 'nutrition', label: 'Nutrition', href: '/nutrition', icon: UtensilsCrossed, description: 'Dietary intake', placement: 'main' },
+  {
+    id: 'body',
+    label: 'Body',
+    href: '/body',
+    icon: Weight,
+    description: 'Weight, body composition and your goal',
+    placement: 'main',
+    children: [
+      { id: 'overview', label: 'Overview', href: '/body', description: 'Weight, body composition and your goal', exact: true },
+      { id: 'nutrition', label: 'Nutrition', href: '/body/nutrition', description: 'Dietary intake against your goal' },
+    ],
+  },
   {
     id: 'workouts',
     label: 'Workouts',
@@ -115,7 +125,7 @@ interface DetailRoute {
   label: (param: string) => string;
 }
 
-/** Where a metric's page sits: the section, and the page inside it when it has several. */
+/** Which section (and page within it) a metric belongs on. */
 const METRIC_PARENT: Record<MetricCategory, ParentRef> = {
   cardiovascular: { section: 'health', page: 'overview' },
   respiratory: { section: 'health', page: 'overview' },
@@ -123,8 +133,8 @@ const METRIC_PARENT: Record<MetricCategory, ParentRef> = {
   vitals: { section: 'health', page: 'overview' },
   sleep: { section: 'health', page: 'sleep' },
   activity: { section: 'activity' },
-  body: { section: 'health', page: 'body' },
-  nutrition: { section: 'nutrition' },
+  body: { section: 'body', page: 'overview' },
+  nutrition: { section: 'body', page: 'nutrition' },
 };
 
 export const DETAIL_ROUTES: DetailRoute[] = [
