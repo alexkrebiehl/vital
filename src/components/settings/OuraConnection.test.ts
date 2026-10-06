@@ -148,12 +148,13 @@ describe('Oura card logic', () => {
   });
 });
 
-describe('Settings is the only page that names Oura', () => {
+describe('Settings is the only page that names a data source', () => {
   const ROOT = path.resolve(__dirname, '../..');
-  const ALLOWED = new Set([
-    path.join(ROOT, 'components/settings/OuraConnection.tsx'),
-    path.join(ROOT, 'app/settings/page.tsx'),
-  ]);
+  const SETTINGS_PAGE = path.join(ROOT, 'app/settings/page.tsx');
+  const ALLOWED_OURA = new Set([path.join(ROOT, 'components/settings/OuraConnection.tsx'), SETTINGS_PAGE]);
+  const ALLOWED_HAE = new Set(
+    ['HaeConnection.tsx', 'HaeConnectionView.tsx', 'hae-card.ts'].map(name => path.join(ROOT, 'components/settings', name)).concat(SETTINGS_PAGE)
+  );
 
   function walk(dir: string, out: string[] = []): string[] {
     for (const name of readdirSync(dir)) {
@@ -164,10 +165,32 @@ describe('Settings is the only page that names Oura', () => {
     return out;
   }
 
-  it('keeps the name out of every other component and page', () => {
-    const offenders = [...walk(path.join(ROOT, 'components')), ...walk(path.join(ROOT, 'app'))]
-      .filter(file => !file.includes(`${path.sep}api${path.sep}`) && !ALLOWED.has(file))
+  const pages = () =>
+    [...walk(path.join(ROOT, 'components')), ...walk(path.join(ROOT, 'app'))].filter(
+      file => !file.includes(`${path.sep}api${path.sep}`)
+    );
+
+  /** What a reader can see: the code with its comments taken out. */
+  const withoutComments = (source: string) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+  it('keeps the name Oura out of every other component and page', () => {
+    const offenders = pages()
+      .filter(file => !ALLOWED_OURA.has(file))
       .filter(file => /\boura\b/i.test(readFileSync(file, 'utf8')));
     expect(offenders).toEqual([]);
   });
+
+  it('keeps the name Health Auto Export out of every other component and page, in text a reader sees', () => {
+    const offenders = pages()
+      .filter(file => !ALLOWED_HAE.has(file))
+      .filter(file => /Health Auto Export|\bHAE\b/.test(withoutComments(readFileSync(file, 'utf8'))));
+    expect(offenders).toEqual([]);
+  });
+
+  it('actually reads the comments off, so the guard is not blind (a mention in a comment passes, in text it fails)', () => {
+    expect(/Health Auto Export/.test(withoutComments('// Health Auto Export\n/* HAE */ const a = 1;'))).toBe(false);
+    expect(/Health Auto Export/.test(withoutComments("const a = 'Health Auto Export';"))).toBe(true);
+    expect(/Health Auto Export/.test(withoutComments('<p>Health Auto Export</p>'))).toBe(true);
+  });
 });
+

@@ -39,6 +39,7 @@ import { FreshnessIndicator } from '@/components/shell/FreshnessIndicator';
 import { useProfile } from '@/components/profile/ProfileProvider';
 import { LabUpload } from '@/components/settings/LabUpload';
 import { MapProvidersCard } from '@/components/settings/MapProviders';
+import { HaeConnection } from '@/components/settings/HaeConnection';
 import { OuraConnection } from '@/components/settings/OuraConnection';
 import { RemovedSources } from '@/components/settings/RemovedSources';
 import {
@@ -786,10 +787,17 @@ function ConnectionsTab() {
         </div>
         <div className="mt-4">
           <DataStateNote>
-            Source API keys are read from the server environment only. Synced sessions stay in the server&apos;s memory
+            Source connections are kept on the server only. Synced sessions stay in the server&apos;s memory
             and are never written to the database.
           </DataStateNote>
         </div>
+      </Card>
+
+      <Card className="p-6">
+        <HaeConnection
+          heading={title => <SectionHead icon={<Plug size={18} className="text-text-secondary" />} title={title} />}
+          onChanged={() => router.refresh()}
+        />
       </Card>
 
       <Card className="p-6">
