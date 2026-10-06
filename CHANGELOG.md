@@ -6,7 +6,17 @@ _Release in progress: the date is set when the version is tagged._
 
 ### Changed
 
+- **Breaking:** read the Health Auto Export connection from Settings → Connections instead of `HAE_API_URL` and `HAE_API_KEY`, which are now ignored; enter the endpoint and API key once after upgrading ([`87e8014`](https://github.com/echupkin/vital/commit/87e8014))
 - Fold Lab, Medications, Sleep and Body under Health in the sidebar, which expands like Activity and Workouts and opens by itself on any of its pages; breadcrumbs for those pages now start with Health ([`ed096fc`](https://github.com/echupkin/vital/commit/ed096fc))
+
+### Added
+
+- Add a Health Auto Export connection that is saved from Settings: the endpoint is checked with a read-only request before it is stored, and the API key is encrypted in Postgres and shown only as its last four characters ([`9338f02`](https://github.com/echupkin/vital/commit/9338f02), [`e886e00`](https://github.com/echupkin/vital/commit/e886e00))
+- Generate `VITAL_SECRET_KEY` with `npm run db:init`, so a new install can store encrypted credentials ([`8ed463f`](https://github.com/echupkin/vital/commit/8ed463f))
+
+### Fixed
+
+- Fix `npm run db:init` hanging on a system without `openssl` ([`8ed463f`](https://github.com/echupkin/vital/commit/8ed463f))
 
 ## [0.3.0] - 2026-10-04
 
