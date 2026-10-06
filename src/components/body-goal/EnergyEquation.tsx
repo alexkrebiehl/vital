@@ -40,12 +40,36 @@ export function EnergyEquation({ eq, loggedDays, units }: { eq: Equation; logged
     },
   ];
 
+  const ops = [null, '−', '='];
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-2 sm:gap-3">
-      {tiles.map((t, i) => (
-        <Tile key={t.label} {...t} dashed={i === 0 && implied} op={i === 1 ? '−' : i === 2 ? '=' : null} />
-      ))}
-    </div>
+    <>
+      {/* Narrow screens: the sum written out as on paper, one line per term and a rule above the total. */}
+      <div className="sm:hidden rounded-xl bg-surface-muted px-4 py-1">
+        {tiles.map((t, i) => (
+          <div
+            key={t.label}
+            className={`grid grid-cols-[0.75rem_1fr_auto] items-baseline gap-x-2 py-2 ${i === 2 ? 'border-t border-border-strong' : ''}`}
+          >
+            <span className="text-base font-light text-text-secondary" aria-hidden="true">{ops[i]}</span>
+            <span className="flex min-w-0 items-center gap-2 text-sm text-text-primary">
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: t.hue }} aria-hidden="true" />
+              {t.label}
+            </span>
+            <span className={`tnum text-right ${i === 0 && implied ? 'text-text-secondary' : 'text-text-primary'} ${i === 2 ? 'text-lg font-semibold' : 'text-sm font-medium'}`}>
+              {t.value}
+            </span>
+            <span className="col-start-2 col-span-2 text-[11px] text-text-secondary">{t.source}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden sm:grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
+        {tiles.map((t, i) => (
+          <Tile key={t.label} {...t} dashed={i === 0 && implied} op={ops[i]} />
+        ))}
+      </div>
+    </>
   );
 }
 

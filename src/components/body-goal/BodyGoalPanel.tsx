@@ -418,18 +418,19 @@ function MaintenanceComparison({ energy: e, units }: { energy: BodyReading['ener
       <p className="mt-0.5 text-[11px] text-text-secondary">
         Two independent estimates of the same number — what you burn in a day.
       </p>
-      <div className="mt-3 grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-stretch gap-2 sm:gap-3">
+      {/* Narrow screens: one box, a line per estimate. Wider: two cards with "vs" between. */}
+      <div className="mt-3 rounded-xl border border-border sm:rounded-none sm:border-0 sm:grid sm:grid-cols-[1fr_auto_1fr] sm:items-stretch sm:gap-3">
         {ways.map((w, i) => (
           <Fragment key={w.label}>
             {i === 1 && (
-              <span className="self-center text-center text-xs text-text-secondary" aria-hidden="true">
+              <span className="hidden sm:block self-center text-center text-xs text-text-secondary" aria-hidden="true">
                 vs
               </span>
             )}
-            <div className="rounded-xl border border-border px-4 py-3">
-              <p className="text-xs text-text-secondary">{w.label}</p>
-              <p className="mt-0.5 text-base font-semibold tnum text-text-primary">{formatKcal(w.value)}/day</p>
-              <p className="mt-0.5 text-[11px] text-text-secondary">{w.note}</p>
+            <div className={`grid grid-cols-[1fr_auto] items-baseline gap-x-3 px-4 py-3 sm:block sm:rounded-xl sm:border sm:border-border ${i === 1 ? 'border-t border-border' : ''}`}>
+              <p className="text-sm text-text-primary sm:text-xs sm:text-text-secondary">{w.label}</p>
+              <p className="text-sm font-semibold tnum text-text-primary sm:mt-0.5 sm:text-base">{formatKcal(w.value)}/day</p>
+              <p className="col-span-2 mt-0.5 text-[11px] text-text-secondary">{w.note}</p>
             </div>
           </Fragment>
         ))}
