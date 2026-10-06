@@ -207,3 +207,13 @@ describe('saveHae', () => {
     expect(result).toEqual({ ok: false, message: 'The connection could not be saved: Vital could not be reached.' });
   });
 });
+
+describe('nextStepAfterChange', () => {
+  it('opens the app after the first save, and refreshes in every other case', async () => {
+    const { nextStepAfterChange } = await import('./hae-card');
+    expect(nextStepAfterChange('saved', true)).toBe('open-app');
+    expect(nextStepAfterChange('saved', false)).toBe('refresh');
+    expect(nextStepAfterChange('disconnected', true)).toBe('refresh');
+    expect(nextStepAfterChange('disconnected', false)).toBe('refresh');
+  });
+});

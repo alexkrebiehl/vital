@@ -79,3 +79,11 @@ export async function saveHae(
       : `The connection could not be saved (HTTP ${res.status}).`;
   return { ok: false, message };
 }
+
+/**
+ * What the page does once the connection changed. On first run a save opens the app
+ * with a full page load; everywhere else the server-rendered data is refreshed in place.
+ */
+export function nextStepAfterChange(event: 'saved' | 'disconnected', settingUp: boolean): 'open-app' | 'refresh' {
+  return event === 'saved' && settingUp ? 'open-app' : 'refresh';
+}

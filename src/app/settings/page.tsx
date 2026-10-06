@@ -42,6 +42,7 @@ import { useProfile } from '@/components/profile/ProfileProvider';
 import { LabUpload } from '@/components/settings/LabUpload';
 import { MapProvidersCard } from '@/components/settings/MapProviders';
 import { HaeConnection } from '@/components/settings/HaeConnection';
+import { nextStepAfterChange } from '@/components/settings/hae-card';
 import { OuraConnection } from '@/components/settings/OuraConnection';
 import { RemovedSources } from '@/components/settings/RemovedSources';
 import {
@@ -808,10 +809,12 @@ function ConnectionsTab() {
         <HaeConnection
           heading={title => <SectionHead icon={<Plug size={18} className="text-text-secondary" />} title={title} />}
           onChanged={event => {
-            router.refresh();
-            // First run: a saved connection takes the reader on to the app. If the data still
-            // cannot be read the gate sends them straight back here, with the real reason.
-            if (event === 'saved' && settingUp) router.replace('/');
+            // First run: a saved connection takes the reader on to the app with a full page load,
+            // so the server decides afresh whether the data can be read. (A client-side refresh
+            // racing a client-side navigation leaves the old "no source" state on screen.) If the
+            // data still cannot be read the gate sends them straight back here, with the real reason.
+            if (nextStepAfterChange(event, settingUp) === 'open-app') window.location.assign('/');
+            else router.refresh();
           }}
         />
       </Card>
