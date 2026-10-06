@@ -84,8 +84,6 @@ services:
       # the committed fixtures. A failed live read shows a connection error and
       # never falls back to demo data.
       VITAL_DATA_MODE: "${VITAL_DATA_MODE:-demo}"
-      HAE_API_URL: "${HAE_API_URL:-}"
-      HAE_API_KEY: "${HAE_API_KEY:-}"
       HAE_PROBE_METRIC: "${HAE_PROBE_METRIC:-resting_heart_rate}"
       HAE_CACHE_TTL_SECONDS: "${HAE_CACHE_TTL_SECONDS:-300}"
       # ── Workout sources (server-side only) ──────────────────────────────────
