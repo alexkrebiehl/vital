@@ -120,6 +120,9 @@ export function normalizeEndpoint(raw: unknown): string | null {
   return trimmed;
 }
 
+/** How long a save waits for the endpoint to answer. */
+export const SAVE_PROBE_TIMEOUT_MS = 8000;
+
 /** A plain refusal for a failed probe. Fixed text: it never echoes a header, a body or the key. */
 function probeFailure(probe: HaeProbeResult): { kind: string; message: string } {
   if (probe.outcome === 'timeout') {
@@ -174,7 +177,12 @@ export async function save(request: Request, deps: HaeConnectDeps = {}): Promise
 
   const candidate = buildHaeConfig(endpoint, apiKey, env);
   if (!candidate) return json({ error: 'An API key is required.' }, 400);
-  const probe = await probeHae({ env, fetchImpl: deps.fetchImpl, haeConfig: candidate }, deps.now);
+  // A save check has the person waiting and may cross a network, so it gets more room than the
+  // status page's quick probe.
+  const probe = await probeHae(
+    { env, fetchImpl: deps.fetchImpl, haeConfig: { ...candidate, probeTimeoutMs: SAVE_PROBE_TIMEOUT_MS } },
+    deps.now
+  );
   if (probe.outcome !== 'ok') {
     const failure = probeFailure(probe);
     return json({ error: failure.message, kind: failure.kind }, 422);

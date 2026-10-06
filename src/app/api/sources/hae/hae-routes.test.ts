@@ -296,3 +296,11 @@ describe('the pipeline reads the stored connection', () => {
     expect(JSON.stringify(body)).not.toContain(API_KEY);
   });
 });
+
+describe('the save check', () => {
+  it('waits longer than the status page probe, since a person is waiting and the server may be across a network', async () => {
+    const { SAVE_PROBE_TIMEOUT_MS } = await import('@/lib/adapters/hae-connect');
+    const { DEFAULT_PROBE_TIMEOUT_MS } = await import('@/lib/adapters/hae');
+    expect(SAVE_PROBE_TIMEOUT_MS).toBeGreaterThan(DEFAULT_PROBE_TIMEOUT_MS);
+  });
+});
