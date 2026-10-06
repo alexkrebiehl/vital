@@ -192,7 +192,10 @@ shows the demo dataset.
    secret key that encrypts the connection) and `docker compose up -d`.
 3. Open *Settings → Connections* and enter the server address and read key. Vital checks them
    with one read-only request, then stores them in Postgres, **encrypted**. The key is never
-   shown again; to change it, enter a new one.
+   shown again; to change it, enter a new one (leave the key blank to keep the stored one).
+
+On a first install in live mode, Vital shows only Settings → Connections until a source is
+connected and its data loads; then the full app appears. Demo mode has no such step.
 
 **Oura Ring**
 

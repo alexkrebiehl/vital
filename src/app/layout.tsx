@@ -1,7 +1,8 @@
 // ── Root Layout ───────────────────────────────────────
 //
 // Includes a blocking inline script that applies the cached theme before paint.
-// Wraps all pages with AppShell (sidebar, topbar, mobile nav).
+// Wraps all pages with AppShell (sidebar, topbar, mobile nav). In live mode with no
+// readable source the shell is in setup mode instead: no navigation, Settings only.
 //
 // The layout is where the data mode is resolved, server-side and once per
 // request: demo fixtures, or the live Health Auto Export history fetched,
@@ -131,7 +132,7 @@ export default async function RootLayout({
           {/* Starts the server-backed settings sync (theme/units) and re-applies
               the theme when the server's value differs from this device's cache. */}
           <PrefsSync />
-          <AppShell profile={profile} profileStored={profileStored}>
+          <AppShell profile={profile} profileStored={profileStored} setupMode={failure !== null}>
             <LiveGate
               failure={
                 failure

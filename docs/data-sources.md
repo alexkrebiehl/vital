@@ -272,6 +272,12 @@ anything else (including unset, or `VITAL_DATA_MODE=demo`) serves the committed 
 the live source as unavailable instead of falling back. `HAE_CACHE_TTL_SECONDS` (default 300) is the
 cache TTL in seconds; it does not control how often a page waits — see below.
 
+**First run (live mode only).** Until at least one source is connected *and* a read succeeds, Vital
+is in setup mode: the navigation, search and breadcrumbs are hidden, every address redirects to
+Settings → Connections, and a banner above the tabs gives the real reason nothing is shown, with a
+Retry button. Once data loads the full app returns by itself, and saving a first connection takes
+you to the overview. Demo mode has no such gate.
+
 Both modes produce the *same* internal dataset, so no page or component has to know which one
 it is reading. In live mode:
 

@@ -24,6 +24,8 @@ import { coverageFact, coverageSentence } from '@/lib/analytics/coverage';
 import { formatDayKeyLong } from '@/lib/analytics/windows';
 import { REFERENCE_KEY, metricHasData, unavailableReasonFor } from '@/lib/adapters/dataset';
 import { useDatasetMeta } from '@/components/data/DatasetProvider';
+import { SetupBanner } from '@/components/data/SetupBanner';
+import { useSetupFailure } from '@/components/data/setup-mode';
 import { listedMetrics } from '@/lib/metrics/listed';
 import {
   applyTheme, clearPreferences, getPreferencesState, loadPreferences,
@@ -100,6 +102,12 @@ function SettingsView() {
   const [tab, setTab] = useState(
     requestedTab && TABS.some(candidate => candidate.id === requestedTab) ? requestedTab : 'account'
   );
+
+  // The tab follows the address: setup mode redirects to `?tab=connections` on this
+  // same page, which would otherwise leave the tab it first opened on.
+  useEffect(() => {
+    if (requestedTab && TABS.some(candidate => candidate.id === requestedTab)) setTab(requestedTab);
+  }, [requestedTab]);
 
   // Read the cached value for the first paint, then let the engine's server read
   // replace it. These settings belong to the account, not to this browser.
@@ -197,6 +205,8 @@ function SettingsView() {
           </div>
         }
       />
+
+      <SetupBanner />
 
       <Tabs tabs={TABS} active={tab} onChange={setTab} />
 
@@ -675,6 +685,7 @@ function DataTab() {
 function ConnectionsTab() {
   const router = useRouter();
   const ouraNotice = useSearchParams().get('oura');
+  const settingUp = useSetupFailure() !== null;
   const [report, setReport] = useState<PipelineStatusReport | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -796,7 +807,12 @@ function ConnectionsTab() {
       <Card className="p-6">
         <HaeConnection
           heading={title => <SectionHead icon={<Plug size={18} className="text-text-secondary" />} title={title} />}
-          onChanged={() => router.refresh()}
+          onChanged={event => {
+            router.refresh();
+            // First run: a saved connection takes the reader on to the app. If the data still
+            // cannot be read the gate sends them straight back here, with the real reason.
+            if (event === 'saved' && settingUp) router.replace('/');
+          }}
         />
       </Card>
 
