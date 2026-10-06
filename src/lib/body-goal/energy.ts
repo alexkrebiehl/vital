@@ -162,3 +162,36 @@ export function energyBalance(series: (id: string) => DayValue[], today: string)
     agreementText,
   };
 }
+
+/**
+ * The balance as one sum: calories in − calories out = balance, kcal/day.
+ *
+ * With a usable food log, in is the logged intake, out is the maintenance the
+ * targets use and the balance is their difference. Without one, out is the
+ * device estimate, the balance is what the weight trend implies, and in is
+ * implied from the two — what eating must have been for the weight to move as
+ * it did. Null when neither sum can be formed. The terms always add up.
+ */
+export interface EnergyEquation {
+  in: { kcal: number; source: 'logged' | 'implied' };
+  out: { kcal: number; source: 'weight-trend' | 'device' };
+  balance: { kcal: number; source: 'intake' | 'weight-trend' };
+}
+
+export function energyEquation(e: EnergyBalance): EnergyEquation | null {
+  if (e.balance !== null && e.intake !== null && e.maintenance !== null && e.maintenanceSource !== null) {
+    return {
+      in: { kcal: e.intake, source: 'logged' },
+      out: { kcal: e.maintenance, source: e.maintenanceSource },
+      balance: { kcal: e.balance, source: 'intake' },
+    };
+  }
+  if (e.trendBalance !== null && e.device !== null) {
+    return {
+      in: { kcal: e.device + e.trendBalance, source: 'implied' },
+      out: { kcal: e.device, source: 'device' },
+      balance: { kcal: e.trendBalance, source: 'weight-trend' },
+    };
+  }
+  return null;
+}
