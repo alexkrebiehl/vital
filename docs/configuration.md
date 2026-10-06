@@ -288,8 +288,26 @@ the measure table and the merge rule are in [Data sources](data-sources.md#oura-
 | `OURA_API_URL` | Oura's API | Override only for tests or the sandbox |
 | `VITAL_SOURCE_PURGE_GRACE_DAYS` | `7` | Days a removed source's analyst conversations stay hidden before they are deleted. **Delete now** in Settings skips the wait |
 
-`VITAL_DATA_MODE=live` needs at least one of Health Auto Export (`HAE_API_URL` + `HAE_API_KEY`) or a
-connected Oura. If neither is available the app says so; it never falls back to demo data.
+`VITAL_DATA_MODE=live` needs at least one connected source: Health Auto Export or Oura. If neither
+is available the app says so; it never falls back to demo data.
+
+### Health Auto Export
+
+Its server address and read key are **not** environment variables. Enter them in
+**Settings → Connections**. Vital makes one read-only request to check them and, only if that
+works, stores them in Postgres, **encrypted** with `VITAL_SECRET_KEY` (AES-256-GCM). The key can be
+replaced later, is never shown again (Settings shows only its last 4 characters) and is never
+returned by the API. `HAE_API_URL` and `HAE_API_KEY` are ignored if set; an install that used
+them connects once in Settings.
+
+`npm run db:init` generates `VITAL_SECRET_KEY` into `.env` when it is missing. Without a usable
+key Settings says the connection cannot be stored. If the key is lost or replaced, the stored
+connection cannot be read and Settings asks for the address and key again.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `HAE_PROBE_METRIC` | `resting_heart_rate` | Metric the pipeline panel and the save check read over a one-week window |
+| `HAE_CACHE_TTL_SECONDS` | `300` | How long a fetched, normalized dataset is cached in the server process |
 
 ## Safety properties of the live path
 

@@ -49,6 +49,10 @@ What Vital does and does not do with your data, and what to put in front of it b
   `VITAL_SECRET_KEY` (AES-256-GCM); no Oura reading is written to the database, a file or a log.
   Back up and protect that key: without it a stored connection cannot be read, and anyone who
   has it and the database can.
+- **The Health Auto Export key is stored encrypted, and is never shown.** Settings saves the
+  server address and read key to Postgres, encrypted with `VITAL_SECRET_KEY` (AES-256-GCM). The
+  API returns only the last 4 characters of the key, never the key, and no log line carries it.
+  No health value is stored. `HAE_API_URL` and `HAE_API_KEY` in the environment are ignored.
 - **Vital has no login.** Anyone who can reach it can press **Connect** or **Disconnect** on
   Oura. Put your own authentication in front of it before exposing it.
 - **Removing a source removes what Vital holds, not what you copied.** See *Removed sources* in

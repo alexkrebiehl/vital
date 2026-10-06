@@ -188,15 +188,11 @@ shows the demo dataset.
 
 1. Run a [Health Auto Export metrics server](https://github.com/HealthyApps/health-auto-export-server)
    and point the iPhone app at it.
-2. In `.env`, set `VITAL_DATA_MODE=live` and the server address and key:
-
-   ```bash
-   VITAL_DATA_MODE=live
-   HAE_API_URL=http://your-hae-server:3001
-   HAE_API_KEY=your-hae-key
-   ```
-
-3. Restart: `docker compose up -d`.
+2. In `.env`, set `VITAL_DATA_MODE=live`, then run `npm run db:init` (once; it generates the
+   secret key that encrypts the connection) and `docker compose up -d`.
+3. Open *Settings → Connections* and enter the server address and read key. Vital checks them
+   with one read-only request, then stores them in Postgres, **encrypted**. The key is never
+   shown again; to change it, enter a new one.
 
 **Oura Ring**
 

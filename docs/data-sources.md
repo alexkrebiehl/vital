@@ -29,8 +29,10 @@ The chain has three links, and Vital implements only the last one:
 What that means in practice:
 
 - **The metrics API server is not optional.** Apple Health has no public cloud API, a web app
-  cannot read HealthKit, and the phone cannot be queried directly. Point `HAE_API_URL` at your
-  `health-auto-export-server` instance and set `HAE_API_KEY` to its token, or run in `demo` mode, or use Oura alone (live mode needs at least one of the two).
+  cannot read HealthKit, and the phone cannot be queried directly. Run your
+  `health-auto-export-server` instance and connect it in **Settings → Connections** (its address and
+  read key; the key is stored encrypted), or run in `demo` mode, or use Oura alone (live mode needs
+  at least one of the two).
 - **No other health source is supported, partially or otherwise.** There is no direct HealthKit or iCloud
   bridge; no Google Fit, Android or Samsung Health; no Garmin, Fitbit or Withings; no Apple
   Health `export.xml` upload and no CSV/JSON import. The adapter layer knows one wire protocol, and
@@ -266,16 +268,16 @@ key.
 
 Switch modes with `VITAL_DATA_MODE` and restart the process: `live` reads the real history,
 anything else (including unset, or `VITAL_DATA_MODE=demo`) serves the committed fixtures. In
-`live` mode `HAE_API_URL` and `HAE_API_KEY` must both be set, or the app reports the live
-source as unavailable instead of falling back. `HAE_CACHE_TTL_SECONDS` (default 300) is the
+`live` mode at least one source must be connected in Settings → Connections, or the app reports
+the live source as unavailable instead of falling back. `HAE_CACHE_TTL_SECONDS` (default 300) is the
 cache TTL in seconds; it does not control how often a page waits — see below.
 
 Both modes produce the *same* internal dataset, so no page or component has to know which one
 it is reading. In live mode:
 
 - **The browser never talks to the health API.** All reads happen in server code, and
-  `HAE_API_KEY` is read from the process environment only. The served client bundle contains
-  neither the token nor any live health value (verified by grepping `.next/static/chunks`).
+  the Health Auto Export key is read from the encrypted Postgres row, on the server only. The
+  served client bundle contains neither the token nor any live health value (verified by grepping `.next/static/chunks`).
 - **Every upstream request is windowed** (`from`/`to`, a rolling 400-day lookback) and reduced
   to **one value per day server-side**, so the heavy series (`heart_rate` 32k records,
   `basal_energy_burned` 66k, `active_energy` 39k) never reach a page in raw form.
