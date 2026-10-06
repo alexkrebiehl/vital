@@ -78,6 +78,16 @@ describe('pipeline configuration reading (SPEC §10, §11)', () => {
 });
 
 describe('stage derivation (SPEC §10)', () => {
+  it('says the source is not connected, and names no environment variable', async () => {
+    const env = { HAE_API_URL: 'http://localhost:3001', HAE_API_KEY: TOKEN } as unknown as NodeJS.ProcessEnv;
+    const report = await resolvePipelineStatus({ env, ...NONE, now: () => NOW, skipDataset: true });
+    const stage = report.stages.find(s => s.id === 'health_auto_export')!;
+    expect(stage.status).toBe('unconfigured');
+    expect(stage.detail).toContain('Settings → Connections');
+    expect(JSON.stringify(report)).not.toMatch(/HAE_API/);
+    expect(JSON.stringify(report)).not.toContain(TOKEN);
+  });
+
   it('marks every upstream stage unknown or unconfigured in demo mode', async () => {
     const report = await resolvePipelineStatus({ env: EMPTY_ENV, ...NONE, now: () => NOW });
     expect(report.mode).toBe('demo');
