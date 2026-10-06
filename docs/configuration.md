@@ -161,6 +161,58 @@ configuration:
   `localStorage` as a cache; no API key, token or health record does — and the timezone no longer
   does either.
 
+## The body goal (Body → Overview)
+
+A **body goal** is a target body weight or a target body-fat percentage, and optionally your own
+pace. It is set from the Body page and stored in the `body_goals` table (migration `0012`):
+
+| | |
+|---|---|
+| Storage | `body_goals` in Postgres; at most one is `active`, earlier ones are kept as history |
+| Route | `GET` / `PUT` / `DELETE /api/body-goal` (a stale `revision` is refused with `409`) |
+
+- **Configuration only.** A goal holds a kind, a target, a pace and the day it was set. Where you
+  started is read from the health data on that day every time it is shown; no reading is stored.
+- **Cut, gain or maintain comes from the data.** A target below your seven-day average weight (or
+  body-fat reading) is a cut, above it a gain, and within ±1 % of body weight (±0.5 points of body
+  fat) the goal is reached and the guidance turns to maintenance. Crossing the target never needs
+  the goal to be re-entered.
+- **Recommended pace, or your own.** The recommended band is a share of body weight per week:
+  0.5–1 % when cutting, 0.25–0.5 % when gaining. With the profile's sex set, the cutting band is
+  fitted to how lean the current body fat is for that sex (narrower when lean); unset, no sex is
+  assumed and the general band is used. A pace you set replaces the middle of the band; its direction
+  always follows the phase.
+- **A caution on very low targets.** A body-fat target near or below essential fat (about 2–5 %
+  for men, 10–13 % for women), or below the athletic range (8 % / 15 %), gets a note in the goal
+  dialog; so does a weight target whose projected body fat lands there. It is advice, never a
+  block. With sex unset the note names both.
+- **Maintenance two ways.** From the weight trend (mean logged calories on complete days minus the
+  four-week weight slope × 7,700 kcal/kg, which the page shows as about 3,500 kcal/lb in imperial
+  units; needs 10 complete logged days and 4 weigh-ins) and from the device (basal + active
+  energy). The weight-trend estimate is used when there is one.
+  Logged days under 60 % of the window's median are treated as partial logs and left out.
+- **No food log needed.** Most people do not count calories. Without one, the goal is tracked from
+  weigh-ins alone: the weight trend gives the daily deficit or surplus, the watch gives maintenance
+  (so there is still a calorie target), and protein comes from body weight. The logged-intake
+  sections, the month table and the macro check appear only once food is logged. With neither a
+  food log nor basal energy there is no calorie number, and the pages say so.
+- **Eating to the targets.** With a goal and a food log, the Nutrition page opens with calories
+  and protein over the last four weeks, each with a target range and a wider OK range. The calorie
+  target is only ±75 kcal wide, so a day within about 10 % of its middle counts as OK, and protein
+  down to 85 % of the floor is OK. The cards count the logged days within the OK range, say how many
+  were on target, and draw each day as a dot against both ranges. Days without a log are gaps, and
+  partial logs are drawn hollow and not counted.
+- **Useful before a goal.** Without a goal the Body page still reads the data: the energy balance,
+  which way weight is going (losing or gaining more than 0.25 % of body weight a week, otherwise
+  holding steady) against the recommended range for that direction, activity against the four
+  weeks before, and recovery signals. A goal adds the target, progress, arrival dates and calorie
+  targets.
+- **Projections, not deadlines.** Arrival dates are worked out from a pace. Nothing is ever shown
+  as behind or overdue.
+- **Everywhere the goal matters.** The Overview shows a goal tile, the daily briefing leads with
+  the goal (its numbers are in the briefing context as `bodyGoal`), and the analyst receives the
+  same summary with every question (and as the page context from the Body page).
+
 ## The training routine on `/workouts`
 
 The Workouts page opens with the active **training plan**: the current phase, the next

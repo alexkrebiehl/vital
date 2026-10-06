@@ -359,7 +359,9 @@ export interface AnalystProviderContext {
    */
   history?: { role: 'user' | 'assistant'; content: string }[];
   /** The page the reader is looking at, already resolved and bounded. Untrusted DATA. */
-  pageContext?: { label: string; json: string };
+  pageContext?: { label: string; json: string; about?: string };
+  /** The reader's body goal and what the data says about it (body-goal summary JSON). Untrusted DATA. */
+  goalContext?: string;
 }
 
 /**

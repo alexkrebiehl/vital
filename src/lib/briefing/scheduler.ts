@@ -26,6 +26,7 @@
 // is re-read before each write, so the schedule follows the setting.
 
 import { readProfile } from '../profile/store';
+import { readActiveBodyGoal } from '../body-goal/server';
 import type { VitalProfile } from '../profile/types';
 import { warmBriefing } from './index';
 import { readPreferences } from '../prefs/store';
@@ -95,7 +96,7 @@ async function fire(): Promise<void> {
   const system = await readUnitSystem();
 
   try {
-    const outcome = await warmBriefing({ profile, system });
+    const outcome = await warmBriefing({ profile, system, bodyGoal: await readActiveBodyGoal() });
     log(
       outcome.ok
         ? `wrote the briefing at the configured hour (${system}${outcome.engine ? `, ${outcome.engine}` : ''}${outcome.model ? `, ${outcome.model}` : ''}).`

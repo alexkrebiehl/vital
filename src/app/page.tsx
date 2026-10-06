@@ -26,6 +26,7 @@ import { OverviewPage } from '@/components/metric/OverviewPage';
 import { readBriefing } from '@/lib/briefing';
 import { ensureBriefingScheduler } from '@/lib/briefing/scheduler';
 import { readProfile } from '@/lib/profile/store';
+import { readActiveBodyGoal } from '@/lib/body-goal/server';
 import { greetingLine } from '@/lib/profile/types';
 import { readPreferences } from '@/lib/prefs/store';
 import type { UnitSystem } from '@/lib/prefs/types';
@@ -40,7 +41,7 @@ export default async function Home() {
   // A pure read: it serves the day's written briefing, or the computed one while
   // the scheduler (or a catch-up attempt for a day the scheduler has not yet
   // touched) writes it. It never originates a generation on its own.
-  readBriefing({ system, profile });
+  readBriefing({ system, profile, bodyGoal: await readActiveBodyGoal() });
   // Writes the briefing AT the configured hour rather than only when someone
   // happens to visit afterwards. Armed here, in the bundle that serves requests
   // (the instrumentation hook runs in a separate module graph — see the note in

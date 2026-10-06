@@ -49,6 +49,8 @@ import { readAnalystConfig, type AnalystConfig } from './config';
 import { checkGrounding, parseAnalystReply, proseAnswerText } from './validate';
 import { boundedHistory, type ChatTurn } from './memory';
 import { resolvePageContext, type ResolvedPageContext } from './page-context';
+import { readGoalSummary } from '../body-goal/server';
+import type { BodyGoalSummary } from '../body-goal/summary';
 import type {
   AnalystAnswer,
   AnalystGrounding,
@@ -211,6 +213,8 @@ export interface AnalystDeps {
   labSource?: () => Promise<LabSourceInput>;
   /** Where the training plan is read and written (plan tools, page context). */
   routine?: RoutineDeps;
+  /** Test seam: the body-goal summary instead of the stored goal. */
+  bodyGoal?: (system: UnitSystem) => Promise<BodyGoalSummary | null>;
 }
 
 interface Prepared {
@@ -226,6 +230,8 @@ interface Prepared {
   routineDeps: RoutineDeps;
   /** The page the question was asked from, resolved; undefined when none or unreadable. */
   pageContext?: ResolvedPageContext;
+  /** The body goal's summary JSON, when a goal is set and the page context does not already carry it. */
+  goalContext?: string;
   /**
    * Set when the health data is fetched on demand: the readers the tools use and the
    * index the model is given in place of the data. `bundle` is then empty, and the
@@ -411,13 +417,25 @@ async function prepareAnalyst(
   let pageContext: ResolvedPageContext | undefined;
   if (request?.context && !isDemo) {
     try {
-      pageContext = (await resolvePageContext(request.context, system, routineDeps)) ?? undefined;
+      pageContext = (await resolvePageContext(request.context, system, routineDeps, deps.bodyGoal)) ?? undefined;
     } catch {
       pageContext = undefined;
     }
   }
 
-  return { ok: true, config, query: validated.query, notes, notesEcho, bundle, handlerId, system, history, routineDeps, pageContext, onDemand, budgetDropped };
+  // The body goal travels with every question, so "am I eating enough?" is
+  // answered against it. A goal that cannot be read is simply left out.
+  let goalContext: string | undefined;
+  if (!isDemo && request?.context?.kind !== 'body-goal') {
+    try {
+      const summary = await (deps.bodyGoal ?? (s => readGoalSummary(s, deps.env)))(system);
+      goalContext = summary ? JSON.stringify({ bodyGoal: summary }) : undefined;
+    } catch {
+      goalContext = undefined;
+    }
+  }
+
+  return { ok: true, config, query: validated.query, notes, notesEcho, bundle, handlerId, system, history, routineDeps, pageContext, goalContext, onDemand, budgetDropped };
 }
 
 /** The runaway limits from the configuration. */
@@ -427,7 +445,7 @@ function guardLimits(config: AnalystConfig): GuardLimits {
 
 /** Numbers quoted from the page context are grounded, like tool results. */
 function pageGrounding(prep: Prepared): string[] {
-  return prep.pageContext ? [prep.pageContext.json] : [];
+  return [prep.pageContext?.json, prep.goalContext].filter((s): s is string => Boolean(s));
 }
 
 /** Build the provider request context from a prepared analyst question. */
@@ -441,6 +459,7 @@ function providerContext(prep: Prepared): AnalystProviderContext {
     notes: prep.notes.text.length > 0 ? prep.notes.text : undefined,
     history: prep.history,
     pageContext: prep.pageContext,
+    goalContext: prep.goalContext,
   };
 }
 
@@ -477,7 +496,7 @@ async function answerWithTools(
   const toolCtx: ToolContext = { system: prep.system, deps: prep.routineDeps, changes: [], ...(onDemand ? { data: onDemand.access } : {}) };
   const notes = prep.notes.text.length > 0 ? prep.notes.text : undefined;
   const user = onDemand
-    ? buildOnDemandUserMessage({ question: prep.query, index: onDemand.index, notes, history: prep.history, pageContext: prep.pageContext })
+    ? buildOnDemandUserMessage({ question: prep.query, index: onDemand.index, notes, history: prep.history, pageContext: prep.pageContext, goalContext: prep.goalContext })
     : buildAnalystUserMessage({
         question: prep.query,
         bundle: prep.bundle,
@@ -485,6 +504,7 @@ async function answerWithTools(
         notes,
         history: prep.history,
         pageContext: prep.pageContext,
+        goalContext: prep.goalContext,
       });
   const systemPrompt = `${config.systemPrompt}${onDemand ? DATA_TOOLS_PROMPT : ''}${TRAINING_TOOLS_PROMPT}`;
   try {
