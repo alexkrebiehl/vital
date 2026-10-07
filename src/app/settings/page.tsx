@@ -42,6 +42,7 @@ import { useProfile } from '@/components/profile/ProfileProvider';
 import { LabUpload } from '@/components/settings/LabUpload';
 import { MapProvidersCard } from '@/components/settings/MapProviders';
 import { HaeConnection } from '@/components/settings/HaeConnection';
+import { HevyConnection } from '@/components/settings/HevyConnection';
 import { nextStepAfterChange } from '@/components/settings/hae-card';
 import { DataQualitySection } from '@/components/settings/DataQuality';
 import { OuraConnection } from '@/components/settings/OuraConnection';
@@ -829,6 +830,13 @@ function ConnectionsTab() {
         <OuraConnection
           heading={title => <SectionHead icon={<Plug size={18} className="text-text-secondary" />} title={title} />}
           noticeParam={ouraNotice}
+          onChanged={() => router.refresh()}
+        />
+      </Card>
+
+      <Card className="p-6">
+        <HevyConnection
+          heading={title => <SectionHead icon={<Plug size={18} className="text-text-secondary" />} title={title} />}
           onChanged={() => router.refresh()}
         />
       </Card>
