@@ -6,29 +6,14 @@ _Release in progress: the date is set when the version is tagged._
 
 ### Changed
 
-- **Breaking:** read the Oura client ID, client secret and redirect URI from Settings → Connections instead of `OURA_CLIENT_ID`, `OURA_CLIENT_SECRET` and `OURA_REDIRECT_URI`, which are now ignored; enter them once after upgrading, and the existing Oura login keeps working when the client ID is unchanged ([`8081d26`](https://github.com/echupkin/vital/commit/8081d26))
-- **Breaking:** read the Hevy API key and address from Settings → Connections instead of `HEVY_API_KEY` and `HEVY_API_URL`, which are now ignored; enter them once after upgrading ([`9686e4c`](https://github.com/echupkin/vital/commit/9686e4c))
-- Document which settings are set per person in Settings and which stay in the environment, and drop the moved variables from `.env.example`, `docker-compose.yml` and the leak check ([`7e8ec49`](https://github.com/echupkin/vital/commit/7e8ec49), [`3f17288`](https://github.com/echupkin/vital/commit/3f17288))
-- **Breaking:** read the Health Auto Export connection from Settings → Connections instead of `HAE_API_URL` and `HAE_API_KEY`, which are now ignored; enter the endpoint and API key once after upgrading ([`87e8014`](https://github.com/echupkin/vital/commit/87e8014))
-- Fold Lab, Medications, Sleep and Body under Health in the sidebar, which expands like Activity and Workouts and opens by itself on any of its pages; breadcrumbs for those pages now start with Health ([`ed096fc`](https://github.com/echupkin/vital/commit/ed096fc))
+- **Breaking:** connect Health Auto Export, Oura and Hevy in Settings instead of the environment: `HAE_API_URL`, `HAE_API_KEY`, `OURA_CLIENT_ID`, `OURA_CLIENT_SECRET`, `OURA_REDIRECT_URI`, `HEVY_API_KEY` and `HEVY_API_URL` are now ignored, so enter each once after upgrading; keys are stored encrypted with `VITAL_SECRET_KEY`, which `npm run db:init` now generates ([`87e8014`](https://github.com/echupkin/vital/commit/87e8014), [`8081d26`](https://github.com/echupkin/vital/commit/8081d26), [`9686e4c`](https://github.com/echupkin/vital/commit/9686e4c), [`8ed463f`](https://github.com/echupkin/vital/commit/8ed463f))
+- Fold Lab, Medications and Sleep under Health in the sidebar ([`ed096fc`](https://github.com/echupkin/vital/commit/ed096fc))
 
 ### Added
 
-- Add a Health Auto Export connection that is saved from Settings: the endpoint is checked with a read-only request before it is stored, and the API key is encrypted in Postgres and shown only as its last four characters ([`9338f02`](https://github.com/echupkin/vital/commit/9338f02), [`e886e00`](https://github.com/echupkin/vital/commit/e886e00))
-- Add body goals: set a target weight or body-fat percentage, optionally with your own pace, and read Body and Nutrition against it ([`a372b0c`](https://github.com/echupkin/vital/commit/a372b0c))
-- Add calorie and protein adherence with an OK range beside each daily target on Nutrition, now at Body → Nutrition ([`7a793ad`](https://github.com/echupkin/vital/commit/7a793ad), [`d225c50`](https://github.com/echupkin/vital/commit/d225c50))
-- Add data-quality checks to the Settings data pipeline panel: doubled activity, duplicate readings, missing days, late-starting history and a stopped automation ([`f2297b7`](https://github.com/echupkin/vital/commit/f2297b7))
-- Add Oura app credentials to the Oura card, with the redirect address prefilled from the address you browse from and the client secret stored encrypted and shown only as its last four characters ([`9c08406`](https://github.com/echupkin/vital/commit/9c08406), [`e538d5f`](https://github.com/echupkin/vital/commit/e538d5f))
-- Add a Hevy card to Settings → Connections: the key is checked with a read-only request before it is stored encrypted, and the address is optional ([`7433a2f`](https://github.com/echupkin/vital/commit/7433a2f), [`d9746a0`](https://github.com/echupkin/vital/commit/d9746a0))
-- Add a Health Auto Export card to Settings → Connections with an endpoint field, a masked key field, Change and Disconnect ([`d3ac6b6`](https://github.com/echupkin/vital/commit/d3ac6b6))
-- Show only Settings until a source is connected and its data loads, in live mode: the sidebar and top navigation are hidden, every other page redirects to Settings → Connections, and a banner gives the reason with a Retry ([`2f183d5`](https://github.com/echupkin/vital/commit/2f183d5))
-- Generate `VITAL_SECRET_KEY` with `npm run db:init`, so a new install can store encrypted credentials ([`8ed463f`](https://github.com/echupkin/vital/commit/8ed463f))
-
-### Fixed
-
-- Wait up to 8 seconds when checking a new Health Auto Export endpoint, so a slow network does not fail a valid save ([`7aa627c`](https://github.com/echupkin/vital/commit/7aa627c))
-- Open the app with a full page load after the first save in Settings, so the sidebar returns at once ([`1a01fb7`](https://github.com/echupkin/vital/commit/1a01fb7))
-- Fix `npm run db:init` hanging on a system without `openssl` ([`8ed463f`](https://github.com/echupkin/vital/commit/8ed463f))
+- Add body goals: set a target weight or body-fat percentage, optionally with your own pace, and read Body and Nutrition against it, with calorie and protein targets on Nutrition ([`a372b0c`](https://github.com/echupkin/vital/commit/a372b0c), [`7a793ad`](https://github.com/echupkin/vital/commit/7a793ad))
+- Add data-quality checks to the data pipeline: doubled activity, duplicate readings, missing days, late-starting history and a stopped automation ([`f2297b7`](https://github.com/echupkin/vital/commit/f2297b7))
+- Show only Settings on a first run in live mode until a source is connected and its data loads ([`2f183d5`](https://github.com/echupkin/vital/commit/2f183d5))
 
 ## [0.3.0] - 2026-10-04
 

@@ -3,11 +3,16 @@
 `CHANGELOG.md` follows [Common Changelog](https://common-changelog.org/). The file holds only
 releases, newest first, each headed `## [VERSION] - DATE` with a link to its tag.
 
-## With every commit
+## What goes in
 
-A commit that changes what someone using Vital would notice adds its line to the changelog in the
-same commit, under the heading of the version the branch is building (`release/v0.3.0` builds
-`[0.3.0]`). If that heading does not exist yet, create it at the top.
+Only **big features and changes that matter to someone using Vital** go in the changelog: a new
+capability, a change to how they set Vital up or use it, a removal, or a fix for something that was
+badly wrong. Small features, UI polish, minor fixes, refactors, tests, docs and CI never get a line.
+When in doubt, leave it out. Several commits that make up one change get one line.
+
+When a commit finishes a change that qualifies, add its line in the same commit or the next one,
+under the heading of the version the branch is building (`release/v0.3.1` builds `[0.3.1]`). If that
+heading does not exist yet, create it at the top.
 
 - **Group** it under `### Changed` (existing behaviour that now works differently, and anything that
   affects the experience), `### Added`, `### Removed` or `### Fixed`, in that order. Leave out a
@@ -16,9 +21,8 @@ same commit, under the heading of the version the branch is building (`release/v
   not which files moved. Put breaking changes first and prefix them `**Breaking:**`.
 - **End the line with the commit reference** as a link, for example
   ``([`abc1234`](https://github.com/echupkin/vital/commit/abc1234))``. The hash exists once the
-  commit does, so add the line in the next commit, or amend it in.
-- **Merge related changes** into one line. Skip commits that change nothing a user can see: tests,
-  formatting, CI housekeeping.
+  commit does, so add the line in the next commit, or amend it in. A line for several commits lists
+  each link.
 
 ## At release
 
