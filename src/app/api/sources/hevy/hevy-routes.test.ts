@@ -26,8 +26,10 @@ const URL_ = 'http://hevy-sample.invalid:4000';
 /** The table, plus the one other query the reconcile makes. */
 function pool() {
   const db = fakeTable();
-  const wrapped: PoolLike & { rows: typeof db.rows } = {
+  const wrapped: PoolLike & { rows: typeof db.rows; marked: typeof db.marked; table: typeof db } = {
     rows: db.rows,
+    marked: db.marked,
+    table: db,
     query: (text, params) =>
       text.includes('lab_reports') ? Promise.resolve({ rows: [{ n: 0 }] }) : db.query(text, params),
   };
@@ -367,6 +369,20 @@ describe('DELETE /api/sources/hevy', () => {
   it('is 503 with no database', async () => {
     held.pool = null;
     expect((await read(await DELETE())).status).toBe(503);
+  });
+
+  it('marks the removal on purpose, so the reconcile may erase the conversations', async () => {
+    await put({ apiKey: API_KEY });
+    expect([...db.marked]).toEqual([]);
+    expect((await DELETE()).status).toBe(204);
+    expect([...db.marked]).toEqual(['hevy']);
+  });
+
+  it('fails the request when the marker cannot be written', async () => {
+    await put({ apiKey: API_KEY });
+    db.table.markerError = new Error('connection reset');
+    expect((await DELETE()).status).toBe(500);
+    expect([...db.marked]).toEqual([]);
   });
 });
 

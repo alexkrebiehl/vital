@@ -12,6 +12,7 @@ import { normalizeEndpoint } from '@/lib/adapters/hae-connect';
 import { clearLiveCaches } from '@/lib/adapters/live';
 import type { PoolLike } from '@/lib/db/pool';
 import { reconcileQuietly } from '@/lib/sources/purge';
+import { markRemoved } from '@/lib/sources/lifecycle';
 import { defaultContext } from '@/lib/sources/registry';
 import { lastTrainingSourceError, purgeTrainingSources } from '../store';
 import type { SourceRequestDeps } from '../types';
@@ -210,11 +211,14 @@ export async function save(request: Request, deps: HevyConnectDeps = {}): Promis
 
 /** DELETE /api/sources/hevy */
 export async function remove(deps: HevyConnectDeps = {}): Promise<Response> {
-  if (!hevyClientFor(storeDeps(deps))) {
+  const client = hevyClientFor(storeDeps(deps));
+  if (!client) {
     return json({ error: 'A database is required to manage the connection.' }, 503);
   }
   try {
     await removeStoredHevy(storeDeps(deps));
+    // A deliberate removal: only this marks the conversations for erasure.
+    await markRemoved(['hevy'], client);
   } catch {
     return json({ error: 'The connection could not be removed.' }, 500);
   }

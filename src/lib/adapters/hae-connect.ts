@@ -10,6 +10,7 @@
 
 import type { PoolLike } from '@/lib/db/pool';
 import { reconcileQuietly } from '@/lib/sources/purge';
+import { markRemoved } from '@/lib/sources/lifecycle';
 import { defaultContext } from '@/lib/sources/registry';
 import { clearRouteStore } from '@/lib/activity-maps/routes';
 import { liveCache } from './cache';
@@ -200,11 +201,14 @@ export async function save(request: Request, deps: HaeConnectDeps = {}): Promise
 
 /** DELETE /api/sources/hae */
 export async function remove(deps: HaeConnectDeps = {}): Promise<Response> {
-  if (!haeClientFor(storeDeps(deps))) {
+  const client = haeClientFor(storeDeps(deps));
+  if (!client) {
     return json({ error: 'A database is required to manage the connection.' }, 503);
   }
   try {
     await removeStoredHae(storeDeps(deps));
+    // A deliberate removal: only this marks the conversations for erasure.
+    await markRemoved(['hae'], client);
   } catch {
     return json({ error: 'The connection could not be removed.' }, 500);
   }

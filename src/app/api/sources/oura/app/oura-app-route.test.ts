@@ -26,6 +26,8 @@ let logged: string[] = [];
 
 beforeEach(() => {
   db.rows.clear();
+  db.marked.clear();
+  db.markerError = null;
   db.sent.length = 0;
   clearOuraAppCache();
   liveCache.clear();
@@ -230,5 +232,20 @@ describe('DELETE /api/sources/oura/app', () => {
     await liveCache.awaitIdle();
     await DELETE();
     expect(liveCache.stats().keys).toEqual([]);
+  });
+
+  it('marks the removal on purpose, so the reconcile may erase the conversations', async () => {
+    await PUT(put(BODY));
+    expect([...db.marked]).toEqual([]);
+    expect((await DELETE()).status).toBe(204);
+    expect([...db.marked]).toEqual(['oura']);
+  });
+
+  it('fails the request when the marker cannot be written', async () => {
+    await PUT(put(BODY));
+    db.markerError = new Error('connection reset');
+    expect((await DELETE()).status).toBe(500);
+    expect([...db.marked]).toEqual([]);
+    db.markerError = null;
   });
 });

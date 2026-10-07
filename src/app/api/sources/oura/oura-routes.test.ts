@@ -62,6 +62,8 @@ let tokenReply: () => Response;
 beforeEach(() => {
   seen = [];
   db.rows.clear();
+  db.marked.clear();
+  db.markerError = null;
   clearOuraAppCache();
   db.sent.length = 0;
   hoisted.compared = 0;
@@ -335,6 +337,24 @@ describe('DELETE /api/sources/oura', () => {
     });
     expect((await disconnectRoute()).status).toBe(204);
     expect(db.rows.has('oura')).toBe(false);
+  });
+
+  it('marks the removal on purpose, so the reconcile may erase the conversations', async () => {
+    await configure();
+    await connect();
+    db.marked.clear();
+    expect((await disconnectRoute()).status).toBe(204);
+    expect([...db.marked]).toEqual(['oura']);
+  });
+
+  it('fails the request when the marker cannot be written', async () => {
+    await configure();
+    await connect();
+    db.marked.clear();
+    db.markerError = new Error('connection reset');
+    expect((await disconnectRoute()).status).toBe(500);
+    expect([...db.marked]).toEqual([]);
+    db.markerError = null;
   });
 });
 

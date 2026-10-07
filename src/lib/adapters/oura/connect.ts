@@ -14,6 +14,7 @@ import { readSecretKey } from '@/lib/secrets/crypto';
 import { clearLiveCaches } from '../live';
 import { defaultContext } from '@/lib/sources/registry';
 import { reconcileQuietly } from '@/lib/sources/purge';
+import { markRemoved } from '@/lib/sources/lifecycle';
 import { ouraAppClientFor, saveStoredOuraApp } from './app-store';
 import { readOuraConfig, type OuraConfig } from './config';
 import { OuraAuthError, buildAuthorizeUrl, exchangeCode, pkcePair, revoke } from './oauth';
@@ -180,6 +181,8 @@ export async function disconnect(deps: ConnectDeps = {}): Promise<Response> {
     }
     await deleteCredential(client, OURA_SOURCE_ID);
     await bindLogin(env, client, c.cfg, null);
+    // A deliberate removal: only this marks the conversations for erasure.
+    await markRemoved([OURA_SOURCE_ID], client);
   } catch {
     return json({ error: 'The connection could not be removed.' }, 500);
   }

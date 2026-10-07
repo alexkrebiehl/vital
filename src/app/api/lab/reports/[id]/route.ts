@@ -10,10 +10,11 @@
 // reports a malformed id as "no such report" rather than as a 500.
 
 import { reconcileQuietly } from '@/lib/sources/purge';
+import { markRemoved } from '@/lib/sources/lifecycle';
 import { NextResponse } from 'next/server';
 import { deleteStoredBytes } from '@/lib/lab/storage';
 import { resolveLabConfig } from '@/lib/lab/config';
-import { deleteReport, findReportBySha, getReport, listResults, storeClient } from '@/lib/db/lab-store';
+import { deleteReport, countReports, findReportBySha, getReport, listResults, storeClient } from '@/lib/db/lab-store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -78,8 +79,17 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
     fileRemoved = await deleteStoredBytes(config.dir, report.sourceSha256);
   }
 
-  // The last report going makes the lab source inactive: notice it now, so the
-  // conversations that used lab results are deleted at once (plan §8).
+  // The last report going is a deliberate removal of the lab source: mark it, so
+  // the conversations that used lab results are deleted at once (plan §8). An
+  // error here fails the request rather than leaving a half state.
+  try {
+    if ((await countReports(client)) === 0) await markRemoved(['lab'], client);
+  } catch {
+    return NextResponse.json(
+      { error: 'The report was deleted, but the lab source could not be marked removed. Try again.' },
+      { status: 500, headers: NO_STORE }
+    );
+  }
   await reconcileQuietly();
 
   return NextResponse.json({ deleted: true, reportId: id, fileRemoved }, { status: 200, headers: NO_STORE });

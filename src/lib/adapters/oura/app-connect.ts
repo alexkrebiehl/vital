@@ -10,6 +10,7 @@
 import { deleteCredential, getCredential, hasCredentialRow } from '@/lib/db/credentials-store';
 import type { PoolLike } from '@/lib/db/pool';
 import { readSecretKey } from '@/lib/secrets/crypto';
+import { markRemoved } from '@/lib/sources/lifecycle';
 import { clearRouteStore } from '@/lib/activity-maps/routes';
 import { clearLiveCaches } from '../live';
 import { readOuraConfig } from './config';
@@ -181,6 +182,8 @@ export async function appRemove(deps: ConnectDeps = {}): Promise<Response> {
     }
     await deleteCredential(client, OURA_SOURCE_ID);
     await removeStoredOuraApp(storeDeps(deps));
+    // A deliberate removal: only this marks the conversations for erasure.
+    await markRemoved([OURA_SOURCE_ID], client);
   } catch {
     return json({ error: 'The credentials could not be removed.' }, 500);
   }
