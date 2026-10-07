@@ -45,19 +45,25 @@ What Vital does and does not do with your data, and what to put in front of it b
   never written to the database or to disk.
 - **Oura calls are server-to-server only.** The browser never talks to Oura and never sees a token.
   The sign-in `state` and PKCE verifier travel in a short-lived, encrypted, `httpOnly` cookie
-  scoped to the Oura routes. Vital stores only the OAuth tokens, encrypted at rest with
-  `VITAL_SECRET_KEY` (AES-256-GCM); no Oura reading is written to the database, a file or a log.
+  scoped to the Oura routes. Vital stores only the app credentials (client ID, secret, redirect URI) and
+  the OAuth tokens, encrypted at rest with `VITAL_SECRET_KEY` (AES-256-GCM); no Oura reading is written to the database, a file or a log.
   Back up and protect that key: without it a stored connection cannot be read, and anyone who
   has it and the database can.
+- **Connection keys are stored encrypted, and are never shown.** Settings saves the Health Auto
+  Export address and read key, the Oura client secret and the Hevy key to Postgres, encrypted with
+  `VITAL_SECRET_KEY` (AES-256-GCM). The API returns only the last 4 characters of a key, never the
+  key, and no log line carries it. No health value is stored. `HAE_API_URL`, `HAE_API_KEY`,
+  `OURA_CLIENT_ID`, `OURA_CLIENT_SECRET`, `OURA_REDIRECT_URI`, `HEVY_API_KEY` and `HEVY_API_URL` in
+  the environment are ignored. The environment holds only admin settings.
 - **Vital has no login.** Anyone who can reach it can press **Connect** or **Disconnect** on
   Oura. Put your own authentication in front of it before exposing it.
-- **Removing a source removes what Vital holds, not what you copied.** See *Removed sources* in
-  [Data sources](data-sources.md#removed-sources). Screenshots and exports you made yourself, and
-  Postgres backups taken before the purge, are outside Vital's reach.
+- **Removing a source erases what Vital holds, at once, not what you copied.** See *Removing a
+  source* in [Data sources](data-sources.md#removing-a-source). Screenshots and exports you made
+  yourself, and Postgres backups taken before the removal, are outside Vital's reach.
 - **Deploy on a private LAN or VPN, or behind an authenticated reverse proxy.** The container
   has no built-in authentication or TLS: anyone who can reach the port sees the dashboard.
   Put an authenticating reverse proxy in front of it before exposing it beyond a trusted
   network.
 - **No HIPAA compliance or production-security claims.** This is a demo build for personal
-  use: no audit logging, no encryption at rest (apart from the stored Oura tokens), no multi-user isolation, no rate limiting,
+  use: no audit logging, no encryption at rest (apart from the stored connection keys and Oura tokens), no multi-user isolation, no rate limiting,
   no hardened base-image supply chain process.

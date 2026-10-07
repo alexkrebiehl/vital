@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { MobileNav } from './MobileNav';
@@ -21,41 +21,51 @@ interface AppShellProps {
   profile: VitalProfile;
   /** True when the profile was read from storage rather than defaulted. */
   profileStored: boolean;
+  /**
+   * Setup mode (live mode, nothing readable yet): no sidebar, mobile navigation,
+   * breadcrumbs, search or links, so the only way forward is Settings → Sources.
+   */
+  setupMode?: boolean;
 }
 
-export function AppShell({ children, profile, profileStored }: AppShellProps) {
+export function AppShell({ children, profile, profileStored, setupMode = false }: AppShellProps) {
+  // The palette is the one other way around the shell (Cmd+K, and its page list),
+  // so setup mode leaves its provider out: the shortcut then does nothing.
+  const Palette = setupMode ? Fragment : CommandPaletteProvider;
   return (
     <ProfileProvider initialProfile={profile} initialStored={profileStored}>
       <TimezoneDefault />
       <UnitsProvider>
-        <CommandPaletteProvider>
+        <Palette>
           <DiscussProvider>
             <BreadcrumbProvider>
               <div className="min-h-screen bg-page overflow-x-hidden">
                 {/* Desktop sidebar */}
-                <div className="hidden md:block">
-                  <Sidebar />
-                </div>
+                {!setupMode && (
+                  <div className="hidden md:block">
+                    <Sidebar />
+                  </div>
+                )}
 
                 {/* Main content area */}
-                <div className="md:ml-sidebar flex flex-col min-h-screen min-w-0">
-                  <TopBar />
+                <div className={`${setupMode ? '' : 'md:ml-sidebar '}flex flex-col min-h-screen min-w-0`}>
+                  <TopBar minimal={setupMode} />
 
                   <main className="flex-1 px-4 md:px-8 py-6 md:py-8 max-w-content mx-auto w-full min-w-0">
-                    <Breadcrumbs />
+                    {!setupMode && <Breadcrumbs />}
                     {children}
                   </main>
 
                   {/* Footer spacer for mobile nav */}
-                  <div className="h-16 md:h-0" />
+                  {!setupMode && <div className="h-16 md:h-0" />}
                 </div>
 
                 {/* Mobile bottom nav */}
-                <MobileNav />
+                {!setupMode && <MobileNav />}
               </div>
             </BreadcrumbProvider>
           </DiscussProvider>
-        </CommandPaletteProvider>
+        </Palette>
       </UnitsProvider>
     </ProfileProvider>
   );

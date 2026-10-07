@@ -4,15 +4,14 @@ import {
   HevyError,
   fetchWorkoutsSince,
   hevyGet,
-  readHevyConfig,
+  buildHevyConfig,
   type HevyWireWorkout,
 } from './client';
 import { hevyPlugin, syncHevy } from './index';
 import { loadMeaningFor, normalizeWorkout } from './normalize';
 
 const KEY = 'hevy-secret-key-do-not-log';
-const ENV = { HEVY_API_KEY: KEY } as unknown as NodeJS.ProcessEnv;
-const CONFIG = readHevyConfig(ENV)!;
+const CONFIG = buildHevyConfig(KEY, '', {} as NodeJS.ProcessEnv)!;
 const NOW = Date.parse('2026-09-18T12:00:00Z');
 const noSleep = async () => {};
 
@@ -94,11 +93,16 @@ const TEMPLATES_ROUTE: Route = {
   }),
 };
 
-describe('readHevyConfig', () => {
+describe('buildHevyConfig', () => {
   it('is null without a key and defaults the host', () => {
-    expect(readHevyConfig({} as NodeJS.ProcessEnv)).toBeNull();
+    expect(buildHevyConfig('  ', '', {} as NodeJS.ProcessEnv)).toBeNull();
     expect(CONFIG.baseUrl).toBe('https://api.hevyapp.com');
     expect(CONFIG.ttlSeconds).toBe(300);
+  });
+
+  it('takes a custom URL (trailing slashes dropped) and the TTL from the environment', () => {
+    const env = { HEVY_CACHE_TTL_SECONDS: '60' } as unknown as NodeJS.ProcessEnv;
+    expect(buildHevyConfig(KEY, ' http://hevy.test/ ', env)).toMatchObject({ baseUrl: 'http://hevy.test', ttlSeconds: 60 });
   });
 });
 

@@ -39,7 +39,7 @@ interface PurgeState {
   /** The active ids at the last successful reconcile; null before the first. */
   lastIds: string[] | null;
   inFlight: Promise<ReconcileResult> | null;
-  /** The active set whose lifecycle record (removal times, purge) is not yet stored; retried. */
+  /** The active set whose lifecycle record (and the erasure it implies) is not yet stored; retried. */
   lifecyclePending: string[] | null;
 }
 
@@ -75,6 +75,16 @@ export function currentSourceKey(): string {
 }
 
 /**
+ * A removal marker was just written: the next reconcile must store the lifecycle
+ * even when the active set did not change in this process (a source that was
+ * never active here), so the erasure is not left waiting for a restart.
+ */
+export function requestLifecycleRecord(): void {
+  const s = state();
+  s.lifecyclePending ??= s.lastIds ?? [];
+}
+
+/**
  * Tests only: forget the last set seen (and any pass in flight), as in a fresh
  * process. Purgers registered when their modules loaded are kept.
  */
@@ -106,8 +116,9 @@ function runPurgers(removed: string[]): string[] {
 }
 
 /**
- * Store the lifecycle of the active set (db/lifecycle). A failure never breaks
- * a page: it is remembered and retried at the next reconcile. The module is
+ * Store the lifecycle of the active set and erase what left it (sources/lifecycle).
+ * A failure never breaks a page and erases nothing: it is remembered and
+ * retried at the next reconcile. The module is
  * loaded lazily because it needs the database layer.
  */
 async function recordLifecycle(active: string[], env: NodeJS.ProcessEnv): Promise<void> {
@@ -140,8 +151,9 @@ async function reconcileOnce(ctx?: SourceContext): Promise<ReconcileResult> {
   // source's data under the new key. A first call has nothing to purge.
   const failed = previous === null ? [] : runPurgers(removed);
   if (failed.length === 0) s.lastIds = active;
-  // The lifecycle (removal times, hiding, the purge) follows the set, and also
-  // runs at the first call so a source removed while the process was down is found.
+  // The stored lifecycle follows the set: a source that left it is erased from
+  // the database in this same call. It also runs at the first call, so a source
+  // removed while the process was down is found.
   await recordLifecycle(active, (ctx ?? defaultContext()).env);
   return { active, removed, added, changed, failed };
 }

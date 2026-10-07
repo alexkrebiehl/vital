@@ -14,6 +14,8 @@ import { readSecretKey } from '@/lib/secrets/crypto';
 import { clearLiveCaches } from '../live';
 import { defaultContext } from '@/lib/sources/registry';
 import { reconcileQuietly } from '@/lib/sources/purge';
+import { markRemoved } from '@/lib/sources/lifecycle';
+import { ouraAppClientFor, saveStoredOuraApp } from './app-store';
 import { readOuraConfig, type OuraConfig } from './config';
 import { OuraAuthError, buildAuthorizeUrl, exchangeCode, pkcePair, revoke } from './oauth';
 import { readOuraStatus, recordOuraOutcome } from './index';
@@ -42,7 +44,7 @@ const NO_STORE = 'private, no-store';
  * Connect and disconnect change the active set: reconcile so everything held in
  * memory for a source that just went away is purged now, not at the next page.
  */
-async function reconcileAfterChange(env: NodeJS.ProcessEnv, deps: ConnectDeps): Promise<void> {
+export async function reconcileAfterChange(env: NodeJS.ProcessEnv, deps: ConnectDeps): Promise<void> {
   let client: PoolLike | null = null;
   try {
     client = deps.client === undefined ? getPool(env) : deps.client;
@@ -52,7 +54,16 @@ async function reconcileAfterChange(env: NodeJS.ProcessEnv, deps: ConnectDeps): 
   await reconcileQuietly(defaultContext(env, () => client));
 }
 
-function json(body: unknown, status: number, extra: Record<string, string> = {}): Response {
+/** Record which client ID the stored login belongs to (null: no login). Keeps the app credentials as they are. */
+async function bindLogin(env: NodeJS.ProcessEnv, client: PoolLike, cfg: OuraConfig, loginClientId: string | null) {
+  await saveStoredOuraApp(
+    { env, client },
+    { clientId: cfg.clientId, clientSecret: cfg.clientSecret, redirectUri: cfg.redirectUri },
+    { loginClientId }
+  );
+}
+
+export function json(body: unknown, status: number, extra: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { 'Content-Type': 'application/json', 'Cache-Control': NO_STORE, ...extra },
@@ -65,14 +76,14 @@ function redirect(location: string, extra: Record<string, string> = {}): Respons
 
 /** Back to Settings on the app's own origin (the registered redirect URI's origin). */
 function settingsUrl(cfg: OuraConfig, outcome: 'connected' | 'denied'): string {
-  return `${new URL(cfg.redirectUri).origin}/settings?tab=connections&oura=${outcome}`;
+  return `${new URL(cfg.redirectUri).origin}/settings?tab=sources&oura=${outcome}`;
 }
 
-function config(env: NodeJS.ProcessEnv): { cfg: OuraConfig; key: Buffer } | Response {
-  const read = readOuraConfig(env);
+async function config(env: NodeJS.ProcessEnv, deps: ConnectDeps): Promise<{ cfg: OuraConfig; key: Buffer } | Response> {
+  const read = await readOuraConfig({ env, client: ouraAppClientFor({ env, client: deps.client }) });
   const key = readSecretKey(env);
   if (!read || !read.ok || !key) {
-    return json({ error: read && !read.ok ? read.reason : 'Oura is not configured.' }, 404);
+    return json({ error: read && !read.ok ? read.reason : 'Oura app credentials are not set. Enter them in Settings → Sources.' }, 404);
   }
   return { cfg: read.config, key };
 }
@@ -80,7 +91,7 @@ function config(env: NodeJS.ProcessEnv): { cfg: OuraConfig; key: Buffer } | Resp
 /** GET /api/sources/oura/authorize */
 export async function authorize(request: Request, deps: ConnectDeps = {}): Promise<Response> {
   const env = deps.env ?? process.env;
-  const c = config(env);
+  const c = await config(env, deps);
   if (c instanceof Response) return c;
   const state = randomBytes(24).toString('base64url');
   const { verifier, challenge } = pkcePair();
@@ -91,7 +102,7 @@ export async function authorize(request: Request, deps: ConnectDeps = {}): Promi
 /** GET /api/sources/oura/callback */
 export async function callback(request: Request, deps: ConnectDeps = {}): Promise<Response> {
   const env = deps.env ?? process.env;
-  const c = config(env);
+  const c = await config(env, deps);
   if (c instanceof Response) return c;
   const now = deps.now ?? Date.now;
   const clear = { 'Set-Cookie': clearSessionCookie(request) };
@@ -133,6 +144,7 @@ export async function callback(request: Request, deps: ConnectDeps = {}): Promis
         tokens.expiresAt
       );
     });
+    await bindLogin(env, client, c.cfg, c.cfg.clientId);
   } catch {
     return json({ error: 'The connection could not be stored.' }, 500, clear);
   }
@@ -151,7 +163,7 @@ export async function status(deps: ConnectDeps = {}): Promise<Response> {
 /** DELETE /api/sources/oura */
 export async function disconnect(deps: ConnectDeps = {}): Promise<Response> {
   const env = deps.env ?? process.env;
-  const c = config(env);
+  const c = await config(env, deps);
   if (c instanceof Response) return c;
   let client: PoolLike | null;
   try {
@@ -168,6 +180,9 @@ export async function disconnect(deps: ConnectDeps = {}): Promise<Response> {
       await revoke(c.cfg, cred.tokens.accessToken, { fetchImpl: deps.fetchImpl, now: deps.now }).catch(() => {});
     }
     await deleteCredential(client, OURA_SOURCE_ID);
+    await bindLogin(env, client, c.cfg, null);
+    // A deliberate removal: only this marks the conversations for erasure.
+    await markRemoved([OURA_SOURCE_ID], client);
   } catch {
     return json({ error: 'The connection could not be removed.' }, 500);
   }

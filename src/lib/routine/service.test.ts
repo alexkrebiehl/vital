@@ -5,19 +5,22 @@ import { hasExerciseData } from './service';
 const env = (vars: Record<string, string>) => vars as unknown as NodeJS.ProcessEnv;
 
 describe('hasExerciseData', () => {
-  it('is false in live mode with no workout source configured', () => {
+  it('is false in live mode with no workout source configured', async () => {
     resetTrainingStoreForTests();
-    const statuses = heldSourceStatuses(env({ VITAL_DATA_MODE: 'live' }));
+    const statuses = await heldSourceStatuses({ env: env({ VITAL_DATA_MODE: 'live' }), hevyStored: { state: 'none' } });
     expect(hasExerciseData({ origin: 'live', sessions: [], statuses })).toBe(false);
   });
 
-  it('is true once a source is configured, even before it has synced', () => {
+  it('is true once a source is configured, even before it has synced', async () => {
     resetTrainingStoreForTests();
-    const statuses = heldSourceStatuses(env({ VITAL_DATA_MODE: 'live', HEVY_API_KEY: 'hevy-key-for-tests' }));
+    const statuses = await heldSourceStatuses({
+      env: env({ VITAL_DATA_MODE: 'live' }),
+      hevyStored: { state: 'ok', apiKey: 'hevy-key-for-tests', url: '' },
+    });
     expect(hasExerciseData({ origin: 'live', sessions: [], statuses })).toBe(true);
   });
 
-  it('is true in demo mode, which serves committed training sessions', () => {
-    expect(hasExerciseData({ origin: 'demo', sessions: [], statuses: heldSourceStatuses(env({})) })).toBe(true);
+  it('is true in demo mode, which serves committed training sessions', async () => {
+    expect(hasExerciseData({ origin: 'demo', sessions: [], statuses: await heldSourceStatuses({ env: env({}) }) })).toBe(true);
   });
 });

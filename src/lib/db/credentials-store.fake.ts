@@ -12,12 +12,22 @@ type Row = Record<string, unknown>;
  * sends, keeps rows in memory and records every statement. It is NOT Postgres:
  * the real SQL is exercised by the migration and by the manual smoke test.
  */
-export function fakeTable(): PoolLike & { rows: Map<string, Row>; sent: { text: string; params?: unknown[] }[] } {
+export function fakeTable(): PoolLike & {
+  rows: Map<string, Row>;
+  sent: { text: string; params?: unknown[] }[];
+  /** Source ids whose removal marker was written (`data_sources_seen.removed_at`). */
+  marked: Set<string>;
+  /** When set, writing a removal marker throws it. */
+  markerError: Error | null;
+} {
   const rows = new Map<string, Row>();
   const sent: { text: string; params?: unknown[] }[] = [];
-  return {
+  const marked = new Set<string>();
+  const self = {
     rows,
     sent,
+    marked,
+    markerError: null as Error | null,
     async query(text: string, params: unknown[] = []) {
       sent.push({ text, params });
       const sql = text.replace(/\s+/g, ' ').trim();
@@ -41,6 +51,11 @@ export function fakeTable(): PoolLike & { rows: Map<string, Row>; sent: { text: 
         });
         return { rows: [] };
       }
+      if (sql.startsWith('INSERT INTO data_sources_seen (source_id, removed_at)')) {
+        if (self.markerError) throw self.markerError;
+        for (const id of params[0] as string[]) marked.add(id);
+        return { rows: [] };
+      }
       if (sql.startsWith('SELECT 1 AS present')) {
         return { rows: rows.has(String(params[0])) ? [{ present: 1 }] : [] };
       }
@@ -55,4 +70,5 @@ export function fakeTable(): PoolLike & { rows: Map<string, Row>; sent: { text: 
       throw new Error(`unexpected SQL: ${sql}`);
     },
   };
+  return self;
 }

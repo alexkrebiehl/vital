@@ -28,7 +28,7 @@ Routes, what is still demo or unwired in this build, and the quality commands.
 | `/insights` | Observations and the weekly / monthly report archive |
 | `/analyst` | The AI analyst |
 | `/themes` | Light and dark colour themes |
-| `/settings` | Account (profile and goals), preferences, data and coverage, connections, AI privacy |
+| `/settings` | Account (profile and goals), preferences, data and coverage, sources (Health Auto Export, Oura, data pipeline), connections (workout and map sources), AI privacy |
 | `/metric/[metricId]` | One metric in detail |
 
 The API lives under `/api/*`: `activity-coverage`, `activity-maps`, `analyst` (with `conversations`

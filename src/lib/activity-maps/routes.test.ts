@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { WorkoutRecord } from '@/lib/metrics/types';
+import { buildHaeConfig } from '@/lib/adapters/hae';
 import { clearRouteStore, loadRoutes, routeStoreStats } from './routes';
 
-const env = { HAE_API_URL: 'http://hae.test', HAE_API_KEY: 'k' } as unknown as NodeJS.ProcessEnv;
+const env = {} as unknown as NodeJS.ProcessEnv;
+const haeConfig = buildHaeConfig('http://hae.test', 'sample-key', env);
 
 function workout(id: string, end = '2026-09-01T13:00:00Z'): WorkoutRecord {
   return {
@@ -42,12 +44,12 @@ beforeEach(() => clearRouteStore());
 describe('loadRoutes', () => {
   it('reads each workout once, with its route and heart rate, and serves it from memory after', async () => {
     const f = fakeFetch(() => json(detail));
-    const first = await loadRoutes([workout('a'), workout('b')], 'live', { env, fetchImpl: f.impl });
+    const first = await loadRoutes([workout('a'), workout('b')], 'live', { env, haeConfig, fetchImpl: f.impl });
     expect(first.routes).toHaveLength(2);
     expect([...first.routes[0].hr]).toEqual([110, 110]);
     expect(f.calls[0]).toContain('include=route,heartRateData');
 
-    const again = await loadRoutes([workout('a'), workout('b')], 'live', { env, fetchImpl: f.impl });
+    const again = await loadRoutes([workout('a'), workout('b')], 'live', { env, haeConfig, fetchImpl: f.impl });
     expect(again.routes).toHaveLength(2);
     expect(f.calls).toHaveLength(2);
     expect(again.generation).toBe(first.generation);
@@ -55,32 +57,32 @@ describe('loadRoutes', () => {
 
   it('re-reads a session whose end time changed', async () => {
     const f = fakeFetch(() => json(detail));
-    await loadRoutes([workout('a')], 'live', { env, fetchImpl: f.impl });
-    await loadRoutes([workout('a', '2026-09-01T13:30:00Z')], 'live', { env, fetchImpl: f.impl });
+    await loadRoutes([workout('a')], 'live', { env, haeConfig, fetchImpl: f.impl });
+    await loadRoutes([workout('a', '2026-09-01T13:30:00Z')], 'live', { env, haeConfig, fetchImpl: f.impl });
     expect(f.calls).toHaveLength(2);
   });
 
   it('remembers a workout with no route, and one the source no longer has, as having none', async () => {
     const f = fakeFetch(id => (id === 'gone' ? json({ error: 'Workout not found' }, 404) : json({ route: [], heartRateData: [] })));
-    const out = await loadRoutes([workout('strength'), workout('gone')], 'live', { env, fetchImpl: f.impl });
+    const out = await loadRoutes([workout('strength'), workout('gone')], 'live', { env, haeConfig, fetchImpl: f.impl });
     expect(out).toMatchObject({ routes: [], failed: 0 });
-    await loadRoutes([workout('strength'), workout('gone')], 'live', { env, fetchImpl: f.impl });
+    await loadRoutes([workout('strength'), workout('gone')], 'live', { env, haeConfig, fetchImpl: f.impl });
     expect(f.calls).toHaveLength(2);
   });
 
   it('counts a failed read without caching it, and throws only when every read failed', async () => {
     let fail = true;
     const f = fakeFetch(id => (id === 'b' && fail ? json({ error: 'boom' }, 500) : json(detail)));
-    const partial = await loadRoutes([workout('a'), workout('b')], 'live', { env, fetchImpl: f.impl });
+    const partial = await loadRoutes([workout('a'), workout('b')], 'live', { env, haeConfig, fetchImpl: f.impl });
     expect(partial).toMatchObject({ failed: 1 });
     expect(partial.routes).toHaveLength(1);
     fail = false;
-    const retried = await loadRoutes([workout('a'), workout('b')], 'live', { env, fetchImpl: f.impl });
+    const retried = await loadRoutes([workout('a'), workout('b')], 'live', { env, haeConfig, fetchImpl: f.impl });
     expect(retried.routes).toHaveLength(2);
 
     clearRouteStore();
     const down = fakeFetch(() => json({ error: 'down' }, 503));
-    await expect(loadRoutes([workout('x')], 'live', { env, fetchImpl: down.impl })).rejects.toThrow(/HTTP 503/);
+    await expect(loadRoutes([workout('x')], 'live', { env, haeConfig, fetchImpl: down.impl })).rejects.toThrow(/HTTP 503/);
   });
 
   it('evicts the least recently used routes beyond the point cap', async () => {
@@ -94,7 +96,7 @@ describe('loadRoutes', () => {
       })
     );
     const capped = { ...env, ROUTE_CACHE_MAX_POINTS: '10000' } as unknown as NodeJS.ProcessEnv;
-    await loadRoutes([workout('a'), workout('b')], 'live', { env: capped, fetchImpl: f.impl });
+    await loadRoutes([workout('a'), workout('b')], 'live', { env: capped, haeConfig, fetchImpl: f.impl });
     expect(routeStoreStats().points).toBeLessThanOrEqual(10_000);
     expect(routeStoreStats().withRoute).toBe(1);
   });

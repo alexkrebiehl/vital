@@ -49,7 +49,7 @@ describe('CHANGELOG.md', () => {
     const link = '\\[`[0-9a-f]{7}`\\]\\(https://github\\.com/[^)]+/commit/[0-9a-f]{7}\\)';
     const end = new RegExp(`\\(${link}(, ${link})*\\)$`);
     for (const l of lines) {
-      expect(l).toMatch(/^- (\*\*Breaking:\*\* )?[A-Z][a-z]+ /);
+      expect(l).toMatch(/^- (\*\*Breaking:\*\* [a-z]|[A-Z])[a-z]+ /);
       expect(l).toMatch(end);
     }
   });

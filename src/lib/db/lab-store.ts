@@ -558,6 +558,12 @@ export async function findReportBySha(client: SqlClient, sha256: string): Promis
   return row ? toLabReport(row) : null;
 }
 
+/** How many reports are stored (the same count that decides whether the lab source is active). */
+export async function countReports(client: SqlClient): Promise<number> {
+  const result = await client.query('SELECT count(*)::int AS n FROM lab_reports');
+  return Number(result.rows[0]?.n ?? 0);
+}
+
 /** Delete a report. Its observations go with it (the foreign key cascades). */
 export async function deleteReport(client: SqlClient, id: string): Promise<boolean> {
   const result = await client.query(DELETE_REPORT, [id]);

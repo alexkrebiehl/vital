@@ -9,6 +9,8 @@
 import { NextResponse } from 'next/server';
 import { installDataset, readDataMode, LiveDataUnavailableError } from '@/lib/adapters/runtime';
 import type { PipelineQualityResponse } from '@/lib/pipeline/types';
+import type { SilencedFinding } from '@/lib/adapters/quality-silenced';
+import { silencedView } from '@/lib/pipeline/quality-view';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -16,8 +18,8 @@ export const revalidate = 0;
 /** How long one request waits for the checks before answering "still computing". */
 const WAIT_MS = 45_000;
 
-function respond(body: PipelineQualityResponse) {
-  return NextResponse.json(body, { status: 200, headers: { 'Cache-Control': 'no-store, private' } });
+function respond(body: Omit<PipelineQualityResponse, 'silenced'> & { silenced?: SilencedFinding[] }) {
+  return NextResponse.json({ silenced: [], ...body }, { status: 200, headers: { 'Cache-Control': 'no-store, private' } });
 }
 
 export async function GET() {
@@ -28,9 +30,12 @@ export async function GET() {
     const job = (await installDataset()).quality;
     if (!job) return respond({ state: 'unavailable', quality: null, detail: 'No live export was read.' });
     await Promise.race([job.promise, new Promise(resolve => setTimeout(resolve, WAIT_MS))]);
+    // The same silencing as the pipeline status report, so the two agree.
+    const view = job.state === 'ready' && job.value ? await silencedView(job.value) : null;
     return respond({
       state: job.state,
-      quality: job.value,
+      quality: view ? view.report : job.value,
+      silenced: view ? view.silenced : [],
       detail: job.state === 'failed' ? job.error : job.state === 'computing' ? 'The checks are still running.' : null,
     });
   } catch (error) {

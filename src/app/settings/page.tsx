@@ -16,7 +16,7 @@ import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  Bell, Clock, Database, Dumbbell, Info, Palette, Plug, Ruler, Save, Shield, Trash2, TriangleAlert, UserRound,
+  Bell, Clock, Database, Info, Palette, Ruler, Save, Shield, Trash2, TriangleAlert, UserRound,
 } from 'lucide-react';
 import { getAllMetrics, getMetric } from '@/lib/metrics';
 import { convertValue, displayUnit, formatMetricWithUnit, hasConversion } from '@/lib/metrics/format';
@@ -24,6 +24,7 @@ import { coverageFact, coverageSentence } from '@/lib/analytics/coverage';
 import { formatDayKeyLong } from '@/lib/analytics/windows';
 import { REFERENCE_KEY, metricHasData, unavailableReasonFor } from '@/lib/adapters/dataset';
 import { useDatasetMeta } from '@/components/data/DatasetProvider';
+import { SetupBanner } from '@/components/data/SetupBanner';
 import { listedMetrics } from '@/lib/metrics/listed';
 import {
   applyTheme, clearPreferences, getPreferencesState, loadPreferences,
@@ -33,15 +34,13 @@ import {
 import {
   Badge, Button, Card, ChoiceButton, DataStateNote, ErrorState, Select, Skeleton, Tabs,
 } from '@/components/ui/primitives';
-import type { PipelineStatusReport, StageStatus } from '@/lib/pipeline/types';
-import { STAGE_STATUS_LABEL } from '@/lib/pipeline/types';
 import { FreshnessIndicator } from '@/components/shell/FreshnessIndicator';
 import { useProfile } from '@/components/profile/ProfileProvider';
 import { LabUpload } from '@/components/settings/LabUpload';
-import { MapProvidersCard } from '@/components/settings/MapProviders';
-import { DataQualitySection } from '@/components/settings/DataQuality';
-import { OuraConnection } from '@/components/settings/OuraConnection';
-import { RemovedSources } from '@/components/settings/RemovedSources';
+import { ConnectionsTab } from '@/components/settings/ConnectionsTab';
+import { SectionHead } from '@/components/settings/SectionHead';
+import { SourcesTab } from '@/components/settings/SourcesTab';
+import { SETTINGS_TABS, isSettingsTab, resolveTab } from '@/components/settings/tabs';
 import {
   PROFILE_NAME_MAX,
   PROFILE_NOTES_MAX,
@@ -49,13 +48,6 @@ import {
   type VitalProfile,
 } from '@/lib/profile/types';
 
-const TABS = [
-  { id: 'account', label: 'Account' },
-  { id: 'preferences', label: 'Preferences' },
-  { id: 'data', label: 'Data & coverage' },
-  { id: 'connections', label: 'Connections' },
-  { id: 'privacy', label: 'AI privacy' },
-];
 
 const TIMEZONES = [
   'America/Chicago',
@@ -97,9 +89,13 @@ function SettingsView() {
   const requestedTab = searchParams.get('tab');
   const [prefs, setPrefs] = useState<VitalPreferences | null>(null);
   const [notice, setNotice] = useState<{ tone: 'ok' | 'warn' | 'error'; text: string } | null>(null);
-  const [tab, setTab] = useState(
-    requestedTab && TABS.some(candidate => candidate.id === requestedTab) ? requestedTab : 'account'
-  );
+  const [tab, setTab] = useState(resolveTab(requestedTab));
+
+  // The tab follows the address: setup mode redirects to `?tab=sources` on this
+  // same page, which would otherwise leave the tab it first opened on.
+  useEffect(() => {
+    if (isSettingsTab(requestedTab)) setTab(requestedTab);
+  }, [requestedTab]);
 
   // Read the cached value for the first paint, then let the engine's server read
   // replace it. These settings belong to the account, not to this browser.
@@ -198,7 +194,9 @@ function SettingsView() {
         }
       />
 
-      <Tabs tabs={TABS} active={tab} onChange={setTab} />
+      <SetupBanner />
+
+      <Tabs tabs={SETTINGS_TABS} active={tab} onChange={setTab} />
 
       {tab === 'account' && <AccountTab />}
 
@@ -299,6 +297,8 @@ function SettingsView() {
       )}
 
       {tab === 'data' && <DataTab />}
+
+      {tab === 'sources' && <SourcesTab />}
 
       {tab === 'connections' && <ConnectionsTab />}
 
@@ -670,154 +670,6 @@ function DataTab() {
   );
 }
 
-// ── Connections tab ─────────────────────────────────────
-
-function ConnectionsTab() {
-  const router = useRouter();
-  const ouraNotice = useSearchParams().get('oura');
-  const [report, setReport] = useState<PipelineStatusReport | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  // `quiet` refreshes in place (after the data-quality checks finish) instead
-  // of blanking the panel back to its loading state.
-  const load = useCallback(async (quiet = false) => {
-    setError(null);
-    if (!quiet) setReport(null);
-    try {
-      const res = await fetch('/api/pipeline/status', { cache: 'no-store' });
-      if (!res.ok) throw new Error(`The status endpoint answered HTTP ${res.status}.`);
-      setReport((await res.json()) as PipelineStatusReport);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'The pipeline status could not be read.');
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const refreshQuietly = useCallback(() => void load(true), [load]);
-
-  return (
-    <div className="space-y-5">
-      <Card className="p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <SectionHead icon={<Database size={18} className="text-text-secondary" />} title="Data pipeline" />
-          <Button variant="secondary" size="sm" onClick={() => void load()}>
-            Check again
-          </Button>
-        </div>
-
-        {error && (
-          <ErrorState
-            title="The pipeline status could not be read"
-            message={`${error} No live status is being assumed in its place.`}
-            onRetry={() => void load()}
-          />
-        )}
-
-        {!report && !error && (
-          <div role="status" aria-live="polite" className="space-y-3">
-            <span className="sr-only">Checking each pipeline stage</span>
-            <Skeleton height={16} width="40%" />
-            <Skeleton height={80} />
-          </div>
-        )}
-
-        {report && (
-          <>
-            <div className="flex flex-wrap items-center gap-2 mb-4">
-              <Badge variant={report.mode === 'live' ? 'success' : 'accent'}>
-                {report.mode === 'live' ? 'Live source configured' : 'Demo mode'}
-              </Badge>
-              <span className="text-xs text-text-secondary">{report.summary}</span>
-            </div>
-            <ol className="space-y-3 list-none p-0 m-0">
-              {report.stages.map((stage, i) => (
-                <li key={stage.id} className="flex items-start gap-3">
-                  <StageDot status={stage.status} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-medium text-text-primary">{stage.name}</span>
-                      <StageLabel status={stage.status} />
-                    </div>
-                    <p className="text-[11px] text-text-secondary leading-relaxed">{stage.detail}</p>
-                    <p className="text-[10px] text-text-secondary leading-relaxed mt-0.5">
-                      How this status was derived: {stage.derivedFrom}
-                    </p>
-                  </div>
-                  <span className="text-[10px] text-text-secondary tnum">{i + 1}</span>
-                </li>
-              ))}
-            </ol>
-            <DataQualitySection report={report} onReady={refreshQuietly} />
-            <div className="mt-4">
-              <DataStateNote>
-                A stage is marked healthy only when its status is known from a real check. Unknown is a valid state and
-                is used wherever nothing can be confirmed. Data as of {report.dataAsOf}; checked {report.checkedAt}.
-              </DataStateNote>
-            </div>
-          </>
-        )}
-      </Card>
-
-      <Card className="p-6">
-        <SectionHead icon={<Dumbbell size={18} className="text-text-secondary" />} title="Workout sources" />
-        <p className="text-xs text-text-secondary leading-relaxed mb-3">
-          Apple Health records a workout&apos;s type, time and calories only. A workout source adds what was actually
-          done — exercises, sets, reps, load and effort — which the routine on the Workouts page needs.
-        </p>
-        <div className="space-y-3 text-sm">
-          {(report?.workoutSources ?? []).map(source => (
-            <StatusRow
-              key={source.id}
-              label={source.displayName}
-              value={
-                source.origin === 'demo'
-                  ? `Demo sessions (${source.sessions})`
-                  : !source.configured
-                    ? `Not configured (set ${source.envVars[0]})`
-                    : source.lastError
-                      ? `Error: ${source.lastError}`
-                      : `Connected (${source.host ?? 'host unknown'}) · ${source.sessions} session${source.sessions === 1 ? '' : 's'}${
-                          source.lastSyncAt ? ` · synced ${source.lastSyncAt.slice(0, 16).replace('T', ' ')} UTC` : ''
-                        }`
-              }
-              tone={source.lastError ? 'warning' : source.configured || source.origin === 'demo' ? 'neutral' : 'muted'}
-            />
-          ))}
-          {report && report.workoutSources.length === 0 && (
-            <p className="text-xs text-text-secondary">No workout source was checked.</p>
-          )}
-        </div>
-        <div className="mt-4">
-          <DataStateNote>
-            Source API keys are read from the server environment only. Synced sessions stay in the server&apos;s memory
-            and are never written to the database.
-          </DataStateNote>
-        </div>
-      </Card>
-
-      <Card className="p-6">
-        <OuraConnection
-          heading={title => <SectionHead icon={<Plug size={18} className="text-text-secondary" />} title={title} />}
-          noticeParam={ouraNotice}
-          onChanged={() => router.refresh()}
-        />
-      </Card>
-
-      <RemovedSources
-        heading={title => <SectionHead icon={<Trash2 size={18} className="text-text-secondary" />} title={title} />}
-        onChanged={() => router.refresh()}
-      />
-
-      <Card className="p-6">
-        <MapProvidersCard heading={(icon, title) => <SectionHead icon={icon} title={title} />} />
-      </Card>
-    </div>
-  );
-}
-
 // ── Privacy tab ─────────────────────────────────────────
 
 interface AnalystConfigState {
@@ -994,15 +846,6 @@ function PrivacyTab() {
 
 // ── Small building blocks ───────────────────────────────
 
-function SectionHead({ icon, title }: { icon: React.ReactNode; title: string }) {
-  return (
-    <div className="flex items-center gap-2 mb-5">
-      {icon}
-      <h2 className="text-base font-semibold text-text-primary">{title}</h2>
-    </div>
-  );
-}
-
 function StatusRow({ label, value, tone }: { label: string; value: string; tone: 'neutral' | 'muted' | 'warning' }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 py-2 border-b border-border last:border-b-0">
@@ -1017,22 +860,6 @@ function StatusRow({ label, value, tone }: { label: string; value: string; tone:
       </span>
     </div>
   );
-}
-
-function StageDot({ status }: { status: StageStatus }) {
-  const tone =
-    status === 'healthy'
-      ? 'bg-category-activity'
-      : status === 'degraded'
-        ? 'bg-category-attention'
-        : 'bg-border';
-  return <span className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${tone}`} aria-hidden="true" />;
-}
-
-function StageLabel({ status }: { status: StageStatus }) {
-  const variant = status === 'healthy' ? 'success' : status === 'degraded' ? 'warning' : 'default';
-  // The word is part of the label, so the state is never conveyed by colour alone.
-  return <Badge variant={variant} className="text-[10px]">{STAGE_STATUS_LABEL[status]}</Badge>;
 }
 
 interface UnitExample {

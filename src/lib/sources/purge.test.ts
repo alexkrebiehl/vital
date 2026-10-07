@@ -11,15 +11,11 @@ import type { SourceContext } from '@/lib/sources/registry';
 
 function ctx(opts: { hae?: boolean; oura?: boolean; labs?: number } = {}): SourceContext {
   const env = {
-    ...(opts.hae ? { HAE_API_URL: 'http://hae.test', HAE_API_KEY: 'k' } : {}),
-    OURA_CLIENT_ID: 'c',
-    OURA_CLIENT_SECRET: 's',
-    OURA_REDIRECT_URI: 'http://localhost/cb',
     VITAL_SECRET_KEY: Buffer.alloc(32, 1).toString('base64'),
   } as unknown as NodeJS.ProcessEnv;
   return {
     env,
-    hasCredential: async id => Boolean(opts.oura) && id === 'oura',
+    hasCredential: async id => (Boolean(opts.oura) && (id === 'oura' || id === 'oura-app')) || (Boolean(opts.hae) && id === 'hae'),
     labReportCount: async () => opts.labs ?? 0,
   };
 }
@@ -122,7 +118,7 @@ describe('reconcileActiveSources', () => {
       },
     };
     await Promise.all([reconcileActiveSources(counting), reconcileActiveSources(counting)]);
-    expect(reads).toBe(1);
+    expect(reads).toBe(3); // one pass: a lookup for each credentialed source (oura stops at its first miss)
   });
 
   it('keeps two functions registered under one name (one per server bundle)', async () => {
@@ -229,7 +225,8 @@ describe('what each purger removes', () => {
 
   it('drops a removed workout source\'s sessions and keeps the others', async () => {
     const store = await import('@/lib/workout-sources/store');
-    const env = { VITAL_DATA_MODE: 'live', HEVY_API_KEY: 'hevy-key-for-tests' } as unknown as NodeJS.ProcessEnv;
+    const env = { VITAL_DATA_MODE: 'live' } as unknown as NodeJS.ProcessEnv;
+    const hevyStored = { state: 'ok', apiKey: 'hevy-key-for-tests', url: '' } as const;
     const fetchImpl = (async (input: RequestInfo | URL) => {
       const url = new URL(String(input));
       const body =
@@ -252,20 +249,21 @@ describe('what each purger removes', () => {
     }) as unknown as typeof fetch;
     const now = () => Date.parse('2026-09-18T12:00:00Z');
 
-    expect((await store.loadTrainingData({ env, fetchImpl, now })).sessions).toHaveLength(1);
-    expect(store.heldSourceStatuses(env)[0].sessions).toBe(1);
+    expect((await store.loadTrainingData({ env, fetchImpl, now, hevyStored })).sessions).toHaveLength(1);
+    expect((await store.heldSourceStatuses({ env, hevyStored }))[0].sessions).toBe(1);
 
     store.purgeTrainingSources(['oura']); // not a workout source: nothing changes
-    expect(store.heldSourceStatuses(env)[0].sessions).toBe(1);
+    expect((await store.heldSourceStatuses({ env, hevyStored }))[0].sessions).toBe(1);
 
     store.purgeTrainingSources(['hevy']);
-    expect(store.heldSourceStatuses(env)[0]).toMatchObject({ sessions: 0, lastSyncAt: null, lastError: null });
+    expect((await store.heldSourceStatuses({ env, hevyStored }))[0]).toMatchObject({ sessions: 0, lastSyncAt: null, lastError: null });
     store.resetTrainingStoreForTests();
   });
 
   it('drops every held route, and the maps built from them, when HAE is removed', async () => {
     const routes = await import('@/lib/activity-maps/routes');
-    const env = { HAE_API_URL: 'http://hae.test', HAE_API_KEY: 'k' } as unknown as NodeJS.ProcessEnv;
+    const env = {} as unknown as NodeJS.ProcessEnv;
+    const haeConfig = (await import('@/lib/adapters/hae')).buildHaeConfig('http://hae.test', 'sample-key', env);
     const workout = {
       id: 'a',
       workout_type: 'Outdoor Walk',
@@ -283,9 +281,9 @@ describe('what each purger removes', () => {
       heartRateData: [{ timestamp: '2026-09-01T12:00:00Z', value: 110 }],
     };
     const fetchImpl = (async () => new Response(JSON.stringify(detail), { status: 200 })) as unknown as typeof fetch;
-    await routes.loadRoutes([workout], 'live', { env, fetchImpl });
+    await routes.loadRoutes([workout], 'live', { env, haeConfig, fetchImpl });
     expect(routes.routeStoreStats().workouts).toBe(1);
-    const before = (await routes.loadRoutes([workout], 'live', { env, fetchImpl })).generation;
+    const before = (await routes.loadRoutes([workout], 'live', { env, haeConfig, fetchImpl })).generation;
 
     await reconcileActiveSources(ctx({ hae: true, oura: true }));
     await reconcileActiveSources(ctx({ hae: true })); // Oura goes: routes are HAE's, they stay
@@ -293,7 +291,7 @@ describe('what each purger removes', () => {
 
     await reconcileActiveSources(ctx({ oura: true }));
     expect(routes.routeStoreStats()).toEqual({ workouts: 0, withRoute: 0, points: 0, bytes: 0 });
-    const after = (await routes.loadRoutes([], 'live', { env, fetchImpl })).generation;
+    const after = (await routes.loadRoutes([], 'live', { env, haeConfig, fetchImpl })).generation;
     expect(after).toBeGreaterThan(before);
     routes.clearRouteStore();
   });

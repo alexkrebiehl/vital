@@ -7,10 +7,10 @@
 // Activity is decided from configuration and from the existence of a credential
 // or a document. It never reads a health value and never calls a source's API.
 
-import { readOuraConfig } from '@/lib/adapters/oura/config';
+import { OURA_APP_SOURCE_ID } from '@/lib/adapters/oura/app-store';
 import { hasCredentialRow } from '@/lib/db/credentials-store';
 import { getPool, type PoolLike } from '@/lib/db/pool';
-import { hevyPlugin } from '@/lib/workout-sources/hevy';
+import { HEVY_STORE_SOURCE_ID } from '@/lib/workout-sources/hevy/hevy-store';
 
 export type DataSourceId = 'hae' | 'oura' | 'hevy' | 'lab';
 export type DataSourceKind = 'health' | 'workout-detail' | 'documents';
@@ -31,29 +31,28 @@ export interface DataSourceDef {
   isActive(ctx: SourceContext): Promise<boolean>;
 }
 
-function filled(value: string | undefined): boolean {
-  return (value ?? '').trim().length > 0;
-}
-
 export const DATA_SOURCES: readonly DataSourceDef[] = [
   {
     id: 'hae',
     displayName: 'Health Auto Export',
     kind: 'health',
-    isActive: async ctx => filled(ctx.env.HAE_API_URL) && filled(ctx.env.HAE_API_KEY),
+    // Connected: a stored (encrypted) endpoint and key. The environment is never consulted.
+    isActive: async ctx => ctx.hasCredential('hae'),
   },
   {
     id: 'oura',
     displayName: 'Oura Ring',
     kind: 'health',
-    // Configured AND connected: a usable configuration and a stored credential.
-    isActive: async ctx => readOuraConfig(ctx.env)?.ok === true && (await ctx.hasCredential('oura')),
+    // Configured AND connected: stored app credentials and a stored login. The environment
+    // is never consulted for the client ID, secret or redirect URI.
+    isActive: async ctx => (await ctx.hasCredential(OURA_APP_SOURCE_ID)) && (await ctx.hasCredential('oura')),
   },
   {
     id: 'hevy',
     displayName: 'Hevy',
     kind: 'workout-detail',
-    isActive: async ctx => hevyPlugin.readConfig(ctx.env) !== null,
+    // Connected: a stored (encrypted) API key. The environment is never consulted.
+    isActive: async ctx => ctx.hasCredential(HEVY_STORE_SOURCE_ID),
   },
   {
     id: 'lab',

@@ -12,6 +12,7 @@ import { readSecretKey } from '@/lib/secrets/crypto';
 import { registerPurger } from '@/lib/sources/purge';
 import { DEFAULT_PROBE_TIMEOUT_MS } from '../hae';
 import { OuraError, clientDepsFrom, fetchHeartRate, ouraGetAll, type OuraClientDeps } from './client';
+import { ouraAppClientFor, type StoredOuraApp } from './app-store';
 import { readOuraConfig, type OuraConfig } from './config';
 import {
   normalizeOura,
@@ -32,6 +33,8 @@ export interface OuraDeps {
   fetchImpl?: typeof fetch;
   /** Replaceable in tests; defaults to the process pool. */
   client?: PoolLike | null;
+  /** Use these stored app credentials instead of reading them (tests). */
+  ouraApp?: StoredOuraApp;
   now?: () => Date;
   sleep?: (ms: number) => Promise<void>;
 }
@@ -92,14 +95,18 @@ export interface OuraRuntime {
 }
 
 /** The configuration, pool and key. Throws a typed error when Oura cannot be used. */
-export function ouraRuntime(deps: OuraDeps = {}): OuraRuntime {
+export async function ouraRuntime(deps: OuraDeps = {}): Promise<OuraRuntime> {
   const env = deps.env ?? process.env;
-  const read = readOuraConfig(env);
-  if (!read || !read.ok) {
-    throw new OuraError(read ? read.reason : 'Oura is not configured.', 'not_configured');
-  }
   const client = deps.client === undefined ? getPool(env) : deps.client;
+  const read = await readOuraConfig({ env, client, ouraApp: deps.ouraApp });
+  if (!read || !read.ok) {
+    throw new OuraError(read ? read.reason : 'Oura app credentials are not set.', 'not_configured');
+  }
   if (!client) throw new OuraNotConnectedError('not_connected');
+  // The login was issued for another client ID: Oura would refuse to refresh it.
+  if (read.config.loginClientId !== null && read.config.loginClientId !== read.config.clientId) {
+    throw new OuraNotConnectedError('needs_reconnect');
+  }
   const now = deps.now ? () => deps.now!().getTime() : undefined;
   return {
     config: read.config,
@@ -149,7 +156,7 @@ function earliestDay(raw: OuraRawBundle, fallback: string, dayOfInstant: (iso: s
  * `OuraNotConnectedError`; the caller decides what a failure means.
  */
 export async function fetchOuraContribution(window: OuraWindow, deps: OuraDeps = {}): Promise<OuraContribution> {
-  const rt = ouraRuntime(deps);
+  const rt = await ouraRuntime(deps);
   const granted = await grantedScopes(rt);
   const client: OuraClientDeps = clientDepsFrom(rt.tokens, deps.sleep ? { sleep: deps.sleep } : {});
 
@@ -212,7 +219,7 @@ export async function probeOura(deps: OuraDeps = {}, now: () => number = Date.no
   const elapsed = () => now() - started;
   let rt: OuraRuntime;
   try {
-    rt = ouraRuntime(deps);
+    rt = await ouraRuntime(deps);
     await grantedScopes(rt);
   } catch (error) {
     if (error instanceof OuraNotConnectedError) {
@@ -256,7 +263,7 @@ export async function probeOura(deps: OuraDeps = {}, now: () => number = Date.no
 
 export interface OuraStatus {
   configured: boolean;
-  /** Configured, but not usable yet: names the variable that is wrong. */
+  /** Configured, but not usable yet: says what is wrong, never a value. */
   configProblem: string | null;
   connected: boolean;
   scopes: string[];
@@ -268,7 +275,8 @@ export interface OuraStatus {
 
 export async function readOuraStatus(deps: OuraDeps = {}): Promise<OuraStatus> {
   const env = deps.env ?? process.env;
-  const read = readOuraConfig(env);
+  const client = ouraAppClientFor({ env, client: deps.client });
+  const read = await readOuraConfig({ env, client, ouraApp: deps.ouraApp });
   const base: OuraStatus = {
     configured: false,
     configProblem: null,
@@ -284,14 +292,15 @@ export async function readOuraStatus(deps: OuraDeps = {}): Promise<OuraStatus> {
 
   const last = lastOuraError();
   const lastError = last ? { kind: last.kind, message: last.message } : null;
-  const client = deps.client === undefined ? getPool(env) : deps.client;
   const cred = client ? await getCredential(client, OURA_SOURCE_ID, readSecretKey(env)) : null;
   if (!cred) return { ...base, configured: true, needsReconnect: last?.kind === 'needs_reconnect', lastError };
   if (cred.needsReconnect) return { ...base, configured: true, needsReconnect: true, lastError };
+  const staleLogin = read.config.loginClientId !== null && read.config.loginClientId !== read.config.clientId;
   return {
     ...base,
     configured: true,
-    connected: true,
+    connected: !staleLogin,
+    needsReconnect: staleLogin,
     scopes: cred.scopes,
     missingScopes: read.config.scopes.filter(s => !cred.scopes.includes(s)),
     accessExpiresAt: cred.accessExpiresAt.toISOString(),

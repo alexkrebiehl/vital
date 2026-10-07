@@ -5,7 +5,7 @@
 // source id.
 
 import { hevyPlugin } from './hevy';
-import type { WorkoutSourcePlugin } from './types';
+import type { SourceRequestDeps, WorkoutSourcePlugin } from './types';
 
 export const WORKOUT_SOURCE_PLUGINS: WorkoutSourcePlugin<any>[] = [hevyPlugin];
 
@@ -14,11 +14,11 @@ export interface EnabledSource {
   config: unknown;
 }
 
-/** Plugins whose configuration is present in this environment. */
-export function enabledSources(env: NodeJS.ProcessEnv = process.env): EnabledSource[] {
+/** Plugins that are connected: a stored connection exists and can be read. */
+export async function enabledSources(deps: SourceRequestDeps = {}): Promise<EnabledSource[]> {
   const out: EnabledSource[] = [];
   for (const plugin of WORKOUT_SOURCE_PLUGINS) {
-    const config = plugin.readConfig(env);
+    const config = await plugin.readConfig(deps);
     if (config) out.push({ plugin, config });
   }
   return out;

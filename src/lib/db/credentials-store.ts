@@ -140,6 +140,55 @@ export async function putCredential(
   ]);
 }
 
+// ── Secret configuration (no OAuth tokens) ──────────────────────────────────
+//
+// A source configured by the user with a few secret string fields (Health Auto
+// Export: endpoint and API key). Same table, same cipher, same key rules. The
+// OAuth-only columns stay empty: `scopes` is '' and `access_expires_at` is NULL
+// (migration 0013).
+
+export type SecretConfigRead =
+  | { needsReentry: false; sourceId: string; values: Record<string, string>; updatedAt: Date }
+  | { needsReentry: true; sourceId: string };
+
+/** Upsert the fields as one encrypted document. Throws only when there is no key. */
+export async function putSecretConfig(
+  client: PoolLike,
+  sourceId: string,
+  values: Record<string, string>,
+  key: Buffer | null
+): Promise<void> {
+  if (!key) throw new Error('No valid VITAL_SECRET_KEY is configured; credentials cannot be stored.');
+  const parts = encryptJson(values, key);
+  await client.query(UPSERT, [sourceId, parts.ciphertext, parts.iv, parts.authTag, keyId(key), '', null]);
+}
+
+/** The stored fields, `null` when no row exists, or `{ needsReentry: true }` for any unreadable row. Never throws on a bad row. */
+export async function getSecretConfig(
+  client: PoolLike,
+  sourceId: string,
+  key: Buffer | null
+): Promise<SecretConfigRead | null> {
+  const result = await client.query(`SELECT ${COLUMNS} FROM source_credentials WHERE source_id = $1`, [sourceId]);
+  const row = result.rows[0];
+  if (!row) return null;
+  if (!key || String(row.key_id) !== keyId(key)) return { needsReentry: true, sourceId };
+  try {
+    const plain = decryptJson<Record<string, unknown>>(
+      { ciphertext: bytes(row.ciphertext), iv: bytes(row.iv), authTag: bytes(row.auth_tag) },
+      key
+    );
+    const values: Record<string, string> = {};
+    for (const [k, v] of Object.entries(plain ?? {})) {
+      if (typeof v !== 'string') return { needsReentry: true, sourceId };
+      values[k] = v;
+    }
+    return { needsReentry: false, sourceId, values, updatedAt: new Date(row.updated_at as string) };
+  } catch {
+    return { needsReentry: true, sourceId };
+  }
+}
+
 /** Delete the credential. Returns whether a row was removed. */
 export async function deleteCredential(client: PoolLike, sourceId: string): Promise<boolean> {
   const result = await client.query('DELETE FROM source_credentials WHERE source_id = $1 RETURNING source_id', [

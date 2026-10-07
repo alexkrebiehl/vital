@@ -14,7 +14,7 @@ export interface TileConfig {
   keys: Partial<Record<MapProviderId, string>>;
 }
 
-/** One provider's configuration as Settings → Connections shows it. */
+/** One provider's configuration as Settings → Sources shows it. */
 export interface MapProviderStatus {
   id: MapProviderId;
   needsKey: boolean;

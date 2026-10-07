@@ -55,6 +55,16 @@ describe('db/migrations', () => {
     expect([...sql.matchAll(/WHERE (?:c\.)?source_ids = '\{\}'::text\[\]/g)]).toHaveLength(2);
   });
 
+  it('ships 0014 silenced quality findings: ids only, keyed by check and metric', () => {
+    const file = shipped().find(m => m.filename === '0014-quality-silenced.sql');
+    expect(file).toBeDefined();
+    const sql = file!.sql;
+    const body = sql.match(/CREATE TABLE IF NOT EXISTS quality_silenced \(([\s\S]*?)\n\);/)![1];
+    expect([...body.matchAll(/^\s{2}(\w+)\s/gm)].map(m => m[1])).toEqual(['check_id', 'metric_id', 'silenced_at', 'PRIMARY']);
+    expect(body).toMatch(/metric_id\s+TEXT\s+NOT NULL DEFAULT ''/);
+    expect(body).toMatch(/PRIMARY KEY \(check_id, metric_id\)/);
+  });
+
   it('numbers each file as its header says', () => {
     for (const { filename, sql } of shipped()) {
       const version = filename.slice(0, 4);

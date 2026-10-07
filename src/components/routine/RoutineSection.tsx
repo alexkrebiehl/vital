@@ -92,14 +92,14 @@ export function RoutineSection() {
 function SourceNote({ data, noticeShown = false }: { data: RoutineApiResponse; noticeShown?: boolean }) {
   const configured = data.sources.filter(s => s.configured || s.origin === 'demo');
   if (data.origin === 'demo') {
-    return <DataStateNote>Demo mode: sessions come from committed demo training data shaped like a Hevy export.</DataStateNote>;
+    return <DataStateNote>Demo mode: sessions come from committed demo training data shaped like a workout-app export.</DataStateNote>;
   }
   if (configured.length === 0) {
     if (noticeShown) return null;
     return (
       <DataStateNote tone="attention">
         No workout source is connected, so sets, reps, load and effort are unknown. Recorded workouts still count for
-        plans matched by workout type (e.g. running). Connect Hevy with <code>HEVY_API_KEY</code> — see Settings → Connections.
+        plans matched by workout type (e.g. running). Connect one in Settings → Sources.
       </DataStateNote>
     );
   }
