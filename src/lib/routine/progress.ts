@@ -26,6 +26,7 @@ import type { TrainingSession } from '../workout-sources/types';
 import { doseText } from './format';
 import { MODEL_PARAM_SPECS } from './model-params';
 import { PROGRESSION_MODELS, type Light, type ModelEvaluation, type ProgressRow, type Readiness } from './models';
+import type { EvaluationContext } from './models/types';
 import { stageRows } from './models/variation';
 import { LIGHT_ORDER } from './models/types';
 import { detectDeloads, easedKey } from './deload';
@@ -198,6 +199,96 @@ export function rowsByDay(rows: ProgressRow[], path: Path, currentStageId: strin
   return out;
 }
 
+/**
+ * What a path's model judges for the stage at `index`: its sessions since it
+ * began and the previous stage's before that. With `before`, only sessions
+ * before that day, as the path stood then.
+ */
+function modelContext(
+  plan: TrainingPlan,
+  path: Path,
+  index: number,
+  byStage: Map<string, PerformanceRecord[]>,
+  deload: DeloadStatus,
+  inputs: RoutineInputs,
+  eased: Set<string>,
+  before?: string
+): EvaluationContext {
+  const stage = path.stages[index];
+  const previousStage = index > 0 ? path.stages[index - 1] : null;
+  const startedOn = stageStart(path, stage.id);
+  const records = (byStage.get(stage.id) ?? []).filter(r => (!startedOn || r.date >= startedOn) && (!before || r.date < before));
+  const previousRecords = previousStage
+    ? (byStage.get(previousStage.id) ?? []).filter(r => !startedOn || r.date < startedOn)
+    : [];
+  const today = before ?? inputs.today;
+  return {
+    path,
+    stage,
+    nextStage: index + 1 < path.stages.length ? path.stages[index + 1] : null,
+    records,
+    previousRecords,
+    previousStage,
+    rules: plan.rules,
+    blocks: currentBlocks(plan, planWeek(plan, today)),
+    eased,
+    deloadWindow: before ? null : deload.window,
+    today,
+    system: inputs.system,
+  };
+}
+
+/** The history reason of a stage the data moved a path on to. */
+const MOVED_ON_REASON = (from: string) => `Moved on from logged sessions after the ${from.toLowerCase()} marker was met`;
+
+/**
+ * The plan as the data has moved it on: a path whose current stage's marker
+ * was met, and which then has a session logged on its next stage, is on that
+ * stage from that session's day. A try at the next stage before the marker is
+ * met stays "ahead" work. Worked out on every read, never stored, like the
+ * phases; a hold, or steps still to go within the stage, keeps a path where it is.
+ */
+export function followLoggedStages(
+  plan: TrainingPlan,
+  stageRecords: Map<string, Map<string, PerformanceRecord[]>>,
+  eased: Map<string, Set<string>>,
+  deload: DeloadStatus,
+  inputs: RoutineInputs
+): TrainingPlan {
+  let next: TrainingPlan | null = null;
+  for (const [a, area] of plan.focusAreas.entries()) {
+    for (const [p, stored] of area.paths.entries()) {
+      const byStage = stageRecords.get(stored.id);
+      if (stored.hold || !byStage) continue;
+      let path = stored;
+      for (;;) {
+        const index = Math.max(0, path.stages.findIndex(s => s.id === path.currentStageId));
+        const stage = path.stages[index];
+        const following = path.stages[index + 1];
+        if (!following) break;
+        if (stage.steps?.length && path.currentStepIndex !== undefined && path.currentStepIndex < stage.steps.length - 1) break;
+        const startedOn = stageStart(path, stage.id);
+        const days = [...new Set((byStage.get(following.id) ?? []).map(r => r.date).filter(d => !startedOn || d >= startedOn))].sort();
+        const from = days.find(d => {
+          const ctx = modelContext(plan, path, index, byStage, deload, inputs, eased.get(path.id) ?? new Set(), d);
+          return Boolean(PROGRESSION_MODELS[path.model].evaluate(ctx).readiness?.met);
+        });
+        if (!from) break;
+        path = {
+          ...path,
+          currentStageId: following.id,
+          currentStepIndex: undefined,
+          history: [...path.history, { stageId: following.id, startedOn: from, reason: MOVED_ON_REASON(stage.name) }],
+        };
+      }
+      if (path === stored) continue;
+      next ??= structuredClone(plan);
+      next.focusAreas[a].paths[p] = path;
+    }
+  }
+  return next ?? plan;
+}
+
 export function evaluatePath(
   plan: TrainingPlan,
   areaId: string,
@@ -211,31 +302,11 @@ export function evaluatePath(
   eased: Set<string> = new Set()
 ): PathProgress {
   const index = Math.max(0, path.stages.findIndex(s => s.id === path.currentStageId));
-  const stage = path.stages[index];
-  const previousStage = index > 0 ? path.stages[index - 1] : null;
-  const nextStageDef = index + 1 < path.stages.length ? path.stages[index + 1] : null;
+  const ctx = modelContext(plan, path, index, byStage, deload, inputs, eased);
+  const { stage, nextStage: nextStageDef, records, previousStage, blocks } = ctx;
   const startedOn = stageStart(path, stage.id);
-  const records = (byStage.get(stage.id) ?? []).filter(r => !startedOn || r.date >= startedOn);
-  const previousRecords = previousStage
-    ? (byStage.get(previousStage.id) ?? []).filter(r => !startedOn || r.date < startedOn)
-    : [];
-  const week = planWeek(plan, inputs.today);
-  const blocks = currentBlocks(plan, week);
 
-  const evaluation = PROGRESSION_MODELS[path.model].evaluate({
-    path,
-    stage,
-    nextStage: nextStageDef,
-    records,
-    previousRecords,
-    previousStage,
-    rules: plan.rules,
-    blocks,
-    eased,
-    deloadWindow: deload.window,
-    today: inputs.today,
-    system: inputs.system,
-  });
+  const evaluation = PROGRESSION_MODELS[path.model].evaluate(ctx);
 
   let light = evaluation.light;
   let reasons = [...evaluation.reasons];
@@ -305,11 +376,17 @@ export function evaluatePath(
     path.model === 'volume'
       ? []
       : path.stages.flatMap((s, i) => {
-          if (i === index) return [];
+          // The current stage's own sessions are all shown, except tries from before it began.
           const extra = (byStage.get(s.id) ?? []).filter(r => !shown.has(`${s.id}:${r.sessionId}`));
           if (extra.length === 0) return [];
           const note = (r: PerformanceRecord) =>
-            i > index ? 'Ahead of the current stage' : startedOn && r.date >= startedOn ? 'Alongside the current stage' : 'Earlier stage';
+            i === index
+              ? 'Tried before this stage began'
+              : i > index
+                ? 'Ahead of the current stage'
+                : startedOn && r.date >= startedOn
+                  ? 'Alongside the current stage'
+                  : 'Earlier stage';
           return stageRows(s, extra, plan.rules, inputs.system, note);
         });
   const rows = others.length ? rowsByDay([...evaluation.rows, ...others], path, stage.id) : evaluation.rows;
@@ -345,14 +422,13 @@ export function evaluatePath(
 
 export function buildRoutine(inputs: RoutineInputs): RoutineOverview {
   const { stored, today, system } = inputs;
-  const plan = stored.plan;
-  const week = planWeek(plan, today);
+  const week = planWeek(stored.plan, today);
 
-  const completed = completedSessions(plan, inputs.sessions, inputs.workouts, inputs.dayOf);
+  const completed = completedSessions(stored.plan, inputs.sessions, inputs.workouts, inputs.dayOf);
   const trainingDays = [
     ...new Set([...inputs.sessions.map(s => inputs.dayOf(s.startTime)), ...completed.map(c => c.date)]),
   ];
-  const indicators = recoveryIndicators({ series: inputs.series, trainingDays, today, system }, plan.rules.recoveryGates);
+  const indicators = recoveryIndicators({ series: inputs.series, trainingDays, today, system }, stored.plan.rules.recoveryGates);
   const summary = recoverySummary(indicators);
   const warn = indicators.filter(i => i.status === 'warn');
   const watch = indicators.filter(i => i.status === 'watch');
@@ -362,9 +438,11 @@ export function buildRoutine(inputs: RoutineInputs): RoutineOverview {
       ? { cap: 'yellow-green' as Light, reasons: watch.map(i => `${i.label}: ${i.text}`) }
       : { cap: 'green' as Light, reasons: [] };
 
-  const stageRecords = new Map(plan.focusAreas.flatMap(a => a.paths).map(p => [p.id, pathRecords(p, inputs)]));
-  const deloads = detectDeloads(plan, stageRecords);
-  const deload = deloadStatus(plan, today, deloads.starts);
+  const stageRecords = new Map(stored.plan.focusAreas.flatMap(a => a.paths).map(p => [p.id, pathRecords(p, inputs)]));
+  const deloads = detectDeloads(stored.plan, stageRecords);
+  const deload = deloadStatus(stored.plan, today, deloads.starts);
+  // From here on, each path stands where the data has moved it.
+  const plan = followLoggedStages(stored.plan, stageRecords, deloads.eased, deload, inputs);
 
   const recordsByPath = new Map<string, PerformanceRecord[]>();
   const states = new Map<string, PathState>();
