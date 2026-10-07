@@ -88,10 +88,7 @@ services:
       HAE_CACHE_TTL_SECONDS: "${HAE_CACHE_TTL_SECONDS:-300}"
       # ── Workout sources (server-side only) ──────────────────────────────────
       # The exercises, sets, reps, load and RPE the Workouts routine tracks.
-      # Without HEVY_API_KEY, Settings → Connections shows Hevy as not
-      # configured. An empty HEVY_API_URL means Hevy's own API.
-      HEVY_API_KEY: "${HEVY_API_KEY:-}"
-      HEVY_API_URL: "${HEVY_API_URL:-}"
+      # The Hevy key and address are entered in Settings → Connections.
       HEVY_CACHE_TTL_SECONDS: "${HEVY_CACHE_TTL_SECONDS:-300}"
       WORKOUT_SOURCE_LOOKBACK_DAYS: "${WORKOUT_SOURCE_LOOKBACK_DAYS:-400}"
       # ── Oura Ring (optional second live source, server-side only) ───────────
