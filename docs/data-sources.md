@@ -30,7 +30,7 @@ What that means in practice:
 
 - **The metrics API server is not optional.** Apple Health has no public cloud API, a web app
   cannot read HealthKit, and the phone cannot be queried directly. Run your
-  `health-auto-export-server` instance and connect it in **Settings → Connections** (its address and
+  `health-auto-export-server` instance and connect it in **Settings → Sources** (its address and
   read key; the key is stored encrypted), or run in `demo` mode, or use Oura alone (live mode needs
   at least one of the two).
 - **No other health source is supported, partially or otherwise.** There is no direct HealthKit or iCloud
@@ -85,7 +85,7 @@ versions, so the setting names below describe what to look for rather than quote
    can also ask the server directly:
    `GET /api/metrics/step_count?from=2026-06-01&to=2026-06-30` with the read token.
 
-**Settings → Connections → Data pipeline** runs these checks for you under **Data quality**. They
+**Settings → Sources → Data pipeline** runs these checks for you under **Data quality**. They
 run in the background after each load of the live data, so no page waits for them; the panel
 shows that they are running until the result is ready. It reads the records as the server stores them, before they are
 added up per day. Each finding explains what it found, lists the affected days, and gives the
@@ -102,6 +102,11 @@ steps that fix it:
 A finding whose affected days are all more than 90 days old is shown as a **note**, not a
 problem: recent figures (the trends, baselines and body goal) are not affected, and fixing it
 only completes the older history. The checks only report; they never change the data.
+
+Each finding has a **Silence** button. A silenced finding, identified by its check and its
+metric, stops showing everywhere, including the pipeline stage text and counts. Silenced findings
+are listed under the report, and **Restore** brings one back. Silencing is stored as
+configuration only; it never changes the data.
 
 ### If the data already mixes groupings
 
@@ -122,7 +127,7 @@ After that, keep to step 3 above.
 Oura is an optional second live source. It is read server-to-server through Oura's cloud API, and
 it works on its own (no Health Auto Export needed) or next to it. Oura retired personal access
 tokens, so a token cannot be pasted anywhere: Vital signs in with OAuth2 (authorization code
-with PKCE) and you press **Connect** in *Settings → Connections*.
+with PKCE) and you press **Connect** in *Settings → Sources*.
 
 ### Set it up
 
@@ -131,7 +136,7 @@ with PKCE) and you press **Connect** in *Settings → Connections*.
    `http://localhost:8080/api/sources/oura/callback`.
 2. Make sure `VITAL_SECRET_KEY` is set (`npm run db:init` generates one, or
    `openssl rand -base64 32`). It encrypts the credentials and tokens stored in Postgres.
-3. Open *Settings → Connections*, enter the app's client ID, client secret and redirect URI in the
+3. Open *Settings → Sources*, enter the app's client ID, client secret and redirect URI in the
    Oura card, and save. The redirect URI is prefilled from the address you are browsing from. The
    client secret is stored encrypted and is never shown again.
 4. Press **Connect** and approve the scopes on Oura's page.
@@ -158,7 +163,7 @@ across with an SSH tunnel for the few seconds the sign-in takes:
    ssh -L 8080:localhost:8080 you@vital.example.lan
    ```
 
-3. Browse to `http://localhost:8080`, open *Settings → Connections*, check that the redirect URI in
+3. Browse to `http://localhost:8080`, open *Settings → Sources*, check that the redirect URI in
    the Oura card is the `localhost` one (it is prefilled from the address you browse from), and
    press **Connect**. Start from `localhost`, not from the server's name: the sign-in state lives in a cookie tied to the
    host name, so a different host fails the state check.
@@ -225,29 +230,26 @@ merges only measures that mean the same thing.
   shown in Settings and the pipeline panel. If both fail, the app reports the live source as
   unavailable; it never substitutes demo data.
 
-### Removed sources
+### Removing a source
 
-A source counts as removed when you press **Disconnect** in Settings → Connections, or when the
-last lab report is deleted.
-After that, Vital behaves as if the source had never existed:
+A source is removed when you press **Disconnect** on Health Auto Export, Oura or Hevy in
+Settings, remove the Oura credentials, or delete the last lab report. Removal takes effect
+immediately: Vital erases that source's cached data, workout sessions, briefings and the analyst
+conversations tagged with it, and then behaves as if the source had never existed.
 
 | Where the source's data or anything derived from it can live | When it is removed |
 |---|---|
 | Live data, route cache, workout sessions (all in memory) | Dropped at once |
 | Pages and charts | Rebuilt from the remaining sources |
-| Daily briefing (in memory) | Dropped and written again from the remaining sources |
-| Analyst conversations and thread memory (Postgres) | Hidden at once. A conversation that used a removed source is deleted whole, after `VITAL_SOURCE_PURGE_GRACE_DAYS` (default 7) or immediately with **Delete now** |
-| Stored OAuth credential (Postgres) | Deleted on Disconnect, and again by the purge |
-| Lab reports and files | The existing per-report delete; deleting the last one triggers the conversation purge |
-| Logs | Nothing to purge: Vital logs outcomes, never values or tokens |
+| Daily briefing | Dropped and written again from the remaining sources |
+| Analyst conversations and thread memory (Postgres) | Conversations tagged with the source are deleted whole, messages included |
+| Stored credential (Postgres) | Deleted |
+| Lab reports and files | The per-report delete. Deleting the **last** report also erases the lab-tagged conversations; the app asks first and says how many |
+| Logs | Nothing to erase: Vital logs outcomes, never values or tokens |
 
-Settings → Connections lists each removed source in a **Removed sources** card: the date it was
-removed, how many conversations are hidden, and when they will be deleted, with a **Delete now**
-button (after a confirmation). The same action is `DELETE /api/sources/{id}/data?confirm=yes`; it is
-refused with 409 while the source is still active. The purge deletes the conversations tagged with the
-source (their messages go with them), its stored credential and its lifecycle record in one
-transaction. It runs at boot and whenever the set of sources changes; `VITAL_SOURCE_PURGE_GRACE_DAYS=0`
-deletes at the next of those. If the source comes back before the purge, nothing is lost.
+Only a deliberate removal erases conversations. A source that is merely inactive (not yet
+re-entered after an upgrade or restore, a restart, a failed read) keeps its conversations. If the
+source comes back, nothing is lost.
 
 Kept on purpose, because they are configuration and not data: your profile, preferences, training
 plans (targets, never observations) and activity-map areas.
@@ -267,7 +269,7 @@ session came from.
 
 **Hevy** is the first source (Hevy Pro; create a key at hevy.com/settings?developer):
 
-Open *Settings → Connections*, enter the key (and, only if you need it, another API address) in the
+Open *Settings → Connections → Workout sources*, enter the key (and, only if you need it, another API address) in the
 Hevy card, and save. Vital makes one read-only request to check it and, only if that works, stores
 it in Postgres, encrypted with `VITAL_SECRET_KEY`. The key is never shown again. Two admin
 settings in the environment tune it:
@@ -282,7 +284,7 @@ The first sync pages `GET /v1/workouts` back to the lookback window and reads th
 catalogue once; later syncs read only Hevy's change feed (`GET /v1/workouts/events?since=`).
 Like the Health Auto Export history, sessions live in server memory and are **never written to
 the database**; demo mode serves committed demo sessions (`src/data/training-fixtures.json`)
-and calls nothing. Settings → Connections shows each source's status.
+and calls nothing. Settings → Connections → Workout sources shows each source's status.
 
 ## Workout routes (Activity → Maps)
 
@@ -325,7 +327,7 @@ Tiles load from the provider straight into the browser.
 Every provider can be chosen whether or not its key is set. A map on a provider whose key is
 missing still requests its tiles, without the key (the provider may refuse them), and says the key
 is missing. Keys are read from the
-server environment only; Settings → Connections → Maps shows which providers are ready, never the
+server environment only; Settings → Connections → Map sources shows which providers are ready, never the
 key.
 
 ---
@@ -339,13 +341,13 @@ key.
 
 Switch modes with `VITAL_DATA_MODE` and restart the process: `live` reads the real history,
 anything else (including unset, or `VITAL_DATA_MODE=demo`) serves the committed fixtures. In
-`live` mode at least one source must be connected in Settings → Connections, or the app reports
+`live` mode at least one source must be connected in Settings → Sources, or the app reports
 the live source as unavailable instead of falling back. `HAE_CACHE_TTL_SECONDS` (default 300) is the
 cache TTL in seconds; it does not control how often a page waits — see below.
 
 **First run (live mode only).** Until at least one source is connected *and* a read succeeds, Vital
 is in setup mode: the navigation, search and breadcrumbs are hidden, every address redirects to
-Settings → Connections, and a banner above the tabs gives the real reason nothing is shown, with a
+Settings → Sources, and a banner above the tabs gives the real reason nothing is shown, with a
 Retry button. Once data loads the full app returns by itself, and saving a first connection takes
 you to the overview. Demo mode has no such gate.
 

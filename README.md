@@ -131,7 +131,7 @@ squiggle per session.
 - **Each map keeps its own view**: which activities to draw, a date range, and what the line colour
   means — how often you travelled a stretch, or your average heart rate along it.
 - **Your choice of map underneath**: CARTO (light, dark, or following your theme; needs a free key),
-  OpenStreetMap or OpenTopoMap terrain, chosen per map. Settings → Connections shows which are ready.
+  OpenStreetMap or OpenTopoMap terrain, chosen per map. Settings → Connections → Map sources shows which are ready.
 - **Highlights beside the map**: workouts, time and distance in the area, distinct and new ground,
   your longest session there and your hardest stretch — hover one to see it on the map.
 
@@ -203,11 +203,11 @@ shows the demo dataset.
    and point the iPhone app at it.
 2. In `.env`, set `VITAL_DATA_MODE=live`, then run `npm run db:init` (once; it generates the
    secret key that encrypts the connection) and `docker compose up -d`.
-3. Open *Settings → Connections* and enter the server address and read key. Vital checks them
+3. Open *Settings → Sources* and enter the server address and read key. Vital checks them
    with one read-only request, then stores them in Postgres, **encrypted**. The key is never
    shown again; to change it, enter a new one (leave the key blank to keep the stored one).
 
-On a first install in live mode, Vital shows only Settings → Connections until a source is
+On a first install in live mode, Vital shows only Settings → Sources until a source is
 connected and its data loads; then the full app appears. Demo mode has no such step.
 
 For complete data, follow
@@ -227,13 +227,13 @@ Oura works on its own or next to HAE. It signs in with OAuth, so a token cannot 
    `http://localhost:8080/api/sources/oura/callback`.
 2. In `.env`, set `VITAL_DATA_MODE=live` and make sure `VITAL_SECRET_KEY` is set (`npm run db:init`
    generates one; or `openssl rand -base64 32`). Restart: `docker compose up -d`.
-3. Open *Settings → Connections*, enter the app's client ID, client secret and redirect URI in the
+3. Open *Settings → Sources*, enter the app's client ID, client secret and redirect URI in the
    Oura card (the redirect URI is prefilled from your address), and save. They are stored
    encrypted with `VITAL_SECRET_KEY`. Then press **Connect**.
 
 **Hevy**
 
-For exercises, sets, reps, load and effort, open *Settings → Connections*, enter your Hevy key
+For exercises, sets, reps, load and effort, open *Settings → Connections → Workout sources*, enter your Hevy key
 (Hevy Pro; create one at hevy.com/settings?developer) in the Hevy card, and save. It is stored
 encrypted with `VITAL_SECRET_KEY`.
 
@@ -266,7 +266,8 @@ ANALYST_API_URL=http://host.docker.internal:1234/v1
 ### Make it yours
 
 - *Settings → Account* — your name, timezone, the hour the briefing is written, and your **Goals**.
-- *Settings → Connections* — status of the health source and any workout source (Hevy).
+- *Settings → Sources* — Health Auto Export and Oura, the data pipeline and data quality (with Silence and Restore).
+- *Settings → Connections → Workout sources* and *Map sources* — Hevy, and which map providers are ready.
 - *Themes* — pick a look for light and dark.
 
 The app listens on port **8080** (change it with `VITAL_PORT`) and Postgres on `127.0.0.1:5433`.

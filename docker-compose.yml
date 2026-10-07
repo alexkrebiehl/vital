@@ -88,11 +88,11 @@ services:
       HAE_CACHE_TTL_SECONDS: "${HAE_CACHE_TTL_SECONDS:-300}"
       # ── Workout sources (server-side only) ──────────────────────────────────
       # The exercises, sets, reps, load and RPE the Workouts routine tracks.
-      # The Hevy key and address are entered in Settings → Connections.
+      # The Hevy key and address are entered in Settings → Connections → Workout sources.
       HEVY_CACHE_TTL_SECONDS: "${HEVY_CACHE_TTL_SECONDS:-300}"
       WORKOUT_SOURCE_LOOKBACK_DAYS: "${WORKOUT_SOURCE_LOOKBACK_DAYS:-400}"
       # ── Oura Ring (optional second live source, server-side only) ───────────
-      # The client ID, secret and redirect URI are entered in Settings → Connections.
+      # The client ID, secret and redirect URI are entered in Settings → Sources.
       # VITAL_SECRET_KEY encrypts them and the OAuth tokens.
       OURA_SCOPES: "${OURA_SCOPES:-}"
       OURA_CACHE_TTL_SECONDS: "${OURA_CACHE_TTL_SECONDS:-300}"

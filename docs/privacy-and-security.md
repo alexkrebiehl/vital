@@ -57,9 +57,9 @@ What Vital does and does not do with your data, and what to put in front of it b
   the environment are ignored. The environment holds only admin settings.
 - **Vital has no login.** Anyone who can reach it can press **Connect** or **Disconnect** on
   Oura. Put your own authentication in front of it before exposing it.
-- **Removing a source removes what Vital holds, not what you copied.** See *Removed sources* in
-  [Data sources](data-sources.md#removed-sources). Screenshots and exports you made yourself, and
-  Postgres backups taken before the purge, are outside Vital's reach.
+- **Removing a source erases what Vital holds, at once, not what you copied.** See *Removing a
+  source* in [Data sources](data-sources.md#removing-a-source). Screenshots and exports you made
+  yourself, and Postgres backups taken before the removal, are outside Vital's reach.
 - **Deploy on a private LAN or VPN, or behind an authenticated reverse proxy.** The container
   has no built-in authentication or TLS: anyone who can reach the port sees the dashboard.
   Put an authenticating reverse proxy in front of it before exposing it beyond a trusted
