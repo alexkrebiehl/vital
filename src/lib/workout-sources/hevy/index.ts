@@ -136,8 +136,7 @@ export async function syncHevy(
 export const hevyPlugin: WorkoutSourcePlugin<HevyConfig> = {
   id: HEVY_SOURCE_ID,
   displayName: 'Hevy',
-  envVars: ['HEVY_API_KEY', 'HEVY_API_URL', 'HEVY_CACHE_TTL_SECONDS'],
-  readConfig: env => readHevyConfig(env),
+  readConfig: deps => readHevyConfig(deps),
   host: config => hevyHost(config),
   ttlMs: config => config.ttlSeconds * 1000,
 

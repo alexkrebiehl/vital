@@ -118,7 +118,7 @@ describe('reconcileActiveSources', () => {
       },
     };
     await Promise.all([reconcileActiveSources(counting), reconcileActiveSources(counting)]);
-    expect(reads).toBe(2); // one pass: a lookup for each of the two credentialed sources
+    expect(reads).toBe(3); // one pass: a lookup for each credentialed source (oura stops at its first miss)
   });
 
   it('keeps two functions registered under one name (one per server bundle)', async () => {
@@ -225,7 +225,8 @@ describe('what each purger removes', () => {
 
   it('drops a removed workout source\'s sessions and keeps the others', async () => {
     const store = await import('@/lib/workout-sources/store');
-    const env = { VITAL_DATA_MODE: 'live', HEVY_API_KEY: 'hevy-key-for-tests' } as unknown as NodeJS.ProcessEnv;
+    const env = { VITAL_DATA_MODE: 'live' } as unknown as NodeJS.ProcessEnv;
+    const hevyStored = { state: 'ok', apiKey: 'hevy-key-for-tests', url: '' } as const;
     const fetchImpl = (async (input: RequestInfo | URL) => {
       const url = new URL(String(input));
       const body =
@@ -248,14 +249,14 @@ describe('what each purger removes', () => {
     }) as unknown as typeof fetch;
     const now = () => Date.parse('2026-09-18T12:00:00Z');
 
-    expect((await store.loadTrainingData({ env, fetchImpl, now })).sessions).toHaveLength(1);
-    expect(store.heldSourceStatuses(env)[0].sessions).toBe(1);
+    expect((await store.loadTrainingData({ env, fetchImpl, now, hevyStored })).sessions).toHaveLength(1);
+    expect((await store.heldSourceStatuses({ env, hevyStored }))[0].sessions).toBe(1);
 
     store.purgeTrainingSources(['oura']); // not a workout source: nothing changes
-    expect(store.heldSourceStatuses(env)[0].sessions).toBe(1);
+    expect((await store.heldSourceStatuses({ env, hevyStored }))[0].sessions).toBe(1);
 
     store.purgeTrainingSources(['hevy']);
-    expect(store.heldSourceStatuses(env)[0]).toMatchObject({ sessions: 0, lastSyncAt: null, lastError: null });
+    expect((await store.heldSourceStatuses({ env, hevyStored }))[0]).toMatchObject({ sessions: 0, lastSyncAt: null, lastError: null });
     store.resetTrainingStoreForTests();
   });
 

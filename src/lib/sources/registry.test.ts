@@ -57,9 +57,15 @@ describe('source registry', () => {
     expect(await activeSourceIds(ctx(env))).toEqual([]);
   });
 
-  it('hevy is active when its API key is set', async () => {
-    expect(await activeSourceIds(ctx({ HEVY_API_KEY: 'k' }))).toEqual(['hevy']);
-    expect(await activeSourceIds(ctx({ HEVY_API_KEY: '  ' }))).toEqual([]);
+  it('hevy is active exactly when a credential is stored', async () => {
+    expect(await activeSourceIds(ctx({}))).toEqual([]);
+    expect(await activeSourceIds(ctx({}, { credentials: ['hevy'] }))).toEqual(['hevy']);
+  });
+
+  it('hevy ignores HEVY_API_KEY and HEVY_API_URL, whatever they hold', async () => {
+    const env = { HEVY_API_KEY: 'sample-key', HEVY_API_URL: 'http://hevy.test' };
+    expect(await activeSourceIds(ctx(env))).toEqual([]);
+    expect(await activeSourceIds(ctx(env, { credentials: ['hevy'] }))).toEqual(['hevy']);
   });
 
   it('lab is active only while at least one report exists', async () => {
@@ -68,15 +74,15 @@ describe('source registry', () => {
   });
 
   it('returns a sorted set and joins it with +', async () => {
-    const all = ctx({ ...OURA, HEVY_API_KEY: 'k' }, { credentials: ['hae', ...BOTH], labs: 2 });
+    const all = ctx(OURA, { credentials: ['hae', ...BOTH, 'hevy'], labs: 2 });
     expect(await activeSourceIds(all)).toEqual(['hae', 'hevy', 'lab', 'oura']);
     expect(await sourceSetKey(ctx(OURA, { credentials: ['hae', ...BOTH], labs: 1 }))).toBe('hae+lab+oura');
   });
 
   it('activeHealthSources keeps only health sources', async () => {
-    const all = ctx({ ...OURA, HEVY_API_KEY: 'k' }, { credentials: ['hae', ...BOTH], labs: 2 });
+    const all = ctx(OURA, { credentials: ['hae', ...BOTH, 'hevy'], labs: 2 });
     expect(await activeHealthSources(all)).toEqual(['hae', 'oura']);
-    expect(await activeHealthSources(ctx({ HEVY_API_KEY: 'k' }, { labs: 1 }))).toEqual([]);
+    expect(await activeHealthSources(ctx({}, { credentials: ['hevy'], labs: 1 }))).toEqual([]);
   });
 });
 

@@ -10,7 +10,7 @@
 import { OURA_APP_SOURCE_ID } from '@/lib/adapters/oura/app-store';
 import { hasCredentialRow } from '@/lib/db/credentials-store';
 import { getPool, type PoolLike } from '@/lib/db/pool';
-import { hevyPlugin } from '@/lib/workout-sources/hevy';
+import { HEVY_STORE_SOURCE_ID } from '@/lib/workout-sources/hevy/hevy-store';
 
 export type DataSourceId = 'hae' | 'oura' | 'hevy' | 'lab';
 export type DataSourceKind = 'health' | 'workout-detail' | 'documents';
@@ -51,7 +51,8 @@ export const DATA_SOURCES: readonly DataSourceDef[] = [
     id: 'hevy',
     displayName: 'Hevy',
     kind: 'workout-detail',
-    isActive: async ctx => hevyPlugin.readConfig(ctx.env) !== null,
+    // Connected: a stored (encrypted) API key. The environment is never consulted.
+    isActive: async ctx => ctx.hasCredential(HEVY_STORE_SOURCE_ID),
   },
   {
     id: 'lab',

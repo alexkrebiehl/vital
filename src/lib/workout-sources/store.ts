@@ -12,6 +12,9 @@
 // makes a caller wait. A failed sync keeps the previous sessions and records the
 // error for the status panel — it never replaces real history with nothing.
 //
+// A source is connected when its encrypted connection is stored in Postgres (see
+// hevy/hevy-store.ts); the environment is never read for credentials.
+//
 // Demo mode (VITAL_DATA_MODE ≠ live) serves the committed training fixtures, the
 // same way the HAE dataset serves its fixtures, so demo pages never call Hevy.
 //
@@ -21,7 +24,7 @@ import { TtlCache } from '../adapters/cache';
 import { registerPurger } from '../sources/purge';
 import { readDataMode } from '../adapters/runtime';
 import demoFixtures from '../../data/training-fixtures.json';
-import { enabledSources, sourceLookbackDays, WORKOUT_SOURCE_PLUGINS } from './registry';
+import { enabledSources, sourceLookbackDays, WORKOUT_SOURCE_PLUGINS, type EnabledSource } from './registry';
 import type {
   ExerciseTemplateInfo,
   SourceRequestDeps,
@@ -112,7 +115,6 @@ function demoData(): TrainingData {
     statuses: WORKOUT_SOURCE_PLUGINS.map(p => ({
       id: p.id,
       displayName: p.displayName,
-      envVars: p.envVars,
       configured: false,
       host: null,
       origin: p.id === DEMO_TRAINING.sourceId ? 'demo' : 'none',
@@ -137,7 +139,7 @@ export async function loadTrainingData(deps: SourceRequestDeps = {}): Promise<Tr
 
   const store = processStore();
   const lookback = sourceLookbackDays(env);
-  const enabled = enabledSources(env);
+  const enabled = await enabledSources(deps);
   const sessions: TrainingSession[] = [];
 
   await Promise.all(
@@ -166,7 +168,7 @@ export async function loadTrainingData(deps: SourceRequestDeps = {}): Promise<Tr
     if (state) sessions.push(...Object.values(state.sessions));
   }
 
-  return { origin: 'live', sessions: sessions.sort(byStart), statuses: heldSourceStatuses(env) };
+  return { origin: 'live', sessions: sessions.sort(byStart), statuses: statusesFor(enabled, env) };
 }
 
 /** Sessions that started inside [from, to] (ISO instants, inclusive). */
@@ -181,7 +183,7 @@ export async function loadExerciseTemplates(deps: SourceRequestDeps = {}): Promi
   await loadTrainingData(deps);
   const store = processStore();
   const out: ExerciseTemplateInfo[] = [];
-  for (const { plugin } of enabledSources(env)) {
+  for (const { plugin } of await enabledSources(deps)) {
     const templates = store.states.get(plugin.id)?.templates;
     if (templates) out.push(...Object.values(templates));
   }
@@ -189,10 +191,15 @@ export async function loadExerciseTemplates(deps: SourceRequestDeps = {}): Promi
 }
 
 /** Status of every registered source without starting a sync (pipeline panel). */
-export function heldSourceStatuses(env: NodeJS.ProcessEnv = process.env): WorkoutSourceStatus[] {
+export async function heldSourceStatuses(deps: SourceRequestDeps = {}): Promise<WorkoutSourceStatus[]> {
+  const env = deps.env ?? process.env;
+  if (readDataMode(env) !== 'live') return demoData().statuses;
+  return statusesFor(await enabledSources(deps), env);
+}
+
+function statusesFor(enabled: EnabledSource[], env: NodeJS.ProcessEnv): WorkoutSourceStatus[] {
   if (readDataMode(env) !== 'live') return demoData().statuses;
   const store = processStore();
-  const enabled = enabledSources(env);
   return WORKOUT_SOURCE_PLUGINS.map(plugin => {
     const source = enabled.find(e => e.plugin.id === plugin.id);
     const state = store.states.get(plugin.id);
@@ -200,7 +207,6 @@ export function heldSourceStatuses(env: NodeJS.ProcessEnv = process.env): Workou
     return {
       id: plugin.id,
       displayName: plugin.displayName,
-      envVars: plugin.envVars,
       configured: Boolean(source),
       host: source ? plugin.host(source.config) : null,
       origin: source ? 'live' : 'none',

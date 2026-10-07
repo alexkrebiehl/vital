@@ -789,7 +789,7 @@ function ConnectionsTab() {
                 source.origin === 'demo'
                   ? `Demo sessions (${source.sessions})`
                   : !source.configured
-                    ? `Not configured (set ${source.envVars[0]})`
+                    ? 'Not connected'
                     : source.lastError
                       ? `Error: ${source.lastError}`
                       : `Connected (${source.host ?? 'host unknown'}) · ${source.sessions} session${source.sessions === 1 ? '' : 's'}${

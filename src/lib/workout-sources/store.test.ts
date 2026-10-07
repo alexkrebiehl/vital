@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { heldSourceStatuses, loadExerciseTemplates, loadTrainingData, resetTrainingStoreForTests } from './store';
 import { matchSession } from './match';
 
-const LIVE = { VITAL_DATA_MODE: 'live', HEVY_API_KEY: 'hevy-key-for-tests' } as unknown as NodeJS.ProcessEnv;
+const LIVE = { VITAL_DATA_MODE: 'live' } as unknown as NodeJS.ProcessEnv;
+const STORED = { state: 'ok', apiKey: 'hevy-key-for-tests', url: '' } as const;
 const NOW = Date.parse('2026-09-18T12:00:00Z');
 
 afterEach(() => resetTrainingStoreForTests());
@@ -56,25 +57,25 @@ describe('loadTrainingData', () => {
 
   it('syncs a configured source once and serves the held sessions from the shared store', async () => {
     const fake = hevyFetch();
-    const first = await loadTrainingData({ env: LIVE, fetchImpl: fake.impl, now: () => NOW });
+    const first = await loadTrainingData({ env: LIVE, hevyStored: STORED, fetchImpl: fake.impl, now: () => NOW });
     expect(first.origin).toBe('live');
     expect(first.sessions.map(s => s.id)).toEqual(['hevy:one']);
     const status = first.statuses.find(s => s.id === 'hevy')!;
     expect(status).toMatchObject({ configured: true, origin: 'live', sessions: 1, lastError: null, host: 'api.hevyapp.com' });
 
-    await loadTrainingData({ env: LIVE, fetchImpl: fake.impl, now: () => NOW });
+    await loadTrainingData({ env: LIVE, hevyStored: STORED, fetchImpl: fake.impl, now: () => NOW });
     expect(fake.workoutCalls()).toBe(1);
-    expect(heldSourceStatuses(LIVE)[0].sessions).toBe(1);
+    expect((await heldSourceStatuses({ env: LIVE, hevyStored: STORED }))[0].sessions).toBe(1);
   });
 
   it('reports a failing source instead of throwing', async () => {
-    const data = await loadTrainingData({ env: LIVE, fetchImpl: hevyFetch({ failWorkouts: true }).impl, now: () => NOW });
+    const data = await loadTrainingData({ env: LIVE, hevyStored: STORED, fetchImpl: hevyFetch({ failWorkouts: true }).impl, now: () => NOW });
     expect(data.sessions).toEqual([]);
     expect(data.statuses[0].lastError).toMatch(/HTTP 500/);
   });
 
   it('reports an unconfigured source in live mode', async () => {
-    const data = await loadTrainingData({ env: { VITAL_DATA_MODE: 'live' } as unknown as NodeJS.ProcessEnv });
+    const data = await loadTrainingData({ env: { VITAL_DATA_MODE: 'live' } as unknown as NodeJS.ProcessEnv, hevyStored: { state: 'none' } });
     expect(data.sessions).toEqual([]);
     expect(data.statuses[0]).toMatchObject({ configured: false, origin: 'none' });
   });

@@ -1,9 +1,10 @@
 // ── Hevy public API client (server-side only) ───────────
 //
 // The only module in Vital that knows Hevy's wire protocol
-// (https://api.hevyapp.com/docs/). It reads HEVY_API_KEY from the server
-// environment, sends it as the `api-key` header, and never puts it in a return
-// value, an error message or a log.
+// (https://api.hevyapp.com/docs/). The key and URL come from the encrypted
+// connection stored in Postgres (hevy-store.ts), never from the environment. It
+// sends the key as the `api-key` header, and never puts it in a return value, an
+// error message or a log.
 //
 // Endpoints used:
 //   GET /v1/user/info                                   probe
@@ -16,6 +17,7 @@
 
 import { safeExcerpt } from '../../analyst/scrub';
 import type { SourceRequestDeps } from '../types';
+import { readStoredHevy } from './hevy-store';
 
 export const HEVY_DEFAULT_URL = 'https://api.hevyapp.com';
 export const HEVY_WORKOUT_PAGE_SIZE = 10;
@@ -53,18 +55,40 @@ export interface HevyConfig {
   timeoutMs: number;
 }
 
-/** Read the configuration. Returns null when no key is set. */
-export function readHevyConfig(env: NodeJS.ProcessEnv = process.env): HevyConfig | null {
-  const key = (env.HEVY_API_KEY ?? '').trim();
+/**
+ * The configuration for a key and an optional URL (blank means Hevy's own API).
+ * Only HEVY_CACHE_TTL_SECONDS is read from the environment: it is admin tuning.
+ * Returns null when the key is blank.
+ */
+export function buildHevyConfig(
+  apiKey: string,
+  url: string | null | undefined,
+  env: NodeJS.ProcessEnv = process.env
+): HevyConfig | null {
+  const key = apiKey.trim();
   if (!key) return null;
-  const url = (env.HEVY_API_URL ?? '').trim().replace(/\/+$/, '') || HEVY_DEFAULT_URL;
   const ttl = Number(env.HEVY_CACHE_TTL_SECONDS);
   return {
-    baseUrl: url,
+    baseUrl: (url ?? '').trim().replace(/\/+$/, '') || HEVY_DEFAULT_URL,
     apiKey: key,
     ttlSeconds: Number.isFinite(ttl) && ttl > 0 ? ttl : 300,
     timeoutMs: HEVY_TIMEOUT_MS,
   };
+}
+
+/**
+ * The stored connection as a configuration. Null when nothing is stored, when the
+ * stored row cannot be read (another key, no key) and when there is no database.
+ * `deps.hevyStored` replaces the stored read in tests. Never throws.
+ */
+export async function readHevyConfig(deps: SourceRequestDeps = {}): Promise<HevyConfig | null> {
+  const env = deps.env ?? process.env;
+  const stored =
+    deps.hevyStored !== undefined
+      ? deps.hevyStored
+      : await readStoredHevy({ env, hevyClient: deps.hevyClient, now: deps.now });
+  if (!stored || stored.state !== 'ok') return null;
+  return buildHevyConfig(stored.apiKey, stored.url, env);
 }
 
 export function hevyHost(config: HevyConfig): string | null {
