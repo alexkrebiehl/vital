@@ -1,8 +1,8 @@
 'use client';
 
-// ── Settings → Connections → Maps ───────────────────────
+// ── Settings → Connections → Map sources ───────────────────────
 //
-// The tile providers Activity → Maps can draw on, and whether each is ready: it
+// The map sources (tile providers) Activity → Maps can draw on, and whether each is ready: it
 // needs no key, or its key is set in the server environment. Read-only, like the
 // workout sources above it: keys are configured by environment variable, and
 // the key itself is never sent here.
@@ -51,13 +51,13 @@ export function MapProvidersCard({ heading }: { heading: (icon: React.ReactNode,
   return (
     <>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        {heading(<MapIcon size={18} className="text-text-secondary" />, 'Maps')}
+        {heading(<MapIcon size={18} className="text-text-secondary" />, 'Map sources')}
         <Button variant="secondary" size="sm" onClick={() => void load()}>
           Check again
         </Button>
       </div>
       <p className="mb-3 text-xs leading-relaxed text-text-secondary">
-        The tile providers Activity → Maps can draw on. Each map chooses its provider, style and light or dark rendering
+        The map sources Activity → Maps can draw on. Each map chooses its provider, style and light or dark rendering
         in its edit dialog.
       </p>
 
