@@ -43,4 +43,31 @@ describe('env split', () => {
     const hits = REMOVED.filter(name => text.includes(name));
     expect(hits).toEqual([]);
   });
+
+  // v0.3.1: a removal erases at once, so the grace setting and the "Removed sources"
+  // panel are gone for good.
+  it('has no grace-period variable or "Removed sources" in src/ outside tests', () => {
+    const hits = sourceFiles(SRC)
+      .filter(file => {
+        const text = readFileSync(file, 'utf8');
+        return text.includes('VITAL_SOURCE_PURGE_GRACE_DAYS') || text.includes('Removed sources');
+      })
+      .map(file => path.relative(ROOT, file));
+    expect(hits).toEqual([]);
+  });
+
+  it('docs do not send Health Auto Export or Oura to Settings → Connections', () => {
+    const files = ['README.md', ...readdirSync(path.join(ROOT, 'docs')).filter(n => n.endsWith('.md')).map(n => `docs/${n}`)];
+    // Connections is right only for Workout sources and Map sources (Hevy, map providers).
+    const wrong = /Settings → Connections(?! → (?:Workout|Map) sources)/g;
+    const bad: string[] = [];
+    for (const file of files) {
+      const text = readFileSync(path.join(ROOT, file), 'utf8');
+      for (const m of text.matchAll(wrong)) {
+        const near = text.slice(Math.max(0, m.index - 100), m.index + 100);
+        if (/Health Auto Export|Oura/.test(near)) bad.push(`${file}: ${near.replace(/\s+/g, ' ')}`);
+      }
+    }
+    expect(bad).toEqual([]);
+  });
 });
