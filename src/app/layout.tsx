@@ -21,6 +21,7 @@ import { LiveGate } from '@/components/data/LiveGate';
 import { FALLBACK_CLIENT_META } from '@/components/data/fallback-meta';
 import { LiveDataUnavailableError, resolveDataset, type ResolvedDataset } from '@/lib/adapters/runtime';
 import { readProfileState } from '@/lib/profile/store';
+import { readPreferencesState } from '@/lib/prefs/store';
 import { LEGACY_STORAGE_KEY, preferencesCacheKey } from '@/lib/prefs/types';
 import { DEFAULT_THEME_ID, themesFor } from '@/lib/prefs/themes';
 import PrefsSync from '@/components/prefs/PrefsSync';
@@ -120,6 +121,13 @@ export default async function RootLayout({
   // read one profile, and the browser never needs to fetch it to render. The
   // read is awaitable because the record may live in Postgres.
   const { profile, stored: profileStored } = await readProfileState();
+  // The display preferences too, so the first render already uses the reader's
+  // units: starting on the default and switching after the device's cache is read
+  // made every page that fetches by unit system fetch twice. Null when the store
+  // could not be read; the browser's cache then decides, as before.
+  const prefsState = await readPreferencesState().catch(() => null);
+  const initialPrefs =
+    prefsState && !prefsState.error ? { units: prefsState.preferences.units, theme: prefsState.preferences.theme } : null;
 
   return (
     <html lang="en" suppressHydrationWarning className={`${GeistSans.variable} ${GeistMono.variable}`}>
@@ -131,7 +139,7 @@ export default async function RootLayout({
           {/* Starts the server-backed settings sync (theme/units) and re-applies
               the theme when the server's value differs from this device's cache. */}
           <PrefsSync />
-          <AppShell profile={profile} profileStored={profileStored}>
+          <AppShell profile={profile} profileStored={profileStored} initialPrefs={initialPrefs}>
             <LiveGate
               failure={
                 failure

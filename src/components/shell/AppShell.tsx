@@ -11,6 +11,7 @@ import { ProfileProvider } from '@/components/profile/ProfileProvider';
 import { TimezoneDefault } from '@/components/profile/TimezoneDefault';
 import { DiscussProvider } from '@/components/analyst/DiscussDialog';
 import type { VitalProfile } from '@/lib/profile/types';
+import type { InitialPrefs } from '@/components/ui/UnitsProvider';
 
 interface AppShellProps {
   children: ReactNode;
@@ -21,13 +22,15 @@ interface AppShellProps {
   profile: VitalProfile;
   /** True when the profile was read from storage rather than defaulted. */
   profileStored: boolean;
+  /** The stored units and theme, read on the server; null when unreadable. */
+  initialPrefs?: InitialPrefs | null;
 }
 
-export function AppShell({ children, profile, profileStored }: AppShellProps) {
+export function AppShell({ children, profile, profileStored, initialPrefs = null }: AppShellProps) {
   return (
     <ProfileProvider initialProfile={profile} initialStored={profileStored}>
       <TimezoneDefault />
-      <UnitsProvider>
+      <UnitsProvider initial={initialPrefs}>
         <CommandPaletteProvider>
           <DiscussProvider>
             <BreadcrumbProvider>
