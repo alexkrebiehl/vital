@@ -1,21 +1,49 @@
-// ── Source lifecycle: detect removal and hide at once (SERVER ONLY) ─────────
+// ── Source lifecycle: a removed source is erased in the same call (SERVER ONLY) ──
 //
-// Plan §C4. `data_sources_seen` records, for every source ever active, when it
-// was first and last active and when it was found removed (NULL while active).
-// A source that was seen before but is not active now gets `removed_at`; from
-// that moment every conversation tagged with it is hidden (db/analyst-store
-// filters on it in every read) and the clock for the hard purge starts
-// (sources/purge-store). A source that comes back clears `removed_at`, so the
-// hidden conversations are visible again.
+// Plan §8, v0.3.1 rule: removing a data source erases its data at once, as if it
+// had never existed. Nothing is hidden, nothing waits out a grace period.
 //
-// TAGS ONLY: this table holds source ids and timestamps, never a value.
+// `data_sources_seen` records every source that was ever active (first and last
+// active time). A source that is in that table but not in the active set is
+// GONE, and in ONE transaction this module:
 //
-// Called at boot (instrumentation-node) and by `reconcileActiveSources()`
-// whenever the active set changes.
+//   * deletes the conversations tagged with it (their messages cascade);
+//   * forgets the source (its `data_sources_seen` row).
+//
+// Everything held in memory (datasets, briefings, workout sessions, routes) is
+// dropped by the purgers in sources/purge, in the same reconcile.
+//
+// Kept on purpose: profile, preferences, training plans, map areas. A source's
+// credential row is not touched here: for an explicit disconnect it is already
+// deleted, and deleting it from a stale view could wipe a connection made a
+// moment later.
+//
+// 0.3.0 INSTALLS. The old `removed_at` column is no longer written or read. A
+// row left with it set (a removal waiting out its grace period) is simply a
+// source that is not active: it is purged by the first pass after the upgrade,
+// then forgotten. A source that is active again has the leftover mark cleared.
+//
+// SAFETY. This is only ever called with an active set the registry could read:
+// a failed credential read, a database error or an unreachable source throws
+// before this module is reached (sources/purge), and any error in here rolls the
+// whole pass back. Existence checks only; no key is needed to decide.
+//
+// TAGS ONLY: ids and counts, never a value.
 
 import { getPool, type PoolLike } from '@/lib/db/pool';
 import { withTransaction } from '@/lib/db/lab-store';
-import { purgeDueSources, purgeGraceDays } from './purge-store';
+
+/** Sources ever seen that are not in `$1`, locked for the purge. */
+const SELECT_GONE = `
+  SELECT source_id
+    FROM data_sources_seen
+   WHERE NOT (source_id = ANY($1::text[]))
+   ORDER BY source_id
+   FOR UPDATE
+`;
+
+const DELETE_CONVERSATIONS = `DELETE FROM analyst_conversations WHERE source_ids && $1::text[] RETURNING id`;
+const DELETE_SEEN = `DELETE FROM data_sources_seen WHERE source_id = ANY($1::text[])`;
 
 const UPSERT_ACTIVE = `
   INSERT INTO data_sources_seen (source_id)
@@ -25,36 +53,35 @@ const UPSERT_ACTIVE = `
         removed_at     = NULL
 `;
 
-const MARK_REMOVED = `
-  UPDATE data_sources_seen
-     SET removed_at = now()
-   WHERE removed_at IS NULL
-     AND NOT (source_id = ANY($1::text[]))
-  RETURNING source_id
-`;
-
 export interface LifecycleChange {
-  /** Sources found removed by this pass (their `removed_at` was NULL). */
-  removed: string[];
+  /** Sources found gone by this pass and erased, sorted. */
+  purged: string[];
+  /** Conversations deleted (their messages went with them). */
+  conversationsDeleted: number;
 }
 
 /**
- * Record the active set: stamp the active sources, clear any removal on a
- * source that is back, and mark every other known source removed (once).
+ * Erase every known source that is not in `activeIds`, then stamp the active
+ * ones. One transaction: either all of it happens or none of it.
  */
 export async function recordActiveSources(client: PoolLike, activeIds: string[]): Promise<LifecycleChange> {
   const ids = [...new Set(activeIds)].sort();
   return withTransaction(client, async tx => {
+    const gone = (await tx.query(SELECT_GONE, [ids])).rows.map(row => String(row.source_id));
+    let conversationsDeleted = 0;
+    if (gone.length > 0) {
+      conversationsDeleted = (await tx.query(DELETE_CONVERSATIONS, [gone])).rows.length;
+      await tx.query(DELETE_SEEN, [gone]);
+    }
     await tx.query(UPSERT_ACTIVE, [ids]);
-    const result = await tx.query(MARK_REMOVED, [ids]);
-    return { removed: result.rows.map(row => String(row.source_id)).sort() };
+    return { purged: gone, conversationsDeleted };
   });
 }
 
 /**
- * Bring the stored lifecycle in line with the active set, then purge whatever
- * is past its grace period. Does nothing when no database is configured (there
- * is nothing stored to hide). Throws on a database error so the caller can retry.
+ * Bring the stored lifecycle in line with the active set, erasing what left it.
+ * Does nothing when no database is configured (nothing is stored). Throws on a
+ * database error, with nothing erased, so the caller can retry.
  */
 export async function syncLifecycle(
   activeIds: string[],
@@ -63,7 +90,5 @@ export async function syncLifecycle(
 ): Promise<LifecycleChange | null> {
   const client = clientFor(env);
   if (!client) return null;
-  const change = await recordActiveSources(client, activeIds);
-  await purgeDueSources(client, purgeGraceDays(env));
-  return change;
+  return recordActiveSources(client, activeIds);
 }
