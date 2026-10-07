@@ -75,6 +75,16 @@ export function currentSourceKey(): string {
 }
 
 /**
+ * A removal marker was just written: the next reconcile must store the lifecycle
+ * even when the active set did not change in this process (a source that was
+ * never active here), so the erasure is not left waiting for a restart.
+ */
+export function requestLifecycleRecord(): void {
+  const s = state();
+  s.lifecyclePending ??= s.lastIds ?? [];
+}
+
+/**
  * Tests only: forget the last set seen (and any pass in flight), as in a fresh
  * process. Purgers registered when their modules loaded are kept.
  */

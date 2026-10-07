@@ -74,6 +74,19 @@ export class FakeAnalystDb implements SqlClient {
 
     if (/^\s*(BEGIN|COMMIT|ROLLBACK)/.test(text)) return { rows: [] };
 
+    // The explicit removal marker: create the row if missing, stamp `removed_at`.
+    if (/INSERT INTO data_sources_seen \(source_id, removed_at\)/.test(text)) {
+      for (const id of params[0] as string[]) {
+        const prior = this.seen.get(id);
+        this.seen.set(id, {
+          first_active_at: prior?.first_active_at ?? this.now,
+          last_active_at: prior?.last_active_at ?? this.now,
+          removed_at: this.now,
+        });
+      }
+      return { rows: [] };
+    }
+
     if (/INSERT INTO data_sources_seen/.test(text)) {
       for (const id of params[0] as string[]) {
         const prior = this.seen.get(id);
@@ -89,8 +102,10 @@ export class FakeAnalystDb implements SqlClient {
     // The sources the lifecycle knows that are not in the active set (locked for the purge).
     if (/FOR UPDATE/.test(text) && /FROM data_sources_seen/.test(text)) {
       const active = new Set(params[0] as string[]);
-      const rows = [...this.seen.keys()]
-        .filter(id => !active.has(id))
+      // Only a source removed on purpose (marker set) is gone; one that is merely inactive is kept.
+      const rows = [...this.seen.entries()]
+        .filter(([id, row]) => !active.has(id) && (!/removed_at IS NOT NULL/.test(text) || row.removed_at !== null))
+        .map(([id]) => id)
         .sort()
         .map(id => ({ source_id: id }));
       return { rows };

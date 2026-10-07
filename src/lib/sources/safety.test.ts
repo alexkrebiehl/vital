@@ -30,6 +30,7 @@ vi.mock('@/lib/db/pool', async importOriginal => ({
   getPool: () => holder.db,
 }));
 
+import { markRemoved } from '@/lib/sources/lifecycle';
 import { clearPurgersForTests, reconcileActiveSources, reconcileQuietly, registerPurger, resetPurgeStateForTests } from '@/lib/sources/purge';
 import { defaultContext } from '@/lib/sources/registry';
 
@@ -118,6 +119,7 @@ describe('nothing is purged on a transient failure', () => {
     const env = envWith({ VITAL_SECRET_KEY: KEY });
     const { db } = await connected(env);
     db.rows.delete('hevy'); // genuinely gone ...
+    await markRemoved(['hevy'], db); // ... removed on purpose ...
     db.fault = text => (/FOR UPDATE/.test(text) ? new Error('deadlock') : null); // ... but the store fails
     await reconcileActiveSources(defaultContext(env));
     expect(db.conversationCount()).toBe(4);
@@ -169,10 +171,11 @@ describe('what does erase', () => {
     holder.db = null;
   });
 
-  it('a credential row deleted, observed with a healthy store, erases that source at once', async () => {
+  it('a credential row deleted AND the removal marked, with a healthy store, erases that source at once', async () => {
     const env = envWith({ VITAL_SECRET_KEY: KEY });
     const { db, purger } = await connected(env);
     db.rows.delete('hevy');
+    await markRemoved(['hevy'], db);
     const result = await reconcileActiveSources(defaultContext(env));
     expect(result.removed).toEqual(['hevy']);
     expect(purger).toHaveBeenCalledWith(['hevy']);
@@ -180,21 +183,67 @@ describe('what does erase', () => {
     expect(db.seen.has('hevy')).toBe(false);
   });
 
-  it('the last lab report deleted erases lab conversations at once', async () => {
+  it('a credential row that is simply missing (no marker) drops memory but keeps the conversations', async () => {
+    const env = envWith({ VITAL_SECRET_KEY: KEY });
+    const { db, purger } = await connected(env);
+    db.rows.delete('hevy');
+    const result = await reconcileActiveSources(defaultContext(env));
+    expect(result.removed).toEqual(['hevy']);
+    expect(purger).toHaveBeenCalledWith(['hevy']); // in-memory purgers still run
+    expect(db.conversationCount()).toBe(4);
+    expect(db.seen.has('hevy')).toBe(true);
+  });
+
+  it('upgrade from 0.3.0: seen sources, no credential rows yet, nothing marked: nothing is erased', async () => {
+    const env = envWith({ VITAL_SECRET_KEY: KEY });
+    const { db } = await connected(env);
+    db.rows.clear();
+    db.labReports = 0;
+    resetPurgeStateForTests(); // the first pass after the upgrade
+    await reconcileActiveSources(defaultContext(env));
+    expect(db.conversationCount()).toBe(4);
+    expect([...db.seen.keys()].sort()).toEqual(['hae', 'hevy', 'lab', 'oura']);
+  });
+
+  it('a removal marked for a source this process never saw active still erases at once', async () => {
+    const env = envWith({ VITAL_SECRET_KEY: KEY });
+    const { db } = await connected(env);
+    db.rows.delete('oura');
+    await reconcileActiveSources(defaultContext(env)); // observed inactive, unmarked: kept
+    expect(db.conversationCount()).toBe(4);
+    await markRemoved(['oura'], db); // the person now disconnects it for real
+    await reconcileActiveSources(defaultContext(env)); // active set unchanged, yet the pass runs
+    expect(db.conversationCount()).toBe(3);
+  });
+
+  it('the last lab report deleted and marked erases lab conversations at once', async () => {
     const env = envWith({ VITAL_SECRET_KEY: KEY });
     const { db } = await connected(env);
     db.labReports = 0;
+    await markRemoved(['lab'], db);
     await reconcileActiveSources(defaultContext(env));
     expect(db.conversationCount()).toBe(3);
     expect(db.conversationIds().map(id => db.sourceIdsOf(id)).flat().sort()).toEqual(['hae', 'hevy', 'oura']);
   });
 
-  it('removed while the app was down: the first reconcile after restart erases it', async () => {
+  it('removed on purpose while the app was down: the first reconcile after restart erases it', async () => {
     const env = envWith({ VITAL_SECRET_KEY: KEY });
     const { db } = await connected(env);
     db.rows.delete('oura');
+    await markRemoved(['oura'], db);
     resetPurgeStateForTests();
     await reconcileActiveSources(defaultContext(env));
     expect(db.conversationCount()).toBe(3);
+  });
+
+  it('a credential re-entered after a removal is not purged by a late reconcile', async () => {
+    const env = envWith({ VITAL_SECRET_KEY: KEY });
+    const { db } = await connected(env);
+    db.rows.delete('hae');
+    await markRemoved(['hae'], db);
+    db.rows.add('hae'); // re-entered before the reconcile ran
+    await reconcileActiveSources(defaultContext(env));
+    expect(db.conversationCount()).toBe(4);
+    expect(db.seen.get('hae')!.removed_at).toBeNull();
   });
 });

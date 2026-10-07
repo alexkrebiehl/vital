@@ -1,43 +1,54 @@
-// ── Source lifecycle: a removed source is erased in the same call (SERVER ONLY) ──
+// ── Source lifecycle: only a deliberate removal erases conversations (SERVER ONLY) ──
 //
 // Plan §8, v0.3.1 rule: removing a data source erases its data at once, as if it
-// had never existed. Nothing is hidden, nothing waits out a grace period.
+// had never existed. Nothing is hidden, nothing waits out a grace period. But
+// REMOVAL IS A DELIBERATE ACT, never just "not active right now": an upgrade, a
+// restart, a failed read or a credential not yet re-entered must never erase a
+// conversation.
 //
-// `data_sources_seen` records every source that was ever active (first and last
-// active time). A source that is in that table but not in the active set is
-// GONE, and in ONE transaction this module:
+// `data_sources_seen` records every source that was ever active. Its `removed_at`
+// column is the explicit removal marker. `markRemoved` writes it, in the same
+// request that disconnects the source (or deletes the last lab report). A source
+// is then GONE only when it is NOT active AND its marker is set, and in ONE
+// transaction this module:
 //
 //   * deletes the conversations tagged with it (their messages cascade);
 //   * forgets the source (its `data_sources_seen` row).
 //
+// A source that is merely inactive (no marker) keeps its conversations and its
+// row: the person may re-enter the credential. A source that is active again
+// has its marker cleared, so a late reconcile never purges it.
+//
 // Everything held in memory (datasets, briefings, workout sessions, routes) is
-// dropped by the purgers in sources/purge, in the same reconcile.
+// dropped by the purgers in sources/purge for ANY source that left the active
+// set, marker or not: it holds nothing durable.
 //
-// Kept on purpose: profile, preferences, training plans, map areas. A source's
-// credential row is not touched here: for an explicit disconnect it is already
-// deleted, and deleting it from a stale view could wipe a connection made a
-// moment later.
-//
-// 0.3.0 INSTALLS. The old `removed_at` column is no longer written or read. A
-// row left with it set (a removal waiting out its grace period) is simply a
-// source that is not active: it is purged by the first pass after the upgrade,
-// then forgotten. A source that is active again has the leftover mark cleared.
+// 0.3.0 INSTALLS. A row left with `removed_at` set (a removal waiting out its
+// grace period) is a deliberate removal: the first pass after the upgrade purges
+// it at once. Rows with no marker (sources that were active through the
+// environment, now inactive until re-entered in Settings) are kept.
 //
 // SAFETY. This is only ever called with an active set the registry could read:
 // a failed credential read, a database error or an unreachable source throws
 // before this module is reached (sources/purge), and any error in here rolls the
-// whole pass back. Existence checks only; no key is needed to decide.
+// whole pass back. A failure writing the marker fails the request. Existence
+// checks only; no key is needed to decide.
+//
+// Kept on purpose: profile, preferences, training plans, map areas. A source's
+// credential row is not touched here.
 //
 // TAGS ONLY: ids and counts, never a value.
 
 import { getPool, type PoolLike } from '@/lib/db/pool';
 import { withTransaction } from '@/lib/db/lab-store';
+import { requestLifecycleRecord } from './purge';
 
-/** Sources ever seen that are not in `$1`, locked for the purge. */
+/** Sources removed on purpose (marker set) that are not in `$1`, locked for the purge. */
 const SELECT_GONE = `
   SELECT source_id
     FROM data_sources_seen
    WHERE NOT (source_id = ANY($1::text[]))
+     AND removed_at IS NOT NULL
    ORDER BY source_id
    FOR UPDATE
 `;
@@ -53,6 +64,14 @@ const UPSERT_ACTIVE = `
         removed_at     = NULL
 `;
 
+/** The explicit removal marker; the row is created when missing. Idempotent. */
+const MARK_REMOVED = `
+  INSERT INTO data_sources_seen (source_id, removed_at)
+  SELECT unnest($1::text[]), now()
+  ON CONFLICT (source_id) DO UPDATE
+    SET removed_at = now()
+`;
+
 export interface LifecycleChange {
   /** Sources found gone by this pass and erased, sorted. */
   purged: string[];
@@ -61,8 +80,22 @@ export interface LifecycleChange {
 }
 
 /**
- * Erase every known source that is not in `activeIds`, then stamp the active
- * ones. One transaction: either all of it happens or none of it.
+ * Record that these sources were removed on purpose. Call it in the same request
+ * that removes them, after the credential row is deleted and before the
+ * reconcile. Erases nothing by itself; the next reconcile does, unless the source
+ * is active again. Errors propagate: the request must fail, not half-succeed.
+ */
+export async function markRemoved(ids: string[], client: PoolLike): Promise<void> {
+  const unique = [...new Set(ids)].sort();
+  if (unique.length === 0) return;
+  await client.query(MARK_REMOVED, [unique]);
+  // The reconcile must run the pass even if this process already saw the set.
+  requestLifecycleRecord();
+}
+
+/**
+ * Erase every source removed on purpose that is not in `activeIds`, then stamp
+ * the active ones. One transaction: either all of it happens or none of it.
  */
 export async function recordActiveSources(client: PoolLike, activeIds: string[]): Promise<LifecycleChange> {
   const ids = [...new Set(activeIds)].sort();

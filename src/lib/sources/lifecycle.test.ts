@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { listConversationsForApi, readConversationForApi } from '@/lib/analyst/conversations';
 import { FakeAnalystDb } from '@/lib/analyst/test-doubles';
 import { insertConversation, insertMessage } from '@/lib/db/analyst-store';
-import { recordActiveSources, syncLifecycle } from '@/lib/sources/lifecycle';
+import { markRemoved, recordActiveSources, syncLifecycle } from '@/lib/sources/lifecycle';
 
 async function tagged(db: FakeAnalystDb, title: string, sourceIds: string[]): Promise<number> {
   const conversation = await insertConversation(db, title);
@@ -44,6 +44,7 @@ describe('recordActiveSources', () => {
 
   it('purges a source seen before but not active now, in the same call', async () => {
     const { db, hae } = await world();
+    await markRemoved(['oura'], db);
     const change = await recordActiveSources(db, ['hae']);
     expect(change).toEqual({ purged: ['oura'], conversationsDeleted: 2 });
     expect(db.conversationIds()).toEqual([hae]);
@@ -51,6 +52,7 @@ describe('recordActiveSources', () => {
 
   it('leaves no row that mentions the purged source, in any table', async () => {
     const { db } = await world();
+    await markRemoved(['oura'], db);
     await recordActiveSources(db, ['hae']);
     expect(mentions(db, 'oura')).toEqual([]);
     expect(mentions(db, 'hae')).not.toEqual([]);
@@ -58,6 +60,7 @@ describe('recordActiveSources', () => {
 
   it('never touches conversations tagged only with active sources', async () => {
     const { db, hae } = await world();
+    await markRemoved(['oura'], db);
     await recordActiveSources(db, ['hae']);
     expect(db.sourceIdsOf(hae)).toEqual(['hae']);
     expect(db.messageCountOf(hae)).toBe(2);
@@ -65,6 +68,7 @@ describe('recordActiveSources', () => {
 
   it('forgets a purged source, so a second pass has nothing left to do', async () => {
     const { db } = await world();
+    await markRemoved(['oura'], db);
     await recordActiveSources(db, ['hae']);
     expect(await recordActiveSources(db, ['hae'])).toEqual({ purged: [], conversationsDeleted: 0 });
   });
@@ -78,6 +82,7 @@ describe('recordActiveSources', () => {
 
   it('a source that comes back is a fresh start: the purged conversations stay gone', async () => {
     const { db, ring } = await world();
+    await markRemoved(['oura'], db);
     await recordActiveSources(db, ['hae']);
     await recordActiveSources(db, ['hae', 'oura']);
     const listed = await listConversationsForApi({ client: db });
@@ -89,6 +94,7 @@ describe('recordActiveSources', () => {
     const db = new FakeAnalystDb();
     await recordActiveSources(db, ['hae', 'lab']);
     await tagged(db, 'Panels', ['lab']);
+    await markRemoved(['lab'], db);
     expect((await recordActiveSources(db, ['hae'])).purged).toEqual(['lab']);
     expect(db.conversationCount()).toBe(0);
   });
@@ -119,6 +125,72 @@ describe('a 0.3.0 install: rows recorded as removed with a pending purge date', 
     db.seen.get('oura')!.removed_at = new Date(db.now.getTime() - 86_400_000);
     await syncLifecycle(['hae', 'oura'], {} as NodeJS.ProcessEnv, () => db);
     expect(db.seen.get('oura')!.removed_at).toBeNull();
+    expect(db.conversationCount()).toBe(3);
+  });
+});
+
+describe('only a deliberate removal erases conversations', () => {
+  it('upgrade from 0.3.0: seen but inactive and unmarked deletes nothing and keeps the rows', async () => {
+    const db = new FakeAnalystDb();
+    await recordActiveSources(db, ['hae', 'hevy', 'oura']);
+    await tagged(db, 'Watch', ['hae']);
+    await tagged(db, 'Gym', ['hevy']);
+    await tagged(db, 'Ring', ['oura']);
+    const change = await recordActiveSources(db, []);
+    expect(change).toEqual({ purged: [], conversationsDeleted: 0 });
+    expect(db.conversationCount()).toBe(3);
+    expect([...db.seen.keys()].sort()).toEqual(['hae', 'hevy', 'oura']);
+  });
+
+  it('an explicit removal deletes its conversations once and forgets the row', async () => {
+    const { db, hae } = await world();
+    await markRemoved(['oura'], db);
+    expect(db.conversationCount()).toBe(3); // marking alone erases nothing
+    const first = await recordActiveSources(db, ['hae']);
+    expect(first).toEqual({ purged: ['oura'], conversationsDeleted: 2 });
+    expect(db.conversationIds()).toEqual([hae]);
+    expect(db.seen.has('oura')).toBe(false);
+    expect(await recordActiveSources(db, ['hae'])).toEqual({ purged: [], conversationsDeleted: 0 });
+  });
+
+  it('removing a source that was never seen creates the marked row, then purges it', async () => {
+    const db = new FakeAnalystDb();
+    await markRemoved(['lab'], db);
+    expect(db.seen.get('lab')!.removed_at).not.toBeNull();
+    expect((await recordActiveSources(db, [])).purged).toEqual(['lab']);
+  });
+
+  it('marking twice is harmless', async () => {
+    const { db } = await world();
+    await markRemoved(['oura'], db);
+    await markRemoved(['oura'], db);
+    expect((await recordActiveSources(db, ['hae'])).purged).toEqual(['oura']);
+  });
+
+  it('a marked source that is active again clears its marker and deletes nothing', async () => {
+    const { db } = await world();
+    await markRemoved(['oura'], db);
+    await recordActiveSources(db, ['hae', 'oura']); // credential re-entered before the late reconcile
+    expect(db.seen.get('oura')!.removed_at).toBeNull();
+    expect(db.conversationCount()).toBe(3);
+    expect((await recordActiveSources(db, ['hae', 'oura'])).purged).toEqual([]);
+  });
+
+  it('a failure writing the marker propagates and deletes nothing', async () => {
+    const { db } = await world();
+    db.failNext = new Error('connection reset');
+    await expect(markRemoved(['oura'], db)).rejects.toThrow('connection reset');
+    expect(db.seen.get('oura')!.removed_at).toBeNull();
+    expect((await recordActiveSources(db, ['hae'])).purged).toEqual([]);
+    expect(db.conversationCount()).toBe(3);
+  });
+
+  it('a failed pass rolls back and leaves the conversations', async () => {
+    const { db } = await world();
+    await markRemoved(['oura'], db);
+    db.calls.length = 0;
+    db.failNext = new Error('db down'); // BEGIN fails
+    await expect(recordActiveSources(db, ['hae'])).rejects.toThrow('db down');
     expect(db.conversationCount()).toBe(3);
   });
 });
