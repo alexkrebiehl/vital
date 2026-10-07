@@ -220,23 +220,22 @@ The short version:
 
 **Oura Ring**
 
-Oura works on its own or next to HAE. It signs in with OAuth, so a token cannot be pasted into
-`.env`.
+Oura works on its own or next to HAE. It signs in with OAuth, so a token cannot be pasted in.
 
-1. Register an app at <https://cloud.ouraring.com/oauth/applications> with the redirect address
-   below.
-2. In `.env`, set `VITAL_DATA_MODE=live` and the app's details, plus a key that encrypts the stored
-   login (`openssl rand -base64 32`):
+1. Register an app at <https://cloud.ouraring.com/oauth/applications> with a redirect address that
+   matches the address you browse Vital from, for example
+   `http://localhost:8080/api/sources/oura/callback`.
+2. In `.env`, set `VITAL_DATA_MODE=live` and make sure `VITAL_SECRET_KEY` is set (`npm run db:init`
+   generates one; or `openssl rand -base64 32`). Restart: `docker compose up -d`.
+3. Open *Settings → Connections*, enter the app's client ID, client secret and redirect URI in the
+   Oura card (the redirect URI is prefilled from your address), and save. They are stored
+   encrypted with `VITAL_SECRET_KEY`. Then press **Connect**.
 
-   ```bash
-   VITAL_DATA_MODE=live
-   OURA_CLIENT_ID=your-client-id
-   OURA_CLIENT_SECRET=your-client-secret
-   OURA_REDIRECT_URI=http://localhost:8080/api/sources/oura/callback
-   VITAL_SECRET_KEY=output-of-openssl-rand
-   ```
+**Hevy**
 
-3. Restart: `docker compose up -d`, then open *Settings → Connections* and press **Connect**.
+For exercises, sets, reps, load and effort, open *Settings → Connections*, enter your Hevy key
+(Hevy Pro; create one at hevy.com/settings?developer) in the Hevy card, and save. It is stored
+encrypted with `VITAL_SECRET_KEY`.
 
 Oura only accepts a plain `http://` redirect for `localhost`. If your browser is on a different
 computer from Vital, use a short SSH tunnel to connect; see

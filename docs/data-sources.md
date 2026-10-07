@@ -121,29 +121,24 @@ After that, keep to step 3 above.
 
 Oura is an optional second live source. It is read server-to-server through Oura's cloud API, and
 it works on its own (no Health Auto Export needed) or next to it. Oura retired personal access
-tokens, so a token cannot be pasted into `.env`: Vital signs in with OAuth2 (authorization code
+tokens, so a token cannot be pasted anywhere: Vital signs in with OAuth2 (authorization code
 with PKCE) and you press **Connect** in *Settings → Connections*.
 
 ### Set it up
 
 1. Register an app at <https://cloud.ouraring.com/oauth/applications>. Add one redirect URI that
-   matches your Vital address exactly, for example `http://localhost:8080/api/sources/oura/callback`.
-2. Generate an encryption key for the stored tokens: `openssl rand -base64 32`.
-3. Set these in `.env` and restart:
-
-```bash
-OURA_CLIENT_ID=your-client-id
-OURA_CLIENT_SECRET=your-client-secret
-OURA_REDIRECT_URI=http://localhost:8080/api/sources/oura/callback
-VITAL_SECRET_KEY=output-of-openssl-rand
-# OURA_PREFERRED_FOR=sleep,recovery
-```
-
-4. Open *Settings → Connections* and press **Connect**. Approve the scopes on Oura's page.
+   matches the address you browse Vital from, for example
+   `http://localhost:8080/api/sources/oura/callback`.
+2. Make sure `VITAL_SECRET_KEY` is set (`npm run db:init` generates one, or
+   `openssl rand -base64 32`). It encrypts the credentials and tokens stored in Postgres.
+3. Open *Settings → Connections*, enter the app's client ID, client secret and redirect URI in the
+   Oura card, and save. The redirect URI is prefilled from the address you are browsing from. The
+   client secret is stored encrypted and is never shown again.
+4. Press **Connect** and approve the scopes on Oura's page.
 
 Vital requests the scopes `daily heartrate workout spo2`. VO2 max needs one more scope, `heart_health`, which is off by default: add it to `OURA_SCOPES` (and enable *Heart Health* on your Oura app) and reconnect to include it. You can grant fewer: the endpoints whose
-scope was not granted are skipped, and Settings says which. Leave `OURA_CLIENT_ID` empty and Oura
-is off. Every `OURA_*` variable is listed in `.env.example`.
+scope was not granted are skipped, and Settings says which. Until the app credentials are saved,
+Oura is off. The tuning variables (`OURA_*`) are admin settings and are listed in `.env.example`.
 
 ### Connecting when Vital runs on another machine
 
@@ -152,12 +147,9 @@ your **browser**, not by Oura's servers, so Vital never has to be reachable from
 your browser is on a different computer from Vital (a home server, a NAS), carry `localhost`
 across with an SSH tunnel for the few seconds the sign-in takes:
 
-1. Set the redirect address to `localhost` in `.env`, and register the same string with Oura
-   (scheme, host, port and path must match exactly), then run `docker compose up -d`:
-
-   ```bash
-   OURA_REDIRECT_URI=http://localhost:8080/api/sources/oura/callback
-   ```
+1. Register a `localhost` redirect address with Oura (scheme, host, port and path must match
+   exactly), for example `http://localhost:8080/api/sources/oura/callback`. You enter the same
+   string as the redirect URI in the Oura card in Settings.
 
 2. On the computer that runs your browser, open the tunnel (`vital.example.lan` stands for
    however you reach the server):
@@ -166,15 +158,16 @@ across with an SSH tunnel for the few seconds the sign-in takes:
    ssh -L 8080:localhost:8080 you@vital.example.lan
    ```
 
-3. Browse to `http://localhost:8080`, open *Settings → Connections* and press **Connect**. Start
-   from `localhost`, not from the server's name: the sign-in state lives in a cookie tied to the
+3. Browse to `http://localhost:8080`, open *Settings → Connections*, check that the redirect URI in
+   the Oura card is the `localhost` one (it is prefilled from the address you browse from), and
+   press **Connect**. Start from `localhost`, not from the server's name: the sign-in state lives in a cookie tied to the
    host name, so a different host fails the state check.
 4. Close the tunnel when Oura shows as connected. Vital keeps the encrypted refresh token and
    renews it itself, so day-to-day use at the server's normal address is unaffected. You only need
    the tunnel again to reconnect after revoking access.
 
 If port 8080 is taken on the browser's computer, use another local port (`-L 9090:localhost:8080`)
-and put that port in the redirect address and in Oura's portal. If you get a "state mismatch" error, try
+and put that port in the redirect URI in the Oura card and in Oura's portal. If you get a "state mismatch" error, try
 another browser: some refuse `Secure` cookies over `http://localhost`.
 
 Alternatively, serve Vital over HTTPS (a reverse proxy with a certificate your browser trusts) and
@@ -182,10 +175,11 @@ register the `https://` address as the redirect.
 
 ### What is stored
 
-Only the encrypted access and refresh tokens, in Postgres. **No Oura reading is ever stored**: not
+Only the app credentials (client ID, secret and redirect URI) and the access and refresh tokens,
+all encrypted with `VITAL_SECRET_KEY`, in Postgres. **No Oura reading is ever stored**: not
 in the database, not in a file, not in a log. Readings are fetched on demand, held in server memory
 for `OURA_CACHE_TTL_SECONDS` (default 300), and dropped on restart, on Disconnect, or when Oura is
-removed from `.env`. Vital shows no Oura score (readiness, sleep, activity, stress, resilience or
+disconnected. Vital shows no Oura score (readiness, sleep, activity, stress, resilience or
 cardiovascular age): only the measurements.
 
 ### What is the same measure and what is not
@@ -233,8 +227,8 @@ merges only measures that mean the same thing.
 
 ### Removed sources
 
-A source counts as removed when its configuration is deleted from `.env` and the container
-restarted, when you press **Disconnect** (OAuth sources), or when the last lab report is deleted.
+A source counts as removed when you press **Disconnect** in Settings → Connections, or when the
+last lab report is deleted.
 After that, Vital behaves as if the source had never existed:
 
 | Where the source's data or anything derived from it can live | When it is removed |
@@ -273,9 +267,13 @@ session came from.
 
 **Hevy** is the first source (Hevy Pro; create a key at hevy.com/settings?developer):
 
+Open *Settings → Connections*, enter the key (and, only if you need it, another API address) in the
+Hevy card, and save. Vital makes one read-only request to check it and, only if that works, stores
+it in Postgres, encrypted with `VITAL_SECRET_KEY`. The key is never shown again. Two admin
+settings in the environment tune it:
+
 ```bash
 # .env
-HEVY_API_KEY=your-hevy-api-key
 # HEVY_CACHE_TTL_SECONDS=300       # how long synced sessions are served before a refresh
 # WORKOUT_SOURCE_LOOKBACK_DAYS=400 # how far back the first sync reads
 ```
