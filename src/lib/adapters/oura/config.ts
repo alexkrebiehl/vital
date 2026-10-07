@@ -2,8 +2,7 @@
 //
 // The app credentials (client ID, secret, redirect URI) come from the stored,
 // encrypted row; the admin values (scopes, API URL, tuning) from the
-// environment. The old OURA_CLIENT_ID, OURA_CLIENT_SECRET and OURA_REDIRECT_URI
-// variables are never read. `readOuraConfig` never throws and never puts a value
+// environment. The old per-app environment variables are never read. `readOuraConfig` never throws and never puts a value
 // (a secret, a key, a URL) into a reason: a reason names what is wrong, nothing
 // else.
 
