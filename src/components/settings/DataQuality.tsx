@@ -35,7 +35,7 @@ export function DataQualitySection({ report, onReady }: { report: PipelineStatus
 
 function PendingDataQuality({ initialFailure, onReady }: { initialFailure: boolean; onReady?: () => void }) {
   const [result, setResult] = useState<PipelineQualityResponse | null>(
-    initialFailure ? { state: 'failed', quality: null, detail: 'The checks could not finish.' } : null
+    initialFailure ? { state: 'failed', quality: null, silenced: [], detail: 'The checks could not finish.' } : null
   );
 
   useEffect(() => {
@@ -54,11 +54,11 @@ function PendingDataQuality({ initialFailure, onReady }: { initialFailure: boole
           if (body.state === 'ready') onReady?.();
           return;
         } catch (e) {
-          if (!cancelled) setResult({ state: 'failed', quality: null, detail: e instanceof Error ? e.message : 'The checks could not be read.' });
+          if (!cancelled) setResult({ state: 'failed', quality: null, silenced: [], detail: e instanceof Error ? e.message : 'The checks could not be read.' });
           return;
         }
       }
-      if (!cancelled) setResult({ state: 'computing', quality: null, detail: 'The checks are taking longer than usual. Use “Check again” in a minute.' });
+      if (!cancelled) setResult({ state: 'computing', quality: null, silenced: [], detail: 'The checks are taking longer than usual. Use “Check again” in a minute.' });
     })();
     return () => {
       cancelled = true;

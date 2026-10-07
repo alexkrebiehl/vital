@@ -26,6 +26,8 @@ import type { StoredOuraApp } from '../adapters/oura/app-store';
 import type { PoolLike } from '../db/pool';
 import { loadTrainingData } from '../workout-sources/store';
 import type { QualityJob } from '../adapters/quality';
+import type { SilencedKey, SilencedResult } from '../adapters/quality-silenced';
+import { silencedView } from './quality-view';
 import type {
   PipelineConfig,
   PipelineDatasetSummary,
@@ -72,6 +74,12 @@ export interface PipelineDeps {
   ouraClient?: PoolLike | null;
   /** Use these stored Oura app credentials instead of reading them (tests). */
   ouraApp?: StoredOuraApp;
+  /** Use these quality checks instead of the loaded dataset's (tests). */
+  qualityJob?: QualityJob | null;
+  /** Use this silenced list instead of reading it (tests). */
+  silenced?: readonly SilencedKey[];
+  /** Replaces the process Postgres pool for the silenced list (tests). */
+  silencedClient?: PoolLike | null;
   /** Use this Health Auto Export connection instead of the stored one (tests). */
   haeConfig?: HaeConfig | null;
   /** Replaces the process Postgres pool for the stored connection (tests). */
@@ -160,7 +168,7 @@ function summariseDataset(meta: DatasetMeta, error: string | null): PipelineData
  * alone (a food log that starts late, a gap more than 90 days back) leave it
  * healthy.
  */
-function qualityStage(job: QualityJob | null, mode: 'demo' | 'live', summary: PipelineDatasetSummary): PipelineStage {
+export function qualityStage(job: QualityJob | null, mode: 'demo' | 'live', summary: PipelineDatasetSummary, view: SilencedResult | null = null): PipelineStage {
   if (job && job.state !== 'ready') {
     return {
       id: 'data_quality',
@@ -175,7 +183,9 @@ function qualityStage(job: QualityJob | null, mode: 'demo' | 'live', summary: Pi
       lastObservationAt: null,
     };
   }
-  const quality = job?.value ?? null;
+  // Silenced findings are already out of `view.report`: the counts, the
+  // severities and the notes below are all computed from what is left.
+  const quality = view ? view.report : (job?.value ?? null);
   if (!quality) {
     return {
       id: 'data_quality',
@@ -193,6 +203,7 @@ function qualityStage(job: QualityJob | null, mode: 'demo' | 'live', summary: Pi
   const serious = quality.findings.filter(f => f.severity !== 'info');
   const notes = quality.findings.filter(f => f.severity === 'info');
   const flagged = quality.checks.filter(c => c.outcome === 'flagged').length;
+  const hidden = view ? view.silenced.filter(s => s.found).length : 0;
   return {
     id: 'data_quality',
     name: 'Data quality',
@@ -202,7 +213,9 @@ function qualityStage(job: QualityJob | null, mode: 'demo' | 'live', summary: Pi
         `${notes.length ? ` Also ${notes.length} note${notes.length === 1 ? '' : 's'}.` : ''} Each is listed below with how to fix it.`
       : notes.length
         ? `No recent problems. ${notes.length} note${notes.length === 1 ? '' : 's'} about older history or the food log: ${notes.map(f => f.title.toLowerCase()).join('; ')}.`
-        : `All ${quality.checks.length} checks passed: no activity counted twice, no reading stored twice, no missing days, and new data is arriving.`,
+        : hidden > 0
+          ? `No data-quality problems found. ${hidden} issue${hidden === 1 ? ' is' : 's are'} silenced in Settings → Sources.`
+          : `All ${quality.checks.length} checks passed: no activity counted twice, no reading stored twice, no missing days, and new data is arriving.`,
     derivedFrom: `${quality.checks.length} checks on the export's records as stored, before daily aggregation (${flagged} flagged).`,
     observationCount: summary.observationCount,
     lastObservationAt: summary.lastObservationAt,
@@ -239,8 +252,10 @@ export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<Pi
   let qualityJob: QualityJob | null = null;
   if (deps.datasetSummary) {
     summary = deps.datasetSummary;
+    qualityJob = deps.qualityJob ?? null;
   } else if (deps.skipDataset) {
     summary = summariseDataset(datasetMeta(), null);
+    qualityJob = deps.qualityJob ?? null;
   } else {
     try {
       const resolved = await installDataset({ env, fetchImpl: deps.fetchImpl, haeConfig: deps.haeConfig, haeClient: deps.haeClient, now: deps.now ? () => new Date(deps.now!()) : undefined });
@@ -261,6 +276,11 @@ export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<Pi
   const workoutSources = deps.skipDataset
     ? []
     : (await loadTrainingData({ env, fetchImpl: deps.fetchImpl, now })).statuses;
+
+  // ── 3b. Silenced data-quality findings, left out of everything below ──
+  const qualityView = qualityJob?.state === 'ready' && qualityJob.value
+    ? await silencedView(qualityJob.value, { env, client: deps.silencedClient, silenced: deps.silenced })
+    : null;
 
   // ── 4. Stages ─────────────────────────────────────────
   const stages: PipelineStage[] = [
@@ -295,7 +315,7 @@ export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<Pi
       lastObservationAt: summary.lastObservationAt,
     },
     ouraStage(ouraRead, ouraProbe),
-    qualityStage(qualityJob, mode, summary),
+    qualityStage(qualityJob, mode, summary, qualityView),
     {
       id: 'intelligence',
       name: 'Intelligence',
@@ -350,8 +370,9 @@ export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<Pi
     workoutSources,
     // Never awaited: the checks finish in the background and the panel fetches
     // /api/pipeline/quality for them.
-    quality: qualityJob?.value ?? null,
+    quality: qualityView ? qualityView.report : (qualityJob?.value ?? null),
     qualityState: qualityJob ? qualityJob.state : 'unavailable',
+    silenced: qualityView ? qualityView.silenced : [],
     dataAsOf: summary.lastObservationAt,
     checkedAt: new Date(now()).toISOString(),
     summary: summarySentence,
