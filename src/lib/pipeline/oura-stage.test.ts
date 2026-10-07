@@ -55,7 +55,7 @@ describe('oura_api pipeline stage', () => {
     const stage = report.stages.find(s => s.id === 'oura_api')!;
     expect(stage.status).toBe('unconfigured');
     expect(stage.detail).toContain('Oura app credentials are not set');
-    expect(stage.detail).toContain('Settings → Connections');
+    expect(stage.detail).toContain('Settings → Sources');
     expect(stage.detail).not.toContain('OURA_CLIENT_ID');
     expect(calls).toHaveLength(0);
   });

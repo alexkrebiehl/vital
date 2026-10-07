@@ -101,7 +101,7 @@ export interface OuraConfigDeps {
 export function buildOuraConfig(env: EnvLike, app: StoredOuraApp): OuraConfigResult {
   if (app.state === 'none') return null;
   if (app.state === 'needs_reentry') {
-    return { ok: false, reason: 'The stored Oura app credentials cannot be read. Enter them again in Settings → Connections.' };
+    return { ok: false, reason: 'The stored Oura app credentials cannot be read. Enter them again in Settings → Sources.' };
   }
   if (!validUrl(app.redirectUri, ['http:', 'https:'])) {
     return { ok: false, reason: 'The stored Oura redirect URI is not a valid http(s) URL.' };

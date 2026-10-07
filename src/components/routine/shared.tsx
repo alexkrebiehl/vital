@@ -224,7 +224,7 @@ export function ExerciseDataNotice({ routine }: { routine: RoutineOverview }) {
           </h3>
           <p className="text-xs text-text-secondary leading-relaxed max-w-2xl">
             No workout source is connected. Without one, only a workout&rsquo;s type and duration are known, but judging{' '}
-            {all ? 'these paths' : 'those paths'} needs the exercises, sets, reps and load a training app such as Hevy logs.
+            {all ? 'these paths' : 'those paths'} needs the exercises, sets, reps and load a workout-logging app records.
             Until one is connected they show as not tracked, and sessions aren&rsquo;t counted as missed. The plan itself works as
             usual.
           </p>

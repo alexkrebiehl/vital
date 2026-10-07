@@ -92,7 +92,7 @@ export function RoutineSection() {
 function SourceNote({ data, noticeShown = false }: { data: RoutineApiResponse; noticeShown?: boolean }) {
   const configured = data.sources.filter(s => s.configured || s.origin === 'demo');
   if (data.origin === 'demo') {
-    return <DataStateNote>Demo mode: sessions come from committed demo training data shaped like a Hevy export.</DataStateNote>;
+    return <DataStateNote>Demo mode: sessions come from committed demo training data shaped like a workout-app export.</DataStateNote>;
   }
   if (configured.length === 0) {
     if (noticeShown) return null;

@@ -127,7 +127,7 @@ export async function resolveDataset(deps: LiveDeps = {}): Promise<ResolvedDatas
   if (active.length === 0) {
     throw new LiveDataUnavailableError(
       'Live mode is selected but no live source is connected.',
-      'Connect a data source in Settings → Connections.',
+      'Connect a data source in Settings → Sources.',
       host
     );
   }

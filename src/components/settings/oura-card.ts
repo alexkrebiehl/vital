@@ -1,4 +1,4 @@
-// ── Settings → Connections → Oura Ring: state and the save call ─────────────
+// ── Settings → Sources → Oura Ring: state and the save call ─────────────
 //
 // Pure helpers behind the card. Nothing here keeps a secret: `saveOuraApp`
 // takes it as an argument, puts it in the request body and returns only the

@@ -75,14 +75,14 @@ function redirect(location: string, extra: Record<string, string> = {}): Respons
 
 /** Back to Settings on the app's own origin (the registered redirect URI's origin). */
 function settingsUrl(cfg: OuraConfig, outcome: 'connected' | 'denied'): string {
-  return `${new URL(cfg.redirectUri).origin}/settings?tab=connections&oura=${outcome}`;
+  return `${new URL(cfg.redirectUri).origin}/settings?tab=sources&oura=${outcome}`;
 }
 
 async function config(env: NodeJS.ProcessEnv, deps: ConnectDeps): Promise<{ cfg: OuraConfig; key: Buffer } | Response> {
   const read = await readOuraConfig({ env, client: ouraAppClientFor({ env, client: deps.client }) });
   const key = readSecretKey(env);
   if (!read || !read.ok || !key) {
-    return json({ error: read && !read.ok ? read.reason : 'Oura app credentials are not set. Enter them in Settings → Connections.' }, 404);
+    return json({ error: read && !read.ok ? read.reason : 'Oura app credentials are not set. Enter them in Settings → Sources.' }, 404);
   }
   return { cfg: read.config, key };
 }

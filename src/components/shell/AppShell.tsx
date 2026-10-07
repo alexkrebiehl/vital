@@ -23,7 +23,7 @@ interface AppShellProps {
   profileStored: boolean;
   /**
    * Setup mode (live mode, nothing readable yet): no sidebar, mobile navigation,
-   * breadcrumbs, search or links, so the only way forward is Settings → Connections.
+   * breadcrumbs, search or links, so the only way forward is Settings → Sources.
    */
   setupMode?: boolean;
 }

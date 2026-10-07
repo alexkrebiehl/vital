@@ -1,4 +1,4 @@
-// ── Settings → Connections → Health Auto Export: state and the save call ────
+// ── Settings → Sources → Health Auto Export: state and the save call ────
 //
 // Pure helpers behind the card. Nothing here keeps a key: `saveHae` takes it as
 // an argument, puts it in the request body and returns only the server's answer.

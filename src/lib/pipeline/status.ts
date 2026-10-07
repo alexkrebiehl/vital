@@ -93,7 +93,7 @@ function ouraStage(read: OuraConfigResult, probe: OuraProbeResult | null): Pipel
     return {
       ...base,
       status: 'unconfigured',
-      detail: 'Oura app credentials are not set. Enter them in Settings → Connections.',
+      detail: 'Oura app credentials are not set. Enter them in Settings → Sources.',
       derivedFrom: 'Configuration check only; no request was made.',
     };
   }
@@ -101,7 +101,7 @@ function ouraStage(read: OuraConfigResult, probe: OuraProbeResult | null): Pipel
     return {
       ...base,
       status: 'unconfigured',
-      detail: `${probe.detail} Connect it in Settings → Connections.`,
+      detail: `${probe.detail} Connect it in Settings → Sources.`,
       derivedFrom: 'Credential check only; no request was made to Oura.',
     };
   }
@@ -269,7 +269,7 @@ export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<Pi
       name: 'Health Auto Export',
       status: !config.healthApiConfigured ? 'unconfigured' : probeOk ? 'healthy' : 'degraded',
       detail: !config.healthApiConfigured
-        ? 'The data source is not connected. Connect it in Settings → Connections.'
+        ? 'The data source is not connected. Connect it in Settings → Sources.'
         : probeOk
           ? `The configured export server at ${config.healthApiHost ?? 'the configured host'} answered a read-only probe with ${probe.records ?? 0} record(s).`
           : `${probe.detail} The configured host is ${config.healthApiHost ?? 'unknown'}.`,

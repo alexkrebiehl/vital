@@ -109,7 +109,7 @@ export interface RequestDeps {
   haeClient?: PoolLike | null;
 }
 
-export const HAE_NOT_CONNECTED = 'The data source is not connected. Connect it in Settings → Connections.';
+export const HAE_NOT_CONNECTED = 'The data source is not connected. Connect it in Settings → Sources.';
 
 function fetchOf(deps: RequestDeps = {}): typeof fetch {
   const impl = deps.fetchImpl ?? globalThis.fetch;

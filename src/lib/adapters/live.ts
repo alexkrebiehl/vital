@@ -474,8 +474,8 @@ function sourceContext(deps: LiveDeps): SourceContext {
 /** The error for "no source is active", worded for what is actually missing. */
 async function noSourceError(env: NodeJS.ProcessEnv, deps: LiveDeps): Promise<Error> {
   const oura = await readOuraConfig({ env, client: deps.ouraClient, ouraApp: deps.ouraApp });
-  if (oura?.ok) return new NoLiveSourceError('Connect a data source in Settings → Connections.');
-  return new HaeError('Live mode is selected but no data source is connected. Connect one in Settings → Connections.', 'not_configured');
+  if (oura?.ok) return new NoLiveSourceError('Connect a data source in Settings → Sources.');
+  return new HaeError('Live mode is selected but no data source is connected. Connect one in Settings → Sources.', 'not_configured');
 }
 
 async function loadOuraContribution(

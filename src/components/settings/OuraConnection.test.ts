@@ -303,12 +303,18 @@ describe('Settings is the only page that names a data source', () => {
   const ROOT = path.resolve(__dirname, '../..');
   const SETTINGS_PAGE = path.join(ROOT, 'app/settings/page.tsx');
   const ALLOWED_OURA = new Set(
-    ['OuraConnection.tsx', 'OuraConnectionView.tsx', 'OuraAppForm.tsx', 'oura-card.ts']
+    ['OuraConnection.tsx', 'OuraConnectionView.tsx', 'OuraAppForm.tsx', 'oura-card.ts', 'SourcesTab.tsx']
       .map(name => path.join(ROOT, 'components/settings', name))
       .concat(SETTINGS_PAGE)
   );
   const ALLOWED_HAE = new Set(
     ['HaeConnection.tsx', 'HaeConnectionView.tsx', 'hae-card.ts'].map(name => path.join(ROOT, 'components/settings', name)).concat(SETTINGS_PAGE)
+  );
+
+  const ALLOWED_HEVY = new Set(
+    ['HevyConnection.tsx', 'HevyConnectionView.tsx', 'hevy-card.ts']
+      .map(name => path.join(ROOT, 'components/settings', name))
+      .concat(SETTINGS_PAGE)
   );
 
   function walk(dir: string, out: string[] = []): string[] {
@@ -339,6 +345,13 @@ describe('Settings is the only page that names a data source', () => {
     const offenders = pages()
       .filter(file => !ALLOWED_HAE.has(file))
       .filter(file => /Health Auto Export|\bHAE\b/.test(withoutComments(readFileSync(file, 'utf8'))));
+    expect(offenders).toEqual([]);
+  });
+
+  it('keeps the name Hevy out of every other component and page, in text a reader sees', () => {
+    const offenders = pages()
+      .filter(file => !ALLOWED_HEVY.has(file))
+      .filter(file => /\bHevy\b/.test(withoutComments(readFileSync(file, 'utf8'))));
     expect(offenders).toEqual([]);
   });
 

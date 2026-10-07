@@ -1,6 +1,6 @@
 'use client';
 
-// ── Settings → Connections → Health Auto Export ─────────────────────────────
+// ── Settings → Sources → Health Auto Export ─────────────────────────────
 //
 // The one place a reader connects, changes and disconnects the health-data
 // server. Settings is the only page that names a data source.

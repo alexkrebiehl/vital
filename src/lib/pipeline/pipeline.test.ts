@@ -83,7 +83,7 @@ describe('stage derivation (SPEC §10)', () => {
     const report = await resolvePipelineStatus({ env, ...NONE, now: () => NOW, skipDataset: true });
     const stage = report.stages.find(s => s.id === 'health_auto_export')!;
     expect(stage.status).toBe('unconfigured');
-    expect(stage.detail).toContain('Settings → Connections');
+    expect(stage.detail).toContain('Settings → Sources');
     expect(JSON.stringify(report)).not.toMatch(/HAE_API/);
     expect(JSON.stringify(report)).not.toContain(TOKEN);
   });

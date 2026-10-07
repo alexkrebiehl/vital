@@ -1,6 +1,6 @@
 'use client';
 
-// ── Settings → Connections → Oura Ring ──────────────────
+// ── Settings → Sources → Oura Ring ──────────────────
 //
 // The one place a reader enters the Oura app credentials, connects, changes and
 // disconnects the ring. Settings is the only page that names a data source.

@@ -161,7 +161,7 @@ describe('GET /api/sources/oura/callback', () => {
     await configure();
     const res = await callbackRoute(callbackRequest('error=access_denied'));
     expect(res.status).toBe(302);
-    expect(res.headers.get('location')).toBe(`${ORIGIN}/settings?tab=connections&oura=denied`);
+    expect(res.headers.get('location')).toBe(`${ORIGIN}/settings?tab=sources&oura=denied`);
     expect(res.headers.get('set-cookie')).toContain('Max-Age=0');
     expect(seen).toHaveLength(0);
   });
@@ -221,7 +221,7 @@ describe('GET /api/sources/oura/callback', () => {
 
     const res = await callbackRoute(callbackRequest(`code=sample-code&state=${state}`, cookie));
     expect(res.status).toBe(302);
-    expect(res.headers.get('location')).toBe(`${ORIGIN}/settings?tab=connections&oura=connected`);
+    expect(res.headers.get('location')).toBe(`${ORIGIN}/settings?tab=sources&oura=connected`);
     expect(res.headers.get('cache-control')).toBe('private, no-store');
     expect(res.headers.get('set-cookie')).toContain('Max-Age=0');
     await expectNoSecrets(res);

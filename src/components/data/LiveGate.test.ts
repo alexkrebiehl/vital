@@ -32,17 +32,17 @@ describe('showsConnectionError', () => {
 });
 
 describe('setupRedirectTarget', () => {
-  const TARGET = '/settings?tab=connections';
-  it('sends every other page to Settings → Connections', () => {
+  const TARGET = '/settings?tab=sources';
+  it('sends every other page to Settings → Sources', () => {
     for (const p of ['/', '/sleep', '/settingsx', '/analyst', null]) expect(setupRedirectTarget(p, null)).toBe(TARGET);
   });
-  it('sends Settings without a tab to Connections', () => {
+  it('sends Settings without a tab to Sources', () => {
     expect(setupRedirectTarget('/settings', null)).toBe(TARGET);
     expect(setupRedirectTarget('/settings', '')).toBe(TARGET);
     expect(setupRedirectTarget('/settings/', null)).toBe(TARGET);
   });
   it('leaves Settings alone when it already names a tab', () => {
-    expect(setupRedirectTarget('/settings', 'connections')).toBeNull();
+    expect(setupRedirectTarget('/settings', 'sources')).toBeNull();
     expect(setupRedirectTarget('/settings', 'account')).toBeNull();
   });
 });
@@ -91,7 +91,7 @@ describe('LiveGate', () => {
 
   it('in setup mode Settings on a tab renders, and the failure is available to it', () => {
     nav.pathname = '/settings';
-    nav.tab = 'connections';
+    nav.tab = 'sources';
     const html = gate(FAILURE);
     expect(html).toContain('PAGE');
     expect(html).toContain('failure:No source is connected');
