@@ -43,7 +43,6 @@ import { SourcesTab } from '@/components/settings/SourcesTab';
 import { usePipelineReport } from '@/components/settings/usePipelineReport';
 import { SETTINGS_TABS, isSettingsTab, resolveTab } from '@/components/settings/tabs';
 import { WorkoutSources } from '@/components/settings/WorkoutSources';
-import { RemovedSources } from '@/components/settings/RemovedSources';
 import {
   PROFILE_NAME_MAX,
   PROFILE_NOTES_MAX,
@@ -690,11 +689,6 @@ function ConnectionsTab() {
             <SectionHead icon={<Plug size={18} className="text-text-secondary" />} title={title} />
           )
         }
-        onChanged={() => router.refresh()}
-      />
-
-      <RemovedSources
-        heading={title => <SectionHead icon={<Trash2 size={18} className="text-text-secondary" />} title={title} />}
         onChanged={() => router.refresh()}
       />
 
