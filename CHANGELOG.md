@@ -1,8 +1,6 @@
 # Changelog
 
-## [0.3.1] - 2026-10-06
-
-_Release in progress: the date is set when the version is tagged._
+## [0.3.1] - 2026-10-07
 
 ### Changed
 
@@ -16,9 +14,7 @@ _Release in progress: the date is set when the version is tagged._
 - Add data-quality checks to the data pipeline: doubled activity, duplicate readings, missing days, late-starting history and a stopped automation ([`f2297b7`](https://github.com/echupkin/vital/commit/f2297b7))
 - Show only Settings on a first run in live mode until a source is connected and its data loads ([`2f183d5`](https://github.com/echupkin/vital/commit/2f183d5))
 
-## [0.3.0] - 2026-10-04
-
-_Release in progress: the date is set when the version is tagged._
+## [0.3.0] - 2026-10-05
 
 ### Changed
 
