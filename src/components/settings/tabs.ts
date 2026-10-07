@@ -1,8 +1,8 @@
 // ── Settings tabs ────────────────────────────────────────────────────────────
 //
-// Sources holds what feeds the app (the health-data source cards and the Data
-// pipeline); Connections holds the workout and map sources. The first-run
-// gate opens Sources. A legacy `?tab=connections` link opens Connections.
+// Sources holds every connection (health-data sources, workout sources, map
+// sources); Connections holds the data pipeline with its data quality. The
+// first-run gate opens Sources.
 
 export const SETTINGS_TABS = [
   { id: 'account', label: 'Account' },

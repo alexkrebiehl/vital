@@ -16,7 +16,7 @@ import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  Bell, Clock, Database, Dumbbell, Info, Palette, Plug, Ruler, Save, Shield, Trash2, TriangleAlert, UserRound,
+  Bell, Clock, Database, Info, Palette, Ruler, Save, Shield, Trash2, TriangleAlert, UserRound,
 } from 'lucide-react';
 import { getAllMetrics, getMetric } from '@/lib/metrics';
 import { convertValue, displayUnit, formatMetricWithUnit, hasConversion } from '@/lib/metrics/format';
@@ -37,12 +37,10 @@ import {
 import { FreshnessIndicator } from '@/components/shell/FreshnessIndicator';
 import { useProfile } from '@/components/profile/ProfileProvider';
 import { LabUpload } from '@/components/settings/LabUpload';
-import { MapProvidersCard } from '@/components/settings/MapProviders';
+import { ConnectionsTab } from '@/components/settings/ConnectionsTab';
 import { SectionHead } from '@/components/settings/SectionHead';
 import { SourcesTab } from '@/components/settings/SourcesTab';
-import { usePipelineReport } from '@/components/settings/usePipelineReport';
 import { SETTINGS_TABS, isSettingsTab, resolveTab } from '@/components/settings/tabs';
-import { WorkoutSources } from '@/components/settings/WorkoutSources';
 import {
   PROFILE_NAME_MAX,
   PROFILE_NOTES_MAX,
@@ -667,33 +665,6 @@ function DataTab() {
             inside or outside it is not, by itself, evidence about your health.
           </p>
         </div>
-      </Card>
-    </div>
-  );
-}
-
-// ── Connections tab ─────────────────────────────────────
-
-function ConnectionsTab() {
-  const router = useRouter();
-  const { report } = usePipelineReport();
-
-  return (
-    <div className="space-y-5">
-      <WorkoutSources
-        report={report}
-        heading={(kind, title) =>
-          kind === 'section' ? (
-            <SectionHead icon={<Dumbbell size={18} className="text-text-secondary" />} title={title} />
-          ) : (
-            <SectionHead icon={<Plug size={18} className="text-text-secondary" />} title={title} />
-          )
-        }
-        onChanged={() => router.refresh()}
-      />
-
-      <Card className="p-6">
-        <MapProvidersCard heading={(icon, title) => <SectionHead icon={icon} title={title} />} />
       </Card>
     </div>
   );
