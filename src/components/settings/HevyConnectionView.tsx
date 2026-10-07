@@ -7,6 +7,7 @@
 import { CircleCheck, TriangleAlert } from 'lucide-react';
 import { Badge, Button, DataStateNote, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { HAE_KEY_COMMANDS } from './hae-card';
+import type { SyncLine } from './workout-source';
 import { canSaveHevy, hevyCardState, maskedKey, type HevyCardState, type HevyStatusView } from './hevy-card';
 
 export interface HevyConnectionViewProps {
@@ -28,6 +29,8 @@ export interface HevyConnectionViewProps {
   onCancelDisconnect: () => void;
   onDisconnect: () => void;
   onRetry: () => void;
+  /** The source's sync status from the pipeline report, shown inside this card. */
+  syncLine?: SyncLine | null;
 }
 
 const INPUT_CLASS =
@@ -158,6 +161,20 @@ function Stored({ props, status, state }: { props: HevyConnectionViewProps; stat
   );
 }
 
+function Sync({ line }: { line: SyncLine }) {
+  const warn = line.tone === 'warning';
+  return (
+    <p
+      data-sync-line=""
+      role={warn ? 'alert' : undefined}
+      className={`text-xs flex items-center gap-1.5 ${warn ? 'text-category-attention' : 'text-text-secondary'}`}
+    >
+      {warn && <TriangleAlert size={12} aria-hidden="true" />}
+      {line.text}
+    </p>
+  );
+}
+
 function NotAvailable() {
   return (
     <div className="space-y-2">
@@ -206,6 +223,7 @@ export function HevyConnectionView(props: HevyConnectionViewProps) {
       <div className="flex flex-wrap items-center gap-2">
         <StateBadge state={state} />
       </div>
+      {props.syncLine && <Sync line={props.syncLine} />}
 
       {state === 'not_available' && <NotAvailable />}
 

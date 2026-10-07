@@ -1,6 +1,6 @@
 'use client';
 
-// ── Settings → Connections → Hevy ───────────────────────────────────────────
+// ── Settings → Connections → Workout sources → Hevy ───────────────────────────────────────────
 //
 // The one place a reader connects, changes and disconnects the Hevy API key.
 // Settings is the only page that names a data source.
@@ -12,6 +12,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { HEVY_PATH, saveHevy, type HevyStatusView } from './hevy-card';
+import type { SyncLine } from './workout-source';
 import { HevyConnectionView } from './HevyConnectionView';
 
 export * from './hevy-card';
@@ -22,9 +23,11 @@ export interface HevyConnectionProps {
   heading?: (title: string) => React.ReactNode;
   /** Called after a successful save or disconnect, so server-rendered data refreshes. */
   onChanged?: (event: 'saved' | 'disconnected') => void;
+  /** The source's sync status from the pipeline report, shown in the same card. */
+  syncLine?: SyncLine | null;
 }
 
-export function HevyConnection({ heading, onChanged }: HevyConnectionProps) {
+export function HevyConnection({ heading, onChanged, syncLine }: HevyConnectionProps) {
   const [status, setStatus] = useState<HevyStatusView | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -117,6 +120,7 @@ export function HevyConnection({ heading, onChanged }: HevyConnectionProps) {
         onCancelDisconnect={() => setConfirming(false)}
         onDisconnect={() => void disconnect()}
         onRetry={() => void load()}
+        syncLine={syncLine}
       />
     </>
   );

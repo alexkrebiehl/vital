@@ -219,3 +219,25 @@ describe('saveHevy', () => {
     });
   });
 });
+
+describe('Hevy card inside Workout sources', () => {
+  it('shows the sync line next to the key, URL and Change / Disconnect', () => {
+    const html = render(
+      { ...CONNECTED, url: SAMPLE_URL },
+      { syncLine: { text: 'Connected (hevy-sample.invalid) · 4 sessions', tone: 'neutral' } },
+    );
+    expect(html).toContain('Connected (hevy-sample.invalid) · 4 sessions');
+    expect(html).toContain(SAMPLE_URL);
+    expect(html).toContain('Change');
+    expect(html).toContain('Disconnect');
+  });
+
+  it('a sync error is shown as an alert in the same card', () => {
+    const html = render({ ...CONNECTED }, { syncLine: { text: 'Error: sample failure', tone: 'warning' } });
+    expect(html).toMatch(/role="alert"[^>]*>[^<]*(<svg[^>]*>.*?<\/svg>)?Error: sample failure/);
+  });
+
+  it('renders no sync line when none is given', () => {
+    expect(render({ ...CONNECTED })).not.toContain('data-sync-line');
+  });
+});

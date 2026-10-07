@@ -42,7 +42,7 @@ import { useProfile } from '@/components/profile/ProfileProvider';
 import { LabUpload } from '@/components/settings/LabUpload';
 import { MapProvidersCard } from '@/components/settings/MapProviders';
 import { HaeConnection } from '@/components/settings/HaeConnection';
-import { HevyConnection } from '@/components/settings/HevyConnection';
+import { WorkoutSources } from '@/components/settings/WorkoutSources';
 import { nextStepAfterChange } from '@/components/settings/hae-card';
 import { DataQualitySection } from '@/components/settings/DataQuality';
 import { OuraConnection } from '@/components/settings/OuraConnection';
@@ -775,42 +775,17 @@ function ConnectionsTab() {
         )}
       </Card>
 
-      <Card className="p-6">
-        <SectionHead icon={<Dumbbell size={18} className="text-text-secondary" />} title="Workout sources" />
-        <p className="text-xs text-text-secondary leading-relaxed mb-3">
-          Apple Health records a workout&apos;s type, time and calories only. A workout source adds what was actually
-          done — exercises, sets, reps, load and effort — which the routine on the Workouts page needs.
-        </p>
-        <div className="space-y-3 text-sm">
-          {(report?.workoutSources ?? []).map(source => (
-            <StatusRow
-              key={source.id}
-              label={source.displayName}
-              value={
-                source.origin === 'demo'
-                  ? `Demo sessions (${source.sessions})`
-                  : !source.configured
-                    ? 'Not connected'
-                    : source.lastError
-                      ? `Error: ${source.lastError}`
-                      : `Connected (${source.host ?? 'host unknown'}) · ${source.sessions} session${source.sessions === 1 ? '' : 's'}${
-                          source.lastSyncAt ? ` · synced ${source.lastSyncAt.slice(0, 16).replace('T', ' ')} UTC` : ''
-                        }`
-              }
-              tone={source.lastError ? 'warning' : source.configured || source.origin === 'demo' ? 'neutral' : 'muted'}
-            />
-          ))}
-          {report && report.workoutSources.length === 0 && (
-            <p className="text-xs text-text-secondary">No workout source was checked.</p>
-          )}
-        </div>
-        <div className="mt-4">
-          <DataStateNote>
-            Source connections are kept on the server only. Synced sessions stay in the server&apos;s memory
-            and are never written to the database.
-          </DataStateNote>
-        </div>
-      </Card>
+      <WorkoutSources
+        report={report}
+        heading={(kind, title) =>
+          kind === 'section' ? (
+            <SectionHead icon={<Dumbbell size={18} className="text-text-secondary" />} title={title} />
+          ) : (
+            <SectionHead icon={<Plug size={18} className="text-text-secondary" />} title={title} />
+          )
+        }
+        onChanged={() => router.refresh()}
+      />
 
       <Card className="p-6">
         <HaeConnection
@@ -830,13 +805,6 @@ function ConnectionsTab() {
         <OuraConnection
           heading={title => <SectionHead icon={<Plug size={18} className="text-text-secondary" />} title={title} />}
           noticeParam={ouraNotice}
-          onChanged={() => router.refresh()}
-        />
-      </Card>
-
-      <Card className="p-6">
-        <HevyConnection
-          heading={title => <SectionHead icon={<Plug size={18} className="text-text-secondary" />} title={title} />}
           onChanged={() => router.refresh()}
         />
       </Card>
