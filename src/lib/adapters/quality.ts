@@ -328,7 +328,7 @@ function label(metricId: string): string {
   return getMetric(metricId)?.displayName ?? metricId;
 }
 
-function listLabels(ids: string[]): string {
+export function listLabels(ids: string[]): string {
   const names = ids.map(label);
   if (names.length <= 1) return names.join('');
   return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
