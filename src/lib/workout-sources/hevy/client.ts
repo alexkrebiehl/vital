@@ -53,6 +53,8 @@ export interface HevyConfig {
   apiKey: string;
   ttlSeconds: number;
   timeoutMs: number;
+  /** 429 retries per request. Absent means HEVY_RATE_LIMIT_RETRIES; a save check sets 0. */
+  rateLimitRetries?: number;
 }
 
 /**
@@ -135,11 +137,12 @@ export async function hevyGet<T>(
     }
 
     if (response.status === 429) {
-      if (attempt < HEVY_RATE_LIMIT_RETRIES) {
+      const retries = config.rateLimitRetries ?? HEVY_RATE_LIMIT_RETRIES;
+      if (attempt < retries) {
         await sleep(HEVY_RATE_LIMIT_BACKOFF_MS * (attempt + 1));
         continue;
       }
-      throw new HevyError(`Hevy rate-limited ${path} after ${HEVY_RATE_LIMIT_RETRIES} retries.`, 'rate_limited', 429);
+      throw new HevyError(`Hevy rate-limited ${path} after ${retries} retries.`, 'rate_limited', 429);
     }
     if (response.status === 401 || response.status === 403) {
       throw new HevyError(

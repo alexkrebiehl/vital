@@ -8,9 +8,7 @@ import { hevyHost, hevyGet, readHevyConfig } from './client';
 import {
   HEVY_CONFIG_CACHE_MS,
   clearHevyConfigCache,
-  lastHevyError,
   readStoredHevy,
-  recordHevyOutcome,
   removeStoredHevy,
   saveStoredHevy,
 } from './hevy-store';
@@ -34,7 +32,6 @@ function counting(db: ReturnType<typeof fakeTable>): PoolLike & { reads: () => n
 
 beforeEach(() => {
   clearHevyConfigCache();
-  recordHevyOutcome(null);
   resetTrainingStoreForTests();
 });
 
@@ -152,13 +149,9 @@ describe('storage', () => {
     expect(flat).not.toContain(SECRET);
   });
 
-  it('save throws without a key or a database, and keeps the last error out of it', async () => {
+  it('save throws without a key or a database', async () => {
     await expect(saveStoredHevy({ env: envWith(null), hevyClient: fakeTable() }, { apiKey: SECRET, url: '' })).rejects.toThrow();
     await expect(saveStoredHevy({ env: envWith(KEY), hevyClient: null }, { apiKey: SECRET, url: '' })).rejects.toThrow();
-    recordHevyOutcome({ kind: 'unauthorised', message: 'x' });
-    expect(lastHevyError()).toEqual({ kind: 'unauthorised', message: 'x' });
-    await saveStoredHevy({ env: envWith(KEY), hevyClient: fakeTable() }, { apiKey: SECRET, url: '' });
-    expect(lastHevyError()).toBeNull();
   });
 });
 

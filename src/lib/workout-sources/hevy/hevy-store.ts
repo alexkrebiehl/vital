@@ -2,13 +2,13 @@
 //
 // The API key and the optional API URL live encrypted in Postgres
 // (`source_credentials`, source_id 'hevy'); the environment is never read for
-// them. This module reads, writes and deletes that one row, keeps a short
-// in-process cache of the read, and remembers the last upstream failure for the
-// Settings card.
+// them. This module reads, writes and deletes that one row and keeps a short
+// in-process cache of the read.
 //
 // A missing or unusable VITAL_SECRET_KEY, a row written under another key, a
 // corrupt row and a missing database all read as "not usable" and never throw.
-// Nothing here logs, and no value returned for display holds the key.
+// Nothing here logs, and no value returned for display holds the key. The last
+// sync failure shown on the card is the training store's (workout-sources/store).
 
 import { deleteCredential, getSecretConfig, putSecretConfig } from '@/lib/db/credentials-store';
 import { getPool, type PoolLike } from '@/lib/db/pool';
@@ -39,19 +39,10 @@ interface Entry {
 }
 
 let cache = new WeakMap<object, Entry>();
-let lastError: { kind: string; message: string } | null = null;
 
 /** Drop the cached read. Called by every write and delete. */
 export function clearHevyConfigCache(): void {
   cache = new WeakMap();
-}
-
-export function recordHevyOutcome(error: { kind: string; message: string } | null): void {
-  lastError = error;
-}
-
-export function lastHevyError(): { kind: string; message: string } | null {
-  return lastError;
 }
 
 /** The pool, or null when there is no database or its settings are invalid. */
@@ -106,7 +97,6 @@ export async function saveStoredHevy(deps: HevyStoreDeps, value: HevyValues): Pr
     readSecretKey(deps.env ?? process.env)
   );
   clearHevyConfigCache();
-  lastError = null;
 }
 
 /** Delete the stored connection, then drop the cache. Returns whether a row was removed. */
@@ -115,6 +105,5 @@ export async function removeStoredHevy(deps: HevyStoreDeps = {}): Promise<boolea
   if (!client) throw new Error('A database is required to manage the connection.');
   const removed = await deleteCredential(client, HEVY_STORE_SOURCE_ID);
   clearHevyConfigCache();
-  lastError = null;
   return removed;
 }

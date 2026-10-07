@@ -84,6 +84,11 @@ export function purgeTrainingSources(removedIds: string[]): void {
 
 registerPurger('workout-sources.store', purgeTrainingSources);
 
+/** The last sync failure of a source (message only), or null. Synchronous; starts nothing. */
+export function lastTrainingSourceError(id: string): string | null {
+  return processStore().errors.get(id) ?? null;
+}
+
 /** Drop every held session. Tests only. */
 export function resetTrainingStoreForTests(): void {
   const g = globalThis as typeof globalThis & { [STORE_KEY]?: ProcessStore };
