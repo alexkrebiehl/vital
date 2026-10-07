@@ -284,8 +284,8 @@ export function MapCard({
                 <DataStateNote tone="attention">
                   {drawn.missingKey.label} has no API key configured, so its tiles are requested without one and may not
                   load. Set <code>{drawn.missingKey.key.envVar}</code>; see{' '}
-                  <Link href="/settings?tab=connections" className="underline">
-                    Settings → Connections
+                  <Link href="/settings?tab=sources" className="underline">
+                    Settings → Sources
                   </Link>
                   .
                 </DataStateNote>

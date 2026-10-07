@@ -24,7 +24,7 @@ That starts **two** services: `vital-postgres` (the database, published on
 if they fail**, so it can never serve a half-migrated database.
 
 What lives in Postgres: your configuration — your connections (Health Auto Export, Oura and Hevy: addresses, keys and
-tokens, **encrypted** with `VITAL_SECRET_KEY`, saved from Settings → Sources and Settings → Connections), the profile (name, date of birth, timezone, briefing
+tokens, **encrypted** with `VITAL_SECRET_KEY`, saved from Settings → Sources), the profile (name, date of birth, timezone, briefing
 hour, notes) and the display preferences (theme mode and light/dark theme picks, units,
 notifications). **No health data**: no
 observations, metric series or workouts are ever written to it; health history stays with the

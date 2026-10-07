@@ -1,6 +1,6 @@
 'use client';
 
-// ── Settings → Connections → Workout sources → Hevy ───────────────────────────────────────────
+// ── Settings → Sources → Workout sources → Hevy ───────────────────────────────────────────
 //
 // The one place a reader connects, changes and disconnects the Hevy API key.
 // Settings is the only page that names a data source.

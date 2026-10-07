@@ -1,6 +1,6 @@
 'use client';
 
-// ── Settings → Connections → Map sources ───────────────────────
+// ── Settings → Sources → Map sources ───────────────────────
 //
 // The map sources (tile providers) Activity → Maps can draw on, and whether each is ready: it
 // needs no key, or its key is set in the server environment. Read-only, like the

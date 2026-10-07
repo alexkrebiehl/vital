@@ -1,6 +1,6 @@
 // ── Workout sources card: the sync line and which source has a form ─────────
 //
-// Each source in the pipeline report gets one card under Settings → Connections →
+// Each source in the pipeline report gets one card under Settings → Sources →
 // Workout sources. The card's sync line is derived from the report alone; a
 // source that has a connection form shows the form in the same card.
 

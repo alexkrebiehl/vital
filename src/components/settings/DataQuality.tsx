@@ -1,6 +1,6 @@
 'use client';
 
-// ── Settings → Sources → Data pipeline: data quality ─
+// ── Settings → Connections → Data pipeline: data quality ─
 //
 // What the checks in `src/lib/adapters/quality.ts` found in the live export,
 // each finding with the days it affects and the steps that fix it, then the

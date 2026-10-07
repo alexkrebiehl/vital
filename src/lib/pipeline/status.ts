@@ -214,7 +214,7 @@ export function qualityStage(job: QualityJob | null, mode: 'demo' | 'live', summ
       : notes.length
         ? `No recent problems. ${notes.length} note${notes.length === 1 ? '' : 's'} about older history or the food log: ${notes.map(f => f.title.toLowerCase()).join('; ')}.`
         : hidden > 0
-          ? `No data-quality problems found. ${hidden} issue${hidden === 1 ? ' is' : 's are'} silenced in Settings → Sources.`
+          ? `No data-quality problems found. ${hidden} issue${hidden === 1 ? ' is' : 's are'} silenced in Settings → Connections.`
           : `All ${quality.checks.length} checks passed: no activity counted twice, no reading stored twice, no missing days, and new data is arriving.`,
     derivedFrom: `${quality.checks.length} checks on the export's records as stored, before daily aggregation (${flagged} flagged).`,
     observationCount: summary.observationCount,

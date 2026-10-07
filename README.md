@@ -131,7 +131,7 @@ squiggle per session.
 - **Each map keeps its own view**: which activities to draw, a date range, and what the line colour
   means — how often you travelled a stretch, or your average heart rate along it.
 - **Your choice of map underneath**: CARTO (light, dark, or following your theme; needs a free key),
-  OpenStreetMap or OpenTopoMap terrain, chosen per map. Settings → Connections → Map sources shows which are ready.
+  OpenStreetMap or OpenTopoMap terrain, chosen per map. Settings → Sources → Map sources shows which are ready.
 - **Highlights beside the map**: workouts, time and distance in the area, distinct and new ground,
   your longest session there and your hardest stretch — hover one to see it on the map.
 
@@ -233,7 +233,7 @@ Oura works on its own or next to HAE. It signs in with OAuth, so a token cannot 
 
 **Hevy**
 
-For exercises, sets, reps, load and effort, open *Settings → Connections → Workout sources*, enter your Hevy key
+For exercises, sets, reps, load and effort, open *Settings → Sources → Workout sources*, enter your Hevy key
 (Hevy Pro; create one at hevy.com/settings?developer) in the Hevy card, and save. It is stored
 encrypted with `VITAL_SECRET_KEY`.
 
@@ -266,8 +266,8 @@ ANALYST_API_URL=http://host.docker.internal:1234/v1
 ### Make it yours
 
 - *Settings → Account* — your name, timezone, the hour the briefing is written, and your **Goals**.
-- *Settings → Sources* — Health Auto Export and Oura, the data pipeline and data quality (with Silence and Restore).
-- *Settings → Connections → Workout sources* and *Map sources* — Hevy, and which map providers are ready.
+- *Settings → Sources* — every connection: Health Auto Export, Oura, *Workout sources* (Hevy) and *Map sources* (which map providers are ready).
+- *Settings → Connections* — the data pipeline and data quality (with Silence and Restore).
 - *Themes* — pick a look for light and dark.
 
 The app listens on port **8080** (change it with `VITAL_PORT`) and Postgres on `127.0.0.1:5433`.

@@ -1,6 +1,6 @@
 'use client';
 
-// ── Settings → Connections → Workout sources ────────────────────────────────
+// ── Settings → Sources → Workout sources ────────────────────────────────
 //
 // One card per workout source in the pipeline report. A source with a connection
 // form (today Hevy) shows the form and its sync status in the same card; any

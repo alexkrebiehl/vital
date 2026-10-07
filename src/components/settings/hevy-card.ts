@@ -1,4 +1,4 @@
-// ── Settings → Connections → Hevy: state and the save call ──────────────────
+// ── Settings → Sources → Hevy: state and the save call ──────────────────
 //
 // Pure helpers behind the card. Nothing here keeps a key: `saveHevy` takes it as
 // an argument, puts it in the request body and returns only the server's answer.

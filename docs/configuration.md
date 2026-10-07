@@ -327,8 +327,8 @@ records, and the request is bounded.
 Vital has two levels of settings.
 
 - **User level** is what you connect: your accounts and their keys. You enter them in
-  **Settings**: Health Auto Export and Oura under **Sources**, Hevy under **Connections → Workout
-  sources**. Vital checks them with one read-only request and, only if that works,
+  **Settings**: Health Auto Export, Oura and Hevy under **Sources** (Hevy in
+  **Workout sources**). Vital checks them with one read-only request and, only if that works,
   stores them in Postgres, **encrypted** with `VITAL_SECRET_KEY` (AES-256-GCM). A saved key is never
   shown again (Settings shows only its last 4 characters) and is never returned by the API.
 - **Admin level** is how the server runs. It lives in the environment (`.env`, passed through
@@ -338,7 +338,7 @@ Vital has two levels of settings.
 |---|---|---|
 | User | Health Auto Export address and read key | Settings → Sources, Health Auto Export card |
 | User | Oura client ID, client secret and redirect URI | Settings → Sources, Oura card |
-| User | Hevy API key and address (optional) | Settings → Connections → Workout sources, Hevy card |
+| User | Hevy API key and address (optional) | Settings → Sources → Workout sources, Hevy card |
 | Admin | `VITAL_SECRET_KEY`, the key that encrypts the stored connections | environment |
 | Admin | Database credentials (`VITAL_PG_*`, `DATABASE_URL`) and `VITAL_PORT` | environment |
 | Admin | `VITAL_DATA_MODE` (`demo` or `live`) | environment |
@@ -349,7 +349,7 @@ Vital has two levels of settings.
 These variables are **ignored** if they are set: `HAE_API_URL`, `HAE_API_KEY`, `OURA_CLIENT_ID`,
 `OURA_CLIENT_SECRET`, `OURA_REDIRECT_URI`, `HEVY_API_KEY` and `HEVY_API_URL`. After upgrading, each
 instance re-enters those credentials once: Health Auto Export and Oura in Settings → Sources, Hevy in
-Settings → Connections → Workout sources. Remove the old lines from
+Settings → Sources → Workout sources. Remove the old lines from
 `.env` when convenient; nothing reads them.
 
 `npm run db:init` generates `VITAL_SECRET_KEY` into `.env` when it is missing. Without a usable key
@@ -386,7 +386,7 @@ environment.
 
 ### Hevy
 
-The key and optional address are entered in **Settings → Connections → Workout sources**. `HEVY_CACHE_TTL_SECONDS`
+The key and optional address are entered in **Settings → Sources → Workout sources**. `HEVY_CACHE_TTL_SECONDS`
 (default `300`) is the only Hevy variable and sets how long a synced workout set is reused.
 
 ## Safety properties of the live path

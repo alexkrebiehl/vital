@@ -228,7 +228,7 @@ export function ExerciseDataNotice({ routine }: { routine: RoutineOverview }) {
             Until one is connected they show as not tracked, and sessions aren&rsquo;t counted as missed. The plan itself works as
             usual.
           </p>
-          <Link href="/settings?tab=connections" className="inline-flex items-center gap-1 text-xs text-primary hover:underline min-h-[24px]">
+          <Link href="/settings?tab=sources" className="inline-flex items-center gap-1 text-xs text-primary hover:underline min-h-[24px]">
             Connect a workout source <ArrowRight size={12} aria-hidden="true" />
           </Link>
         </div>

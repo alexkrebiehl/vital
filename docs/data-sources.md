@@ -85,7 +85,7 @@ versions, so the setting names below describe what to look for rather than quote
    can also ask the server directly:
    `GET /api/metrics/step_count?from=2026-06-01&to=2026-06-30` with the read token.
 
-**Settings → Sources → Data pipeline** runs these checks for you under **Data quality**. They
+**Settings → Connections → Data pipeline** runs these checks for you under **Data quality**. They
 run in the background after each load of the live data, so no page waits for them; the panel
 shows that they are running until the result is ready. It reads the records as the server stores them, before they are
 added up per day. Each finding explains what it found, lists the affected days, and gives the
@@ -269,7 +269,7 @@ session came from.
 
 **Hevy** is the first source (Hevy Pro; create a key at hevy.com/settings?developer):
 
-Open *Settings → Connections → Workout sources*, enter the key (and, only if you need it, another API address) in the
+Open *Settings → Sources → Workout sources*, enter the key (and, only if you need it, another API address) in the
 Hevy card, and save. Vital makes one read-only request to check it and, only if that works, stores
 it in Postgres, encrypted with `VITAL_SECRET_KEY`. The key is never shown again. Two admin
 settings in the environment tune it:
@@ -284,7 +284,7 @@ The first sync pages `GET /v1/workouts` back to the lookback window and reads th
 catalogue once; later syncs read only Hevy's change feed (`GET /v1/workouts/events?since=`).
 Like the Health Auto Export history, sessions live in server memory and are **never written to
 the database**; demo mode serves committed demo sessions (`src/data/training-fixtures.json`)
-and calls nothing. Settings → Connections → Workout sources shows each source's status.
+and calls nothing. Settings → Sources → Workout sources shows each source's status.
 
 ## Workout routes (Activity → Maps)
 
@@ -327,7 +327,7 @@ Tiles load from the provider straight into the browser.
 Every provider can be chosen whether or not its key is set. A map on a provider whose key is
 missing still requests its tiles, without the key (the provider may refuse them), and says the key
 is missing. Keys are read from the
-server environment only; Settings → Connections → Map sources shows which providers are ready, never the
+server environment only; Settings → Sources → Map sources shows which providers are ready, never the
 key.
 
 ---

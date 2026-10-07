@@ -1,5 +1,5 @@
 // Guard for the user-level / admin-level split: the Oura app credentials and the
-// Hevy key and URL live in Postgres (Settings → Connections). Nothing in the
+// Hevy key and URL live in Postgres (Settings → Sources). Nothing in the
 // application may read them from the environment, so their names must not appear
 // in the source tree outside tests.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -58,16 +58,29 @@ describe('env split', () => {
 
   it('docs do not send Health Auto Export or Oura to Settings → Connections', () => {
     const files = ['README.md', ...readdirSync(path.join(ROOT, 'docs')).filter(n => n.endsWith('.md')).map(n => `docs/${n}`)];
-    // Connections is right only for Workout sources and Map sources (Hevy, map providers).
-    const wrong = /Settings → Connections(?! → (?:Workout|Map) sources)/g;
+    // Connections is right only for the data pipeline; every connection is under Sources.
+    const wrong = /Settings → Connections(?! → Data pipeline)/g;
     const bad: string[] = [];
     for (const file of files) {
       const text = readFileSync(path.join(ROOT, file), 'utf8');
       for (const m of text.matchAll(wrong)) {
-        const near = text.slice(Math.max(0, m.index - 100), m.index + 100);
+        const start = text.lastIndexOf('\n', m.index) + 1;
+        const end = text.indexOf('\n', m.index);
+        const near = text.slice(start, end === -1 ? undefined : end);
         if (/Health Auto Export|Oura/.test(near)) bad.push(`${file}: ${near.replace(/\s+/g, ' ')}`);
       }
     }
     expect(bad).toEqual([]);
+  });
+
+  it('docs put Workout sources and Map sources under Sources, and the pipeline under Connections', () => {
+    const text = ['README.md', 'docs/data-sources.md', 'docs/configuration.md']
+      .map(n => readFileSync(path.join(ROOT, n), 'utf8'))
+      .join('\n');
+    expect(text).toContain('Settings → Sources → Workout sources');
+    expect(text).toContain('Settings → Sources → Map sources');
+    expect(text).toContain('Settings → Connections → Data pipeline');
+    expect(text).not.toMatch(/Settings → Connections → (?:Workout|Map) sources/);
+    expect(text).not.toMatch(/Settings → Sources → Data pipeline/);
   });
 });
