@@ -14,6 +14,7 @@
 // run that grows by distance, and assisted work (where less assistance is the
 // progress — see the load suffix and the "Reduce assistance" advice).
 
+import { easedKey } from '../deload';
 import { doseText, rangeText, weightText } from '../format';
 import type { PerformanceRecord } from '../records';
 import type { UnitSystem } from '../../prefs';
@@ -121,9 +122,20 @@ export const variationModel: ProgressionModel = {
       const prevQ = quantityFor(prevTarget, ctx.previousRecords);
       const prev = ctx.previousRecords.map(r => judge(r, prevTarget, prevQ, rpeCeiling(prevTarget, ctx.rules)));
       let best = 0;
+      let before: number | null = null;
       prev.forEach((j, i) => {
-        const signal = i === prev.length - 1 ? `Final ${ctx.previousStage!.name.toLowerCase()} session before progression` : trendSignal(j.total, i ? prev[i - 1].total : null, best);
-        best = Math.max(best, j.total);
+        // Deload sessions of the previous stage are labelled as such and left out of its trend.
+        const easedPrev = ctx.eased.has(easedKey(ctx.previousStage!.id, j.record.sessionId));
+        const signal =
+          i === prev.length - 1
+            ? `Final ${ctx.previousStage!.name.toLowerCase()} session before progression`
+            : easedPrev
+              ? DELOAD_SIGNAL
+              : trendSignal(j.total, before, best);
+        if (!easedPrev) {
+          best = Math.max(best, j.total);
+          before = j.total;
+        }
         if (i >= prev.length - 3) {
           rows.push({ ...rowFor(j, ctx.previousStage!.name, ctx.previousStage!.id, prevQ, ctx), signal, keep: i === prev.length - 1 });
         }

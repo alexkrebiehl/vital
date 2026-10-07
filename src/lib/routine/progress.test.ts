@@ -437,6 +437,13 @@ describe('phases', () => {
     expect(r.currentPhase).toMatchObject({ index: 1, name: 'Declines', since: '2026-09-08', progress: { met: 1, total: 2 } });
     expect(r.phases[0].completedOn).toBe('2026-09-08');
     expect(r.phases[1].targets.map(t => t.met)).toEqual([true, false]);
+    // Begun is not done: both decline targets show in progress until the stage is mastered.
+    expect(r.phases[1].targets.map(t => [t.state, t.stateOn])).toEqual([
+      ['in-progress', '2026-09-08'],
+      ['in-progress', '2026-09-08'],
+    ]);
+    expect(r.phases[0].targets[0]).toMatchObject({ state: 'done', stateOn: '2026-09-08' });
+    expect(r.phases[2].targets[0]).toMatchObject({ state: 'not-started', stateOn: null });
   });
 
   it('moves on once the stage is mastered, and optional or unverifiable targets never hold a phase open', () => {
@@ -469,6 +476,8 @@ describe('phases', () => {
     expect(run(p, EXAMPLE, '2026-09-18').phases[0].targets.map(t => t.met)).toEqual([false, false, false]);
     const more = [...EXAMPLE, session('2026-09-22', [{ name: 'Decline Push Up', sets: reps([12, 12, 12], [8, 8, 8]) }])];
     expect(run(p, more, '2026-09-22').phases[0].targets.map(t => t.met)).toEqual([true, true, false]);
+    // A dose not yet reached is in progress once its stage has sessions.
+    expect(run(p, more, '2026-09-22').phases[0].targets.map(t => t.state)).toEqual(['done', 'done', 'in-progress']);
   });
 
   it('does not count a first stage as started until something is logged on it', () => {
@@ -559,6 +568,21 @@ describe('deload sessions pause progress', () => {
   ];
   const deloadDay = day('2026-09-29', [8, 8, 8], 7.5, [4, 4, 4], 7.5);
 
+  it('labels the previous stage\'s deload sessions after the path moves on', () => {
+    const ready = [
+      day('2026-09-18', [12, 12, 11], 9, [5, 5, 4], 9),
+      day('2026-09-22', [12, 12, 11], 9, [5, 5, 5], 9),
+      day('2026-09-25', [12, 12, 12], 9, [6, 6, 5], 9),
+    ];
+    const eased = [day('2026-09-29', [8, 8, 8], 7.5, [4, 4, 4], 7.5), day('2026-10-02', [8, 8, 8], 7.5, [4, 4, 4], 7.5)];
+    const next = session('2026-10-06', [{ name: 'Diamond Push Up', sets: reps([8, 8, 8], [8, 8, 8]) }, { name: 'Pull Up', sets: reps([6, 6, 6], [8, 8, 8]) }]);
+    const push = run(pushPull(), [...ready, ...eased, next], '2026-10-06').paths[0];
+    expect(push.stage).toMatchObject({ id: 'close-grip', startedOn: '2026-10-06' });
+    const signal = (date: string) => push.rows.find(r => r.dates.includes(date))?.signal;
+    expect(signal('2026-09-29')).toBe('Deload session · progress paused');
+    expect(signal('2026-10-02')).toBe('Final decline push-up session before progression');
+  });
+
   it('reads the deload from the sessions and keeps the pre-deload light', () => {
     const withDeload = run(pushPull(), [...before, deloadDay], '2026-09-29');
     const without = run(pushPull(), before, '2026-09-29');
@@ -634,6 +658,54 @@ describe('inferCurrentStages', () => {
       ['decline', '2026-09-08'],
     ]);
     expect(changes).toEqual(['Horizontal push: Decline push-up (since 2026-09-08)']);
+  });
+});
+
+describe('moving on from logged sessions', () => {
+  // Decline push-ups mastered: 2 qualifying sessions after the worked example.
+  const MASTERED = [
+    ...EXAMPLE,
+    session('2026-09-22', [{ name: 'Decline Push Up', sets: reps([12, 12, 11], [8, 8.5, 9]) }]),
+    session('2026-09-25', [{ name: 'Decline Push Up', sets: reps([12, 12, 12], [8, 8.5, 9]) }]),
+  ];
+  const diamond = (date: string) => session(date, [{ name: 'Diamond Push Up', sets: reps([8, 8, 8], [8, 8, 8]) }]);
+  const started = { phases: [{ name: 'Close grip', targets: [{ pathId: 'push', stageId: 'close-grip', reach: 'started', label: 'Close-grip push-ups' }] }] };
+
+  it('moves to the next stage once its marker is met and the next stage is logged', () => {
+    const r = run(pushPlan(started), [...MASTERED, diamond('2026-09-29')], '2026-09-29');
+    const push = r.paths[0];
+    expect(push.stage).toMatchObject({ id: 'close-grip', startedOn: '2026-09-29' });
+    expect(push.stages.map(s => s.status)).toEqual(['done', 'done', 'current']);
+    expect(push.rows.map(row => row.signal)).toContain('Final decline push-up session before progression');
+    expect(push.lastSession?.work).toBe('Close-grip push-up 8/8/8');
+    expect(r.phases[0].targets[0]).toMatchObject({ met: true, metOn: '2026-09-29', state: 'in-progress', stateOn: '2026-09-29' });
+  });
+
+  it('keeps a try at the next stage before the marker is met as work ahead', () => {
+    const r = run(pushPlan(started), [...EXAMPLE, diamond('2026-09-20')], '2026-09-20');
+    const push = r.paths[0];
+    expect(push.stage.id).toBe('decline');
+    expect(push.rows[push.rows.length - 1].signal).toMatch(/^Ahead of the current stage · /);
+    expect(r.phases[0].targets[0].met).toBe(false);
+  });
+
+  it('moves on from the first next-stage session after the marker is met', () => {
+    const push = run(pushPlan(), [...MASTERED, diamond('2026-09-20'), diamond('2026-09-29')], '2026-09-29').paths[0];
+    expect(push.stage).toMatchObject({ id: 'close-grip', startedOn: '2026-09-29' });
+    // The early try still shows, labelled as before the stage began.
+    const early = push.rows.flatMap(row => [row, ...(row.also ?? [])]).find(row => row.dates.includes('2026-09-20') && row.stageId === 'close-grip');
+    expect(early?.signal).toMatch(/^Tried before this stage began · /);
+  });
+
+  it('leaves a path on hold where it is', () => {
+    const hold = { hold: { kind: 'hold', reason: 'elbow ache', since: '2026-09-26' } };
+    expect(run(pushPlan({}, hold), [...MASTERED, diamond('2026-09-29')], '2026-09-29').paths[0].stage.id).toBe('decline');
+  });
+
+  it('does not store the move: the plan keeps its own current stage', () => {
+    const p = pushPlan();
+    run(p, [...MASTERED, diamond('2026-09-29')], '2026-09-29');
+    expect(p.focusAreas[0].paths[0].currentStageId).toBe('decline');
   });
 });
 
