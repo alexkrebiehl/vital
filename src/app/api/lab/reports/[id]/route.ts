@@ -79,7 +79,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
   }
 
   // The last report going makes the lab source inactive: notice it now, so the
-  // conversations that used lab results are hidden at once (plan §8).
+  // conversations that used lab results are deleted at once (plan §8).
   await reconcileQuietly();
 
   return NextResponse.json({ deleted: true, reportId: id, fileRemoved }, { status: 200, headers: NO_STORE });
