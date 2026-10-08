@@ -17,14 +17,15 @@ export interface CardHeading {
 }
 
 /**
- * The browser half of a card type (docs/design/dashboard.md §4.1). The `Editor`
- * member arrives with the add/edit dialog.
+ * The browser half of a card type (docs/design/dashboard.md §4.1).
  */
 export interface CardTypeUi<S, D> {
   type: string;
   /** Pure: spec + active dataset -> view data. */
   resolve(spec: S, ctx: ResolveContext): D;
   Card: ComponentType<{ spec: S; data: D; size: CardSize }>;
+  /** The dialog body. `onChange(null)` while the choice is incomplete or invalid. */
+  Editor: ComponentType<{ value: S | null; onChange(spec: S | null): void }>;
   /** Accessible name: "Steps, today". */
   describe(spec: S): string;
   heading(spec: S, data: D): CardHeading;

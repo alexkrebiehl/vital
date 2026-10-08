@@ -32,7 +32,7 @@ export interface CardShellProps {
   children?: ReactNode;
 }
 
-function OptionsMenu({ title, actions }: { title: string; actions: CardAction[] }) {
+function OptionsMenu({ cardId, title, actions }: { cardId?: string; title: string; actions: CardAction[] }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -53,6 +53,7 @@ function OptionsMenu({ title, actions }: { title: string; actions: CardAction[] 
         variant="ghost"
         size="sm"
         aria-label={`Options for ${title}`}
+        data-card-options={cardId}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen(o => !o)}
@@ -109,7 +110,7 @@ export function CardShell({ cardId, title, dateLabel, metricId, handle, actions,
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {handle}
-          {actions.length > 0 && <OptionsMenu title={title} actions={actions} />}
+          {actions.length > 0 && <OptionsMenu cardId={cardId} title={title} actions={actions} />}
         </div>
       </header>
       <div className="flex-1">

@@ -1,8 +1,23 @@
 'use client';
 
 import { useCallback, useEffect, useReducer, useRef } from 'react';
-import { DashboardRequestError, fetchDashboard } from '@/lib/dashboard/client';
-import { dashboardReducer, initialDashboardState } from './dashboard-state';
+import {
+  DashboardRequestError,
+  createCardRequest,
+  deleteCardRequest,
+  fetchDashboard,
+  replaceCardRequest,
+  type CardEditInput,
+  type CardInput,
+} from '@/lib/dashboard/client';
+import type { CardRecord } from '@/lib/dashboard/types';
+import {
+  dashboardReducer,
+  failedWrite,
+  initialDashboardState,
+  writeFailureNotice,
+  type WriteResult,
+} from './dashboard-state';
 
 /** Loads the cards once, and again on `reload`. Card values are not loaded: they resolve from the dataset. */
 export function useDashboard() {
@@ -36,5 +51,63 @@ export function useDashboard() {
     void load();
   }, [load]);
 
-  return { state, dispatch, reload };
+  /** A failure the dialog cannot fix: say so on the page and read the cards again (the maps pattern). */
+  const report = useCallback(
+    (failure: Extract<WriteResult, { ok: false }>) => {
+      if (failure.current) dispatch({ type: 'edited', card: failure.current });
+      if (!failure.keepOpen) {
+        dispatch({ type: 'write-failed', message: failure.message });
+        reload();
+      }
+      return failure;
+    },
+    [reload]
+  );
+
+  // Add and edit are confirmed by the server before the card changes on screen.
+  const add = useCallback(
+    async (input: CardInput): Promise<WriteResult> => {
+      dispatch({ type: 'dismiss-notice' });
+      try {
+        const card = await createCardRequest(input);
+        dispatch({ type: 'added', card });
+        return { ok: true, card };
+      } catch (e) {
+        return report(failedWrite('add', e));
+      }
+    },
+    [report]
+  );
+
+  const edit = useCallback(
+    async (card: CardRecord, input: CardEditInput): Promise<WriteResult> => {
+      dispatch({ type: 'dismiss-notice' });
+      try {
+        const saved = await replaceCardRequest(card.id, input, card.revision);
+        dispatch({ type: 'edited', card: saved });
+        return { ok: true, card: saved };
+      } catch (e) {
+        return report(failedWrite('edit', e));
+      }
+    },
+    [report]
+  );
+
+  // Remove is optimistic: the card leaves at once, and comes back through the reload if the server refuses.
+  const remove = useCallback(
+    async (card: CardRecord): Promise<void> => {
+      dispatch({ type: 'dismiss-notice' });
+      dispatch({ type: 'removed', id: card.id });
+      try {
+        await deleteCardRequest(card.id, card.revision);
+      } catch (e) {
+        if (e instanceof DashboardRequestError && e.status === 404) return; // already gone: done
+        dispatch({ type: 'write-failed', message: writeFailureNotice('remove', e) });
+        reload();
+      }
+    },
+    [reload]
+  );
+
+  return { state, dispatch, reload, add, edit, remove };
 }

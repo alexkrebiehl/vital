@@ -1,12 +1,22 @@
 import { valueCardUi } from './value';
 import type { CardTypeUi } from './types';
 
-// The page, the grid and the view look a card's renderer up here and never name
-// a type. A new type is one line.
-const UI: Record<string, CardTypeUi<unknown, unknown>> = {
-  [valueCardUi.type]: valueCardUi as unknown as CardTypeUi<unknown, unknown>,
-};
+type AnyUi = CardTypeUi<unknown, unknown>;
 
-export function getCardUi(type: string): CardTypeUi<unknown, unknown> | undefined {
-  return Object.prototype.hasOwnProperty.call(UI, type) ? UI[type] : undefined;
+// The page, the grid, the view and the dialog look a card's UI up here and never
+// name a type. A new type is one line.
+const UI = new Map<string, AnyUi>([[valueCardUi.type, valueCardUi as unknown as AnyUi]]);
+
+export function getCardUi(type: string): AnyUi | undefined {
+  return UI.get(type);
+}
+
+/** Add a card type's UI. Returns a function that removes it again (used by tests). */
+export function registerCardUi<S, D>(ui: CardTypeUi<S, D>): () => void {
+  if (UI.has(ui.type)) throw new Error(`Card type "${ui.type}" already has a UI.`);
+  const stored = ui as unknown as AnyUi;
+  UI.set(ui.type, stored);
+  return () => {
+    if (UI.get(ui.type) === stored) UI.delete(ui.type);
+  };
 }

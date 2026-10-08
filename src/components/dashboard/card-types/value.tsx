@@ -9,6 +9,7 @@ import { CATEGORY_VAR } from '@/components/art/categories';
 import { artCategoryOf } from '@/components/domain/DomainShared';
 import { DataStateNote } from '@/components/ui/primitives';
 import type { CardTypeUi } from './types';
+import { ValueEditor } from './ValueEditor';
 
 /** Every string is already formatted by the resolver; this renders, it never computes a number. */
 export function ValueCard({ spec, data }: { spec: ValueCardSpec; data: ValueCardData; size: CardSize }) {
@@ -78,6 +79,7 @@ export const valueCardUi: CardTypeUi<ValueCardSpec, ValueCardData> = {
   type: 'value',
   resolve: resolveValueCard,
   Card: ValueCard,
+  Editor: ValueEditor,
   describe: spec => `${getMetric(spec.metricId)?.displayName ?? spec.metricId}, ${describeDate(spec)}`,
   heading: (spec, data) => {
     const meta = getMetric(spec.metricId);

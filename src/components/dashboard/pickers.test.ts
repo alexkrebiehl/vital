@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { DateSpec } from '@/lib/dashboard/types';
 import { REF } from '@/lib/dashboard/synthetic-dataset.fake';
+import { DATA_SOURCES } from '@/lib/sources/registry';
 import { DateSpecPicker } from './DateSpecPicker';
 import { MetricPicker } from './MetricPicker';
 
@@ -50,6 +51,12 @@ describe('MetricPicker', () => {
     const html = metric({ hasData: id => id !== 'step_count' });
     expect(html).toContain('(no data)');
     expect(metric()).not.toContain('(no data)');
+  });
+
+  it('shows no data-source name, with two sources connected', () => {
+    const html = metric({ activeSources: ['hae', 'oura'], hasData: () => false });
+    expect(DATA_SOURCES.length).toBeGreaterThanOrEqual(4);
+    for (const source of DATA_SOURCES) expect(html, source.displayName).not.toContain(source.displayName);
   });
 
   it('says so when nothing matches', () => {

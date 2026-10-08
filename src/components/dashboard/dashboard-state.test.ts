@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { CardRecord } from '@/lib/dashboard/types';
-import { dashboardReducer, initialDashboardState, type DashboardState } from './dashboard-state';
+import { DashboardRequestError } from '@/lib/dashboard/client';
+import {
+  dashboardReducer, failedWrite, focusAfterRemove, initialDashboardState, writeFailureNotice, type DashboardState,
+} from './dashboard-state';
 
 const card = (id: string): CardRecord => ({
   id,
@@ -52,5 +55,115 @@ describe('dashboardReducer', () => {
   it('a notice survives a load, so a failed write can say so and reload', () => {
     const noticed: DashboardState = { ...initialDashboardState, notice: 'That change was not saved.' };
     expect(dashboardReducer(noticed, { type: 'loaded', cards: [] }).notice).toBe('That change was not saved.');
+  });
+});
+
+describe('dashboardReducer writes', () => {
+  const ready = (...ids: string[]): DashboardState => ({
+    ...initialDashboardState, status: 'ready', cards: ids.map(card),
+  });
+
+  it('added appends the new card at the end', () => {
+    const next = dashboardReducer(ready('a', 'b'), { type: 'added', card: card('c') });
+    expect(next.cards.map(c => c.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('edited replaces the card in place, keeping its position', () => {
+    const changed = { ...card('b'), revision: 2, spec: { metricId: 'step_count', date: { kind: 'yesterday' as const } } };
+    const next = dashboardReducer(ready('a', 'b', 'c'), { type: 'edited', card: changed });
+    expect(next.cards.map(c => c.id)).toEqual(['a', 'b', 'c']);
+    expect(next.cards[1]).toBe(changed);
+  });
+
+  it('edited with a card that is not on screen changes nothing', () => {
+    const state = ready('a');
+    expect(dashboardReducer(state, { type: 'edited', card: card('zz') }).cards).toEqual(state.cards);
+  });
+
+  it('removed drops the card and keeps the others in order', () => {
+    const next = dashboardReducer(ready('a', 'b', 'c'), { type: 'removed', id: 'b' });
+    expect(next.cards.map(c => c.id)).toEqual(['a', 'c']);
+    expect(next.status).toBe('ready');
+  });
+
+  it('removing the last card leaves a ready, empty dashboard', () => {
+    const next = dashboardReducer(ready('a'), { type: 'removed', id: 'a' });
+    expect(next).toMatchObject({ status: 'ready', cards: [] });
+  });
+
+  it('a failed write sets the notice and keeps the cards; a reload then keeps the notice', () => {
+    const failed = dashboardReducer(ready('a'), { type: 'write-failed', message: 'Not saved.' });
+    expect(failed).toMatchObject({ status: 'ready', notice: 'Not saved.' });
+    const reloading = dashboardReducer(failed, { type: 'reload' });
+    expect(dashboardReducer(reloading, { type: 'loaded', cards: [card('a'), card('b')] })).toMatchObject({
+      notice: 'Not saved.',
+      cards: [{ id: 'a' }, { id: 'b' }],
+    });
+  });
+
+  it('dismissing clears the notice', () => {
+    const noticed = dashboardReducer(ready('a'), { type: 'write-failed', message: 'x' });
+    expect(dashboardReducer(noticed, { type: 'dismiss-notice' }).notice).toBeNull();
+  });
+});
+
+describe('writeFailureNotice', () => {
+  it('names the action and gives the server’s sentence', () => {
+    expect(writeFailureNotice('add', new DashboardRequestError('The database is down.', 500))).toBe(
+      'The card was not added: The database is down.'
+    );
+    expect(writeFailureNotice('edit', new Error('offline'))).toBe('The card was not saved: offline');
+    expect(writeFailureNotice('remove', new DashboardRequestError('Boom.', 500))).toBe(
+      'The card was not removed: Boom.'
+    );
+  });
+
+  it('a stale revision says the dashboard was reloaded', () => {
+    expect(writeFailureNotice('remove', new DashboardRequestError('stale', 409))).toBe(
+      'This card was changed elsewhere; the dashboard was reloaded and nothing was removed.'
+    );
+    expect(writeFailureNotice('edit', new DashboardRequestError('stale', 409))).toBe(
+      'This card was changed elsewhere; the dashboard was reloaded and nothing was overwritten.'
+    );
+  });
+
+  it('a non-error value still gets a sentence', () => {
+    expect(writeFailureNotice('add', 'x')).toBe('The card was not added.');
+  });
+});
+
+describe('focusAfterRemove', () => {
+  it('prefers the next card, then the previous, then the Add card button', () => {
+    expect(focusAfterRemove(['a', 'b', 'c'], 'b')).toEqual({ kind: 'card', id: 'c' });
+    expect(focusAfterRemove(['a', 'b', 'c'], 'c')).toEqual({ kind: 'card', id: 'b' });
+    expect(focusAfterRemove(['a'], 'a')).toEqual({ kind: 'add' });
+    expect(focusAfterRemove(['a'], 'zz')).toEqual({ kind: 'add' });
+  });
+});
+
+describe('failedWrite', () => {
+  const stale = (current?: CardRecord) => Object.assign(new DashboardRequestError('Changed.', 409), { current });
+
+  it('a 400 stays in the dialog with the server’s sentence', () => {
+    expect(failedWrite('add', new DashboardRequestError('Choose a metric.', 400))).toEqual({
+      ok: false, message: 'Choose a metric.', keepOpen: true,
+    });
+  });
+
+  it('a 409 on save stays in the dialog and carries the current card', () => {
+    expect(failedWrite('edit', stale(card('a')))).toEqual({
+      ok: false, message: 'Changed.', current: card('a'), keepOpen: true,
+    });
+  });
+
+  it('a 409 on add (the card limit) stays in the dialog with the server’s sentence', () => {
+    expect(failedWrite('add', stale())).toMatchObject({ message: 'Changed.', keepOpen: true });
+  });
+
+  it('anything else closes the dialog with the page notice', () => {
+    expect(failedWrite('add', new DashboardRequestError('The database is down.', 500))).toEqual({
+      ok: false, message: 'The card was not added: The database is down.', keepOpen: false,
+    });
+    expect(failedWrite('edit', stale())).toMatchObject({ keepOpen: false });
   });
 });
