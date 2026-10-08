@@ -22,7 +22,7 @@ export function usePipelineReport({ parts = PIPELINE_PARTS, enabled = true }: { 
   const key = parts.join(',');
   const requested = useMemo(() => key.split(',') as PipelinePart[], [key]);
 
-  const fetchPart = useCallback(async (part: PipelinePart) => {
+  const fetchPart = useCallback(async (part: PipelinePart, followQuality = true): Promise<void> => {
     const gen = (generation.current[part] = (generation.current[part] ?? 0) + 1);
     let value: PipelineParts[PipelinePart];
     try {
@@ -34,6 +34,17 @@ export function usePipelineReport({ parts = PIPELINE_PARTS, enabled = true }: { 
     }
     if (generation.current[part] !== gen) return;
     setReceived(r => ({ ...r, [part]: value }));
+    // The data-quality checks run on after the dataset loads: wait for them
+    // (the quality route holds the request until they finish), then read the
+    // dataset part once more so its stage leaves "Checking…". Once only.
+    if (part === 'dataset' && followQuality && value && 'qualityState' in value && value.qualityState === 'computing') {
+      try {
+        await fetch('/api/pipeline/quality', { cache: 'no-store' });
+      } catch {
+        // The stage stays "Checking…"; "Check again" asks afresh.
+      }
+      if (generation.current[part] === gen) await fetchPart('dataset', false);
+    }
   }, []);
 
   /** Check every requested part again; the stages go back to "Checking…". */

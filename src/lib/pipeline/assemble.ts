@@ -35,10 +35,20 @@ function ok<T extends SourcesPart | DatasetPart | WorkoutsPart>(p: T | PartFailu
   return p !== undefined && !isPartFailure(p) ? p : null;
 }
 
+/** What a stage is waiting on while its check runs. */
+const CHECKING_DETAIL: Record<StageId, string> = {
+  health_auto_export: 'Asking the export server for a few recent records.',
+  health_api: 'Asking the export server for a few recent records.',
+  oura_api: 'Checking the Oura connection.',
+  data_quality: 'Waiting for the health history to load; on a cold start it is read in full, which takes a few seconds.',
+  intelligence: 'Waiting for the health history to load; on a cold start it is read in full, which takes a few seconds.',
+  dashboard: 'Waiting for the first answer from the server.',
+};
+
 /** A stage whose part has not answered yet, or whose request failed. */
 export function placeholderStage(id: StageId, failure: string | null = null): PipelineStage {
   return failure === null
-    ? { id, name: STAGE_NAME[id], status: 'checking', detail: 'Checking…', derivedFrom: 'The check is still running.', observationCount: null, lastObservationAt: null }
+    ? { id, name: STAGE_NAME[id], status: 'checking', detail: CHECKING_DETAIL[id], derivedFrom: 'The check is still running.', observationCount: null, lastObservationAt: null }
     : {
         id,
         name: STAGE_NAME[id],

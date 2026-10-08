@@ -25,7 +25,8 @@ describe('assembleReport', () => {
   it('starts with every stage checking, before any part has answered', () => {
     const report = assembleReport({});
     expect(report.stages.map(s => s.id)).toEqual(PIPELINE_ORDER);
-    expect(report.stages.every(s => s.status === 'checking' && s.detail === 'Checking…')).toBe(true);
+    expect(report.stages.every(s => s.status === 'checking' && s.derivedFrom === 'The check is still running.')).toBe(true);
+    expect(report.stages.find(s => s.id === 'intelligence')!.detail).toMatch(/^Waiting for the health history to load/);
     expect(report.pending).toEqual(['sources', 'dataset', 'workouts']);
     expect(report.summary).toBe('Checking each stage…');
     expect(report.qualityState).toBe('computing');
