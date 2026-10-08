@@ -39,6 +39,9 @@ What Vital does and does not do with your data, and what to put in front of it b
     (`GEOCODER_URL`, OpenStreetMap Nominatim by default) — the text you type leaves your network,
     which is what a geocoder is. `GEOCODER_URL=off` turns it off; typing `lat, lon` or using your
     browser's location works either way and sends nothing.
+- **Dashboard cards are stored, their values are not.** A card keeps a metric id, a day or a date
+  range, a position and a size, for the demo or the live data separately. The numbers a card shows
+  are computed from the data each time it is drawn and are never written to the database.
 - **Map areas are stored, routes are not.** Each map's bounding box and name live in Postgres
   with your other configuration (often a box around home, which is why it is never logged).
   Routes and heart rate are read live from Health Auto Export, held in server memory only, and

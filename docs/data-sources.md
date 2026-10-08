@@ -245,6 +245,7 @@ conversations tagged with it, and then behaves as if the source had never existe
 | Analyst conversations and thread memory (Postgres) | Conversations tagged with the source are deleted whole, messages included |
 | Stored credential (Postgres) | Deleted |
 | Lab reports and files | The per-report delete. Deleting the **last** report also erases the lab-tagged conversations; the app asks first and says how many |
+| Dashboard cards (Postgres) | Kept: they hold metric ids only; a card whose data is gone shows that it has no readings |
 | Logs | Nothing to erase: Vital logs outcomes, never values or tokens |
 
 Only a deliberate removal erases conversations. A source that is merely inactive (not yet

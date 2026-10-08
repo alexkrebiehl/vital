@@ -16,7 +16,7 @@ one build, one deployable.
 browser ──── HTTP ────┐
                       │   one container, one process (`next-server`)
   ┌───────────────────▼──────────────────────────────────────────┐
-  │ src/app          21 page routes      22 API route handlers    │
+  │ src/app          23 page routes      39 API route handlers    │
   ├───────────────────────────────────────────────────────────────┤
   │ src/components   58 components (charts, chat, forms, routine)  │
   ├───────────────────────────────────────────────────────────────┤
@@ -34,8 +34,8 @@ browser ──── HTTP ────┐
 
 | Surface | Lives in | What it is |
 |---|---|---|
-| UI | `src/app/*/page.tsx` | 21 routes. Each page is a thin server file (metadata + a mounted component); interactivity lives in client components. |
-| API | `src/app/api/**/route.ts` | 22 route handlers / 32 methods: analyst chat (including a streaming endpoint) and its saved conversations, the daily briefing, lab reports, medications, the training routine and workout sources, pipeline status, preferences, profile, and a trivial `/api/health` liveness probe (no briefing, model, dataset or database). |
+| UI | `src/app/*/page.tsx` | 23 routes. Each page is a thin server file (metadata + a mounted component); interactivity lives in client components. |
+| API | `src/app/api/**/route.ts` | 39 route handlers / 66 methods: analyst chat (including a streaming endpoint) and its saved conversations, the daily briefing, the dashboard's cards, lab reports, medications, the training routine and workout sources, pipeline status, preferences, profile, and a trivial `/api/health` liveness probe (no briefing, model, dataset or database). |
 | Domain | `src/lib/**` | Every rule: source normalization, source de-duplication, day aggregation, the metric registry and its formatters, briefing generation, the analyst, persistence. |
 
 Both surfaces call `src/lib` directly, in-process. Server-rendered pages do not make HTTP requests to

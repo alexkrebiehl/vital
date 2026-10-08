@@ -11,6 +11,7 @@ Routes, what is still demo or unwired in this build, and the quality commands.
 | Route | Page |
 |-------|------|
 | `/` | Overview — the daily briefing, today's signals and your health story |
+| `/dashboard` | Your own cards: pick any metric and a day or a date range, and arrange the cards by drag or from each card's menu |
 | `/trends` | Compare periods; explore how two metrics move together |
 | `/health` | Heart, blood pressure and other health signals |
 | `/activity` | Steps, exercise and movement |
@@ -32,7 +33,7 @@ Routes, what is still demo or unwired in this build, and the quality commands.
 | `/metric/[metricId]` | One metric in detail |
 
 The API lives under `/api/*`: `activity-coverage`, `activity-maps`, `analyst` (with `conversations`
-and `stream`), `body-goal`, `briefing`, `geocode`, `lab`, `medications`, `pipeline/status`, `preferences`,
+and `stream`), `body-goal`, `briefing`, `dashboard` (the cards, and their order), `geocode`, `lab`, `medications`, `pipeline/status`, `preferences`,
 `profile`, `routine`, `workout-sources` and a `health` liveness probe.
 
 ---
