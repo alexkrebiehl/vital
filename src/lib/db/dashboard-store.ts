@@ -64,7 +64,8 @@ export async function pgListCards(client: PoolLike, mode: DashboardMode): Promis
   return result.rows.map(toCard);
 }
 
-async function pgReadCard(client: PoolLike, mode: DashboardMode, id: string): Promise<CardRecord | null> {
+/** One card of this mode, or null (another mode's card is not found). */
+export async function pgReadCard(client: PoolLike, mode: DashboardMode, id: string): Promise<CardRecord | null> {
   const result = await client.query(
     `SELECT ${DASHBOARD_COLUMNS} FROM dashboard_cards WHERE id = $1 AND mode = $2`,
     [id, mode]
