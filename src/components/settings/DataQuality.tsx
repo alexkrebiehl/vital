@@ -5,12 +5,16 @@
 // What the checks in `src/lib/adapters/quality.ts` found in the live export,
 // each finding with the days it affects and the steps that fix it, then the
 // list of checks that ran and passed. Severity is always written out, never
-// carried by colour alone.
+// carried by colour alone. Overlapping exports and duplicate readings Vital
+// corrects itself (see `quality-correct.ts`): a corrected check says so in the
+// list with "Stop correcting", and with the correction off its finding has a
+// "Fix it" button in place of the steps.
 
 import { useCallback, useEffect, useState } from 'react';
 import { CircleAlert, CircleCheck, Info, LoaderCircle, TriangleAlert } from 'lucide-react';
-import { formatRange, type DataQualityReport, type QualityFinding, type QualitySeverity } from '@/lib/adapters/quality';
+import { CORRECTABLE_CHECKS, formatRange, type DataQualityReport, type QualityFinding, type QualitySeverity } from '@/lib/adapters/quality';
 import { findingMetricId, type SilencedFinding, type SilencedKey } from '@/lib/adapters/quality-silenced';
+import type { CorrectableCheck } from '@/lib/adapters/quality-correct';
 import type { PipelineQualityResponse, PipelineStatusReport } from '@/lib/pipeline/types';
 import { Badge, Skeleton } from '@/components/ui/primitives';
 
@@ -105,11 +109,13 @@ function PendingDataQuality({ initialFailure, onReady }: { initialFailure: boole
 }
 
 const keyId = (k: SilencedKey) => `${k.checkId}:${k.metricId}`;
+const correctId = (checkId: CorrectableCheck) => `correct:${checkId}`;
 
 /**
- * The data-quality report with Silence / Restore. It does the two calls and
- * hands the refresh to `onChanged`, which reloads the report quietly, so the
- * panel does not blank out. The view below is a plain function of its props.
+ * The data-quality report with Silence / Restore and Fix it / Stop correcting.
+ * It does the calls and hands the refresh to `onChanged`, which reloads the
+ * report quietly, so the panel does not blank out. The view below is a plain
+ * function of its props.
  */
 export function DataQuality({
   quality,
@@ -124,14 +130,14 @@ export function DataQuality({
   const [error, setError] = useState<string | null>(null);
 
   const send = useCallback(
-    async (method: 'POST' | 'DELETE', key: SilencedKey) => {
-      setBusy(keyId(key));
+    async (url: string, method: 'POST' | 'DELETE', body: object, busyKey: string) => {
+      setBusy(busyKey);
       setError(null);
       try {
-        const res = await fetch('/api/pipeline/quality/silence', {
+        const res = await fetch(url, {
           method,
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(key.metricId ? key : { checkId: key.checkId }),
+          body: JSON.stringify(body),
         });
         if (!res.ok) {
           const body = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -153,11 +159,16 @@ export function DataQuality({
       silenced={silenced}
       busy={busy}
       error={error}
-      onSilence={key => void send('POST', key)}
-      onRestore={key => void send('DELETE', key)}
+      onSilence={key => void send(SILENCE_URL, 'POST', silenceBody(key), keyId(key))}
+      onRestore={key => void send(SILENCE_URL, 'DELETE', silenceBody(key), keyId(key))}
+      onCorrect={(checkId, on) => void send(CORRECT_URL, on ? 'POST' : 'DELETE', { checkId }, correctId(checkId))}
     />
   );
 }
+
+const SILENCE_URL = '/api/pipeline/quality/silence';
+const CORRECT_URL = '/api/pipeline/quality/correct';
+const silenceBody = (key: SilencedKey) => (key.metricId ? key : { checkId: key.checkId });
 
 export function DataQualityView({
   quality,
@@ -166,14 +177,17 @@ export function DataQualityView({
   error = null,
   onSilence,
   onRestore,
+  onCorrect = () => {},
 }: {
   quality: DataQualityReport;
   silenced: SilencedFinding[];
-  /** Key of the silence or restore in flight, when there is one. */
+  /** Key of the change in flight, when there is one. */
   busy?: string | null;
   error?: string | null;
   onSilence: (key: SilencedKey) => void;
   onRestore: (key: SilencedKey) => void;
+  /** Turn a correction on ("Fix it") or off ("Stop correcting"). */
+  onCorrect?: (checkId: CorrectableCheck, on: boolean) => void;
 }) {
   const serious = quality.findings.filter(f => f.severity !== 'info').length;
   const notes = quality.findings.length - serious;
@@ -201,8 +215,9 @@ export function DataQualityView({
       </div>
       <p className="text-[11px] text-text-secondary leading-relaxed mb-4">
         Checked on the export’s records as the server stores them, before Vital adds them up per day. Anything affecting
-        only days more than 90 days ago is a note: recent figures are not affected. The checks only report: nothing here
-        changes your data. A silenced issue stays hidden for all of its days, including days that show up later.
+        only days more than 90 days ago is a note: recent figures are not affected. Activity counted twice and readings
+        stored twice Vital corrects in its own totals; nothing here ever changes the export server. A silenced issue
+        stays hidden for all of its days, including days that show up later.
       </p>
 
       {error && (
@@ -214,7 +229,7 @@ export function DataQualityView({
       {quality.findings.length > 0 && (
         <ul className="space-y-3 list-none p-0 m-0 mb-5">
           {quality.findings.map((f, i) => (
-            <Finding key={`${f.check}-${i}`} finding={f} busy={busy} onSilence={onSilence} />
+            <Finding key={`${f.check}-${i}`} finding={f} busy={busy} onSilence={onSilence} onCorrect={onCorrect} />
           ))}
         </ul>
       )}
@@ -222,7 +237,7 @@ export function DataQualityView({
       <ul className="space-y-1.5 list-none p-0 m-0" aria-label="Checks that ran">
         {quality.checks.map(c => (
           <li key={c.id} className="flex items-start gap-2 text-[12px]">
-            {c.outcome === 'pass' ? (
+            {c.outcome === 'pass' || c.outcome === 'corrected' ? (
               <CircleCheck size={14} className="mt-0.5 shrink-0 text-category-activity" aria-hidden="true" />
             ) : c.outcome === 'note' ? (
               <Info size={14} className="mt-0.5 shrink-0 text-text-secondary" aria-hidden="true" />
@@ -231,8 +246,24 @@ export function DataQualityView({
             )}
             <span>
               <span className="font-medium text-text-primary">{c.label}</span>
-              <span className="sr-only">{c.outcome === 'pass' ? ': passed' : c.outcome === 'note' ? ': note' : ': flagged'}</span>
+              <span className="sr-only">
+                {c.outcome === 'pass' ? ': passed' : c.outcome === 'corrected' ? ': corrected by Vital' : c.outcome === 'note' ? ': note' : ': flagged'}
+              </span>
               <span className="text-text-secondary"> — {c.summary}</span>
+              {c.outcome === 'corrected' && isCorrectable(c.id) && (
+                <span className="block mt-0.5 text-[11px] text-text-secondary">
+                  Vital leaves these records out of its own totals; your export server is not changed.{' '}
+                  <button
+                    type="button"
+                    className="font-medium text-primary underline-offset-2 hover:underline disabled:opacity-60"
+                    disabled={busy !== null}
+                    aria-label={`Stop correcting: ${c.label}`}
+                    onClick={() => onCorrect(c.id as CorrectableCheck, false)}
+                  >
+                    {busy === correctId(c.id as CorrectableCheck) ? 'Stopping…' : 'Stop correcting'}
+                  </button>
+                </span>
+              )}
             </span>
           </li>
         ))}
@@ -282,7 +313,19 @@ function SilencedList({ silenced, busy, onRestore }: { silenced: SilencedFinding
   );
 }
 
-function Finding({ finding: f, busy, onSilence }: { finding: QualityFinding; busy: string | null; onSilence: (key: SilencedKey) => void }) {
+const isCorrectable = (id: string): id is CorrectableCheck => (CORRECTABLE_CHECKS as readonly string[]).includes(id);
+
+function Finding({
+  finding: f,
+  busy,
+  onSilence,
+  onCorrect,
+}: {
+  finding: QualityFinding;
+  busy: string | null;
+  onSilence: (key: SilencedKey) => void;
+  onCorrect: (checkId: CorrectableCheck, on: boolean) => void;
+}) {
   const s = SEVERITY[f.severity];
   const Icon = s.icon;
   const key = { checkId: f.check, metricId: findingMetricId(f) };
@@ -306,14 +349,34 @@ function Finding({ finding: f, busy, onSilence }: { finding: QualityFinding; bus
               ))}
             </div>
           )}
-          <details className="mt-3 group">
-            <summary className="cursor-pointer text-[12px] font-medium text-primary">How to fix it</summary>
-            <ol className="mt-2 ml-4 list-decimal space-y-1.5 text-[12px] text-text-secondary leading-relaxed">
-              {f.remedy.map((step, i) => (
-                <li key={i}>{step}</li>
-              ))}
-            </ol>
-          </details>
+          {f.correctable && isCorrectable(f.check) ? (
+            <div className="mt-3">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <button
+                  type="button"
+                  className="rounded-control bg-primary px-2.5 py-1 text-[12px] font-medium text-primary-text hover:opacity-90 disabled:opacity-60"
+                  disabled={busy !== null}
+                  aria-label={`Fix it: ${f.title}`}
+                  onClick={() => onCorrect(f.check as CorrectableCheck, true)}
+                >
+                  {busy === correctId(f.check as CorrectableCheck) ? 'Fixing…' : 'Fix it'}
+                </button>
+                <span className="text-[11px] text-text-secondary">
+                  Vital leaves the repeated records out of its own totals. Your export server is not changed.
+                </span>
+              </div>
+              {f.remedy[0] && <p className="mt-2 text-[11px] text-text-secondary leading-relaxed">To keep it from happening again: {f.remedy[0]}</p>}
+            </div>
+          ) : (
+            <details className="mt-3 group">
+              <summary className="cursor-pointer text-[12px] font-medium text-primary">How to fix it</summary>
+              <ol className="mt-2 ml-4 list-decimal space-y-1.5 text-[12px] text-text-secondary leading-relaxed">
+                {f.remedy.map((step, i) => (
+                  <li key={i}>{step}</li>
+                ))}
+              </ol>
+            </details>
+          )}
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
             <button
               type="button"

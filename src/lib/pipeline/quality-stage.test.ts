@@ -117,3 +117,19 @@ describe('resolvePipelineStatus and silenced findings', () => {
     expect(report.quality!.findings).toEqual([]);
   });
 });
+
+describe('qualityStage with corrected checks', () => {
+  it('reads healthy and says what Vital corrects', () => {
+    const report: DataQualityReport = {
+      findings: [],
+      checks: [
+        { id: 'overlapping-exports', label: QUALITY_CHECK_LABEL['overlapping-exports'], outcome: 'corrected', correcting: true, summary: 'Corrected.' },
+        { id: 'duplicate-readings', label: QUALITY_CHECK_LABEL['duplicate-readings'], outcome: 'corrected', correcting: true, summary: 'Corrected.' },
+        { id: 'stale', label: QUALITY_CHECK_LABEL.stale, outcome: 'pass', summary: 'Fresh.' },
+      ],
+    };
+    const s = qualityStage(ready(report), 'live', SUMMARY, applySilenced(report, []));
+    expect(s.status).toBe('healthy');
+    expect(s.detail).toBe('No data-quality problems left to fix. Vital corrects overlapping exports and duplicate readings in its own totals.');
+  });
+});

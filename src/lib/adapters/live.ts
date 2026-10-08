@@ -58,6 +58,8 @@ import {
 } from './normalize';
 import { splitSources, sourceRuleExplanationFor } from './sources';
 import { compactFrom, startQualityJob, type QualityJob, type QualityJobInput } from './quality';
+import type { CorrectableCheck } from './quality-correct';
+import { resolveCorrections } from '../db/quality-corrections-store';
 import { MERGE_RULE, mergeDatasets, preferRingFromGroups, type BuiltPart } from './merge';
 import { readOuraConfig } from './oura/config';
 import type { StoredOuraApp } from './oura/app-store';
@@ -103,6 +105,8 @@ export interface LiveDeps {
   haeConfig?: HaeConfig | null;
   /** Replaces the process Postgres pool for the stored connection (tests). */
   haeClient?: PoolLike | null;
+  /** Use these data-quality corrections instead of reading the setting (tests). */
+  corrections?: ReadonlySet<CorrectableCheck>;
 }
 
 /** Outcome of the boot-time cache warm-up: reported, never thrown. */
@@ -198,7 +202,7 @@ function provenanceRow(
   mapping: MetricMapping,
   observations: MetricObservation[],
   records: RawSimpleRecord[],
-  normalized: { recordsRead: number; recordsKept: number; sources: string[] }
+  normalized: { recordsRead: number; recordsKept: number; sources: string[]; correctedRecords: number }
 ): ProvenanceRow {
   const canonical = getMetric(mapping.metricId)?.canonicalUnit ?? '';
   const conversions = new Set<string>();
@@ -218,7 +222,11 @@ function provenanceRow(
     firstDay: observations[0]?.date ?? null,
     lastDay: observations[observations.length - 1]?.date ?? null,
     unitConversions: [...conversions].sort(),
-    dedupeRule: sourceRuleExplanationFor(mapping.metricId),
+    dedupeRule:
+      sourceRuleExplanationFor(mapping.metricId) +
+      (normalized.correctedRecords > 0
+        ? ` ${normalized.correctedRecords} record${normalized.correctedRecords === 1 ? '' : 's'} that only repeat${normalized.correctedRecords === 1 ? 's' : ''} another (an overlapping export or an on-the-hour copy) ${normalized.correctedRecords === 1 ? 'is' : 'are'} left out; see Data quality.`
+        : ''),
   };
 }
 
@@ -234,6 +242,8 @@ interface HaePassArgs {
   window: { from: string; to: string };
   /** True when Oura is connected: ring records then come only from Oura's own API. */
   excludeRing: boolean;
+  /** Data-quality corrections that are on. */
+  corrections: ReadonlySet<CorrectableCheck>;
 }
 
 /**
@@ -250,6 +260,7 @@ async function fetchHaePass(args: HaePassArgs): Promise<LiveDatasetResult> {
     referenceKey,
     windowStartKey: referenceKey,
     ...(args.excludeRing ? { excludeFamilies: ['ring' as const] } : {}),
+    correct: args.corrections,
   };
 
   let recordsRead = 0;
@@ -426,6 +437,7 @@ async function fetchHaePass(args: HaePassArgs): Promise<LiveDatasetResult> {
       referenceKey,
       now,
       tz: timezone,
+      corrections: args.corrections,
     }),
   };
 }
@@ -519,10 +531,23 @@ export async function fetchLiveDatasetUncached(deps: LiveDeps = {}): Promise<Liv
   const referenceKey = dayKey(now.toISOString(), timezone);
   const lookbackDays = deps.lookbackDays ?? LIVE_LOOKBACK_DAYS;
   const window = upstreamWindow(referenceKey, lookbackDays);
+  // Never fails: an unreadable setting reads as the default, every correction on.
+  const corrections = deps.corrections ?? (haeOn ? await resolveCorrections({ env, client: deps.haeClient }) : new Set<CorrectableCheck>());
 
   const [haeRun, ouraRun] = await Promise.allSettled([
     haeOn
-      ? fetchHaePass({ env, fetchImpl: deps.fetchImpl, haeConfig: deps.haeConfig, haeClient: deps.haeClient, now, timezone, referenceKey, window, excludeRing: ouraOn })
+      ? fetchHaePass({
+          env,
+          fetchImpl: deps.fetchImpl,
+          haeConfig: deps.haeConfig,
+          haeClient: deps.haeClient,
+          now,
+          timezone,
+          referenceKey,
+          window,
+          excludeRing: ouraOn,
+          corrections,
+        })
       : Promise.resolve(null),
     ouraOn ? loadOuraContribution(deps, env, { timezone, referenceKey, lookbackDays }) : Promise.resolve(null),
   ]);
