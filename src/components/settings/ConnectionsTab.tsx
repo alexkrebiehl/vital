@@ -5,6 +5,7 @@
 // The data pipeline: each stage's status, and the data-quality section with its
 // findings, Silence and Silenced issues. Nothing else lives on this tab.
 
+import { useCallback } from 'react';
 import { Database } from 'lucide-react';
 import { Badge, BadgeSpinner, Button, Card, DataStateNote, ErrorState } from '@/components/ui/primitives';
 import { STAGE_STATUS_LABEL, type StageStatus } from '@/lib/pipeline/types';
@@ -15,13 +16,20 @@ import { usePipelineReport } from './usePipelineReport';
 export function ConnectionsTab() {
   const { report, error, load, refreshQuietly, loads } = usePipelineReport();
   const checking = (part: 'sources' | 'dataset') => report.pending.includes(part);
+  // Stable, so the data-quality section does not restart its wait on every render.
+  const refreshDataset = useCallback(() => refreshQuietly(['dataset']), [refreshQuietly]);
 
   return (
     <div className="space-y-5">
       <Card className="p-6">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <SectionHead icon={<Database size={18} className="text-text-secondary" />} title="Data pipeline" />
-          <Button variant="secondary" size="sm" onClick={() => void load()}>
+          <Button
+            variant="secondary"
+            size="sm"
+            title="Read the data from every source again, instead of the copy the server holds"
+            onClick={() => load({ fresh: true })}
+          >
             Check again
           </Button>
         </div>
@@ -67,7 +75,7 @@ export function ConnectionsTab() {
                 </li>
               ))}
             </ol>
-            <DataQualitySection report={report} onReady={() => refreshQuietly(['dataset'])} checkKey={loads} />
+            <DataQualitySection report={report} onReady={refreshDataset} checkKey={loads} />
             <div className="mt-4">
               <DataStateNote>
                 A stage is marked healthy only when its status is known from a real check. Checking… means its check is

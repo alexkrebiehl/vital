@@ -10,6 +10,9 @@
 //   GET ?part=sources         → the export server and Oura probes.
 //   GET ?part=dataset         → the dataset (loaded when cold) and its data-quality stage.
 //   GET ?part=workouts        → the workout sources.
+//   …&fresh=1                 → "Check again": read the dataset and sync the
+//                               workout sources afresh instead of serving the
+//                               caches (the probes are always live).
 //
 // The settings panel asks for the parts separately, so a cold dataset load
 // holds up only the stages that depend on it (see `@/lib/pipeline/assemble`).
@@ -25,12 +28,14 @@ export const revalidate = 0;
 const NO_STORE = { 'Cache-Control': 'no-store, private' } as const;
 
 export async function GET(request: Request) {
-  const part = new URL(request.url).searchParams.get('part');
+  const params = new URL(request.url).searchParams;
+  const part = params.get('part');
+  const fresh = params.get('fresh') === '1';
   if (part === null) {
     return NextResponse.json(await resolvePipelineStatus(), { status: 200, headers: NO_STORE });
   }
   if (!(PIPELINE_PARTS as string[]).includes(part)) {
     return NextResponse.json({ error: `"part" must be one of: ${PIPELINE_PARTS.join(', ')}.` }, { status: 400, headers: NO_STORE });
   }
-  return NextResponse.json(await resolvePart[part as PipelinePart](), { status: 200, headers: NO_STORE });
+  return NextResponse.json(await resolvePart[part as PipelinePart](fresh ? { fresh } : {}), { status: 200, headers: NO_STORE });
 }

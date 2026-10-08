@@ -94,6 +94,8 @@ export interface PipelineDeps {
   haeConfig?: HaeConfig | null;
   /** Replaces the process Postgres pool for the stored connection (tests). */
   haeClient?: PoolLike | null;
+  /** Read the dataset and sync the workout sources afresh instead of serving the caches ("Check again"). */
+  fresh?: boolean;
 }
 
 /** The Oura stage: every status comes from the probe, or from the configuration when no request was made. */
@@ -327,7 +329,7 @@ export async function resolveDatasetPart(deps: PipelineDeps = {}): Promise<Datas
     qualityJob = deps.qualityJob ?? null;
   } else {
     try {
-      const resolved = await installDataset({ env, fetchImpl: deps.fetchImpl, haeConfig: deps.haeConfig, haeClient: deps.haeClient, now: deps.now ? () => new Date(deps.now!()) : undefined });
+      const resolved = await installDataset({ env, fetchImpl: deps.fetchImpl, haeConfig: deps.haeConfig, haeClient: deps.haeClient, now: deps.now ? () => new Date(deps.now!()) : undefined, refresh: deps.fresh });
       summary = summariseDataset(resolved.serverMeta ?? datasetMeta(), null);
       qualityJob = resolved.quality;
     } catch (error) {
@@ -389,7 +391,7 @@ export async function resolveDatasetPart(deps: PipelineDeps = {}): Promise<Datas
 export async function resolveWorkoutsPart(deps: PipelineDeps = {}): Promise<WorkoutsPart> {
   const env = deps.env ?? process.env;
   const now = deps.now ?? (() => Date.now());
-  const workoutSources = deps.skipDataset ? [] : (await loadTrainingData({ env, fetchImpl: deps.fetchImpl, now })).statuses;
+  const workoutSources = deps.skipDataset ? [] : (await loadTrainingData({ env, fetchImpl: deps.fetchImpl, now, refresh: deps.fresh })).statuses;
   return { part: 'workouts', workoutSources, checkedAt: new Date(now()).toISOString() };
 }
 

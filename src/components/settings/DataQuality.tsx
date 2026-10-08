@@ -46,16 +46,24 @@ export function DataQualitySection({
   if (report.qualityState === 'ready' && report.quality) {
     return <DataQuality quality={report.quality} silenced={report.silenced ?? []} onChanged={onReady} />;
   }
-  return <PendingDataQuality key={checkKey} initialFailure={report.qualityState === 'failed'} onReady={onReady} />;
+  return (
+    <PendingDataQuality
+      key={checkKey}
+      initialFailure={report.qualityState === 'failed'}
+      // While the dataset is still being read there is nothing to ask for yet.
+      waiting={report.pending?.includes('dataset') ?? false}
+      onReady={onReady}
+    />
+  );
 }
 
-function PendingDataQuality({ initialFailure, onReady }: { initialFailure: boolean; onReady?: () => void }) {
+function PendingDataQuality({ initialFailure, waiting = false, onReady }: { initialFailure: boolean; waiting?: boolean; onReady?: () => void }) {
   const [result, setResult] = useState<PipelineQualityResponse | null>(
     initialFailure ? { state: 'failed', quality: null, silenced: [], detail: 'The checks could not finish.' } : null
   );
 
   useEffect(() => {
-    if (initialFailure) return;
+    if (initialFailure || waiting) return;
     let cancelled = false;
     (async () => {
       // The route waits for the checks, up to a limit; ask again while they are still running.
@@ -79,7 +87,7 @@ function PendingDataQuality({ initialFailure, onReady }: { initialFailure: boole
     return () => {
       cancelled = true;
     };
-  }, [initialFailure, onReady]);
+  }, [initialFailure, waiting, onReady]);
 
   if (result?.state === 'ready' && result.quality) {
     return <DataQuality quality={result.quality} silenced={result.silenced} onChanged={onReady} />;

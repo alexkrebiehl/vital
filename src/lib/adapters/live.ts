@@ -107,6 +107,11 @@ export interface LiveDeps {
   haeClient?: PoolLike | null;
   /** Use these data-quality corrections instead of reading the setting (tests). */
   corrections?: ReadonlySet<CorrectableCheck>;
+  /**
+   * Read every source afresh now instead of serving the cached dataset
+   * ("Check again"). Other readers keep the cached copy until this one lands.
+   */
+  refresh?: boolean;
 }
 
 /** Outcome of the boot-time cache warm-up: reported, never thrown. */
@@ -500,7 +505,8 @@ async function loadOuraContribution(
   const read = await readOuraConfig({ env, client: deps.ouraClient, ouraApp: deps.ouraApp });
   const ttlMs = read?.ok ? read.config.cacheTtlSeconds * 1000 : undefined;
   if (deps.bypassCache) return load();
-  return liveCache.getOrLoad(ouraCacheKey(args.timezone, args.lookbackDays), load, ttlMs);
+  const key = ouraCacheKey(args.timezone, args.lookbackDays);
+  return deps.refresh ? liveCache.refresh(key, load, ttlMs) : liveCache.getOrLoad(key, load, ttlMs);
 }
 
 /** Make every coverage record measure against the merged window. */
@@ -641,6 +647,7 @@ export async function loadLiveDataset(deps: LiveDeps = {}): Promise<LiveDatasetR
     liveCache.clear(key);
     return fresh;
   }
+  if (deps.refresh) return liveCache.refresh(key, () => fetchLiveDatasetUncached(deps));
   return liveCache.getOrLoad(key, () => fetchLiveDatasetUncached(deps));
 }
 
