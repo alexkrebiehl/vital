@@ -6,7 +6,8 @@
 //   resting_hr        mean of the last 7 days vs the 28 days before them (bpm)
 //   hrv               same windows (ms)
 //   sleep_hours       mean time asleep over the last 7 nights (h)
-//   body_weight_rate  least-squares slope of body weight over 28 days (kg / week)
+//   body_weight_rate  the weight trend: a least-squares line over 28 days with
+//                     recent weeks counting more (analytics/weight-trend), kg / week
 //   training_load     training sessions in the last 7 days vs the weekly mean
 //                     of the 28 days before them (% change)
 //
@@ -17,7 +18,7 @@
 // flags the trend on the recovery page but never holds progression back.
 
 import { addDays } from '../analytics/windows';
-import { linearSlope } from '../analytics/stats';
+import { WEIGHT_TREND_DAYS, WEIGHT_TREND_WINDOW, weightTrendSlope } from '../analytics/weight-trend';
 import type { UnitSystem } from '../prefs';
 import { convertValue, displayUnit } from '../metrics/format';
 import type { RecoveryGate, RecoverySignalId } from './types';
@@ -91,7 +92,7 @@ const SUBJECTS: Record<RecoverySignalId, string> = {
   resting_hr: 'the 7-day average',
   hrv: 'the 7-day average',
   sleep_hours: 'average sleep over the last 7 nights',
-  body_weight_rate: 'the 28-day weight trend',
+  body_weight_rate: `the ${WEIGHT_TREND_DAYS}-day weight trend`,
   training_load: 'sessions in the last 7 days',
 };
 
@@ -248,9 +249,9 @@ export function recoveryIndicators(inputs: RecoveryInputs, gates: RecoveryGate[]
   }
 
   {
-    const trendFrom = addDays(today, -27);
+    const trendFrom = addDays(today, -(WEIGHT_TREND_DAYS - 1));
     const weights = inputs.series('weight_body_mass').filter(p => p.key >= trendFrom && p.key <= today);
-    const perDay = linearSlope(weights);
+    const perDay = weightTrendSlope(weights, today);
     const kgPerWeek = perDay === null ? null : perDay * 7;
     const gate = gateFor('body_weight_rate');
     const shown = kgPerWeek === null ? null : round(convertValue(kgPerWeek, 'kg', system), 2);
@@ -273,8 +274,8 @@ export function recoveryIndicators(inputs: RecoveryInputs, gates: RecoveryGate[]
       advice: adviceFor('body_weight_rate', status),
       text:
         shown === null
-          ? 'Not enough weigh-ins in the last 28 days for a trend.'
-          : `${shown > 0 ? '+' : ''}${shown} ${unit} over the last 28 days (${weights.length} weigh-ins).`,
+          ? `Not enough weigh-ins in the last ${WEIGHT_TREND_DAYS} days for a trend.`
+          : `${shown > 0 ? '+' : ''}${shown} ${unit} over the ${WEIGHT_TREND_WINDOW} (${weights.length} weigh-ins).`,
     });
   }
 

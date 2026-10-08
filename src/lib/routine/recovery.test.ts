@@ -39,6 +39,9 @@ describe('recovery indicators', () => {
     expect(weight.points[27].value).toBeCloseTo(176.37, 1);
     // The trend is the whole window: there is no separate baseline.
     expect(weight.recentFrom).toBe(weight.points[0].key);
+    // 0.07 kg a week, as the Body pages read it, in lb.
+    expect(weight.current).toBeCloseTo(0.15, 2);
+    expect(weight.text).toBe('+0.15 lb/week over the last 28 days (28 weigh-ins).');
   });
 
   it('count training sessions per week over five weeks', () => {
