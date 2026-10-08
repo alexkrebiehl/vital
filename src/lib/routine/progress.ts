@@ -46,6 +46,11 @@ export interface StageView {
   name: string;
   index: number;
   status: 'done' | 'current' | 'upcoming';
+  /**
+   * The stage's marker is met: every stage the path has moved past, and the
+   * current one once performance reaches it (on its last step, when it has steps).
+   */
+  complete: boolean;
   startedOn: string | null;
   expectedWeeks?: [number, number];
   target: string;
@@ -356,11 +361,15 @@ export function evaluatePath(
     }
   }
 
+  // Readiness is about performance: a hold, recovery cap or deload does not undo it.
+  const onLastStep = path.currentStepIndex === undefined || path.currentStepIndex >= (stage.steps?.length ?? 0) - 1;
+  const currentComplete = Boolean(readiness?.met) && onLastStep;
   const stages: StageView[] = path.stages.map((s, i) => ({
     id: s.id,
     name: s.name,
     index: i,
     status: i < index ? 'done' : i === index ? 'current' : 'upcoming',
+    complete: i < index || (i === index && currentComplete),
     startedOn: stageStart(path, s.id),
     ...(s.expectedWeeks ? { expectedWeeks: s.expectedWeeks } : {}),
     target: doseText(s.advanceWhen ?? s.prescription, inputs.system),
@@ -459,8 +468,7 @@ export function buildRoutine(inputs: RoutineInputs): RoutineOverview {
       states.set(path.id, {
         path,
         currentIndex: progress.stage.index,
-        // Readiness is about performance; a hold or recovery cap does not undo a milestone.
-        ready: Boolean(progress.readiness?.met),
+        ready: progress.stage.complete,
         records,
         byStage,
       });

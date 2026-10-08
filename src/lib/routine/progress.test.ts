@@ -157,6 +157,33 @@ describe('variation model on the decline push-up example', () => {
     expect(p.reasons[0]).toBe('The marker (3–4 × 8–12 RPE 7–9) was met in 2 of the last 3 sessions, counting a set a rep short for each RPE point past 9.');
   });
 
+  it('marks the current stage complete once its marker is met, not before', () => {
+    expect(push.stages.map(s => [s.status, s.complete])).toEqual([['done', true], ['current', false], ['upcoming', false]]);
+    const more = [...EXAMPLE, session('2026-09-22', [{ name: 'Decline Push Up', sets: reps([12, 12, 12], [8, 9, 9.5]) }])];
+    const p = run(pushPlan(), more, '2026-09-22').paths[0];
+    expect(p.stages.map(s => [s.status, s.complete])).toEqual([['done', true], ['current', true], ['upcoming', false]]);
+    expect(p.stage.complete).toBe(true);
+  });
+
+  it('keeps a complete stage complete while recovery caps the light', () => {
+    const more = [...EXAMPLE, session('2026-09-22', [{ name: 'Decline Push Up', sets: reps([12, 12, 12], [8, 9, 9.5]) }])];
+    const sleep = Array.from({ length: 7 }, (_, i) => ({ key: addDays('2026-09-22', i - 6), value: 5 * 60 }));
+    const gated = pushPlan({ rules: { qualifyingSessions: [2, 3], effort: RIR, recoveryGates: [{ signal: 'sleep_hours', rule: 'below', threshold: 6, severity: 'warn' }] } });
+    const p = run(gated, more, '2026-09-22', { series: id => (id === 'sleep_analysis' ? sleep : []) }).paths[0];
+    expect(p.light).toBe('yellow');
+    expect(p.stage.complete).toBe(true);
+  });
+
+  it('does not mark a stage complete while it has steps to go', () => {
+    const stages = pushPlan().focusAreas[0].paths[0].stages.map(s =>
+      s.id === 'decline' ? { ...s, steps: [{ name: 'Feet on a bench', advanceWhen: s.advanceWhen }, { name: 'Feet on a box' }] } : s
+    );
+    const more = [...EXAMPLE, session('2026-09-22', [{ name: 'Decline Push Up', sets: reps([12, 12, 12], [8, 9, 9.5]) }])];
+    const onFirst = run(pushPlan({}, { stages, currentStepIndex: 0 }), more, '2026-09-22').paths[0];
+    expect(onFirst.readiness?.met).toBe(true);
+    expect(onFirst.stage.complete).toBe(false);
+  });
+
   it('fills the bar toward the marker, not just by qualifying sessions', () => {
     // 12/12/10 reaches the marker's volume and qualifies once; RPE 9.5 is half a point past the ceiling.
     expect(push.readiness!.progress).toBeCloseTo(0.925, 3);
