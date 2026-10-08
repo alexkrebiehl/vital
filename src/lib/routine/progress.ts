@@ -10,6 +10,7 @@
 //     3. apply what every model shares:
 //          a hold      → red (regress) or at most yellow (hold), with its reason
 //          recovery    → a `warn` gate caps the light at yellow, `watch` at yellow-green
+//                        (body weight is a callout only and caps nothing)
 //          deloads     → a deload running (planned, recorded or read from lighter,
 //                         easier sessions) pauses progress; it and an overdue
 //                         deload replace "move on" advice
@@ -33,7 +34,7 @@ import { detectDeloads, easedKey } from './deload';
 import { formatDayKeyShort } from '../analytics/windows';
 import { currentBlocks, deloadStatus, phaseViews, planPosition, planWeek, type BlockView, type DeloadStatus, type PathState, type PhaseView } from './position';
 import { recordsForStage, stageNeedsExerciseData, type PerformanceRecord } from './records';
-import { recoveryIndicators, recoverySummary, type DayValue, type RecoveryIndicator } from './recovery';
+import { holdsProgression, recoveryIndicators, recoverySummary, type DayValue, type RecoveryIndicator } from './recovery';
 import { cadenceView, type CadenceView } from './cadence';
 import { adherence, completedSessions, nextSession, type Adherence, type NextSessionView } from './schedule';
 import type { Path, PathHold, StoredPlan, TrainingPlan } from './types';
@@ -45,6 +46,11 @@ export interface StageView {
   name: string;
   index: number;
   status: 'done' | 'current' | 'upcoming';
+  /**
+   * The stage's marker is met: every stage the path has moved past, and the
+   * current one once performance reaches it (on its last step, when it has steps).
+   */
+  complete: boolean;
   startedOn: string | null;
   expectedWeeks?: [number, number];
   target: string;
@@ -355,11 +361,15 @@ export function evaluatePath(
     }
   }
 
+  // Readiness is about performance: a hold, recovery cap or deload does not undo it.
+  const onLastStep = path.currentStepIndex === undefined || path.currentStepIndex >= (stage.steps?.length ?? 0) - 1;
+  const currentComplete = Boolean(readiness?.met) && onLastStep;
   const stages: StageView[] = path.stages.map((s, i) => ({
     id: s.id,
     name: s.name,
     index: i,
     status: i < index ? 'done' : i === index ? 'current' : 'upcoming',
+    complete: i < index || (i === index && currentComplete),
     startedOn: stageStart(path, s.id),
     ...(s.expectedWeeks ? { expectedWeeks: s.expectedWeeks } : {}),
     target: doseText(s.advanceWhen ?? s.prescription, inputs.system),
@@ -430,8 +440,9 @@ export function buildRoutine(inputs: RoutineInputs): RoutineOverview {
   ];
   const indicators = recoveryIndicators({ series: inputs.series, trainingDays, today, system }, stored.plan.rules.recoveryGates);
   const summary = recoverySummary(indicators);
-  const warn = indicators.filter(i => i.status === 'warn');
-  const watch = indicators.filter(i => i.status === 'watch');
+  // Body weight is a callout on the recovery page, never a reason to hold a path.
+  const warn = indicators.filter(i => holdsProgression(i) && i.status === 'warn');
+  const watch = indicators.filter(i => holdsProgression(i) && i.status === 'watch');
   const recoveryCap = warn.length
     ? { cap: 'yellow' as Light, reasons: warn.map(i => `${i.label}: ${i.text}`) }
     : watch.length
@@ -457,8 +468,7 @@ export function buildRoutine(inputs: RoutineInputs): RoutineOverview {
       states.set(path.id, {
         path,
         currentIndex: progress.stage.index,
-        // Readiness is about performance; a hold or recovery cap does not undo a milestone.
-        ready: Boolean(progress.readiness?.met),
+        ready: progress.stage.complete,
         records,
         byStage,
       });

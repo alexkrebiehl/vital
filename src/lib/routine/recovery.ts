@@ -13,7 +13,8 @@
 // Every indicator is reported with its numbers and windows, the readings behind
 // them, and the plan's rule for it in words. A plan's recovery gates decide
 // which ones matter and how much (`watch` or `warn`); without a gate an
-// indicator is shown for information only.
+// indicator is shown for information only. Body weight is a callout: its gate
+// flags the trend on the recovery page but never holds progression back.
 
 import { addDays } from '../analytics/windows';
 import { linearSlope } from '../analytics/stats';
@@ -53,6 +54,19 @@ export interface RecoveryIndicator {
   rule: string | null;
   /** What to do about it, only while the gate is tripped (watch or warn). */
   advice: string | null;
+}
+
+/** Signals whose gates are callouts only: flagged, never a reason to hold progression. */
+const CALLOUT_SIGNALS: ReadonlySet<RecoverySignalId> = new Set(['body_weight_rate']);
+
+/** Whether this indicator's gate can cap the lights and hold progression. */
+export function holdsProgression(i: Pick<RecoveryIndicator, 'signal' | 'gate'>): boolean {
+  return Boolean(i.gate) && !CALLOUT_SIGNALS.has(i.signal);
+}
+
+/** A gated callout (body weight) outside its limit: shown, but holding nothing back. */
+export function trippedCallouts(indicators: RecoveryIndicator[]): RecoveryIndicator[] {
+  return indicators.filter(i => i.gate && !holdsProgression(i) && (i.status === 'watch' || i.status === 'warn'));
 }
 
 export interface RecoveryInputs {
@@ -113,7 +127,7 @@ function ruleText(signal: RecoverySignalId, gate: RecoveryGate | undefined, syst
       : signal === 'training_load'
         ? `${raw}%`
         : `${raw} ${signal === 'resting_hr' ? 'bpm' : signal === 'hrv' ? 'ms' : 'h'}`;
-  const who = gate.severity === 'warn' ? 'Hold progression' : 'Watch';
+  const who = CALLOUT_SIGNALS.has(signal) ? 'Flag' : gate.severity === 'warn' ? 'Hold progression' : 'Watch';
   if (signal === 'training_load') {
     // The gate is on the % change against the weekly average.
     const vs = BASELINES.training_load;
@@ -300,12 +314,15 @@ export function recoveryIndicators(inputs: RecoveryInputs, gates: RecoveryGate[]
 
 /** The worst gated status, for a one-word recovery chip. */
 export function recoverySummary(indicators: RecoveryIndicator[]): { status: 'ok' | 'watch' | 'warn' | 'unknown'; text: string } {
-  const gated = indicators.filter(i => i.gate);
-  if (gated.length === 0) return { status: 'unknown', text: 'No recovery gates are set in this plan.' };
+  const callouts = trippedCallouts(indicators);
+  const note = callouts.length ? ` ${callouts.map(i => i.label).join(', ')} is outside the plan’s range (a callout only; it does not hold progression).` : '';
+  const result = (status: 'ok' | 'watch' | 'warn' | 'unknown', text: string) => ({ status, text: text + note });
+  const gated = indicators.filter(holdsProgression);
+  if (gated.length === 0) return result('unknown', 'No recovery gates that hold progression are set in this plan.');
   const warn = gated.filter(i => i.status === 'warn');
   const watch = gated.filter(i => i.status === 'watch');
-  if (warn.length) return { status: 'warn', text: `${warn.map(i => i.label).join(', ')} outside the plan's limits.` };
-  if (watch.length) return { status: 'watch', text: `Watch: ${watch.map(i => i.label.toLowerCase()).join(', ')}.` };
-  if (gated.every(i => i.status === 'unknown')) return { status: 'unknown', text: 'Not enough recent data to check recovery.' };
-  return { status: 'ok', text: 'Recovery signals are inside the plan’s limits.' };
+  if (warn.length) return result('warn', `${warn.map(i => i.label).join(', ')} outside the plan's limits.`);
+  if (watch.length) return result('watch', `Watch: ${watch.map(i => i.label.toLowerCase()).join(', ')}.`);
+  if (gated.every(i => i.status === 'unknown')) return result('unknown', 'Not enough recent data to check recovery.');
+  return result('ok', 'Recovery signals are inside the plan’s limits.');
 }
