@@ -42,7 +42,7 @@ import {
   median,
   type DayWindow,
 } from '@/lib/analytics';
-import { compareDailyAverages, stddev, mean, percentChange } from '@/lib/analytics';
+import { compareDailyAverages, dayOverDay, stddev, mean } from '@/lib/analytics';
 import {
   Card, Badge, InsufficientDataState, StaleBadge, ChangeCue, DataStateNote,
 } from '@/components/ui/primitives';
@@ -192,10 +192,7 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
     range !== 'all' && diffDays(chartWindow.startKey, WINDOW_START_KEY) > 0;
 
   const windowValues = chartPoints.map(p => p.value);
-  const yDayDelta = todayPoint && latest && latest.key === REFERENCE_KEY && yesterdayPoint
-    ? todayPoint.value - yesterdayPoint.value
-    : null;
-  const yDayPct = yDayDelta != null && yesterdayPoint ? percentChange(todayPoint!.value, yesterdayPoint.value) : null;
+  const vsYesterday = dayOverDay(todayPoint, yesterdayPoint, meta);
 
   // ── Sparse / unavailable metrics ────────────────────
   if (all.length === 0) {
@@ -315,17 +312,20 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
               />
             </div>
 
-            {/* Day-over-day, only when there is a reading today */}
+            {/* Day-over-day, only when today is a complete reading */}
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-secondary">
-              {todayPoint && yesterdayPoint ? (
+              {vsYesterday.kind === 'change' ? (
                 <span className="inline-flex items-center gap-1">
                   vs yesterday:
                   <ChangeCue
-                    direction={yDayDelta! > 0 ? 'above' : yDayDelta! < 0 ? 'below' : 'none'}
-                    value={describeChange(metaId, yDayDelta!, yDayPct, { system: units, comparisonLabel: 'yesterday' }).value}
-                    percent={yDayPct == null ? null : formatPercent(yDayPct)}
+                    direction={vsYesterday.delta > 0 ? 'above' : vsYesterday.delta < 0 ? 'below' : 'none'}
+                    value={describeChange(metaId, vsYesterday.delta, vsYesterday.percent, { system: units, comparisonLabel: 'yesterday' }).value}
+                    percent={vsYesterday.percent == null ? null : formatPercent(vsYesterday.percent)}
+                    comparedWith="yesterday"
                   />
                 </span>
+              ) : vsYesterday.kind === 'today-in-progress' ? (
+                <span>Today is still in progress, so it is not compared with yesterday.</span>
               ) : (
                 <span>Yesterday: {yesterdayPoint ? 'recorded' : 'no reading, so no day-over-day comparison is shown.'}</span>
               )}

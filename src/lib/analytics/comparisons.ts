@@ -15,7 +15,7 @@
 import { getMetric } from '../metrics/registry';
 import type { AggregationStrategy, MetricDefinition } from '../metrics/types';
 import { REFERENCE_KEY, excludePartialForSum, isAccumulating, seriesFor, type DayPoint } from '../adapters/dataset';
-import { compareValues, type ComparisonResult } from './stats';
+import { compareValues, percentChange, type ComparisonResult } from './stats';
 import {
   addDays,
   containsDay,
@@ -48,6 +48,26 @@ export function compareDailyAverages(
     comparison: compareValues(ev.values, bs.values, 'avg', minCount),
     excludedDays: [...ev.excludedDays, ...bs.excludedDays],
   };
+}
+
+/**
+ * Today against yesterday. An accumulating metric's today is still filling up
+ * (and a day flagged partial is incomplete whatever the metric), so it is never
+ * compared with a complete day: that would read as a fall every morning.
+ */
+export type DayOverDay =
+  | { kind: 'change'; delta: number; percent: number | null }
+  | { kind: 'today-in-progress' }
+  | { kind: 'missing' };
+
+export function dayOverDay(
+  today: DayPoint | undefined,
+  yesterday: DayPoint | undefined,
+  meta: MetricDefinition | undefined
+): DayOverDay {
+  if (!today || !yesterday) return { kind: 'missing' };
+  if (isAccumulating(meta) || today.partial === true) return { kind: 'today-in-progress' };
+  return { kind: 'change', delta: today.value - yesterday.value, percent: percentChange(today.value, yesterday.value) };
 }
 
 export interface WindowComparisonOptions {

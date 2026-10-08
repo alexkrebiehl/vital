@@ -12,6 +12,7 @@ import {
   addDays,
   compareDailyAverages,
   compareValues,
+  dayOverDay,
   compareWindows,
   dayKey,
   diffDays,
@@ -211,5 +212,28 @@ describe('compareDailyAverages: windows of different lengths', () => {
     const { comparison, excludedDays } = compareDailyAverages(weights, [day(-10, 81)], getMetric('weight_body_mass'));
     expect(comparison.current).toBe(82);
     expect(excludedDays).toEqual([]);
+  });
+});
+
+describe('dayOverDay', () => {
+  const point = (key: string, value: number, partial?: boolean): DayPoint => ({ key, value, source: 'watch', ...(partial ? { partial } : {}) });
+  const yesterday = point(addDays(REFERENCE_KEY, -1), 15_200);
+
+  it('never compares an accumulating metric’s in-progress today with a complete yesterday', () => {
+    expect(dayOverDay(point(REFERENCE_KEY, 10), yesterday, getMetric('step_count'))).toEqual({ kind: 'today-in-progress' });
+  });
+
+  it('treats a day flagged partial as in progress, whatever the metric', () => {
+    expect(dayOverDay(point(REFERENCE_KEY, 60, true), point(addDays(REFERENCE_KEY, -1), 58), getMetric('resting_heart_rate')).kind).toBe('today-in-progress');
+  });
+
+  it('compares complete readings', () => {
+    const r = dayOverDay(point(REFERENCE_KEY, 60), point(addDays(REFERENCE_KEY, -1), 50), getMetric('resting_heart_rate'));
+    expect(r).toEqual({ kind: 'change', delta: 10, percent: 20 });
+  });
+
+  it('says so when either day has no reading', () => {
+    expect(dayOverDay(undefined, yesterday, getMetric('step_count'))).toEqual({ kind: 'missing' });
+    expect(dayOverDay(point(REFERENCE_KEY, 60), undefined, getMetric('resting_heart_rate'))).toEqual({ kind: 'missing' });
   });
 });

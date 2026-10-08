@@ -457,18 +457,21 @@ export function ChangeCue({
   direction,
   value,
   percent,
+  comparedWith = 'baseline',
   className = '',
 }: {
   direction: 'above' | 'below' | 'none';
   value: string;
   percent?: string | null;
+  /** What the change is measured against, for the screen-reader text. */
+  comparedWith?: string;
   className?: string;
 }) {
   const Icon = direction === 'above' ? ArrowUp : direction === 'below' ? ArrowDown : ArrowRight;
   // The screen-reader text states the direction only; the visible text already
   // carries the value, so it is never repeated.
   const srText =
-    direction === 'above' ? 'Higher than baseline' : direction === 'below' ? 'Lower than baseline' : '';
+    direction === 'above' ? `Higher than ${comparedWith}` : direction === 'below' ? `Lower than ${comparedWith}` : '';
   return (
     <span className={`inline-flex items-center gap-1 tnum ${className}`}>
       <Icon size={12} aria-hidden="true" className="shrink-0 opacity-70" />
