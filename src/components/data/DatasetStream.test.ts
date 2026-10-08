@@ -16,7 +16,7 @@ vi.mock('@/components/shell/AppShell', () => ({
     createElement('div', { 'data-setup-mode': String(setupMode) }, children as never),
 }));
 
-import { DatasetStream, type LayoutData } from './DatasetStream';
+import { DatasetStream, type DatasetStreamProps, type LayoutData } from './DatasetStream';
 import { useDatasetReady } from './DatasetProvider';
 
 function Page() {
@@ -33,7 +33,11 @@ function settled(value: LayoutData): Promise<LayoutData> {
 
 const render = (data: Promise<LayoutData>, initialSetupMode = false) =>
   renderToStaticMarkup(
-    createElement(DatasetStream, { data, initialSetupMode, profile: PROFILE, profileStored: false, initialPrefs: null, children: createElement(Page) })
+    createElement(
+      DatasetStream,
+      { data, initialSetupMode, profile: PROFILE, profileStored: false, initialPrefs: null } as unknown as DatasetStreamProps,
+      createElement(Page)
+    )
   );
 
 describe('DatasetStream', () => {
