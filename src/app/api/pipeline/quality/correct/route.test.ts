@@ -3,7 +3,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { PoolLike } from '@/lib/db/pool';
 
-const holder: { client: PoolLike | null; rows: string[]; cleared: number } = { client: null, rows: [], cleared: 0 };
+const holder: { client: PoolLike | null; rows: string[]; silenced: string[]; cleared: number } = { client: null, rows: [], silenced: [], cleared: 0 };
 
 vi.mock('@/lib/db/pool', () => ({
   getPool: () => holder.client,
@@ -30,6 +30,10 @@ function fakePool(): PoolLike {
         holder.rows = holder.rows.filter(r => r !== params[0]);
         return { rows: [] };
       }
+      if (sql.startsWith('DELETE FROM quality_silenced WHERE check_id = $1 AND metric_id = $2')) {
+        holder.silenced = holder.silenced.filter(r => r !== `${params[0]}:${params[1]}`);
+        return { rows: [] };
+      }
       throw new Error(`Unexpected statement: ${sql}`);
     },
   };
@@ -44,6 +48,7 @@ const req = (method: string, body: unknown) =>
 
 beforeEach(() => {
   holder.rows = [];
+  holder.silenced = [];
   holder.cleared = 0;
   holder.client = fakePool();
 });
@@ -73,6 +78,14 @@ describe('POST /api/pipeline/quality/correct (fix it)', () => {
     expect(await res.json()).toEqual({ checkId: 'overlapping-exports', correcting: true });
     expect(holder.rows).toEqual([]);
     expect(holder.cleared).toBe(2);
+  });
+
+  it('lifts a silence on that check, turning the correction on or off', async () => {
+    holder.silenced = ['overlapping-exports:', 'duplicate-readings:', 'stale:'];
+    await POST(req('POST', { checkId: 'overlapping-exports' }));
+    expect(holder.silenced).toEqual(['duplicate-readings:', 'stale:']);
+    await DELETE(req('DELETE', { checkId: 'duplicate-readings' }));
+    expect(holder.silenced).toEqual(['stale:']);
   });
 
   it.each([
