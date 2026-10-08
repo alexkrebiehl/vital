@@ -153,3 +153,24 @@ describe('DataQualityView: corrections', () => {
     expect(html).toContain('All checks passed');
   });
 });
+
+describe('DataQualityView: fixing a silenced issue', () => {
+  const SILENCED_OVERLAP: SilencedFinding = {
+    checkId: 'overlapping-exports', checkLabel: QUALITY_CHECK_LABEL['overlapping-exports'], metricId: '', metricLabel: 'Steps',
+    title: 'Some activity is counted twice', severity: 'problem', found: true, firstDay: '2026-10-04', lastDay: '2026-10-06',
+  };
+
+  it('offers Fix it beside Restore for a silenced issue Vital can correct', () => {
+    const html = view(report([]), [SILENCED_OVERLAP]);
+    expect(html).toMatch(/aria-label="Fix it: Some activity is counted twice"[^>]*>Fix it</);
+    expect(html).toContain('>Restore<');
+  });
+
+  it('offers no Fix it when the silenced issue is not found right now', () => {
+    expect(view(report([]), [{ ...SILENCED_OVERLAP, found: false }])).not.toContain('>Fix it<');
+  });
+
+  it('offers no Fix it for a silenced issue Vital cannot correct', () => {
+    expect(view(report([]), [SILENCED])).not.toContain('>Fix it<');
+  });
+});

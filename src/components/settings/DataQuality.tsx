@@ -46,16 +46,24 @@ export function DataQualitySection({
   if (report.qualityState === 'ready' && report.quality) {
     return <DataQuality quality={report.quality} silenced={report.silenced ?? []} onChanged={onReady} />;
   }
-  return <PendingDataQuality key={checkKey} initialFailure={report.qualityState === 'failed'} onReady={onReady} />;
+  return (
+    <PendingDataQuality
+      key={checkKey}
+      initialFailure={report.qualityState === 'failed'}
+      // While the dataset is still being read there is nothing to ask for yet.
+      waiting={report.pending?.includes('dataset') ?? false}
+      onReady={onReady}
+    />
+  );
 }
 
-function PendingDataQuality({ initialFailure, onReady }: { initialFailure: boolean; onReady?: () => void }) {
+function PendingDataQuality({ initialFailure, waiting = false, onReady }: { initialFailure: boolean; waiting?: boolean; onReady?: () => void }) {
   const [result, setResult] = useState<PipelineQualityResponse | null>(
     initialFailure ? { state: 'failed', quality: null, silenced: [], detail: 'The checks could not finish.' } : null
   );
 
   useEffect(() => {
-    if (initialFailure) return;
+    if (initialFailure || waiting) return;
     let cancelled = false;
     (async () => {
       // The route waits for the checks, up to a limit; ask again while they are still running.
@@ -79,7 +87,7 @@ function PendingDataQuality({ initialFailure, onReady }: { initialFailure: boole
     return () => {
       cancelled = true;
     };
-  }, [initialFailure, onReady]);
+  }, [initialFailure, waiting, onReady]);
 
   if (result?.state === 'ready' && result.quality) {
     return <DataQuality quality={result.quality} silenced={result.silenced} onChanged={onReady} />;
@@ -278,12 +286,22 @@ export function DataQualityView({
         ))}
       </ul>
 
-      {silenced.length > 0 && <SilencedList silenced={silenced} busy={busy} onRestore={onRestore} />}
+      {silenced.length > 0 && <SilencedList silenced={silenced} busy={busy} onRestore={onRestore} onCorrect={onCorrect} />}
     </section>
   );
 }
 
-function SilencedList({ silenced, busy, onRestore }: { silenced: SilencedFinding[]; busy: string | null; onRestore: (key: SilencedKey) => void }) {
+function SilencedList({
+  silenced,
+  busy,
+  onRestore,
+  onCorrect,
+}: {
+  silenced: SilencedFinding[];
+  busy: string | null;
+  onRestore: (key: SilencedKey) => void;
+  onCorrect: (checkId: CorrectableCheck, on: boolean) => void;
+}) {
   return (
     <details className="mt-5 group" data-silenced-issues>
       <summary className="cursor-pointer text-[12px] font-medium text-text-primary">Silenced issues ({silenced.length})</summary>
@@ -305,6 +323,18 @@ function SilencedList({ silenced, busy, onRestore }: { silenced: SilencedFinding
                     : 'Not found right now; it stays hidden if it comes back'}
                 </span>
               </span>
+              {/* A silenced issue Vital can correct can still be fixed from here (which also lifts the silence). */}
+              {s.found && isCorrectable(s.checkId) && (
+                <button
+                  type="button"
+                  className="shrink-0 rounded-control bg-primary px-2.5 py-1 text-[12px] font-medium text-primary-text hover:opacity-90 disabled:opacity-60"
+                  disabled={busy !== null}
+                  aria-label={`Fix it: ${s.title}`}
+                  onClick={() => onCorrect(s.checkId as CorrectableCheck, true)}
+                >
+                  {busy === correctId(s.checkId as CorrectableCheck) ? 'Fixing…' : 'Fix it'}
+                </button>
+              )}
               <button
                 type="button"
                 className="shrink-0 rounded-control border border-border px-2.5 py-1 text-[12px] font-medium text-primary disabled:opacity-60"

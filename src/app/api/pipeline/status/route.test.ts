@@ -3,15 +3,16 @@
 import { describe, expect, it, vi } from 'vitest';
 
 const calls: string[] = [];
+const args: unknown[] = [];
 vi.mock('@/lib/pipeline/status', () => ({
   resolvePipelineStatus: async () => {
     calls.push('full');
     return { full: true };
   },
   resolvePart: {
-    sources: async () => (calls.push('sources'), { part: 'sources' }),
-    dataset: async () => (calls.push('dataset'), { part: 'dataset' }),
-    workouts: async () => (calls.push('workouts'), { part: 'workouts' }),
+    sources: async (deps: unknown) => (calls.push('sources'), args.push(deps), { part: 'sources' }),
+    dataset: async (deps: unknown) => (calls.push('dataset'), args.push(deps), { part: 'dataset' }),
+    workouts: async (deps: unknown) => (calls.push('workouts'), args.push(deps), { part: 'workouts' }),
   },
 }));
 
@@ -36,6 +37,13 @@ describe('GET /api/pipeline/status', () => {
     expect(res.headers.get('Cache-Control')).toBe('no-store, private');
     expect(await res.json()).toEqual({ part });
     expect(calls).toEqual([part]);
+  });
+
+  it('reads afresh with fresh=1 ("Check again"), and from the caches otherwise', async () => {
+    args.length = 0;
+    await get('?part=dataset&fresh=1');
+    await get('?part=dataset');
+    expect(args).toEqual([{ fresh: true }, {}]);
   });
 
   it('refuses an unknown part and checks nothing', async () => {

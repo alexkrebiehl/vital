@@ -142,7 +142,7 @@ export function FreshnessIndicator() {
             </div>
 
             <div className="mt-3 flex justify-end">
-              <Button variant="secondary" size="sm" onClick={() => void load()}>
+              <Button variant="secondary" size="sm" onClick={() => load({ fresh: true })}>
                 <RefreshCw size={12} aria-hidden="true" />
                 <span className="ml-1.5">Check again</span>
               </Button>

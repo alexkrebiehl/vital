@@ -254,6 +254,19 @@ describe('cache and single flight', () => {
     expect(calls.length).toBe(afterFirst);
   });
 
+  it('reads upstream again on a refresh ("Check again"), even inside the TTL, and caches the result', async () => {
+    setCacheTtlForTests(60_000);
+    liveCache.clear();
+    const { impl, calls } = recordingFetch();
+    const deps = { ...HAE_DEPS, env: ENV, fetchImpl: impl, now: () => NOW };
+    await loadLiveDataset(deps);
+    const onePass = calls.length;
+    await loadLiveDataset({ ...deps, refresh: true });
+    expect(calls.length).toBe(onePass * 2);
+    await loadLiveDataset(deps);
+    expect(calls.length).toBe(onePass * 2);
+  });
+
   it('collapses concurrent page loads into one upstream pass', async () => {
     liveCache.clear();
     const { impl, calls } = recordingFetch();
