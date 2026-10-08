@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.2] - 2026-10-08
+
+### Fixed
+
+- Fix blood pressure showing only the systolic number: charts, tables, averages and baselines now show systolic and diastolic together, with both values on hover ([`21044fb`](https://github.com/echupkin/vital/commit/21044fb), [`6b0fd0b`](https://github.com/echupkin/vital/commit/6b0fd0b), [`d838c57`](https://github.com/echupkin/vital/commit/d838c57))
+
 ## [0.3.1] - 2026-10-07
 
 ### Changed
@@ -132,6 +138,7 @@ _Documentation only; this version was merged but never tagged._
 
 - Fix analyst conversations being ordered by when they were last touched instead of when they were asked ([`2e9a981`](https://github.com/echupkin/vital/commit/2e9a981))
 
+[0.3.2]: https://github.com/echupkin/vital/commits/release/v0.3.2
 [0.3.1]: https://github.com/echupkin/vital/releases/tag/v0.3.1
 [0.3.0]: https://github.com/echupkin/vital/releases/tag/v0.3.0
 [0.2.4]: https://github.com/echupkin/vital/releases/tag/v0.2.4
