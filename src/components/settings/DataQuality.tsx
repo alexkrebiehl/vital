@@ -7,9 +7,10 @@
 // list of checks that ran and passed. Severity is always written out, never
 // carried by colour alone.
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CircleAlert, CircleCheck, Info, LoaderCircle, TriangleAlert } from 'lucide-react';
 import { formatRange, type DataQualityReport, type QualityFinding, type QualitySeverity } from '@/lib/adapters/quality';
+import { findingMetricId, type SilencedFinding, type SilencedKey } from '@/lib/adapters/quality-silenced';
 import type { PipelineQualityResponse, PipelineStatusReport } from '@/lib/pipeline/types';
 import { Badge, Skeleton } from '@/components/ui/primitives';
 
@@ -29,13 +30,15 @@ const SEVERITY: Record<QualitySeverity, { label: string; variant: 'warning' | 'i
  */
 export function DataQualitySection({ report, onReady }: { report: PipelineStatusReport; onReady?: () => void }) {
   if (report.qualityState === 'unavailable') return null;
-  if (report.qualityState === 'ready' && report.quality) return <DataQuality quality={report.quality} />;
+  if (report.qualityState === 'ready' && report.quality) {
+    return <DataQuality quality={report.quality} silenced={report.silenced ?? []} onChanged={onReady} />;
+  }
   return <PendingDataQuality key={report.checkedAt} initialFailure={report.qualityState === 'failed'} onReady={onReady} />;
 }
 
 function PendingDataQuality({ initialFailure, onReady }: { initialFailure: boolean; onReady?: () => void }) {
   const [result, setResult] = useState<PipelineQualityResponse | null>(
-    initialFailure ? { state: 'failed', quality: null, detail: 'The checks could not finish.' } : null
+    initialFailure ? { state: 'failed', quality: null, silenced: [], detail: 'The checks could not finish.' } : null
   );
 
   useEffect(() => {
@@ -54,18 +57,20 @@ function PendingDataQuality({ initialFailure, onReady }: { initialFailure: boole
           if (body.state === 'ready') onReady?.();
           return;
         } catch (e) {
-          if (!cancelled) setResult({ state: 'failed', quality: null, detail: e instanceof Error ? e.message : 'The checks could not be read.' });
+          if (!cancelled) setResult({ state: 'failed', quality: null, silenced: [], detail: e instanceof Error ? e.message : 'The checks could not be read.' });
           return;
         }
       }
-      if (!cancelled) setResult({ state: 'computing', quality: null, detail: 'The checks are taking longer than usual. Use “Check again” in a minute.' });
+      if (!cancelled) setResult({ state: 'computing', quality: null, silenced: [], detail: 'The checks are taking longer than usual. Use “Check again” in a minute.' });
     })();
     return () => {
       cancelled = true;
     };
   }, [initialFailure, onReady]);
 
-  if (result?.state === 'ready' && result.quality) return <DataQuality quality={result.quality} />;
+  if (result?.state === 'ready' && result.quality) {
+    return <DataQuality quality={result.quality} silenced={result.silenced} onChanged={onReady} />;
+  }
   if (result?.state === 'unavailable') return null;
 
   return (
@@ -99,9 +104,80 @@ function PendingDataQuality({ initialFailure, onReady }: { initialFailure: boole
   );
 }
 
-export function DataQuality({ quality }: { quality: DataQualityReport }) {
+const keyId = (k: SilencedKey) => `${k.checkId}:${k.metricId}`;
+
+/**
+ * The data-quality report with Silence / Restore. It does the two calls and
+ * hands the refresh to `onChanged`, which reloads the report quietly, so the
+ * panel does not blank out. The view below is a plain function of its props.
+ */
+export function DataQuality({
+  quality,
+  silenced = [],
+  onChanged,
+}: {
+  quality: DataQualityReport;
+  silenced?: SilencedFinding[];
+  onChanged?: () => void;
+}) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const send = useCallback(
+    async (method: 'POST' | 'DELETE', key: SilencedKey) => {
+      setBusy(keyId(key));
+      setError(null);
+      try {
+        const res = await fetch('/api/pipeline/quality/silence', {
+          method,
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(key.metricId ? key : { checkId: key.checkId }),
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(body?.error ?? `The server answered HTTP ${res.status}.`);
+        }
+        onChanged?.();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'The change could not be saved.');
+      } finally {
+        setBusy(null);
+      }
+    },
+    [onChanged]
+  );
+
+  return (
+    <DataQualityView
+      quality={quality}
+      silenced={silenced}
+      busy={busy}
+      error={error}
+      onSilence={key => void send('POST', key)}
+      onRestore={key => void send('DELETE', key)}
+    />
+  );
+}
+
+export function DataQualityView({
+  quality,
+  silenced,
+  busy = null,
+  error = null,
+  onSilence,
+  onRestore,
+}: {
+  quality: DataQualityReport;
+  silenced: SilencedFinding[];
+  /** Key of the silence or restore in flight, when there is one. */
+  busy?: string | null;
+  error?: string | null;
+  onSilence: (key: SilencedKey) => void;
+  onRestore: (key: SilencedKey) => void;
+}) {
   const serious = quality.findings.filter(f => f.severity !== 'info').length;
   const notes = quality.findings.length - serious;
+  const hiddenNow = silenced.some(s => s.found);
   return (
     <section className="mt-6 border-t border-border pt-5" aria-labelledby="data-quality-heading">
       <div className="flex flex-wrap items-center gap-2 mb-1">
@@ -113,7 +189,9 @@ export function DataQuality({ quality }: { quality: DataQualityReport }) {
             ? `${serious} to fix`
             : quality.findings.length
               ? 'No recent problems'
-              : 'All checks passed'}
+              : hiddenNow
+                ? 'No data-quality problems found'
+                : 'All checks passed'}
         </Badge>
         {notes > 0 && (
           <Badge variant="info" className="text-[10px]">
@@ -124,13 +202,19 @@ export function DataQuality({ quality }: { quality: DataQualityReport }) {
       <p className="text-[11px] text-text-secondary leading-relaxed mb-4">
         Checked on the export’s records as the server stores them, before Vital adds them up per day. Anything affecting
         only days more than 90 days ago is a note: recent figures are not affected. The checks only report: nothing here
-        changes your data.
+        changes your data. A silenced issue stays hidden for all of its days, including days that show up later.
       </p>
+
+      {error && (
+        <p role="alert" className="mb-3 text-[12px] text-category-attention">
+          {error}
+        </p>
+      )}
 
       {quality.findings.length > 0 && (
         <ul className="space-y-3 list-none p-0 m-0 mb-5">
           {quality.findings.map((f, i) => (
-            <Finding key={`${f.check}-${i}`} finding={f} />
+            <Finding key={`${f.check}-${i}`} finding={f} busy={busy} onSilence={onSilence} />
           ))}
         </ul>
       )}
@@ -153,13 +237,55 @@ export function DataQuality({ quality }: { quality: DataQualityReport }) {
           </li>
         ))}
       </ul>
+
+      {silenced.length > 0 && <SilencedList silenced={silenced} busy={busy} onRestore={onRestore} />}
     </section>
   );
 }
 
-function Finding({ finding: f }: { finding: QualityFinding }) {
+function SilencedList({ silenced, busy, onRestore }: { silenced: SilencedFinding[]; busy: string | null; onRestore: (key: SilencedKey) => void }) {
+  return (
+    <details className="mt-5 group" data-silenced-issues>
+      <summary className="cursor-pointer text-[12px] font-medium text-text-primary">Silenced issues ({silenced.length})</summary>
+      <ul className="mt-2 space-y-2 list-none p-0 m-0">
+        {silenced.map(s => {
+          const key = { checkId: s.checkId, metricId: s.metricId };
+          return (
+            <li key={keyId(key)} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-control border border-border p-3 text-[12px]">
+              <span className="min-w-0 flex-1">
+                <span className="font-medium text-text-primary">{s.title}</span>
+                {s.metricLabel && <span className="text-text-secondary"> · {s.metricLabel}</span>}
+                <span className="block text-[11px] text-text-secondary tnum">
+                  {s.found
+                    ? s.firstDay && s.lastDay
+                      ? s.firstDay === s.lastDay
+                        ? `Seen ${s.firstDay}`
+                        : `Seen ${s.firstDay} to ${s.lastDay}`
+                      : 'Hidden while it lasts'
+                    : 'Not found right now; it stays hidden if it comes back'}
+                </span>
+              </span>
+              <button
+                type="button"
+                className="shrink-0 rounded-control border border-border px-2.5 py-1 text-[12px] font-medium text-primary disabled:opacity-60"
+                disabled={busy !== null}
+                aria-label={`Restore: ${s.title}${s.metricLabel ? `, ${s.metricLabel}` : ''}`}
+                onClick={() => onRestore(key)}
+              >
+                {busy === keyId(key) ? 'Restoring…' : 'Restore'}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </details>
+  );
+}
+
+function Finding({ finding: f, busy, onSilence }: { finding: QualityFinding; busy: string | null; onSilence: (key: SilencedKey) => void }) {
   const s = SEVERITY[f.severity];
   const Icon = s.icon;
+  const key = { checkId: f.check, metricId: findingMetricId(f) };
   return (
     <li className="rounded-control border border-border bg-surface-muted/40 p-4">
       <div className="flex items-start gap-2.5">
@@ -188,6 +314,18 @@ function Finding({ finding: f }: { finding: QualityFinding }) {
               ))}
             </ol>
           </details>
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <button
+              type="button"
+              className="rounded-control border border-border px-2.5 py-1 text-[12px] font-medium text-text-primary disabled:opacity-60"
+              disabled={busy !== null}
+              aria-label={`Silence: ${f.title}`}
+              onClick={() => onSilence(key)}
+            >
+              {busy === keyId(key) ? 'Silencing…' : 'Silence'}
+            </button>
+            <span className="text-[11px] text-text-secondary">Stop showing this as an issue. You can restore it below.</span>
+          </div>
         </div>
       </div>
     </li>

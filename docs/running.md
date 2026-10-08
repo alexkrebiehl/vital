@@ -13,8 +13,8 @@ Requires Docker with the Compose v2 plugin.
 ```bash
 cd vital      # the directory containing docker-compose.yml
 cp .env.example .env        # demo mode works with no values set
-# for live data, set VITAL_DATA_MODE=live plus HAE_API_URL / HAE_API_KEY in .env
-npm run db:init             # generates the Postgres password + settings into .env (once, idempotent)
+# for live data, set VITAL_DATA_MODE=live in .env, then connect a source in Settings → Sources
+npm run db:init             # generates the Postgres password, settings and secret key into .env (once, idempotent)
 docker compose up -d --build
 ```
 
@@ -23,7 +23,8 @@ That starts **two** services: `vital-postgres` (the database, published on
 (the app on `:8080`). The app's entrypoint applies any pending migrations and **refuses to start
 if they fail**, so it can never serve a half-migrated database.
 
-What lives in Postgres: your configuration — the profile (name, date of birth, timezone, briefing
+What lives in Postgres: your configuration — your connections (Health Auto Export, Oura and Hevy: addresses, keys and
+tokens, **encrypted** with `VITAL_SECRET_KEY`, saved from Settings → Sources), the profile (name, date of birth, timezone, briefing
 hour, notes) and the display preferences (theme mode and light/dark theme picks, units,
 notifications). **No health data**: no
 observations, metric series or workouts are ever written to it; health history stays with the

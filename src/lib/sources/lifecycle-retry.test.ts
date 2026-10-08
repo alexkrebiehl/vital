@@ -9,8 +9,8 @@ import type { SourceContext } from '@/lib/sources/registry';
 
 function ctx(hae: boolean): SourceContext {
   return {
-    env: (hae ? { HAE_API_URL: 'http://hae.test', HAE_API_KEY: 'k' } : {}) as unknown as NodeJS.ProcessEnv,
-    hasCredential: async () => false,
+    env: {} as NodeJS.ProcessEnv,
+    hasCredential: async id => hae && id === 'hae',
     labReportCount: async () => 0,
   };
 }

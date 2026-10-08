@@ -30,6 +30,7 @@ import {
   Badge, Button, Card, DataStateNote, ErrorState, Skeleton,
 } from '@/components/ui/primitives';
 import type { LabDraft } from '@/lib/lab/commit';
+import { deleteConfirmMessage, type LabDeleteImpact } from '@/lib/lab/delete-impact';
 import type { LabReport } from '@/lib/lab/types';
 import type { StatusTone } from '@/lib/lab/status';
 import {
@@ -275,7 +276,16 @@ export function LabUpload() {
 
   const remove = useCallback(
     async (id: string, label: string) => {
-      if (!window.confirm(`Delete ${label}? Its observations are removed with it. This cannot be undone.`)) {
+      // Say plainly what the delete takes with it BEFORE it happens: the last
+      // report removes the lab source, which deletes its conversations at once.
+      let impact: LabDeleteImpact | null = null;
+      try {
+        const res = await fetch('/api/lab/delete-impact', { cache: 'no-store' });
+        if (res.ok) impact = (await res.json()) as LabDeleteImpact;
+      } catch {
+        impact = null;
+      }
+      if (!window.confirm(deleteConfirmMessage(`Delete ${label}?`, impact))) {
         return;
       }
       setBusyReportId(id);
@@ -286,7 +296,11 @@ export function LabUpload() {
         if (!res.ok) {
           setListNotice(body.error ?? `Deleting was refused (HTTP ${res.status}).`);
         } else {
-          setListNotice('Deleted. The report and its observations are gone.');
+          setListNotice(
+            impact?.lastReport && impact.conversations > 0
+              ? `Deleted. The report, its observations and the ${impact.conversations} conversation(s) that used lab results are gone.`
+              : 'Deleted. The report and its observations are gone.'
+          );
           await loadReports();
         }
       } catch (error) {

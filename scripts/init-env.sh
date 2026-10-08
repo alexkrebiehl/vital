@@ -10,7 +10,9 @@
 #   2. generates a strong random database password THE FIRST TIME and appends it;
 #   3. appends any missing VITAL_PG_* setting, with working defaults for a local
 #      Docker stack;
-#   4. prints which variables it added — and never the password itself.
+#   4. generates VITAL_SECRET_KEY (the key that encrypts stored connections)
+#      when it is absent;
+#   5. prints which variables it added — and never the password itself.
 #
 # It never overwrites a value that is already set, so re-running it is a no-op
 # and an existing password (a rotated one, a Kubernetes secret mounted as a
@@ -40,7 +42,17 @@ new_password() {
   if command -v openssl >/dev/null 2>&1; then
     openssl rand -hex 32
   else
-    od -An -tx1 /dev/urandom | tr -d ' \n' | cut -c1-64
+    head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n'
+  fi
+}
+
+# A 32-byte base64 secret for VITAL_SECRET_KEY. Same fallback style: `openssl`
+# first, then 32 random bytes from the kernel through base64.
+new_secret_key() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -base64 32
+  else
+    head -c 32 /dev/urandom | base64 | tr -d '\n'
   fi
 }
 
@@ -78,6 +90,12 @@ set_key VITAL_PG_USER vital
 set_key VITAL_PG_PASSWORD "$(new_password)"
 set_key VITAL_PG_SSL false
 
+# Never overwritten, never printed: only the variable name is listed below. A
+# commented-out `# VITAL_SECRET_KEY=` in the example does not count as set.
+if ! has_key VITAL_SECRET_KEY; then
+  set_key VITAL_SECRET_KEY "$(new_secret_key)"
+fi
+
 if [ -n "$ADDED" ]; then
   say "added to $ENV_FILE:$ADDED"
 else
@@ -85,6 +103,6 @@ else
 fi
 
 say ""
-say "The database password is in $ENV_FILE (gitignored). It is deliberately not printed here."
+say "The database password and the secret key are in $ENV_FILE (gitignored). They are deliberately not printed here."
 say "Next:  docker compose up -d --build     # starts vital-postgres (:5433) and the app (:8080)"
 say "       npm run db:migrate                # from the host, when running the app outside Docker"

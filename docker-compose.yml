@@ -84,24 +84,16 @@ services:
       # the committed fixtures. A failed live read shows a connection error and
       # never falls back to demo data.
       VITAL_DATA_MODE: "${VITAL_DATA_MODE:-demo}"
-      HAE_API_URL: "${HAE_API_URL:-}"
-      HAE_API_KEY: "${HAE_API_KEY:-}"
       HAE_PROBE_METRIC: "${HAE_PROBE_METRIC:-resting_heart_rate}"
       HAE_CACHE_TTL_SECONDS: "${HAE_CACHE_TTL_SECONDS:-300}"
       # ── Workout sources (server-side only) ──────────────────────────────────
       # The exercises, sets, reps, load and RPE the Workouts routine tracks.
-      # Without HEVY_API_KEY, Settings → Connections shows Hevy as not
-      # configured. An empty HEVY_API_URL means Hevy's own API.
-      HEVY_API_KEY: "${HEVY_API_KEY:-}"
-      HEVY_API_URL: "${HEVY_API_URL:-}"
+      # The Hevy key and address are entered in Settings → Connections → Workout sources.
       HEVY_CACHE_TTL_SECONDS: "${HEVY_CACHE_TTL_SECONDS:-300}"
       WORKOUT_SOURCE_LOOKBACK_DAYS: "${WORKOUT_SOURCE_LOOKBACK_DAYS:-400}"
       # ── Oura Ring (optional second live source, server-side only) ───────────
-      # Empty OURA_CLIENT_ID disables Oura. VITAL_SECRET_KEY encrypts the
-      # stored OAuth tokens and is required once Oura is configured.
-      OURA_CLIENT_ID: "${OURA_CLIENT_ID:-}"
-      OURA_CLIENT_SECRET: "${OURA_CLIENT_SECRET:-}"
-      OURA_REDIRECT_URI: "${OURA_REDIRECT_URI:-}"
+      # The client ID, secret and redirect URI are entered in Settings → Sources.
+      # VITAL_SECRET_KEY encrypts them and the OAuth tokens.
       OURA_SCOPES: "${OURA_SCOPES:-}"
       OURA_CACHE_TTL_SECONDS: "${OURA_CACHE_TTL_SECONDS:-300}"
       OURA_HEARTRATE_LOOKBACK_DAYS: "${OURA_HEARTRATE_LOOKBACK_DAYS:-30}"
@@ -109,7 +101,6 @@ services:
       OURA_PREFERRED_FOR: "${OURA_PREFERRED_FOR:-sleep,recovery}"
       OURA_API_URL: "${OURA_API_URL:-}"
       VITAL_SECRET_KEY: "${VITAL_SECRET_KEY:-}"
-      VITAL_SOURCE_PURGE_GRACE_DAYS: "${VITAL_SOURCE_PURGE_GRACE_DAYS:-7}"
       # Activity maps: routes held in memory, place search, street tiles.
       # Empty values fall back to the defaults (see .env.example).
       ROUTE_CACHE_MAX_POINTS: "${ROUTE_CACHE_MAX_POINTS:-}"

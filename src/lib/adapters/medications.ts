@@ -1,6 +1,6 @@
 // ── Medications Adapter (Health Auto Export) ────────────
 //
-// SERVER-SIDE ONLY. Reads HAE_API_URL / HAE_API_KEY from the process environment
+// SERVER-SIDE ONLY. Reads the stored Health Auto Export connection (see `hae-store.ts`)
 // and fetches a bounded window from GET /api/medications, normalized into typed
 // records. It is never imported by a component: the client bundle must never
 // receive the read token (see `index.ts`).

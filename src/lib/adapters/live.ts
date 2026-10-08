@@ -1,7 +1,7 @@
 // ── Live Health Data Adapter (Health Auto Export + Oura) ─
 //
-// SERVER-SIDE ONLY. This module reads HAE_API_URL / HAE_API_KEY from the process
-// environment, fetches bounded windows from the Health Auto Export API, and
+// SERVER-SIDE ONLY. This module reads the stored Health Auto Export connection
+// (encrypted in Postgres), fetches bounded windows from the Health Auto Export API, and
 // normalizes them into the same internal dataset shape the demo fixtures use
 // (see `normalize.ts`). When Oura is connected it reads that source in parallel
 // and merges the two under a stated rule (`merge.ts`). Which sources are active
@@ -37,7 +37,7 @@ import type { HealthDataAdapter, MetricQuery } from './types';
 import type { SourceError } from './meta';
 
 export type { SourceError } from './meta';
-import { HaeError, fetchMetricRecords, fetchWorkouts, readHaeConfig } from './hae';
+import { HaeError, fetchMetricRecords, fetchWorkouts, type HaeConfig } from './hae';
 import { LIVE_CACHE_PREFIX, OURA_CACHE_PREFIX, clearLiveCaches, liveCache, liveCacheTtlMs } from './cache';
 import {
   BLOOD_PRESSURE_HAE_METRIC,
@@ -60,6 +60,7 @@ import { splitSources, sourceRuleExplanationFor } from './sources';
 import { compactFrom, startQualityJob, type QualityJob, type QualityJobInput } from './quality';
 import { MERGE_RULE, mergeDatasets, preferRingFromGroups, type BuiltPart } from './merge';
 import { readOuraConfig } from './oura/config';
+import type { StoredOuraApp } from './oura/app-store';
 import { OuraError } from './oura/client';
 import { fetchOuraContribution, recordOuraOutcome } from './oura';
 import { OuraNotConnectedError } from './oura/tokens';
@@ -96,6 +97,12 @@ export interface LiveDeps {
   sources?: SourceContext;
   /** Replaces the process Postgres pool for Oura's credential (tests). */
   ouraClient?: PoolLike | null;
+  /** Use these stored Oura app credentials instead of reading them (tests). */
+  ouraApp?: StoredOuraApp;
+  /** Use this Health Auto Export connection instead of the stored one (tests). */
+  haeConfig?: HaeConfig | null;
+  /** Replaces the process Postgres pool for the stored connection (tests). */
+  haeClient?: PoolLike | null;
 }
 
 /** Outcome of the boot-time cache warm-up: reported, never thrown. */
@@ -219,6 +226,8 @@ function provenanceRow(
 interface HaePassArgs {
   env: NodeJS.ProcessEnv;
   fetchImpl?: typeof fetch;
+  haeConfig?: HaeConfig | null;
+  haeClient?: PoolLike | null;
   now: Date;
   timezone: string;
   referenceKey: string;
@@ -235,7 +244,7 @@ interface HaePassArgs {
  */
 async function fetchHaePass(args: HaePassArgs): Promise<LiveDatasetResult> {
   const { env, now, timezone, referenceKey, window } = args;
-  const requestDeps = { env, fetchImpl: args.fetchImpl };
+  const requestDeps = { env, fetchImpl: args.fetchImpl, haeConfig: args.haeConfig, haeClient: args.haeClient };
   const ctx = {
     tz: timezone,
     referenceKey,
@@ -457,18 +466,16 @@ function describeFailure(sourceId: 'hae' | 'oura', error: unknown): SourceError 
 }
 
 function sourceContext(deps: LiveDeps): SourceContext {
-  return deps.sources ?? defaultContext(deps.env ?? process.env);
+  if (deps.sources) return deps.sources;
+  const haeClient = deps.haeClient;
+  return defaultContext(deps.env ?? process.env, haeClient === undefined ? undefined : () => haeClient);
 }
 
 /** The error for "no source is active", worded for what is actually missing. */
-function noSourceError(env: NodeJS.ProcessEnv): Error {
-  const oura = readOuraConfig(env);
-  if (oura?.ok) return new NoLiveSourceError('Connect a data source in Settings → Connections.');
-  return new HaeError(
-    'Live mode is selected but the Health Auto Export API is not configured ' +
-      '(HAE_API_URL and HAE_API_KEY must both be set).',
-    'not_configured'
-  );
+async function noSourceError(env: NodeJS.ProcessEnv, deps: LiveDeps): Promise<Error> {
+  const oura = await readOuraConfig({ env, client: deps.ouraClient, ouraApp: deps.ouraApp });
+  if (oura?.ok) return new NoLiveSourceError('Connect a data source in Settings → Sources.');
+  return new HaeError('Live mode is selected but no data source is connected. Connect one in Settings → Sources.', 'not_configured');
 }
 
 async function loadOuraContribution(
@@ -477,8 +484,8 @@ async function loadOuraContribution(
   args: { timezone: string; referenceKey: string; lookbackDays: number }
 ): Promise<OuraContribution> {
   const load = () =>
-    fetchOuraContribution(args, { env, fetchImpl: deps.fetchImpl, client: deps.ouraClient, now: deps.now });
-  const read = readOuraConfig(env);
+    fetchOuraContribution(args, { env, fetchImpl: deps.fetchImpl, client: deps.ouraClient, ouraApp: deps.ouraApp, now: deps.now });
+  const read = await readOuraConfig({ env, client: deps.ouraClient, ouraApp: deps.ouraApp });
   const ttlMs = read?.ok ? read.config.cacheTtlSeconds * 1000 : undefined;
   if (deps.bypassCache) return load();
   return liveCache.getOrLoad(ouraCacheKey(args.timezone, args.lookbackDays), load, ttlMs);
@@ -505,7 +512,7 @@ export async function fetchLiveDatasetUncached(deps: LiveDeps = {}): Promise<Liv
   const active = await activeHealthSources(sourceContext(deps));
   const haeOn = active.includes('hae');
   const ouraOn = active.includes('oura');
-  if (!haeOn && !ouraOn) throw noSourceError(env);
+  if (!haeOn && !ouraOn) throw await noSourceError(env, deps);
 
   const now = (deps.now ?? (() => new Date()))();
   const timezone = resolveTimezone(deps);
@@ -515,7 +522,7 @@ export async function fetchLiveDatasetUncached(deps: LiveDeps = {}): Promise<Liv
 
   const [haeRun, ouraRun] = await Promise.allSettled([
     haeOn
-      ? fetchHaePass({ env, fetchImpl: deps.fetchImpl, now, timezone, referenceKey, window, excludeRing: ouraOn })
+      ? fetchHaePass({ env, fetchImpl: deps.fetchImpl, haeConfig: deps.haeConfig, haeClient: deps.haeClient, now, timezone, referenceKey, window, excludeRing: ouraOn })
       : Promise.resolve(null),
     ouraOn ? loadOuraContribution(deps, env, { timezone, referenceKey, lookbackDays }) : Promise.resolve(null),
   ]);
@@ -544,7 +551,7 @@ export async function fetchLiveDatasetUncached(deps: LiveDeps = {}): Promise<Liv
   // HAE alone (the other absent, or failed): the Health Auto Export result as it always was.
   if (hae && !oura) return withErrors(hae);
 
-  const rules = { preferRing: preferRingFromGroups(readOuraConfigGroups(env)) };
+  const rules = { preferRing: preferRingFromGroups(await readOuraConfigGroups(env, deps)) };
   const frame = { referenceDate: now.toISOString(), timezone };
   const haePart: BuiltPart | null = hae ? { dataset: hae.dataset, provenance: hae.provenance, stats: hae.stats } : null;
   const merged = mergeDatasets(haePart, oura, rules, frame);
@@ -569,8 +576,8 @@ export async function fetchLiveDatasetUncached(deps: LiveDeps = {}): Promise<Liv
   return withErrors(result);
 }
 
-function readOuraConfigGroups(env: NodeJS.ProcessEnv) {
-  const read = readOuraConfig(env);
+async function readOuraConfigGroups(env: NodeJS.ProcessEnv, deps: LiveDeps) {
+  const read = await readOuraConfig({ env, client: deps.ouraClient, ouraApp: deps.ouraApp });
   return read?.ok ? read.config.preferredFor : [];
 }
 
@@ -631,7 +638,6 @@ export async function loadLiveDataset(deps: LiveDeps = {}): Promise<LiveDatasetR
 export function warmLiveDataset(deps: LiveDeps = {}): Promise<WarmUpOutcome> | null {
   const env = deps.env ?? process.env;
   if ((env.VITAL_DATA_MODE ?? '').trim().toLowerCase() !== 'live') return null;
-  if (!readHaeConfig(env) && !readOuraConfig(env)?.ok) return null;
 
   return (async (): Promise<WarmUpOutcome> => {
     try {

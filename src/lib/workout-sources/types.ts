@@ -13,7 +13,9 @@
 // Like the HAE dataset, sessions live in the server process only. They are health
 // data, so they are never written to Postgres (see db/migrations/0001-init.sql).
 //
-// This module has no imports, so browser code may use the types.
+// This module imports types only, so browser code may use it.
+
+import type { PoolLike } from '../db/pool';
 
 export type TrainingSetKind = 'normal' | 'warmup' | 'dropset' | 'failure';
 
@@ -81,6 +83,10 @@ export interface SourceRequestDeps {
   now?: () => number;
   /** Tests pass a no-op so rate-limit backoff does not really sleep. */
   sleep?: (ms: number) => Promise<void>;
+  /** Replaces the process Postgres pool when reading a stored connection (tests). `null` means no database. */
+  hevyClient?: PoolLike | null;
+  /** Replaces the stored connection itself (tests). `null` means none is stored. */
+  hevyStored?: ({ state: 'ok'; apiKey: string; url: string } | { state: 'none' | 'needs_reentry' }) | null;
 }
 
 /** Where a plugin left off, so the next sync can be incremental. */
@@ -112,15 +118,14 @@ export interface SourceProbeResult {
 export interface WorkoutSourcePlugin<C = unknown> {
   id: string;
   displayName: string;
-  /** Environment variables that configure the plugin (shown in Settings, never their values). */
-  envVars: string[];
   /**
-   * Read the plugin's configuration from the server environment.
+   * Resolve the plugin's configuration: the connection stored in Postgres, plus
+   * admin tuning from the environment.
    *
-   * Returns null when the plugin is not configured at all. Never throws and never
-   * puts a credential anywhere but the returned object.
+   * Returns null when the plugin is not connected. Never throws and never puts a
+   * credential anywhere but the returned object.
    */
-  readConfig(env: NodeJS.ProcessEnv): C | null;
+  readConfig(deps: SourceRequestDeps): Promise<C | null>;
   /** Display-safe host of the configured API (never a key). */
   host(config: C): string | null;
   /** Cache lifetime for this source, in ms. */
@@ -139,7 +144,6 @@ export interface WorkoutSourcePlugin<C = unknown> {
 export interface WorkoutSourceStatus {
   id: string;
   displayName: string;
-  envVars: string[];
   configured: boolean;
   host: string | null;
   /** 'demo' when the committed training fixtures are being served instead. */

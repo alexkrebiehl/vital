@@ -10,8 +10,8 @@
 
 import type { LucideIcon } from 'lucide-react';
 import {
-  LayoutDashboard, TrendingUp, Heart, FlaskConical, Activity, Moon, Weight,
-  Dumbbell, Lightbulb, Bot, Settings, Pill, Palette,
+  LayoutDashboard, TrendingUp, Heart, Activity, Weight,
+  Dumbbell, Lightbulb, Bot, Settings, Palette,
 } from 'lucide-react';
 import { getMetric } from '@/lib/metrics/registry';
 import type { MetricCategory } from '@/lib/metrics/types';
@@ -46,9 +46,20 @@ export interface NavSection extends NavPage {
 export const NAV_SECTIONS: NavSection[] = [
   { id: 'overview', label: 'Overview', href: '/', icon: LayoutDashboard, description: 'Daily health briefing', placement: 'main', primary: true, exact: true },
   { id: 'trends', label: 'Trends', href: '/trends', icon: TrendingUp, description: 'What changed over time', placement: 'main', primary: true },
-  { id: 'health', label: 'Health', href: '/health', icon: Heart, description: 'Cardiovascular summary', placement: 'main' },
-  { id: 'lab', label: 'Lab', href: '/lab', icon: FlaskConical, description: 'Lab results imported from PDFs', placement: 'main' },
-  { id: 'medications', label: 'Medications', href: '/medications', icon: Pill, description: 'Medications and supplements', placement: 'main' },
+  {
+    id: 'health',
+    label: 'Health',
+    href: '/health',
+    icon: Heart,
+    description: 'Cardiovascular summary',
+    placement: 'main',
+    children: [
+      { id: 'overview', label: 'Overview', href: '/health', description: 'Cardiovascular summary', exact: true },
+      { id: 'lab', label: 'Lab', href: '/lab', description: 'Lab results imported from PDFs' },
+      { id: 'medications', label: 'Medications', href: '/medications', description: 'Medications and supplements' },
+      { id: 'sleep', label: 'Sleep', href: '/sleep', description: 'Sleep analysis' },
+    ],
+  },
   {
     id: 'activity',
     label: 'Activity',
@@ -61,7 +72,6 @@ export const NAV_SECTIONS: NavSection[] = [
       { id: 'maps', label: 'Maps', searchLabel: 'Activity maps', href: '/activity/maps', description: 'Where outdoor workouts went' },
     ],
   },
-  { id: 'sleep', label: 'Sleep', href: '/sleep', icon: Moon, description: 'Sleep analysis', placement: 'main' },
   {
     id: 'body',
     label: 'Body',
@@ -117,11 +127,11 @@ interface DetailRoute {
 
 /** Which section (and page within it) a metric belongs on. */
 const METRIC_PARENT: Record<MetricCategory, ParentRef> = {
-  cardiovascular: { section: 'health' },
-  respiratory: { section: 'health' },
-  recovery: { section: 'health' },
-  vitals: { section: 'health' },
-  sleep: { section: 'sleep' },
+  cardiovascular: { section: 'health', page: 'overview' },
+  respiratory: { section: 'health', page: 'overview' },
+  recovery: { section: 'health', page: 'overview' },
+  vitals: { section: 'health', page: 'overview' },
+  sleep: { section: 'health', page: 'sleep' },
   activity: { section: 'activity' },
   body: { section: 'body', page: 'overview' },
   nutrition: { section: 'body', page: 'nutrition' },
@@ -140,7 +150,7 @@ export const DETAIL_ROUTES: DetailRoute[] = [
   },
   {
     segments: ['lab', ':analyteKey'],
-    parent: () => ({ section: 'lab' }),
+    parent: () => ({ section: 'health', page: 'lab' }),
     label: key => analyteByKey(analyteKeyOfSeriesId(key))?.displayName ?? key,
   },
   {
@@ -219,8 +229,9 @@ export function resolveTrail(pathname: string): Trail {
   // The deepest registered page that covers the path wins, so /workouts/all
   // lights History rather than Workouts' own landing page.
   // A page ties with its section's own href (Workouts' Overview), and wins it.
-  const candidates = NAV_SECTIONS.filter(section => covers(section.href, path, section.exact)).flatMap(section => [
-    { section, page: null as NavPage | null },
+  // A section's pages are matched on their own paths, which need not sit under the section's.
+  const candidates = NAV_SECTIONS.flatMap(section => [
+    ...(covers(section.href, path, section.exact) ? [{ section, page: null as NavPage | null }] : []),
     ...(section.children ?? []).map(page => ({ section, page })),
   ]);
   let best: { section: NavSection; page: NavPage | null; depth: number } | null = null;

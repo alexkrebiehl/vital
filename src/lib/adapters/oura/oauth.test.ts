@@ -15,6 +15,7 @@ const cfg: OuraConfig = {
   clientId: 'sample-client',
   clientSecret: 'sample-secret',
   redirectUri: 'http://localhost:8080/api/sources/oura/callback',
+  loginClientId: null,
   scopes: ['daily', 'heartrate', 'workout', 'spo2'],
   apiUrl: 'https://api.example.test',
   cacheTtlSeconds: 300,

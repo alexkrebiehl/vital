@@ -1,7 +1,7 @@
 // ── /api/pipeline/status (SPEC §10) ─────────────────────
 //
-// Server-only route. It reads HAE_API_URL / HAE_API_KEY from the server
-// environment, probes the Health Auto Export API only when configured, and
+// Server-only route. It reads the stored (encrypted) Health Auto Export
+// connection, probes the API only when connected, and
 // reports each pipeline stage honestly. The key never leaves the server, and a
 // failed live check is surfaced as an explicit state rather than replaced with
 // demo data.

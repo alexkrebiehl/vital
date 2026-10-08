@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { HaeError } from '@/lib/adapters/hae';
+import { HaeError, buildHaeConfig } from '@/lib/adapters/hae';
 import { liveCache, setCacheTtlForTests } from '@/lib/adapters/cache';
 import {
   MEDICATIONS_PATH,
@@ -12,10 +12,9 @@ import {
 
 const TOKEN = 'test-read-token-do-not-log';
 const ENV = {
-  HAE_API_URL: 'http://hae.test:3001',
-  HAE_API_KEY: TOKEN,
   HAE_CACHE_TTL_SECONDS: '300',
 } as unknown as NodeJS.ProcessEnv;
+const HAE_CONFIG = buildHaeConfig('http://hae.test:3001', TOKEN, ENV);
 
 /** A window of upstream records shaped exactly like the verified live payload. */
 const SAMPLE: unknown[] = [
@@ -113,7 +112,7 @@ describe('fetchMedications in a local timezone', () => {
     const { impl, calls } = recordingFetch();
     const result = await fetchMedications(
       { from: '2026-09-27', to: '2026-09-28' },
-      { env: ENV, fetchImpl: impl, timezone: 'America/New_York' }
+      { haeConfig: HAE_CONFIG, env: ENV, fetchImpl: impl, timezone: 'America/New_York' }
     );
     // UTC days straddle the local ones, so a day is fetched on each side.
     expect(calls[0].url).toContain('from=2026-09-26');
@@ -129,7 +128,7 @@ describe('fetchMedications in a local timezone', () => {
     const { impl } = recordingFetch();
     const result = await fetchMedications(
       { from: '2026-09-28', to: '2026-09-29' },
-      { env: ENV, fetchImpl: impl, timezone: 'America/New_York' }
+      { haeConfig: HAE_CONFIG, env: ENV, fetchImpl: impl, timezone: 'America/New_York' }
     );
     // Both dated records are on Sep 27 locally; the undated one is kept.
     expect(result.records.map(r => r.id)).toEqual(['a3']);
@@ -141,7 +140,7 @@ describe('fetchMedications (§ windowed read)', () => {
     const { impl, calls } = recordingFetch();
     const result = await fetchMedications(
       { from: '2026-09-19', to: '2026-09-28' },
-      { env: ENV, fetchImpl: impl }
+      { haeConfig: HAE_CONFIG, env: ENV, fetchImpl: impl }
     );
 
     expect(calls).toHaveLength(1);
@@ -172,7 +171,7 @@ describe('fetchMedications (§ windowed read)', () => {
     const { impl } = recordingFetch([]);
     const result = await fetchMedications(
       { from: '2020-01-01', to: '2020-01-02' },
-      { env: ENV, fetchImpl: impl }
+      { haeConfig: HAE_CONFIG, env: ENV, fetchImpl: impl }
     );
     expect(result.records).toEqual([]);
     expect(result.covered).toBeNull();
@@ -180,7 +179,7 @@ describe('fetchMedications (§ windowed read)', () => {
 
   it('keeps a record with a null scheduledDate, marked as not attributable to a day', async () => {
     const { impl } = recordingFetch();
-    const result = await fetchMedications({}, { env: ENV, fetchImpl: impl });
+    const result = await fetchMedications({}, { haeConfig: HAE_CONFIG, env: ENV, fetchImpl: impl });
     const nullDated = result.records.find(r => r.id === 'a3');
     expect(nullDated).toBeDefined();
     expect(nullDated).toMatchObject({
@@ -193,7 +192,7 @@ describe('fetchMedications (§ windowed read)', () => {
 
   it('treats a non-array body as an error, never as "no data"', async () => {
     const { impl } = recordingFetch({ error: 'nope' });
-    await expect(fetchMedications({}, { env: ENV, fetchImpl: impl })).rejects.toMatchObject({
+    await expect(fetchMedications({}, { haeConfig: HAE_CONFIG, env: ENV, fetchImpl: impl })).rejects.toMatchObject({
       kind: 'invalid_payload',
     });
   });
@@ -206,8 +205,8 @@ describe('fetchMedications (§ windowed read)', () => {
         throw new SyntaxError('Unexpected token <');
       },
     })) as unknown as typeof fetch;
-    await expect(fetchMedications({}, { env: ENV, fetchImpl: impl })).rejects.toBeInstanceOf(HaeError);
-    await expect(fetchMedications({}, { env: ENV, fetchImpl: impl })).rejects.toMatchObject({
+    await expect(fetchMedications({}, { haeConfig: HAE_CONFIG, env: ENV, fetchImpl: impl })).rejects.toBeInstanceOf(HaeError);
+    await expect(fetchMedications({}, { haeConfig: HAE_CONFIG, env: ENV, fetchImpl: impl })).rejects.toMatchObject({
       kind: 'invalid_payload',
     });
   });
@@ -218,7 +217,7 @@ describe('fetchMedications (§ windowed read)', () => {
       status: 503,
       json: async () => [],
     })) as unknown as typeof fetch;
-    await expect(fetchMedications({}, { env: ENV, fetchImpl: httpFail })).rejects.toMatchObject({
+    await expect(fetchMedications({}, { haeConfig: HAE_CONFIG, env: ENV, fetchImpl: httpFail })).rejects.toMatchObject({
       kind: 'http_error',
       httpStatus: 503,
     });
@@ -228,7 +227,7 @@ describe('fetchMedications (§ windowed read)', () => {
       err.name = 'AbortError';
       throw err;
     }) as unknown as typeof fetch;
-    await expect(fetchMedications({}, { env: ENV, fetchImpl: abort })).rejects.toMatchObject({
+    await expect(fetchMedications({}, { haeConfig: HAE_CONFIG, env: ENV, fetchImpl: abort })).rejects.toMatchObject({
       kind: 'timeout',
     });
   });
@@ -236,7 +235,7 @@ describe('fetchMedications (§ windowed read)', () => {
   it('reports not-configured without making a request', async () => {
     const { impl, calls } = recordingFetch();
     await expect(
-      fetchMedications({}, { env: {} as NodeJS.ProcessEnv, fetchImpl: impl })
+      fetchMedications({}, { env: {} as NodeJS.ProcessEnv, fetchImpl: impl, haeClient: null })
     ).rejects.toMatchObject({ kind: 'not_configured' });
     expect(calls).toHaveLength(0);
   });
@@ -246,7 +245,7 @@ describe('loadMedications (§ cache policy)', () => {
   it('serves a repeated window from cache with a single upstream request', async () => {
     setCacheTtlForTests(60_000);
     const { impl, calls } = recordingFetch();
-    const deps = { env: ENV, fetchImpl: impl };
+    const deps = { haeConfig: HAE_CONFIG, env: ENV, fetchImpl: impl };
     await loadMedications({ from: '2026-09-01', to: '2026-09-30' }, deps);
     await loadMedications({ from: '2026-09-01', to: '2026-09-30' }, deps);
     expect(calls).toHaveLength(1);
@@ -254,7 +253,7 @@ describe('loadMedications (§ cache policy)', () => {
 
   it('bypassCache always hits upstream', async () => {
     const { impl, calls } = recordingFetch();
-    const deps = { env: ENV, fetchImpl: impl, bypassCache: true };
+    const deps = { haeConfig: HAE_CONFIG, env: ENV, fetchImpl: impl, bypassCache: true };
     await loadMedications({}, deps);
     await loadMedications({}, deps);
     expect(calls).toHaveLength(2);

@@ -4,21 +4,26 @@ import { PROBE_TIMEOUT_MS, readPipelineConfig, resolvePipelineStatus } from '@/l
 import { PIPELINE_ORDER, STAGE_STATUS_LABEL } from '@/lib/pipeline/types';
 import { liveCache, setCacheTtlForTests } from '@/lib/adapters/cache';
 import { resetToDemoDataset } from '@/lib/adapters/dataset';
+import { buildHaeConfig } from '@/lib/adapters/hae';
+import type { PoolLike } from '@/lib/db/pool';
 
 const TOKEN = 'read-token-value';
 const EMPTY_ENV = {} as NodeJS.ProcessEnv;
 
-const DEMO_CONFIGURED_ENV = {
-  HAE_API_URL: 'http://localhost:3001',
-  HAE_API_KEY: TOKEN,
-} as unknown as NodeJS.ProcessEnv;
+const DEMO_CONFIGURED_ENV = {} as unknown as NodeJS.ProcessEnv;
 
 const LIVE_ENV = {
   VITAL_DATA_MODE: 'live',
-  HAE_API_URL: 'http://localhost:3001',
-  HAE_API_KEY: TOKEN,
   HAE_PROBE_METRIC: 'resting_heart_rate',
 } as unknown as NodeJS.ProcessEnv;
+
+// The connection is stored in Postgres, never in the environment: tests inject it
+// and a stand-in pool that says a credential row exists.
+const STORED = {
+  haeConfig: buildHaeConfig('http://localhost:3001', TOKEN, LIVE_ENV),
+  haeClient: { query: async () => ({ rows: [{ present: 1 }] }) } as PoolLike,
+};
+const NONE = { haeConfig: null, haeClient: null };
 
 const NOW = Date.parse('2026-09-17T18:00:00.000Z');
 
@@ -45,34 +50,46 @@ afterEach(() => {
 });
 
 describe('pipeline configuration reading (SPEC §10, §11)', () => {
-  it('treats a missing URL or key as not configured', () => {
-    const empty = readPipelineConfig(EMPTY_ENV);
+  it('treats no stored connection as not configured, and ignores the old variables', async () => {
+    const empty = await readPipelineConfig({ env: EMPTY_ENV, ...NONE, ...NONE });
     expect(empty.healthApiConfigured).toBe(false);
     expect(empty.healthApiHost).toBeNull();
     expect(empty.probeMetric).toBeNull();
-    expect(readPipelineConfig({ HAE_API_URL: 'http://localhost:3001' } as unknown as NodeJS.ProcessEnv).healthApiConfigured).toBe(false);
-    expect(readPipelineConfig({ HAE_API_KEY: 'x' } as unknown as NodeJS.ProcessEnv).healthApiConfigured).toBe(false);
+    const env = { HAE_API_URL: 'http://localhost:3001', HAE_API_KEY: 'x' } as unknown as NodeJS.ProcessEnv;
+    expect((await readPipelineConfig({ env, haeClient: null })).healthApiConfigured).toBe(false);
   });
 
-  it('reports the host and the probe metric but never the key', () => {
-    const config = readPipelineConfig(DEMO_CONFIGURED_ENV);
+  it('reports the host and the probe metric but never the key', async () => {
+    const config = await readPipelineConfig({ env: DEMO_CONFIGURED_ENV, ...STORED });
     expect(config.healthApiConfigured).toBe(true);
     expect(config.healthApiHost).toBe('localhost:3001');
     expect(config.probeMetric).toBe('resting_heart_rate');
     expect(JSON.stringify(config)).not.toContain(TOKEN);
   });
 
-  it('reports the configured probe metric when one is set', () => {
-    expect(readPipelineConfig(LIVE_ENV).probeMetric).toBe('resting_heart_rate');
+  it('reports the configured probe metric when one is set', async () => {
+    expect((await readPipelineConfig({ env: LIVE_ENV, ...STORED, haeConfig: STORED.haeConfig })).probeMetric).toBe('resting_heart_rate');
+    const tuned = { ...LIVE_ENV, HAE_PROBE_METRIC: 'step_count' } as unknown as NodeJS.ProcessEnv;
     expect(
-      readPipelineConfig({ ...LIVE_ENV, HAE_PROBE_METRIC: 'step_count' } as unknown as NodeJS.ProcessEnv).probeMetric
+      (await readPipelineConfig({ env: tuned, haeConfig: buildHaeConfig('http://localhost:3001', TOKEN, tuned) })).probeMetric
     ).toBe('step_count');
+
   });
 });
 
 describe('stage derivation (SPEC §10)', () => {
+  it('says the source is not connected, and names no environment variable', async () => {
+    const env = { HAE_API_URL: 'http://localhost:3001', HAE_API_KEY: TOKEN } as unknown as NodeJS.ProcessEnv;
+    const report = await resolvePipelineStatus({ env, ...NONE, now: () => NOW, skipDataset: true });
+    const stage = report.stages.find(s => s.id === 'health_auto_export')!;
+    expect(stage.status).toBe('unconfigured');
+    expect(stage.detail).toContain('Settings → Sources');
+    expect(JSON.stringify(report)).not.toMatch(/HAE_API/);
+    expect(JSON.stringify(report)).not.toContain(TOKEN);
+  });
+
   it('marks every upstream stage unknown or unconfigured in demo mode', async () => {
-    const report = await resolvePipelineStatus({ env: EMPTY_ENV, now: () => NOW });
+    const report = await resolvePipelineStatus({ env: EMPTY_ENV, ...NONE, now: () => NOW });
     expect(report.mode).toBe('demo');
     expect(report.stages.map(s => s.id)).toEqual(PIPELINE_ORDER);
 
@@ -94,7 +111,7 @@ describe('stage derivation (SPEC §10)', () => {
 
   it('derives the live stages from a real, successful check', async () => {
     setCacheTtlForTests(0);
-    const report = await resolvePipelineStatus({ env: LIVE_ENV, fetchImpl: sampleFetch(), now: () => NOW });
+    const report = await resolvePipelineStatus({ env: LIVE_ENV, ...STORED, fetchImpl: sampleFetch(), now: () => NOW });
 
     expect(report.mode).toBe('live');
     const byId = new Map(report.stages.map(s => [s.id, s]));
@@ -121,7 +138,7 @@ describe('stage derivation (SPEC §10)', () => {
 
   it('surfaces a failed live read instead of substituting demo data', async () => {
     setCacheTtlForTests(0);
-    const report = await resolvePipelineStatus({ env: LIVE_ENV, fetchImpl: failingFetch(500), now: () => NOW });
+    const report = await resolvePipelineStatus({ env: LIVE_ENV, ...STORED, fetchImpl: failingFetch(500), now: () => NOW });
 
     // The mode is still live: the app is not pretending to be in demo mode.
     expect(report.mode).toBe('live');
@@ -142,7 +159,7 @@ describe('stage derivation (SPEC §10)', () => {
       throw err;
     }) as unknown as typeof fetch;
     setCacheTtlForTests(0);
-    const report = await resolvePipelineStatus({ env: LIVE_ENV, fetchImpl: abort, now: () => NOW });
+    const report = await resolvePipelineStatus({ env: LIVE_ENV, ...STORED, fetchImpl: abort, now: () => NOW });
     expect(report.probe.outcome).toBe('timeout');
     expect(PROBE_TIMEOUT_MS).toBeLessThanOrEqual(2000);
     const healthApi = report.stages.find(s => s.id === 'health_api')!;
@@ -152,7 +169,7 @@ describe('stage derivation (SPEC §10)', () => {
 
   it('never exposes a credential in the report', async () => {
     setCacheTtlForTests(0);
-    const report = await resolvePipelineStatus({ env: LIVE_ENV, fetchImpl: sampleFetch(), now: () => NOW });
+    const report = await resolvePipelineStatus({ env: LIVE_ENV, ...STORED, fetchImpl: sampleFetch(), now: () => NOW });
     expect(JSON.stringify(report)).not.toContain(TOKEN);
     expect(report.config.healthApiHost).toBe('localhost:3001');
   });
@@ -167,8 +184,8 @@ describe('stage derivation (SPEC §10)', () => {
   });
 
   it('is deterministic for a fixed clock', async () => {
-    const a = await resolvePipelineStatus({ env: EMPTY_ENV, now: () => 0, skipDataset: true });
-    const b = await resolvePipelineStatus({ env: EMPTY_ENV, now: () => 0, skipDataset: true });
+    const a = await resolvePipelineStatus({ env: EMPTY_ENV, ...NONE, now: () => 0, skipDataset: true });
+    const b = await resolvePipelineStatus({ env: EMPTY_ENV, ...NONE, now: () => 0, skipDataset: true });
     expect(a).toEqual(b);
     expect(a.checkedAt).toBe('1970-01-01T00:00:00.000Z');
   });
@@ -176,6 +193,7 @@ describe('stage derivation (SPEC §10)', () => {
   it('accepts a dataset summary from the caller without loading anything', async () => {
     const report = await resolvePipelineStatus({
       env: EMPTY_ENV,
+      ...NONE,
       now: () => NOW,
       datasetSummary: {
         source: 'demo',

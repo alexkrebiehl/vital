@@ -5,6 +5,7 @@
 // without pulling the server probe into the client bundle.
 
 import type { DataQualityReport } from '../adapters/quality';
+import type { SilencedFinding } from '../adapters/quality-silenced';
 import type { WorkoutSourceStatus } from '../workout-sources/types';
 
 export type StageStatus = 'healthy' | 'degraded' | 'unknown' | 'unconfigured';
@@ -110,6 +111,11 @@ export interface PipelineStatusReport {
    * was read.
    */
   qualityState: 'ready' | 'computing' | 'failed' | 'unavailable';
+  /**
+   * Findings the reader silenced. `quality` above already leaves them out, and
+   * so do the stage text and counts; this is what the panel lists to restore.
+   */
+  silenced: SilencedFinding[];
   /** Reference day / instant of the dataset driving the dashboard. */
   dataAsOf: string | null;
   checkedAt: string;
@@ -140,4 +146,6 @@ export interface PipelineQualityResponse {
   quality: DataQualityReport | null;
   /** Why there is no report, when there is none. */
   detail: string | null;
+  /** Findings the reader silenced: left out of `quality`, listed here to restore. */
+  silenced: SilencedFinding[];
 }

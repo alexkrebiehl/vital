@@ -119,7 +119,7 @@ export function overviewSummary(r: RoutineOverview, detailPathId?: string) {
     goal: r.goal,
     ...(r.exerciseData
       ? {}
-      : { exerciseData: 'No workout source (e.g. Hevy) is connected: paths with tracked=false cannot be judged, and their sessions are unknown rather than missed. Suggest connecting one in Settings → Connections.' }),
+      : { exerciseData: 'No workout source (e.g. Hevy) is connected: paths with tracked=false cannot be judged, and their sessions are unknown rather than missed. Suggest connecting one in Settings → Sources.' }),
     week: r.started ? r.week : `starts ${r.startDate}`,
     currentPhase: r.currentPhase
       ? { phase: `${r.currentPhase.index + 1} of ${r.currentPhase.count}`, name: r.currentPhase.name, since: r.currentPhase.since, milestones: `${r.currentPhase.progress.met} of ${r.currentPhase.progress.total} required` }

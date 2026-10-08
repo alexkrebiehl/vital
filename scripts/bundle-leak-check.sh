@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Client-bundle leak check (README: "No secrets in the client bundle").
 #
-# Greps every served .next/static chunk for the analyst credential, the HAE read
-# token, the optional local-model credential, the configured provider host and
+# Greps every served .next/static chunk for the analyst credential, the secret
+# key, the optional local-model credential, the configured provider host and
 # the system-prompt marker strings — including the briefing's, which lives in
 # its own server-only module and must not reach the browser either.
 # It prints only counts — never a matched value — and never prints the .env file.
@@ -13,9 +13,8 @@ cd "$(dirname "$0")/.."
 env_get() { grep -m1 "^$1=" .env | cut -d= -f2-; }
 
 KEY="$(env_get ANALYST_API_KEY)"
-HAE_KEY="$(env_get HAE_API_KEY)"
+SECRET_KEY="$(env_get VITAL_SECRET_KEY)"
 LOCAL_KEY="$(env_get VITAL_LLM_API_KEY)"
-HEVY_KEY="$(env_get HEVY_API_KEY)"
 PROMPT_FILE_MARKER="You are the analysis component of Vital"
 PROMPT_QUOTE_MARKER="Quote these strings verbatim"
 UNTRUSTED_MARKER="UNTRUSTED_CONTEXT_START"
@@ -42,9 +41,9 @@ check() {
 
 echo "Scanned tree: $(find .next/static -name '*.js' | wc -l) javascript files"
 check "ANALYST_API_KEY value"      "$KEY"
-check "HAE_API_KEY value"          "$HAE_KEY"
+check "VITAL_SECRET_KEY value"     "$SECRET_KEY"
+check "stored-connection store"    "putSecretConfig"
 check "VITAL_LLM_API_KEY value"    "$LOCAL_KEY"
-check "HEVY_API_KEY value"         "$HEVY_KEY"
 check "system prompt text"         "$PROMPT_FILE_MARKER"
 check "prompt display rule"        "$PROMPT_QUOTE_MARKER"
 check "untrusted-block delimiter"  "$UNTRUSTED_MARKER"

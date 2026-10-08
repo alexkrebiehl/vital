@@ -143,14 +143,9 @@ describe('sourceIdsForTurn', () => {
 describe('loadTurnSources', () => {
   const ctx = (labs: number, oura: boolean): SourceContext => ({
     env: {
-      HAE_API_URL: 'http://hae.test',
-      HAE_API_KEY: 'k',
-      OURA_CLIENT_ID: 'c',
-      OURA_CLIENT_SECRET: 's',
-      OURA_REDIRECT_URI: 'http://localhost/cb',
       VITAL_SECRET_KEY: Buffer.alloc(32, 1).toString('base64'),
     } as unknown as NodeJS.ProcessEnv,
-    hasCredential: async id => oura && id === 'oura',
+    hasCredential: async id => id === 'hae' || (oura && (id === 'oura' || id === 'oura-app')),
     labReportCount: async () => labs,
   });
 

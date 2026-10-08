@@ -14,7 +14,6 @@ import { FIXTURES, dataMode, datasetMeta, setActiveDataset, type DataMode, type 
 import { dayKey } from '../analytics/windows';
 import { haeHost } from './hae';
 import { loadLiveDataset, type LiveDeps } from './live';
-import { readOuraConfig } from './oura/config';
 import { activeHealthSources, defaultContext } from '../sources/registry';
 import { reconcileQuietly } from '../sources/purge';
 import { liveCache, liveCacheTtlMs } from './cache';
@@ -108,29 +107,28 @@ function toClientMeta(
 export async function resolveDataset(deps: LiveDeps = {}): Promise<ResolvedDataset> {
   const env = deps.env ?? process.env;
   const mode = readDataMode(env);
+  const host = await haeHost({ env, haeConfig: deps.haeConfig, haeClient: deps.haeClient });
 
   if (mode === 'demo') {
     const meta = datasetMeta();
     return {
       mode,
       dataset: null,
-      meta: toClientMeta('demo', meta, haeHost(env), env, [], null),
+      meta: toClientMeta('demo', meta, host, env, [], null),
       serverMeta: meta,
       quality: null,
     };
   }
 
-  const active = await activeHealthSources(deps.sources ?? defaultContext(env));
+  const active = await activeHealthSources(
+    deps.sources ??
+      defaultContext(env, deps.haeClient === undefined ? undefined : () => deps.haeClient ?? null)
+  );
   if (active.length === 0) {
-    const ouraWaiting = readOuraConfig(env)?.ok === true;
     throw new LiveDataUnavailableError(
-      ouraWaiting
-        ? 'Live mode is selected but no live source is connected.'
-        : 'Live mode is selected but the Health Auto Export API is not configured.',
-      ouraWaiting
-        ? 'Connect a data source in Settings → Connections.'
-        : 'HAE_API_URL and HAE_API_KEY must both be set in the server environment.',
-      haeHost(env)
+      'Live mode is selected but no live source is connected.',
+      'Connect a data source in Settings → Sources.',
+      host
     );
   }
 
@@ -146,7 +144,7 @@ export async function resolveDataset(deps: LiveDeps = {}): Promise<ResolvedDatas
     throw new LiveDataUnavailableError(
       'The live health data source is unavailable.',
       detail,
-      haeHost(env)
+      host
     );
   }
 
@@ -163,7 +161,7 @@ export async function resolveDataset(deps: LiveDeps = {}): Promise<ResolvedDatas
     meta: toClientMeta(
       'live',
       meta,
-      haeHost(env),
+      host,
       env,
       result.provenance,
       {

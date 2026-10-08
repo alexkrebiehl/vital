@@ -1,8 +1,20 @@
 # Changelog
 
-## [0.3.0] - 2026-10-04
+## [0.3.1] - 2026-10-07
 
-_Release in progress: the date is set when the version is tagged._
+### Changed
+
+- **Breaking:** connect Health Auto Export, Oura and Hevy in Settings instead of the environment: `HAE_API_URL`, `HAE_API_KEY`, `OURA_CLIENT_ID`, `OURA_CLIENT_SECRET`, `OURA_REDIRECT_URI`, `HEVY_API_KEY` and `HEVY_API_URL` are now ignored, so enter each once after upgrading; keys are stored encrypted with `VITAL_SECRET_KEY`, which `npm run db:init` now generates ([`87e8014`](https://github.com/echupkin/vital/commit/87e8014), [`8081d26`](https://github.com/echupkin/vital/commit/8081d26), [`9686e4c`](https://github.com/echupkin/vital/commit/9686e4c), [`8ed463f`](https://github.com/echupkin/vital/commit/8ed463f))
+- **Breaking:** erase a data source's cached data, briefings and conversations as soon as you disconnect it, or delete the last lab report, instead of hiding them for seven days; the Removed sources panel and `VITAL_SOURCE_PURGE_GRACE_DAYS` are gone, and an upgrade or restart never erases anything ([`28346f3`](https://github.com/echupkin/vital/commit/28346f3), [`60d75f3`](https://github.com/echupkin/vital/commit/60d75f3), [`8a9a36f`](https://github.com/echupkin/vital/commit/8a9a36f))
+- Fold Lab, Medications and Sleep under Health in the sidebar ([`ed096fc`](https://github.com/echupkin/vital/commit/ed096fc))
+
+### Added
+
+- Add body goals: set a target weight or body-fat percentage, optionally with your own pace, and read Body and Nutrition against it, with calorie and protein targets on Nutrition ([`a372b0c`](https://github.com/echupkin/vital/commit/a372b0c), [`7a793ad`](https://github.com/echupkin/vital/commit/7a793ad))
+- Add data-quality checks to the data pipeline: doubled activity, duplicate readings, missing days, late-starting history and a stopped automation ([`f2297b7`](https://github.com/echupkin/vital/commit/f2297b7))
+- Show only Settings on a first run in live mode until a source is connected and its data loads ([`2f183d5`](https://github.com/echupkin/vital/commit/2f183d5))
+
+## [0.3.0] - 2026-10-05
 
 ### Changed
 
@@ -120,6 +132,7 @@ _Documentation only; this version was merged but never tagged._
 
 - Fix analyst conversations being ordered by when they were last touched instead of when they were asked ([`2e9a981`](https://github.com/echupkin/vital/commit/2e9a981))
 
+[0.3.1]: https://github.com/echupkin/vital/releases/tag/v0.3.1
 [0.3.0]: https://github.com/echupkin/vital/releases/tag/v0.3.0
 [0.2.4]: https://github.com/echupkin/vital/releases/tag/v0.2.4
 [0.2.3]: https://github.com/echupkin/vital/releases/tag/v0.2.3

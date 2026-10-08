@@ -3,7 +3,7 @@
 // Every status in this report comes from a real check performed in this process:
 //
 //   * Health Auto Export / Health API — a bounded read-only probe of the
-//     configured HAE_API_URL (HAE_PROBE_METRIC, default resting_heart_rate),
+//     stored endpoint (HAE_PROBE_METRIC, default resting_heart_rate),
 //     with a hard timeout. Healthy is only ever reported when the probe actually
 //     answered with an array of records.
 //   * Oura — a bounded read-only probe (daily_sleep, last two days) when Oura is
@@ -18,13 +18,16 @@
 
 import { datasetMeta, type DatasetMeta } from '../adapters/dataset';
 import { cacheStatus, installDataset, readDataMode, LiveDataUnavailableError } from '../adapters/runtime';
-import { haeHost, readHaeConfig, type HaeProbeResult } from '../adapters/hae';
+import { haeHost, resolveHaeConfig, type HaeConfig, type HaeProbeResult } from '../adapters/hae';
 import { probeHae } from '../adapters/hae';
 import { probeOura, type OuraProbeResult } from '../adapters/oura';
-import { readOuraConfig } from '../adapters/oura/config';
+import { readOuraConfig, type OuraConfigResult } from '../adapters/oura/config';
+import type { StoredOuraApp } from '../adapters/oura/app-store';
 import type { PoolLike } from '../db/pool';
 import { loadTrainingData } from '../workout-sources/store';
 import type { QualityJob } from '../adapters/quality';
+import type { SilencedKey, SilencedResult } from '../adapters/quality-silenced';
+import { silencedView } from './quality-view';
 import type {
   PipelineConfig,
   PipelineDatasetSummary,
@@ -48,11 +51,13 @@ export { STAGE_STATUS_LABEL, PIPELINE_ORDER } from './types';
 
 export const PROBE_TIMEOUT_MS = 1500;
 
-export function readPipelineConfig(env: NodeJS.ProcessEnv = process.env): PipelineConfig {
-  const config = readHaeConfig(env);
+export async function readPipelineConfig(
+  deps: { env?: NodeJS.ProcessEnv; haeConfig?: HaeConfig | null; haeClient?: PoolLike | null } = {}
+): Promise<PipelineConfig> {
+  const config = await resolveHaeConfig(deps);
   return {
     healthApiConfigured: Boolean(config),
-    healthApiHost: haeHost(env),
+    healthApiHost: await haeHost({ ...deps, haeConfig: config }),
     probeMetric: config?.probeMetric ?? null,
   };
 }
@@ -67,11 +72,22 @@ export interface PipelineDeps {
   datasetSummary?: PipelineDatasetSummary;
   /** Replaces the process Postgres pool for Oura's credential (tests). */
   ouraClient?: PoolLike | null;
+  /** Use these stored Oura app credentials instead of reading them (tests). */
+  ouraApp?: StoredOuraApp;
+  /** Use these quality checks instead of the loaded dataset's (tests). */
+  qualityJob?: QualityJob | null;
+  /** Use this silenced list instead of reading it (tests). */
+  silenced?: readonly SilencedKey[];
+  /** Replaces the process Postgres pool for the silenced list (tests). */
+  silencedClient?: PoolLike | null;
+  /** Use this Health Auto Export connection instead of the stored one (tests). */
+  haeConfig?: HaeConfig | null;
+  /** Replaces the process Postgres pool for the stored connection (tests). */
+  haeClient?: PoolLike | null;
 }
 
 /** The Oura stage: every status comes from the probe, or from the configuration when no request was made. */
-function ouraStage(env: NodeJS.ProcessEnv, probe: OuraProbeResult | null): PipelineStage {
-  const read = readOuraConfig(env);
+function ouraStage(read: OuraConfigResult, probe: OuraProbeResult | null): PipelineStage {
   const base = { id: 'oura_api' as const, name: 'Oura Ring', observationCount: null, lastObservationAt: null };
   if (read && !read.ok) {
     return {
@@ -85,7 +101,7 @@ function ouraStage(env: NodeJS.ProcessEnv, probe: OuraProbeResult | null): Pipel
     return {
       ...base,
       status: 'unconfigured',
-      detail: 'Oura is not configured (OURA_CLIENT_ID is not set).',
+      detail: 'Oura app credentials are not set. Enter them in Settings → Sources.',
       derivedFrom: 'Configuration check only; no request was made.',
     };
   }
@@ -93,7 +109,7 @@ function ouraStage(env: NodeJS.ProcessEnv, probe: OuraProbeResult | null): Pipel
     return {
       ...base,
       status: 'unconfigured',
-      detail: `${probe.detail} Connect it in Settings → Connections.`,
+      detail: `${probe.detail} Connect it in Settings → Sources.`,
       derivedFrom: 'Credential check only; no request was made to Oura.',
     };
   }
@@ -115,7 +131,7 @@ function toProbe(result: HaeProbeResult | null, config: PipelineConfig, env: Nod
       outcome: 'not_configured',
       httpStatus: null,
       records: null,
-      detail: 'HAE_API_URL and HAE_API_KEY are not both set, so no request was made.',
+      detail: 'The data source is not connected, so no request was made.',
       durationMs: null,
     };
   }
@@ -152,7 +168,7 @@ function summariseDataset(meta: DatasetMeta, error: string | null): PipelineData
  * alone (a food log that starts late, a gap more than 90 days back) leave it
  * healthy.
  */
-function qualityStage(job: QualityJob | null, mode: 'demo' | 'live', summary: PipelineDatasetSummary): PipelineStage {
+export function qualityStage(job: QualityJob | null, mode: 'demo' | 'live', summary: PipelineDatasetSummary, view: SilencedResult | null = null): PipelineStage {
   if (job && job.state !== 'ready') {
     return {
       id: 'data_quality',
@@ -167,7 +183,9 @@ function qualityStage(job: QualityJob | null, mode: 'demo' | 'live', summary: Pi
       lastObservationAt: null,
     };
   }
-  const quality = job?.value ?? null;
+  // Silenced findings are already out of `view.report`: the counts, the
+  // severities and the notes below are all computed from what is left.
+  const quality = view ? view.report : (job?.value ?? null);
   if (!quality) {
     return {
       id: 'data_quality',
@@ -185,6 +203,7 @@ function qualityStage(job: QualityJob | null, mode: 'demo' | 'live', summary: Pi
   const serious = quality.findings.filter(f => f.severity !== 'info');
   const notes = quality.findings.filter(f => f.severity === 'info');
   const flagged = quality.checks.filter(c => c.outcome === 'flagged').length;
+  const hidden = view ? view.silenced.filter(s => s.found).length : 0;
   return {
     id: 'data_quality',
     name: 'Data quality',
@@ -194,7 +213,9 @@ function qualityStage(job: QualityJob | null, mode: 'demo' | 'live', summary: Pi
         `${notes.length ? ` Also ${notes.length} note${notes.length === 1 ? '' : 's'}.` : ''} Each is listed below with how to fix it.`
       : notes.length
         ? `No recent problems. ${notes.length} note${notes.length === 1 ? '' : 's'} about older history or the food log: ${notes.map(f => f.title.toLowerCase()).join('; ')}.`
-        : `All ${quality.checks.length} checks passed: no activity counted twice, no reading stored twice, no missing days, and new data is arriving.`,
+        : hidden > 0
+          ? `No data-quality problems found. ${hidden} issue${hidden === 1 ? ' is' : 's are'} silenced in Settings → Connections.`
+          : `All ${quality.checks.length} checks passed: no activity counted twice, no reading stored twice, no missing days, and new data is arriving.`,
     derivedFrom: `${quality.checks.length} checks on the export's records as stored, before daily aggregation (${flagged} flagged).`,
     observationCount: summary.observationCount,
     lastObservationAt: summary.lastObservationAt,
@@ -209,20 +230,20 @@ function dayOf(iso: string | null): string {
 export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<PipelineStatusReport> {
   const env = deps.env ?? process.env;
   const now = deps.now ?? (() => Date.now());
-  const config = readPipelineConfig(env);
+  const config = await readPipelineConfig({ env, haeConfig: deps.haeConfig, haeClient: deps.haeClient });
   const mode = readDataMode(env);
 
   // ── 1. Probe the export API (only when configured) ────
   const probeResult = config.healthApiConfigured
-    ? await probeHae({ env, fetchImpl: deps.fetchImpl }, now)
+    ? await probeHae({ env, fetchImpl: deps.fetchImpl, haeConfig: deps.haeConfig, haeClient: deps.haeClient }, now)
     : null;
   const probe = toProbe(probeResult, config, env);
   const probeOk = probe.outcome === 'ok';
 
   // ── 1b. Probe Oura (only when configured; a missing credential makes no request) ──
-  const ouraConfigured = readOuraConfig(env)?.ok === true;
-  const ouraProbe = ouraConfigured
-    ? await probeOura({ env, fetchImpl: deps.fetchImpl, client: deps.ouraClient }, now)
+  const ouraRead = await readOuraConfig({ env, client: deps.ouraClient, ouraApp: deps.ouraApp });
+  const ouraProbe = ouraRead?.ok === true
+    ? await probeOura({ env, fetchImpl: deps.fetchImpl, client: deps.ouraClient, ouraApp: deps.ouraApp }, now)
     : null;
   const ouraOk = ouraProbe?.outcome === 'ok';
 
@@ -231,11 +252,13 @@ export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<Pi
   let qualityJob: QualityJob | null = null;
   if (deps.datasetSummary) {
     summary = deps.datasetSummary;
+    qualityJob = deps.qualityJob ?? null;
   } else if (deps.skipDataset) {
     summary = summariseDataset(datasetMeta(), null);
+    qualityJob = deps.qualityJob ?? null;
   } else {
     try {
-      const resolved = await installDataset({ env, fetchImpl: deps.fetchImpl, now: deps.now ? () => new Date(deps.now!()) : undefined });
+      const resolved = await installDataset({ env, fetchImpl: deps.fetchImpl, haeConfig: deps.haeConfig, haeClient: deps.haeClient, now: deps.now ? () => new Date(deps.now!()) : undefined });
       summary = summariseDataset(resolved.serverMeta ?? datasetMeta(), null);
       qualityJob = resolved.quality;
     } catch (error) {
@@ -254,6 +277,11 @@ export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<Pi
     ? []
     : (await loadTrainingData({ env, fetchImpl: deps.fetchImpl, now })).statuses;
 
+  // ── 3b. Silenced data-quality findings, left out of everything below ──
+  const qualityView = qualityJob?.state === 'ready' && qualityJob.value
+    ? await silencedView(qualityJob.value, { env, client: deps.silencedClient, silenced: deps.silenced })
+    : null;
+
   // ── 4. Stages ─────────────────────────────────────────
   const stages: PipelineStage[] = [
     {
@@ -261,7 +289,7 @@ export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<Pi
       name: 'Health Auto Export',
       status: !config.healthApiConfigured ? 'unconfigured' : probeOk ? 'healthy' : 'degraded',
       detail: !config.healthApiConfigured
-        ? 'No export server is configured (HAE_API_URL and HAE_API_KEY are not both set).'
+        ? 'The data source is not connected. Connect it in Settings → Sources.'
         : probeOk
           ? `The configured export server at ${config.healthApiHost ?? 'the configured host'} answered a read-only probe with ${probe.records ?? 0} record(s).`
           : `${probe.detail} The configured host is ${config.healthApiHost ?? 'unknown'}.`,
@@ -286,8 +314,8 @@ export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<Pi
       observationCount: summary.observationCount,
       lastObservationAt: summary.lastObservationAt,
     },
-    ouraStage(env, ouraProbe),
-    qualityStage(qualityJob, mode, summary),
+    ouraStage(ouraRead, ouraProbe),
+    qualityStage(qualityJob, mode, summary, qualityView),
     {
       id: 'intelligence',
       name: 'Intelligence',
@@ -342,8 +370,9 @@ export async function resolvePipelineStatus(deps: PipelineDeps = {}): Promise<Pi
     workoutSources,
     // Never awaited: the checks finish in the background and the panel fetches
     // /api/pipeline/quality for them.
-    quality: qualityJob?.value ?? null,
+    quality: qualityView ? qualityView.report : (qualityJob?.value ?? null),
     qualityState: qualityJob ? qualityJob.state : 'unavailable',
+    silenced: qualityView ? qualityView.silenced : [],
     dataAsOf: summary.lastObservationAt,
     checkedAt: new Date(now()).toISOString(),
     summary: summarySentence,

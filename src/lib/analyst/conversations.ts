@@ -274,7 +274,7 @@ export type AppendExchangeResult =
  *   * the assistant turn's content is the text the reader saw and its
  *     attribution is the same provenance line the UI shows;
  *   * `sourceIds` tags the answer with the sources whose data entered it, so a
- *     removed source can hide and then delete the conversation (plan §8);
+ *     removed source deletes the conversation at once (plan §8);
  *   * the per-conversation cap refuses the exchange with a clear reason (409)
  *     rather than silently truncating the thread.
  */
