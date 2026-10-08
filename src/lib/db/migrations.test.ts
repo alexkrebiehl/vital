@@ -65,6 +65,28 @@ describe('db/migrations', () => {
     expect(body).toMatch(/PRIMARY KEY \(check_id, metric_id\)/);
   });
 
+  it('ships 0015 dashboard cards: ids, a spec, layout and timestamps; no health data', () => {
+    const file = shipped().find(m => m.filename === '0015-dashboard-cards.sql');
+    expect(file).toBeDefined();
+    const sql = file!.sql;
+    const body = sql.match(/CREATE TABLE IF NOT EXISTS dashboard_cards \(([\s\S]*?)\n\);/)![1];
+    expect([...body.matchAll(/^\s{2}(\w+)\s/gm)].map(m => m[1])).toEqual([
+      'id', 'mode', 'card_type', 'spec', 'schema_version', 'position',
+      'width', 'height', 'revision', 'created_at', 'updated_at', 'CONSTRAINT',
+    ]);
+    expect(body).toMatch(/mode\s+TEXT\s+NOT NULL CHECK \(mode IN \('demo', 'live'\)\)/);
+    expect(body).toContain("CHECK (card_type ~ '^[a-z][a-z0-9-]{0,31}$')");
+    expect(body).not.toMatch(/card_type\s+\w*enum/i);
+    expect(body).toMatch(/spec\s+JSONB\s+NOT NULL CHECK \(jsonb_typeof\(spec\) = 'object'\s+AND octet_length\(spec::text\) <= 2048\)/);
+    expect(body).toMatch(/schema_version\s+INTEGER\s+NOT NULL CHECK \(schema_version >= 1\)/);
+    expect(body).toMatch(/position\s+INTEGER\s+NOT NULL CHECK \(position >= 0\)/);
+    expect(body).toMatch(/width\s+SMALLINT\s+NOT NULL DEFAULT 1 CHECK \(width BETWEEN 1 AND 4\)/);
+    expect(body).toMatch(/height\s+SMALLINT\s+NOT NULL DEFAULT 1 CHECK \(height BETWEEN 1 AND 4\)/);
+    expect(body).toMatch(/revision\s+INTEGER\s+NOT NULL DEFAULT 1 CHECK \(revision >= 1\)/);
+    expect(body).toMatch(/CONSTRAINT dashboard_cards_mode_position UNIQUE \(mode, position\)\s+DEFERRABLE INITIALLY IMMEDIATE/);
+    expect(body).toMatch(/id\s+TEXT\s+PRIMARY KEY/);
+  });
+
   it('numbers each file as its header says', () => {
     for (const { filename, sql } of shipped()) {
       const version = filename.slice(0, 4);
