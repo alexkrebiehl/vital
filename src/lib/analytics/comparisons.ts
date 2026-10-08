@@ -14,7 +14,7 @@
 
 import { getMetric } from '../metrics/registry';
 import type { AggregationStrategy, MetricDefinition } from '../metrics/types';
-import { REFERENCE_KEY, excludePartialForSum, isAccumulating, seriesFor } from '../adapters/dataset';
+import { REFERENCE_KEY, excludePartialForSum, isAccumulating, seriesFor, type DayPoint } from '../adapters/dataset';
 import { compareValues, type ComparisonResult } from './stats';
 import {
   addDays,
@@ -27,6 +27,28 @@ import {
   windowRangeLabel,
   type DayWindow,
 } from './windows';
+
+/**
+ * Daily averages of two windows that may differ in length, such as the last 7
+ * days against the 30 before them. Whatever the metric's own aggregation, each
+ * side is the mean of its daily values: a 7-day total next to a 30-day total
+ * (or one latest reading next to another) is not an average. The in-progress
+ * day of an accumulating metric, and any day flagged partial, is left out of
+ * both sides.
+ */
+export function compareDailyAverages(
+  evaluated: DayPoint[],
+  baseline: DayPoint[],
+  meta: MetricDefinition | undefined,
+  minCount = 1
+): { comparison: ComparisonResult; excludedDays: string[] } {
+  const ev = excludePartialForSum(evaluated, meta);
+  const bs = excludePartialForSum(baseline, meta);
+  return {
+    comparison: compareValues(ev.values, bs.values, 'avg', minCount),
+    excludedDays: [...ev.excludedDays, ...bs.excludedDays],
+  };
+}
 
 export interface WindowComparisonOptions {
   /** Metric definition; looked up from the registry when omitted. */

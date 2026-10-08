@@ -42,7 +42,7 @@ import {
   median,
   type DayWindow,
 } from '@/lib/analytics';
-import { compareValues, stddev, mean, percentChange } from '@/lib/analytics';
+import { compareDailyAverages, stddev, mean, percentChange } from '@/lib/analytics';
 import {
   Card, Badge, InsufficientDataState, StaleBadge, ChangeCue, DataStateNote,
 } from '@/components/ui/primitives';
@@ -142,16 +142,13 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
   const staleDays = latest ? diffDays(latest.key, REFERENCE_KEY) : 0;
 
   // ── Comparison: 7-day average vs the previous 30-day baseline ──
-  const comparison = useMemo(
-    () =>
-      compareValues(
-        evaluatedPoints.map(p => p.value),
-        baselinePoints.map(p => p.value),
-        meta.aggregationStrategy,
-        Math.min(meta.minObservations, 3)
-      ),
+  // The windows differ in length, so both sides are daily averages, without
+  // today while it is still accumulating.
+  const { comparison, excludedDays: comparisonExcluded } = useMemo(
+    () => compareDailyAverages(evaluatedPoints, baselinePoints, meta, Math.min(meta.minObservations, 3)),
     [evaluatedPoints, baselinePoints, meta]
   );
+  const todayLeftOut = comparisonExcluded.includes(REFERENCE_KEY);
 
   const change = describeChange(metaId, comparison.delta, comparison.deltaPercent, {
     system: units,
@@ -309,7 +306,7 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
               <SummaryCard
                 label={`${EVALUATED_DAYS}-day average`}
                 value={comparison.valid ? formatMetricWithUnit(metaId, comparison.current, units) : 'Not enough data'}
-                sub={`${windowRangeLabel(evaluatedWindow)} · ${comparison.currentCount} obs`}
+                sub={`${windowRangeLabel(evaluatedWindow)} · ${comparison.currentCount} obs${todayLeftOut ? ' · today left out' : ''}`}
               />
               <SummaryCard
                 label={`Previous ${BASELINE_DAYS}-day baseline`}

@@ -5,10 +5,12 @@ import {
   isAccumulating,
   seriesFor,
   seriesInWindow,
+  type DayPoint,
 } from '@/lib/adapters/dataset';
 import { getMetric } from '@/lib/metrics';
 import {
   addDays,
+  compareDailyAverages,
   compareValues,
   compareWindows,
   dayKey,
@@ -181,5 +183,33 @@ describe('staleness is measured in whole calendar days', () => {
     const weight = seriesFor('weight_body_mass');
     expect(diffDays(weight[weight.length - 1].key, REFERENCE_KEY)).toBeGreaterThan(1);
     expect(diffDays('2026-06-19', REFERENCE_KEY)).toBe(90);
+  });
+});
+
+describe('compareDailyAverages: windows of different lengths', () => {
+  /** A steady 10,000 steps a day, with today still filling up at 10. */
+  const day = (offset: number, value: number): DayPoint => ({ key: addDays(REFERENCE_KEY, offset), value, source: 'watch' });
+  const evaluated = [...Array.from({ length: 6 }, (_, i) => day(i - 6, 10_000)), day(0, 10)];
+  const baseline = Array.from({ length: 30 }, (_, i) => day(i - 36, 10_000));
+
+  it('compares per-day averages of a summed metric, not a 7-day total with a 30-day total', () => {
+    const { comparison } = compareDailyAverages(evaluated, baseline, getMetric('step_count'), 3);
+    expect(comparison.current).toBe(10_000);
+    expect(comparison.baseline).toBe(10_000);
+    expect(comparison.deltaPercent).toBe(0);
+  });
+
+  it('leaves the in-progress day of a summed metric out, and says so', () => {
+    const { comparison, excludedDays } = compareDailyAverages(evaluated, baseline, getMetric('step_count'), 3);
+    expect(comparison.currentCount).toBe(6);
+    expect(comparison.baselineCount).toBe(30);
+    expect(excludedDays).toEqual([REFERENCE_KEY]);
+  });
+
+  it('averages a latest-reading metric over the window instead of taking its last reading', () => {
+    const weights = [day(-2, 80), day(-1, 82), day(0, 84)];
+    const { comparison, excludedDays } = compareDailyAverages(weights, [day(-10, 81)], getMetric('weight_body_mass'));
+    expect(comparison.current).toBe(82);
+    expect(excludedDays).toEqual([]);
   });
 });
