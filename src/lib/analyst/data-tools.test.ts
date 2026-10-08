@@ -253,6 +253,18 @@ describe('get_metrics', () => {
     expect(bad.json.notFound[0].didYouMean.length).toBeGreaterThan(0);
   });
 
+  it('never summarises blood pressure by one of its two numbers', async () => {
+    const r = await call(ctxFor(), 'get_metrics', { metrics: ['blood_pressure'], days: 90 });
+    expect(r.json.metrics).toEqual([]);
+    expect(r.json.noData[0].metric).toBe('blood_pressure');
+    expect(r.json.noData[0].reason).toMatch(/systolic and diastolic/);
+    const c = await call(ctxFor(), 'compare_periods', {
+      metric: 'blood_pressure', aStart: '2026-03-01', aEnd: '2026-03-31', bStart: '2026-04-01', bEnd: '2026-04-30',
+    });
+    expect(c.isError).toBe(true);
+    expect(c.json.error).toMatch(/systolic and diastolic/);
+  });
+
   it('series=false returns the totals only', async () => {
     const r = await call(ctxFor(), 'get_metrics', { metrics: ['step_count'], days: 14, series: false });
     expect(r.json.metrics[0].series).toBeUndefined();

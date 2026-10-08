@@ -12,7 +12,7 @@
 // cut off mid-JSON. Whatever a tool returns is recorded in ctx.data.fetched, which is
 // what lets the answer cite it and the number audit check it.
 
-import { metricHasData, seriesFor, unavailableReasonFor } from '../../adapters/dataset';
+import { isPairedMetric, metricHasData, seriesFor, unavailableReasonFor } from '../../adapters/dataset';
 import { getAllMetrics, getMetric, searchMetrics } from '../../metrics/registry';
 import { formatDeltaWithUnit, formatMetricWithUnit, metricUnit } from '../../metrics/format';
 import { formatPercent } from '../../metrics/format';
@@ -73,6 +73,10 @@ function resolveMetric(name: string): { id: string } | { error: string; didYouMe
 
 // ── Metric summaries ────────────────────────────────────
 
+/** Blood pressure is two numbers per reading; these tools summarise one number per day. */
+const PAIRED_REASON =
+  'Blood pressure is a pair of numbers per reading (systolic and diastolic). These tools summarise a single number, which would leave out half of it, so it is not summarised here. The Health page lists each reading as systolic/diastolic.';
+
 function note(access: DataAccess, line: string): void {
   access.fetched.log.push(line);
 }
@@ -118,6 +122,10 @@ const getMetrics: AnalystTool = {
     const out: { id: string; payload: ReturnType<typeof summaryPayload>; summary: RetrievedSummary }[] = [];
     const empty: { metric: string; reason: string }[] = [];
     for (const id of ids) {
+      if (isPairedMetric(id)) {
+        empty.push({ metric: id, reason: PAIRED_REASON });
+        continue;
+      }
       if (!metricHasData(id)) {
         empty.push({ metric: id, reason: unavailableReasonFor(id) });
         continue;
@@ -182,6 +190,7 @@ const compareMetricPeriods: AnalystTool = {
     const a = { startKey: String(args.aStart), endKey: String(args.aEnd), label: 'Period A' };
     const b = { startKey: String(args.bStart), endKey: String(args.bEnd), label: 'Period B' };
     if (a.startKey > a.endKey || b.startKey > b.endKey) return fail('A period must start on or before the day it ends.');
+    if (isPairedMetric(r.id)) return fail(PAIRED_REASON);
     if (!metricHasData(r.id)) return fail(`No ${getMetric(r.id)?.displayName ?? r.id} data is recorded.`, { reason: unavailableReasonFor(r.id) });
 
     const meta = getMetric(r.id);

@@ -4,7 +4,7 @@
 // needs. A handler never reads the dataset directly: everything it may cite
 // arrives in the bundle, and the bundle records how many records were read.
 
-import { REFERENCE_KEY, seriesFor, workoutList } from '../adapters/dataset';
+import { REFERENCE_KEY, isPairedMetric, seriesFor, workoutList } from '../adapters/dataset';
 import { getMetric } from '../metrics/registry';
 import { compareWindows, type WindowComparison } from '../analytics/comparisons';
 import { coverageSentence } from '../analytics/coverage';
@@ -117,6 +117,11 @@ function buildSummary(metricId: string, days: number, refKey: string): { summary
   const meta = getMetric(metricId);
   if (!meta) {
     throw new AnalysisNotAvailable(`No metric is registered with the id "${metricId}", so this question cannot be answered.`);
+  }
+  if (isPairedMetric(metricId)) {
+    throw new AnalysisNotAvailable(
+      `${meta.displayName} is a pair of numbers per reading (systolic and diastolic), which this summary cannot state without leaving one out.`
+    );
   }
   const cmp: WindowComparison = compareWindows(metricId, refKey, days, { meta, label: `Last ${days} days` });
   // Bounded selection: read at most MAX_POINTS_PER_SERIES values from the store.

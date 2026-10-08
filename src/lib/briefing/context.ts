@@ -29,7 +29,10 @@ import {
   REFERENCE_TZ,
   coverageFor,
   datasetMeta,
+  bloodPressureSeries,
   hasSleepStages,
+  isPairedMetric,
+  metricObservationCount,
   seriesFor,
   sleepSeries,
   workoutList,
@@ -249,6 +252,8 @@ function coverageSentence(metricId: string): string | null {
 function metricFact(metricId: string, system: UnitSystem): BriefingMetricFact | null {
   const meta = getMetric(metricId);
   if (!meta) return null;
+  // A paired metric (blood pressure) has no single-number series: it is left
+  // out of the metric facts rather than described by one of its two numbers.
   const points = seriesFor(metricId);
   const cov = coverageFor(metricId);
   if (points.length === 0) return null;
@@ -464,12 +469,16 @@ function missingNotes(presentMetricIds: Set<string>, withData: BriefingMetricFac
   for (const metricId of EXPECTED_BUT_OFTEN_ABSENT) {
     const meta = getMetric(metricId);
     if (!meta) continue;
-    const points = seriesFor(metricId);
-    if (points.length === 0) {
+    // Blood pressure is a pair, so it has no single-number series; its
+    // presence is read from the readings themselves.
+    const days = isPairedMetric(metricId)
+      ? bloodPressureSeries().map(r => r.date)
+      : seriesFor(metricId).map(p => p.key);
+    if (days.length === 0) {
       notes.push(`${meta.displayName} has no reading anywhere in this history.`);
       continue;
     }
-    const inWeek = points.some(p => p.key >= evaluated.startKey && p.key <= evaluated.endKey);
+    const inWeek = days.some(d => d >= evaluated.startKey && d <= evaluated.endKey);
     if (!inWeek) notes.push(`${meta.displayName} has no reading in the last ${BRIEFING_EVALUATED_DAYS} days.`);
   }
 
