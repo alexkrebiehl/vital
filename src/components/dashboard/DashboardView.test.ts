@@ -109,14 +109,14 @@ describe('DashboardView', () => {
     expect(render(ready([], 'That change was not saved.'))).toContain('That change was not saved.');
   });
 
-  it('puts the slots of D4/D5 on each card when given', () => {
+  it('puts the options menu on each card when given, and a drag handle when the cards can be arranged', () => {
     install({ step_count: [obs('2026-03-09', 5000)] });
-    const html = render(ready([card('card-1')]), {
-      actionsFor: () => [{ id: 'remove', label: 'Remove', onSelect: () => {} }],
-      handleFor: () => createElement('button', { 'aria-label': 'Move Steps' }, 'grip'),
-    });
-    expect(html).toContain('Options for Steps');
-    expect(html).toContain('aria-label="Move Steps"');
+    const actionsFor = () => [{ id: 'remove', label: 'Remove', onSelect: () => {} }];
+    const fixed = render(ready([card('card-1')]), { actionsFor });
+    expect(fixed).toContain('Options for Steps');
+    expect(fixed).not.toContain('aria-label="Move ');
+    const arrangeable = render(ready([card('card-1')]), { actionsFor, onReorder: () => {} });
+    expect(arrangeable).toContain('aria-label="Move Steps, yesterday"');
   });
 
   it('prints no source names and no assessment words', () => {

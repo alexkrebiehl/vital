@@ -5,6 +5,7 @@ import { Card, DataStateNote, EmptyState, ErrorState, Skeleton } from '@/compone
 import { getCardUi } from './card-types';
 import type { ResolveContext } from './card-types/types';
 import { CardShell, type CardAction } from './CardShell';
+import { describeCard } from './describe-card';
 import { DashboardGrid, type GridItem } from './DashboardGrid';
 import type { DashboardState } from './dashboard-state';
 
@@ -19,7 +20,8 @@ export interface DashboardViewProps {
   /** The "Add card" button, supplied by the page that owns the dialog. */
   addAction?: ReactNode;
   actionsFor?: (card: CardRecord) => CardAction[];
-  handleFor?: (card: CardRecord) => ReactNode;
+  /** The new order of every card id after a drag. Without it the cards cannot be dragged. */
+  onReorder?: (ids: string[]) => void;
 }
 
 function CardItem({
@@ -64,10 +66,14 @@ function SkeletonCard() {
   );
 }
 
-const SKELETONS: GridItem[] = [1, 2, 3].map(n => ({ id: `skeleton-${n}`, size: { w: 1, h: 1 }, node: <SkeletonCard /> }));
+const SKELETONS: GridItem[] = [1, 2, 3].map(n => ({
+  id: `skeleton-${n}`,
+  size: { w: 1, h: 1 },
+  render: () => <SkeletonCard />,
+}));
 
 /** The Dashboard page's markup for each state of §8.2: props in, markup out. */
-export function DashboardView({ state, context, onRetry, addAction, actionsFor, handleFor }: DashboardViewProps) {
+export function DashboardView({ state, context, onRetry, addAction, actionsFor, onReorder }: DashboardViewProps) {
   const header = (action?: ReactNode) => (
     <DomainHeader title="Dashboard" subtitle="Your own cards for any metric." category="overview">
       {action}
@@ -123,20 +129,16 @@ export function DashboardView({ state, context, onRetry, addAction, actionsFor, 
   const items: GridItem[] = state.cards.map(card => ({
     id: card.id,
     size: card.layout,
-    node: (
-      <CardItem
-        card={card}
-        context={context}
-        actions={actionsFor?.(card) ?? []}
-        handle={handleFor?.(card)}
-      />
+    describe: describeCard(card),
+    render: ({ handle, overlay }) => (
+      <CardItem card={card} context={context} actions={overlay ? [] : (actionsFor?.(card) ?? [])} handle={handle} />
     ),
   }));
   return (
     <div className="space-y-6">
       {header(addAction)}
       {notice}
-      <DashboardGrid items={items} />
+      <DashboardGrid items={items} onReorder={onReorder} />
     </div>
   );
 }

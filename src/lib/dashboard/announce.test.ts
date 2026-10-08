@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { addedMessage, removedMessage } from './announce';
+import {
+  addedMessage, cancelledMessage, droppedMessage, movedMessage, pickedUpMessage, removedMessage,
+} from './announce';
 
 describe('announcements', () => {
   it('says what was added and where it landed', () => {
@@ -9,5 +11,12 @@ describe('announcements', () => {
 
   it('says what was removed', () => {
     expect(removedMessage('Steps, today')).toBe('Removed Steps, today.');
+  });
+
+  it('says what a drag or a move did, with a 1-based position', () => {
+    expect(pickedUpMessage('Steps, today', 2, 6)).toBe('Picked up Steps, today. Position 2 of 6.');
+    expect(movedMessage('Steps, today', 4, 6)).toBe('Steps, today moved to position 4 of 6.');
+    expect(droppedMessage('Steps, today', 4, 6)).toBe('Steps, today dropped at position 4 of 6.');
+    expect(cancelledMessage('Steps, today', 2, 6)).toBe('Move cancelled. Steps, today is back at position 2 of 6.');
   });
 });

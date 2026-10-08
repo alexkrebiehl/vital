@@ -2,7 +2,7 @@
 //
 // docs/design/dashboard.md §8.2. Card values never load: they resolve from the
 // dataset already installed, so the only thing that loads is the list of cards.
-// Add, edit and remove are here; reorder arrives with its controls.
+// Add, edit, remove and reorder.
 
 import { DashboardRequestError } from '@/lib/dashboard/client';
 import type { CardRecord } from '@/lib/dashboard/types';
@@ -28,6 +28,7 @@ export type DashboardAction =
   | { type: 'added'; card: CardRecord }
   | { type: 'edited'; card: CardRecord }
   | { type: 'removed'; id: string }
+  | { type: 'reordered'; ids: string[] }
   | { type: 'write-failed'; message: string }
   | { type: 'dismiss-notice' };
 
@@ -37,6 +38,14 @@ export const initialDashboardState: DashboardState = {
   error: null,
   notice: null,
 };
+
+/** The cards in the order of `ids`; a card `ids` does not name keeps its place after the named ones. */
+export function applyOrder(cards: CardRecord[], ids: readonly string[]): CardRecord[] {
+  const byId = new Map(cards.map(c => [c.id, c]));
+  const named = ids.flatMap(id => byId.get(id) ?? []);
+  const rest = cards.filter(c => !ids.includes(c.id));
+  return [...named, ...rest];
+}
 
 export function dashboardReducer(state: DashboardState, action: DashboardAction): DashboardState {
   switch (action.type) {
@@ -58,6 +67,8 @@ export function dashboardReducer(state: DashboardState, action: DashboardAction)
       return { ...state, cards: state.cards.map(c => (c.id === action.card.id ? action.card : c)) };
     case 'removed':
       return { ...state, cards: state.cards.filter(c => c.id !== action.id) };
+    case 'reordered':
+      return { ...state, cards: applyOrder(state.cards, action.ids) };
     case 'write-failed':
       return { ...state, notice: action.message };
     case 'dismiss-notice':
@@ -65,12 +76,13 @@ export function dashboardReducer(state: DashboardState, action: DashboardAction)
   }
 }
 
-export type WriteKind = 'add' | 'edit' | 'remove';
+export type WriteKind = 'add' | 'edit' | 'remove' | 'reorder';
 
 const FAILED: Record<WriteKind, string> = {
   add: 'The card was not added',
   edit: 'The card was not saved',
   remove: 'The card was not removed',
+  reorder: 'The cards were not moved',
 };
 
 /** The sentence for a write that did not go through (the maps pattern: say so, then reload). */

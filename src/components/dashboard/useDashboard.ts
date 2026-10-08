@@ -6,6 +6,7 @@ import {
   createCardRequest,
   deleteCardRequest,
   fetchDashboard,
+  reorderCardsRequest,
   replaceCardRequest,
   type CardEditInput,
   type CardInput,
@@ -109,5 +110,25 @@ export function useDashboard() {
     [reload]
   );
 
-  return { state, dispatch, reload, add, edit, remove };
+  // Reorder is optimistic and ONE write. A refusal puts the server's order back through the reload.
+  const reorder = useCallback(
+    async (ids: string[]): Promise<boolean> => {
+      dispatch({ type: 'dismiss-notice' });
+      dispatch({ type: 'reordered', ids });
+      try {
+        const cards = await reorderCardsRequest(ids);
+        if (alive.current) dispatch({ type: 'loaded', cards });
+        return true;
+      } catch (e) {
+        if (alive.current) {
+          dispatch({ type: 'write-failed', message: writeFailureNotice('reorder', e) });
+          reload();
+        }
+        return false;
+      }
+    },
+    [reload]
+  );
+
+  return { state, dispatch, reload, add, edit, remove, reorder };
 }

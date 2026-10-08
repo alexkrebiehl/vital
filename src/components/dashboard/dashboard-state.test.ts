@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { CardRecord } from '@/lib/dashboard/types';
 import { DashboardRequestError } from '@/lib/dashboard/client';
 import {
-  dashboardReducer, failedWrite, focusAfterRemove, initialDashboardState, writeFailureNotice, type DashboardState,
+  applyOrder, dashboardReducer, failedWrite, focusAfterRemove, initialDashboardState, writeFailureNotice, type DashboardState,
 } from './dashboard-state';
 
 const card = (id: string): CardRecord => ({
@@ -165,5 +165,41 @@ describe('failedWrite', () => {
       ok: false, message: 'The card was not added: The database is down.', keepOpen: false,
     });
     expect(failedWrite('edit', stale())).toMatchObject({ keepOpen: false });
+  });
+});
+
+describe('reorder', () => {
+  const ready = (...ids: string[]): DashboardState => ({
+    ...initialDashboardState, status: 'ready', cards: ids.map(card),
+  });
+
+  it('reordered puts the cards in the new order at once (optimistic)', () => {
+    const next = dashboardReducer(ready('a', 'b', 'c'), { type: 'reordered', ids: ['c', 'a', 'b'] });
+    expect(next.cards.map(c => c.id)).toEqual(['c', 'a', 'b']);
+    expect(next.status).toBe('ready');
+  });
+
+  it('after a successful write the server answer keeps that order', () => {
+    const moved = dashboardReducer(ready('a', 'b', 'c'), { type: 'reordered', ids: ['b', 'c', 'a'] });
+    const saved = dashboardReducer(moved, { type: 'loaded', cards: [card('b'), card('c'), card('a')] });
+    expect(saved.cards.map(c => c.id)).toEqual(['b', 'c', 'a']);
+    expect(saved.notice).toBeNull();
+  });
+
+  it('after a failed write the notice shows and the reload restores the server order', () => {
+    const moved = dashboardReducer(ready('a', 'b', 'c'), { type: 'reordered', ids: ['c', 'b', 'a'] });
+    const failed = dashboardReducer(moved, { type: 'write-failed', message: writeFailureNotice('reorder', new Error('Boom.')) });
+    expect(failed.notice).toBe('The cards were not moved: Boom.');
+    const restored = dashboardReducer(dashboardReducer(failed, { type: 'reload' }), {
+      type: 'loaded',
+      cards: [card('a'), card('b'), card('c')],
+    });
+    expect(restored.cards.map(c => c.id)).toEqual(['a', 'b', 'c']);
+    expect(restored.notice).toBe('The cards were not moved: Boom.');
+  });
+
+  it('applyOrder ignores unknown ids and keeps unnamed cards after the named ones', () => {
+    const cards = ['a', 'b', 'c'].map(card);
+    expect(applyOrder(cards, ['c', 'zz', 'a']).map(c => c.id)).toEqual(['c', 'a', 'b']);
   });
 });

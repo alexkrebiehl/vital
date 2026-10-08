@@ -3,8 +3,7 @@
 // ── The frame around every card ─────────────────────────────────────────────
 //
 // docs/design/dashboard.md §8.4. Title and date label, the category colour
-// rule, and two slots filled by later gates: a drag `handle` and the options
-// menu's `actions`. Controls are always visible: nothing here depends on hover.
+// rule, a drag `handle` slot and the options menu's `actions`. Controls are always visible: nothing here depends on hover.
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { MoreHorizontal } from 'lucide-react';
@@ -27,13 +26,25 @@ export interface CardShellProps {
   metricId?: string;
   handle?: ReactNode;
   actions: CardAction[];
+  /** Start with the options menu open (markup tests). */
+  initialMenuOpen?: boolean;
   /** An unreadable card: this sentence stands in for the body. */
   problem?: string;
   children?: ReactNode;
 }
 
-function OptionsMenu({ cardId, title, actions }: { cardId?: string; title: string; actions: CardAction[] }) {
-  const [open, setOpen] = useState(false);
+function OptionsMenu({
+  cardId,
+  title,
+  actions,
+  initialOpen = false,
+}: {
+  cardId?: string;
+  title: string;
+  actions: CardAction[];
+  initialOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(initialOpen);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -87,7 +98,7 @@ function OptionsMenu({ cardId, title, actions }: { cardId?: string; title: strin
   );
 }
 
-export function CardShell({ cardId, title, dateLabel, metricId, handle, actions, problem, children }: CardShellProps) {
+export function CardShell({ cardId, title, dateLabel, metricId, handle, actions, initialMenuOpen, problem, children }: CardShellProps) {
   const titleId = useId();
   const color = CATEGORY_VAR[metricId ? artCategoryOf(metricId) : 'neutral'];
   return (
@@ -110,7 +121,7 @@ export function CardShell({ cardId, title, dateLabel, metricId, handle, actions,
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {handle}
-          {actions.length > 0 && <OptionsMenu cardId={cardId} title={title} actions={actions} />}
+          {actions.length > 0 && <OptionsMenu cardId={cardId} title={title} actions={actions} initialOpen={initialMenuOpen} />}
         </div>
       </header>
       <div className="flex-1">
