@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { addDays } from '../analytics/windows';
 import type { WorkoutRecord } from '../metrics/types';
 import type { TrainingSession, TrainingSet } from '../workout-sources/types';
 import { buildRoutine, inferCurrentStages, type RoutineInputs } from './progress';
@@ -121,21 +122,44 @@ describe('variation model on the decline push-up example', () => {
       'Clean decline push-up entry',
       'Rapid volume increase',
       'New best',
-      'Near top of range, effort high',
+      'Meets the progression marker',
     ]);
   });
 
-  it('lights yellow-green: reps meet the range, effort above the ceiling', () => {
+  it('counts a set past the effort ceiling a rep short per RPE point', () => {
+    // 12/12/10 at RPE 8.5/9/9.5 is judged as 12/12/9.5 at RPE 9: still within a step of the top.
     expect(push.light).toBe('yellow-green');
-    expect(push.reasons[0]).toContain('RPE 8.5–9.5');
+    expect(push.reasons[0]).toBe('1 of 2–3 qualifying sessions; one more at the marker earns the next stage.');
     expect(push.stage.name).toBe('Decline push-up');
     expect(push.nextStage?.name).toBe('Close-grip push-up');
-    expect(push.readiness).toMatchObject({ qualifying: 0, needed: 2, met: false });
+    expect(push.readiness).toMatchObject({ qualifying: 1, needed: 2, met: false });
+    expect(push.nextAction).toBe('Repeat 3–4 × 8–12 RPE 7–9 for 1 more session.');
+  });
+
+  it('lights yellow-green when effort past the ceiling costs the session the marker', () => {
+    // 12/12/10 at RPE 9/9.5/10 is judged as 12/11.5/9: below the step from the top.
+    const hard = [...EXAMPLE.slice(0, -1), session('2026-09-18', [{ name: 'Decline Push Up', sets: reps([12, 12, 10], [9, 9.5, 10]) }])];
+    const p = run(pushPlan(), hard, '2026-09-18').paths[0];
+    expect(p.rows[p.rows.length - 1].signal).toBe('Near top of range, effort high');
+    expect(p.light).toBe('yellow-green');
+    expect(p.reasons[0]).toContain('RPE 9–10, above the RPE 9 ceiling');
+    expect(p.readiness).toMatchObject({ qualifying: 0, needed: 2, met: false });
+    expect(p.nextAction).toBe(
+      'Repeat 3×10–12 with consistent form and lower perceived effort for 2–3 sessions. Do not move on while sets are near failure.'
+    );
+  });
+
+  it('turns green on top-of-range sets that went half a point past the ceiling', () => {
+    const more = [...EXAMPLE, session('2026-09-22', [{ name: 'Decline Push Up', sets: reps([12, 12, 12], [8, 9, 9.5]) }])];
+    const p = run(pushPlan(), more, '2026-09-22').paths[0];
+    expect(p.light).toBe('green');
+    expect(p.readiness?.met).toBe(true);
+    expect(p.reasons[0]).toBe('The marker (3–4 × 8–12 RPE 7–9) was met in 2 of the last 3 sessions, counting a set a rep short for each RPE point past 9.');
   });
 
   it('fills the bar toward the marker, not just by qualifying sessions', () => {
-    // 12/12/10 reaches the marker's volume; RPE 9.5 is half a point past the ceiling.
-    expect(push.readiness!.progress).toBeCloseTo(0.875, 3);
+    // 12/12/10 reaches the marker's volume and qualifies once; RPE 9.5 is half a point past the ceiling.
+    expect(push.readiness!.progress).toBeCloseTo(0.925, 3);
     const decline = (d: string, r: number[], rpe: number[]) => session(d, [{ name: 'Decline Push Up', sets: reps(r, rpe) }]);
     const progress = (sessions: TrainingSession[]) => run(pushPlan(), sessions, '2026-09-18').paths[0].readiness!.progress;
     const early = progress([decline('2026-09-08', [6, 6, 6], [7, 7, 7])]);
@@ -143,12 +167,6 @@ describe('variation model on the decline push-up example', () => {
     expect(early).toBeLessThan(0.5);
     expect(progress([decline('2026-09-08', [12, 12, 11], [8, 8, 8.5])])).toBeCloseTo(0.95, 3);
     expect(progress([decline('2026-09-08', [12, 12, 11], [8, 8, 8.5]), decline('2026-09-11', [12, 12, 12], [8, 8, 8])])).toBe(1);
-  });
-
-  it('prescribes repeating the top of the range at lower effort', () => {
-    expect(push.nextAction).toBe(
-      'Repeat 3×10–12 with consistent form and lower perceived effort for 2–3 sessions. Do not move on while sets are near failure.'
-    );
   });
 
   it('turns green and moves on once the marker is met at the target effort', () => {
@@ -205,6 +223,20 @@ describe('holds, recovery gates and deloads', () => {
     expect(routine.paths[0].light).toBe('yellow');
     expect(routine.paths[0].heldBack).toEqual(['recovery']);
     expect(routine.paths[0].reasons.some(r => r.startsWith('Sleep: 5 h'))).toBe(true);
+  });
+
+  it('a body-weight gate is a callout only: it caps no light', () => {
+    // Losing about 1 kg a week, past a warn-level gate at -0.5 kg/week.
+    const weight = Array.from({ length: 28 }, (_, i) => ({ key: addDays('2026-09-18', i - 27), value: 80 - i / 7 }));
+    const more = [...EXAMPLE, session('2026-09-22', [{ name: 'Decline Push Up', sets: reps([12, 12, 12], [8, 8.5, 9]) }])];
+    const p = pushPlan({ rules: { qualifyingSessions: [2, 3], effort: RIR, recoveryGates: [{ signal: 'body_weight_rate', rule: 'below', threshold: -0.5, severity: 'warn' }] } });
+    const routine = run(p, more, '2026-09-22', { series: id => (id === 'weight_body_mass' ? weight : []) });
+    expect(routine.recovery.indicators.find(i => i.signal === 'body_weight_rate')?.status).toBe('warn');
+    expect(routine.recovery.status).toBe('unknown');
+    expect(routine.recovery.text).toMatch(/Body-weight trend is outside the plan’s range \(a callout only; it does not hold progression\)\.$/);
+    expect(routine.paths[0].light).toBe('green');
+    expect(routine.paths[0].heldBack).toEqual([]);
+    expect(routine.paths[0].nextAction).toMatch(/^Move to close-grip push-up/);
   });
 
   it('holds nothing back while recovery is inside the limits and no deload is due', () => {
