@@ -32,12 +32,21 @@ const SEVERITY: Record<QualitySeverity, { label: string; variant: 'warning' | 'i
  * the rest of the page never waits for it. `onReady` lets the panel refresh
  * the stage list once the result is in.
  */
-export function DataQualitySection({ report, onReady }: { report: PipelineStatusReport; onReady?: () => void }) {
+export function DataQualitySection({
+  report,
+  onReady,
+  checkKey = report.checkedAt,
+}: {
+  report: PipelineStatusReport;
+  onReady?: () => void;
+  /** Changes when the checks should be asked for afresh ("Check again"). */
+  checkKey?: string | number;
+}) {
   if (report.qualityState === 'unavailable') return null;
   if (report.qualityState === 'ready' && report.quality) {
     return <DataQuality quality={report.quality} silenced={report.silenced ?? []} onChanged={onReady} />;
   }
-  return <PendingDataQuality key={report.checkedAt} initialFailure={report.qualityState === 'failed'} onReady={onReady} />;
+  return <PendingDataQuality key={checkKey} initialFailure={report.qualityState === 'failed'} onReady={onReady} />;
 }
 
 function PendingDataQuality({ initialFailure, onReady }: { initialFailure: boolean; onReady?: () => void }) {

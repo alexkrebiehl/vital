@@ -6,14 +6,15 @@
 // findings, Silence and Silenced issues. Nothing else lives on this tab.
 
 import { Database } from 'lucide-react';
-import { Badge, BadgeSpinner, Button, Card, DataStateNote, ErrorState, Skeleton } from '@/components/ui/primitives';
+import { Badge, BadgeSpinner, Button, Card, DataStateNote, ErrorState } from '@/components/ui/primitives';
 import { STAGE_STATUS_LABEL, type StageStatus } from '@/lib/pipeline/types';
 import { DataQualitySection } from './DataQuality';
 import { SectionHead } from './SectionHead';
 import { usePipelineReport } from './usePipelineReport';
 
 export function ConnectionsTab() {
-  const { report, error, load, refreshQuietly } = usePipelineReport();
+  const { report, error, load, refreshQuietly, loads } = usePipelineReport();
+  const checking = (part: 'sources' | 'dataset') => report.pending.includes(part);
 
   return (
     <div className="space-y-5">
@@ -33,20 +34,19 @@ export function ConnectionsTab() {
           />
         )}
 
-        {!report && !error && (
-          <div role="status" aria-live="polite" className="space-y-3">
-            <span className="sr-only">Checking each pipeline stage</span>
-            <Skeleton height={16} width="40%" />
-            <Skeleton height={80} />
-          </div>
-        )}
-
-        {report && (
+        {!error && (
           <>
-            <div className="flex flex-wrap items-center gap-2 mb-4">
-              <Badge variant={report.mode === 'live' ? 'success' : 'accent'}>
-                {report.mode === 'live' ? 'Live source configured' : 'Demo mode'}
-              </Badge>
+            <div className="flex flex-wrap items-center gap-2 mb-4" role="status" aria-live="polite">
+              {checking('sources') ? (
+                <Badge variant="default">
+                  <BadgeSpinner />
+                  Checking…
+                </Badge>
+              ) : (
+                <Badge variant={report.mode === 'live' ? 'success' : 'accent'}>
+                  {report.mode === 'live' ? 'Live source configured' : 'Demo mode'}
+                </Badge>
+              )}
               <span className="text-xs text-text-secondary">{report.summary}</span>
             </div>
             <ol className="space-y-3 list-none p-0 m-0">
@@ -67,11 +67,13 @@ export function ConnectionsTab() {
                 </li>
               ))}
             </ol>
-            <DataQualitySection report={report} onReady={refreshQuietly} />
+            <DataQualitySection report={report} onReady={() => refreshQuietly(['dataset'])} checkKey={loads} />
             <div className="mt-4">
               <DataStateNote>
-                A stage is marked healthy only when its status is known from a real check. Unknown is a valid state and
-                is used wherever nothing can be confirmed. Data as of {report.dataAsOf}; checked {report.checkedAt}.
+                A stage is marked healthy only when its status is known from a real check. Checking… means its check is
+                still running; each stage fills in as soon as its own check is done. Unknown is a valid state and is
+                used wherever nothing can be confirmed.{' '}
+                {checking('dataset') ? 'Data as of: still checking.' : `Data as of ${report.dataAsOf}; checked ${report.checkedAt}.`}
               </DataStateNote>
             </div>
           </>
