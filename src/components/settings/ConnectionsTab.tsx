@@ -5,8 +5,8 @@
 // The data pipeline: each stage's status, and the data-quality section with its
 // findings, Silence and Silenced issues. Nothing else lives on this tab.
 
-import { Database, LoaderCircle } from 'lucide-react';
-import { Badge, Button, Card, DataStateNote, ErrorState, Skeleton } from '@/components/ui/primitives';
+import { Database } from 'lucide-react';
+import { Badge, BadgeSpinner, Button, Card, DataStateNote, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { STAGE_STATUS_LABEL, type StageStatus } from '@/lib/pipeline/types';
 import { DataQualitySection } from './DataQuality';
 import { SectionHead } from './SectionHead';
@@ -98,7 +98,7 @@ export function StageLabel({ status }: { status: StageStatus }) {
   // The word is part of the label, so the state is never conveyed by colour alone.
   return (
     <Badge variant={variant} className="text-[10px]">
-      {status === 'checking' && <LoaderCircle size={11} className="mr-1 motion-safe:animate-spin" aria-hidden="true" />}
+      {status === 'checking' && <BadgeSpinner />}
       {STAGE_STATUS_LABEL[status]}
     </Badge>
   );
