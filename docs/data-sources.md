@@ -381,7 +381,11 @@ it is reading. In live mode:
   normally finds it already filled. Once the TTL lapses the held dataset is served **stale
   immediately** — stale-while-revalidate, single-flight, so N concurrent requests start
   exactly one background refresh — and only a genuinely cold process (no dataset cached at
-  all) waits for upstream. Both are read-only cache fills: no ingestion job, no timer and no
+  all) waits for upstream. Even then the browser does not stare at a blank tab: the layout
+  hands the load to the page as a promise, so the sidebar and top bar paint at once, each page
+  shows "Loading your health data…" until its data arrives, and Settings renders immediately
+  (its Data & coverage tab waits; the pipeline stages each show "Checking…" until their own
+  check answers). Both are read-only cache fills: no ingestion job, no timer and no
   schedule exists, and nothing is persisted to disk.
 - **Metric-specific aggregation, not one strategy for everything.** Steps, distance flights,
   exercise minutes, stand hours, active/basal energy, daylight and dietary totals are **summed
