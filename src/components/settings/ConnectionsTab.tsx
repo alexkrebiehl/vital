@@ -87,7 +87,7 @@ export function StageDot({ status }: { status: StageStatus }) {
       ? 'bg-category-activity'
       : status === 'degraded'
         ? 'bg-category-attention'
-        : status === 'measuring'
+        : status === 'checking'
           ? 'bg-primary motion-safe:animate-pulse'
           : 'bg-border';
   return <span className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${tone}`} aria-hidden="true" />;
@@ -98,7 +98,7 @@ export function StageLabel({ status }: { status: StageStatus }) {
   // The word is part of the label, so the state is never conveyed by colour alone.
   return (
     <Badge variant={variant} className="text-[10px]">
-      {status === 'measuring' && <LoaderCircle size={11} className="mr-1 motion-safe:animate-spin" aria-hidden="true" />}
+      {status === 'checking' && <LoaderCircle size={11} className="mr-1 motion-safe:animate-spin" aria-hidden="true" />}
       {STAGE_STATUS_LABEL[status]}
     </Badge>
   );

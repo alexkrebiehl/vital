@@ -9,12 +9,12 @@ const label = (status: Parameters<typeof StageLabel>[0]['status']) => renderToSt
 const dot = (status: Parameters<typeof StageDot>[0]['status']) => renderToStaticMarkup(createElement(StageDot, { status }));
 
 describe('stage status', () => {
-  it('says Measuring, with a spinner, while a check runs in the background', () => {
-    const html = label('measuring');
-    expect(html).toContain('Measuring');
+  it('says Checking…, with a spinner, while a check runs in the background', () => {
+    const html = label('checking');
+    expect(html).toContain('Checking…');
     expect(html).not.toContain('Unknown');
     expect(html).toContain('motion-safe:animate-spin');
-    expect(dot('measuring')).toContain('motion-safe:animate-pulse');
+    expect(dot('checking')).toContain('motion-safe:animate-pulse');
   });
 
   it('keeps every other status still', () => {

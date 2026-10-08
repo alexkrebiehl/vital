@@ -82,13 +82,13 @@ describe('qualityStage with silenced findings', () => {
     expect(s).toEqual(base);
   });
 
-  it('says measuring while the checks are still running, silenced or not', () => {
+  it('says checking while the checks are still running, silenced or not', () => {
     const view = applySilenced(REPORT, [{ checkId: 'stale', metricId: '' }]);
     const job: QualityJob = { state: 'computing', value: null, error: null, promise: Promise.resolve(null) };
-    expect(qualityStage(job, 'live', SUMMARY, view).status).toBe('measuring');
+    expect(qualityStage(job, 'live', SUMMARY, view).status).toBe('checking');
   });
 
-  it('says unknown, not measuring, when the checks failed', () => {
+  it('says unknown, not checking, when the checks failed', () => {
     const job: QualityJob = { state: 'failed', value: null, error: 'boom', promise: Promise.resolve(null) };
     const s = qualityStage(job, 'live', SUMMARY, null);
     expect(s.status).toBe('unknown');
