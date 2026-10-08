@@ -11,12 +11,12 @@
 // "Fix it" button in place of the steps.
 
 import { useCallback, useEffect, useState } from 'react';
-import { CircleAlert, CircleCheck, Info, LoaderCircle, TriangleAlert } from 'lucide-react';
+import { CircleAlert, CircleCheck, Info, TriangleAlert } from 'lucide-react';
 import { CORRECTABLE_CHECKS, formatRange, type DataQualityReport, type QualityFinding, type QualitySeverity } from '@/lib/adapters/quality';
 import { findingMetricId, type SilencedFinding, type SilencedKey } from '@/lib/adapters/quality-silenced';
 import type { CorrectableCheck } from '@/lib/adapters/quality-correct';
 import type { PipelineQualityResponse, PipelineStatusReport } from '@/lib/pipeline/types';
-import { Badge, Skeleton } from '@/components/ui/primitives';
+import { Badge, BadgeSpinner, Skeleton } from '@/components/ui/primitives';
 
 const SEVERITY: Record<QualitySeverity, { label: string; variant: 'warning' | 'info' | 'default'; icon: typeof CircleAlert; tone: string }> = {
   problem: { label: 'Problem', variant: 'warning', icon: CircleAlert, tone: 'text-category-attention' },
@@ -85,7 +85,7 @@ function PendingDataQuality({ initialFailure, onReady }: { initialFailure: boole
         </h3>
         {!result ? (
           <Badge variant="default" className="text-[10px]">
-            <LoaderCircle size={11} className="mr-1 motion-safe:animate-spin" aria-hidden="true" />
+            <BadgeSpinner />
             Checking…
           </Badge>
         ) : (

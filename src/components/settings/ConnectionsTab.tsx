@@ -6,7 +6,7 @@
 // findings, Silence and Silenced issues. Nothing else lives on this tab.
 
 import { Database } from 'lucide-react';
-import { Badge, Button, Card, DataStateNote, ErrorState, Skeleton } from '@/components/ui/primitives';
+import { Badge, BadgeSpinner, Button, Card, DataStateNote, ErrorState, Skeleton } from '@/components/ui/primitives';
 import { STAGE_STATUS_LABEL, type StageStatus } from '@/lib/pipeline/types';
 import { DataQualitySection } from './DataQuality';
 import { SectionHead } from './SectionHead';
@@ -81,18 +81,25 @@ export function ConnectionsTab() {
   );
 }
 
-function StageDot({ status }: { status: StageStatus }) {
+export function StageDot({ status }: { status: StageStatus }) {
   const tone =
     status === 'healthy'
       ? 'bg-category-activity'
       : status === 'degraded'
         ? 'bg-category-attention'
-        : 'bg-border';
+        : status === 'checking'
+          ? 'bg-primary motion-safe:animate-pulse'
+          : 'bg-border';
   return <span className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${tone}`} aria-hidden="true" />;
 }
 
-function StageLabel({ status }: { status: StageStatus }) {
+export function StageLabel({ status }: { status: StageStatus }) {
   const variant = status === 'healthy' ? 'success' : status === 'degraded' ? 'warning' : 'default';
   // The word is part of the label, so the state is never conveyed by colour alone.
-  return <Badge variant={variant} className="text-[10px]">{STAGE_STATUS_LABEL[status]}</Badge>;
+  return (
+    <Badge variant={variant} className="text-[10px]">
+      {status === 'checking' && <BadgeSpinner />}
+      {STAGE_STATUS_LABEL[status]}
+    </Badge>
+  );
 }

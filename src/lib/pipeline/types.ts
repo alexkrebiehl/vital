@@ -8,7 +8,8 @@ import type { DataQualityReport } from '../adapters/quality';
 import type { SilencedFinding } from '../adapters/quality-silenced';
 import type { WorkoutSourceStatus } from '../workout-sources/types';
 
-export type StageStatus = 'healthy' | 'degraded' | 'unknown' | 'unconfigured';
+/** `checking`: the check is still running in the background; its result is on the way. */
+export type StageStatus = 'healthy' | 'degraded' | 'checking' | 'unknown' | 'unconfigured';
 
 export type StageId =
   | 'health_auto_export'
@@ -126,6 +127,7 @@ export interface PipelineStatusReport {
 export const STAGE_STATUS_LABEL: Record<StageStatus, string> = {
   healthy: 'Healthy',
   degraded: 'Degraded',
+  checking: 'Checking…',
   unknown: 'Unknown',
   unconfigured: 'Not configured',
 };

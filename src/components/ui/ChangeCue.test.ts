@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { ChangeCue } from './primitives';
+import { BadgeSpinner, ChangeCue } from './primitives';
 
 const render = (props: Parameters<typeof ChangeCue>[0]) => renderToStaticMarkup(createElement(ChangeCue, props));
 
@@ -18,5 +18,12 @@ describe('ChangeCue', () => {
 
   it('says nothing extra when there is no change', () => {
     expect(render({ direction: 'none', value: '0' })).not.toContain('sr-only');
+  });
+});
+
+describe('BadgeSpinner', () => {
+  it('spins only when motion is allowed, and lifts the icon on a wrapper so the spin does not undo it', () => {
+    const html = renderToStaticMarkup(createElement(BadgeSpinner));
+    expect(html).toMatch(/^<span class="[^"]*-translate-y-px[^"]*" aria-hidden="true"><svg[^>]*class="[^"]*motion-safe:animate-spin/);
   });
 });
