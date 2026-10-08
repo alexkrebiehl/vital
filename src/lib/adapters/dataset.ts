@@ -415,6 +415,13 @@ export function metricHasData(metricId: string): boolean {
   return metricObservationCount(metricId) > 0;
 }
 
+/** Observations inside a window; blood pressure counts readings, since it has no single series. */
+export function metricObservationsInWindow(metricId: string, win: DayWindow): number {
+  return isPairedMetric(metricId)
+    ? bloodPressureSeries().filter(r => r.date >= win.startKey && r.date <= win.endKey).length
+    : seriesInWindow(metricId, win).length;
+}
+
 export function metricObservationCount(metricId: string): number {
   return isPairedMetric(metricId) ? bloodPressureSeries().length : seriesFor(metricId).length;
 }
