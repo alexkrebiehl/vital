@@ -178,6 +178,7 @@ describe('stage derivation (SPEC §10)', () => {
     expect(STAGE_STATUS_LABEL).toEqual({
       healthy: 'Healthy',
       degraded: 'Degraded',
+      measuring: 'Measuring',
       unknown: 'Unknown',
       unconfigured: 'Not configured',
     });

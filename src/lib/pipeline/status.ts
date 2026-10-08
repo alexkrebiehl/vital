@@ -173,7 +173,7 @@ export function qualityStage(job: QualityJob | null, mode: 'demo' | 'live', summ
     return {
       id: 'data_quality',
       name: 'Data quality',
-      status: 'unknown',
+      status: job.state === 'computing' ? 'measuring' : 'unknown',
       detail:
         job.state === 'computing'
           ? 'Checking the export’s records in the background. Nothing else waits for it; the result appears below when it is ready.'

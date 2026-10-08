@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Database, RefreshCw, CircleDashed, CircleCheck, CircleAlert, CircleSlash } from 'lucide-react';
+import { Database, RefreshCw, CircleDashed, CircleCheck, CircleAlert, CircleSlash, LoaderCircle } from 'lucide-react';
 import { Dialog, Badge, Button, ErrorState, Skeleton } from '@/components/ui/primitives';
 import type { PipelineStatusReport, StageStatus } from '@/lib/pipeline/types';
 import { STAGE_STATUS_LABEL } from '@/lib/pipeline/types';
@@ -10,6 +10,7 @@ function StageIcon({ status }: { status: StageStatus }) {
   if (status === 'healthy') return <CircleCheck size={15} className="text-category-activity shrink-0" aria-hidden="true" />;
   if (status === 'degraded') return <CircleAlert size={15} className="text-category-attention shrink-0" aria-hidden="true" />;
   if (status === 'unconfigured') return <CircleSlash size={15} className="text-text-secondary shrink-0" aria-hidden="true" />;
+  if (status === 'measuring') return <LoaderCircle size={15} className="text-primary shrink-0 motion-safe:animate-spin" aria-hidden="true" />;
   return <CircleDashed size={15} className="text-text-secondary shrink-0" aria-hidden="true" />;
 }
 
