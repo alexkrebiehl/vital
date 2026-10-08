@@ -204,18 +204,26 @@ export function qualityStage(job: QualityJob | null, mode: 'demo' | 'live', summ
   const notes = quality.findings.filter(f => f.severity === 'info');
   const flagged = quality.checks.filter(c => c.outcome === 'flagged').length;
   const hidden = view ? view.silenced.filter(s => s.found).length : 0;
+  const corrected = quality.checks.filter(c => c.outcome === 'corrected');
+  const correctedText = corrected.length
+    ? ` Vital corrects ${corrected.map(c => c.label.replace(/ \(.*\)$/, '').toLowerCase()).join(' and ')} in its own totals.`
+    : '';
   return {
     id: 'data_quality',
     name: 'Data quality',
     status: serious.length ? 'degraded' : 'healthy',
-    detail: serious.length
-      ? `${serious.length} finding${serious.length === 1 ? '' : 's'} to fix: ${serious.map(f => f.title.toLowerCase()).join('; ')}.` +
-        `${notes.length ? ` Also ${notes.length} note${notes.length === 1 ? '' : 's'}.` : ''} Each is listed below with how to fix it.`
-      : notes.length
-        ? `No recent problems. ${notes.length} note${notes.length === 1 ? '' : 's'} about older history or the food log: ${notes.map(f => f.title.toLowerCase()).join('; ')}.`
-        : hidden > 0
-          ? `No data-quality problems found. ${hidden} issue${hidden === 1 ? ' is' : 's are'} silenced in Settings → Connections.`
-          : `All ${quality.checks.length} checks passed: no activity counted twice, no reading stored twice, no missing days, and new data is arriving.`,
+    detail:
+      (serious.length
+        ? `${serious.length} finding${serious.length === 1 ? '' : 's'} to fix: ${serious.map(f => f.title.toLowerCase()).join('; ')}.` +
+          `${notes.length ? ` Also ${notes.length} note${notes.length === 1 ? '' : 's'}.` : ''} Each is listed below with how to fix it.`
+        : notes.length
+          ? `No recent problems. ${notes.length} note${notes.length === 1 ? '' : 's'} about older history or the food log: ${notes.map(f => f.title.toLowerCase()).join('; ')}.`
+          : hidden > 0
+            ? `No data-quality problems found. ${hidden} issue${hidden === 1 ? ' is' : 's are'} silenced in Settings → Connections.`
+            : corrected.length
+              ? 'No data-quality problems left to fix.'
+              : `All ${quality.checks.length} checks passed: no activity counted twice, no reading stored twice, no missing days, and new data is arriving.`) +
+      correctedText,
     derivedFrom: `${quality.checks.length} checks on the export's records as stored, before daily aggregation (${flagged} flagged).`,
     observationCount: summary.observationCount,
     lastObservationAt: summary.lastObservationAt,
