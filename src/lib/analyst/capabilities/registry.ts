@@ -13,6 +13,8 @@ import * as medications from './areas/medications';
 import * as training from './areas/training';
 import * as body from './areas/body';
 import * as insights from './areas/insights';
+import * as activity from './areas/activity';
+import * as app from './areas/app';
 import { CAPABILITY_MANIFEST } from './manifest';
 import type { Capability } from './types';
 
@@ -42,6 +44,15 @@ const IMPLEMENTED: readonly AnyCapability[] = [
   body.nutritionAdherence,
   insights.current,
   insights.reports,
+  activity.coverage,
+  activity.maps,
+  app.dataQuality,
+  app.pipeline,
+  app.profile,
+  app.preferences,
+  app.briefing,
+  app.dashboard,
+  training.workoutTemplate,
 ];
 
 /** Every capability, in manifest order. */

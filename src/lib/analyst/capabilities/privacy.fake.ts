@@ -10,7 +10,8 @@ import { createDataAccess, type DataAccess } from '../dataAccess';
 import type { MedicationLogReader } from '../medicationLog';
 import type { LabSourceInput } from '../labSnapshot';
 import type { TrainingData } from '../../workout-sources/store';
-import { healthyReaders } from './app.fake';
+import { allReaders, profileState } from './app-state.fake';
+import { defaultProfile } from '../../profile/types';
 import type { AppReaders } from './reads/app-readers';
 import { DATED_LABS } from './lab.fake';
 import { REF, strengthSessions, trainingData } from './test-dataset.fake';
@@ -52,9 +53,24 @@ const meds = (mode: Mode, leaky: string): MedicationLogReader =>
 
 /** The readers behind get_app_data: working, throwing a message that carries the canaries, or with no store configured. */
 export function appReadersFor(mode: Mode, leaky: string): Partial<AppReaders> {
-  if (mode === 'healthy') return healthyReaders();
-  if (mode === 'unavailable') return { databaseConfigured: () => false, labReports: async () => null };
-  return { databaseConfigured: () => true, labReports: async () => fail(leaky), goalSummary: async () => fail(leaky), goalReport: async () => fail(leaky) };
+  if (mode === 'healthy') return allReaders();
+  const profile = defaultProfile('UTC');
+  const coverage = async () => ({ available: false, reason: leaky, unreadWorkouts: 0, referenceKey: null, range: null, mode: null });
+  if (mode === 'unavailable') {
+    return {
+      databaseConfigured: () => false,
+      labReports: async () => null,
+      maps: async () => null,
+      dashboard: async () => null,
+      coverage,
+      quality: async () => ({ state: 'unavailable', quality: null, silenced: [], detail: leaky }),
+      profile: async () => profileState(profile, { stored: false, error: leaky }),
+      preferences: async () => ({ ...(await allReaders().preferences!({} as NodeJS.ProcessEnv)), error: leaky }),
+      pipeline: async () => fail(leaky),
+    };
+  }
+  const boom = async () => fail(leaky);
+  return { databaseConfigured: () => true, labReports: boom, goalSummary: boom, goalReport: boom, maps: boom, coverage: boom, quality: boom, pipeline: boom, profile: boom, preferences: boom, dashboard: boom };
 }
 
 export function accessFor(mode: Mode, data: HealthFixtures, c: Canaries): DataAccess {
@@ -91,6 +107,15 @@ export const ARGS: Record<string, Record<string, unknown>> = {
   'body.nutrition_adherence': { window: { lastDays: 30 } },
   'insights.current': {},
   'insights.reports': { kind: 'weekly', count: 2 },
+  'activity.coverage': { window: { lastDays: 30 } },
+  'activity.maps': {},
+  'app.data_quality': {},
+  'app.pipeline': {},
+  'app.profile': {},
+  'app.preferences': {},
+  'app.briefing': {},
+  'app.dashboard': {},
+  'training.workout_template': { templateId: 'a' },
 };
 
 /** The arguments a model sends for a capability: get_app_data takes the capability and its params. */

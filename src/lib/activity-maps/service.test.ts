@@ -30,6 +30,12 @@ describe('coverageQuery', () => {
     expect(q.newSinceKey).toBe('2026-09-27');
   });
 
+  it('takes an explicit span of days, and counts new ground from its first day', () => {
+    const q = coverageQuery({ ...req, span: { fromKey: '2026-08-01', toKey: '2026-08-31' } }, '2026-10-03');
+    expect(q.range).toEqual({ fromKey: '2026-08-01', toKey: '2026-08-31' });
+    expect(q.newSinceKey).toBe('2026-08-01');
+  });
+
   it('counts new ground over the last 30 days when the range is all time', () => {
     const q = coverageQuery(req, '2026-10-03');
     expect(q.range).toBeNull();

@@ -27,6 +27,8 @@ export interface CoverageRequest {
   bbox: BBox;
   types: string[] | null;
   range: MapRange;
+  /** An explicit run of days, which wins over `range` (the analyst asks for windows that do not end today). */
+  span?: { fromKey: string; toKey: string };
   metric: CoverageQuery['metric'];
 }
 
@@ -53,8 +55,7 @@ export function parseCoverageRequest(params: URLSearchParams): CoverageRequest |
 
 /** The aggregation query for a request, resolved against the reference day. */
 export function coverageQuery(req: CoverageRequest, referenceKey: string): CoverageQuery {
-  const range =
-    req.range === 'all' ? null : { fromKey: addDays(referenceKey, -(req.range - 1)), toKey: referenceKey };
+  const range = req.span ?? (req.range === 'all' ? null : { fromKey: addDays(referenceKey, -(req.range - 1)), toKey: referenceKey });
   return {
     bbox: req.bbox,
     types: req.types,

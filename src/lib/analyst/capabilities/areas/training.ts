@@ -7,6 +7,7 @@
 import type { Capability } from '../types';
 import { manifestEntry } from '../manifest';
 import { readThrough } from './legacy';
+import { MAX_TEMPLATE_ID, readWorkoutTemplate } from '../reads/app-template';
 
 type Args = Record<string, unknown>;
 
@@ -79,4 +80,23 @@ export const referencePlans: Capability<Args, unknown> = {
   absenceTerms: [],
   coverage: unknownCoverage,
   read: (args, ctx) => readThrough(referencePlans)(args, ctx),
+};
+
+export const workoutTemplate: Capability<Args, unknown> = {
+  ...manifestEntry('training.workout_template'),
+  description:
+    'One session template of the active plan as a day of training: when it comes up, the focus areas it covers, and for each slot its path, stage, dose, light, readiness and what is next. The template ids are in get_routine_progress.',
+  owner: 'workout-sources',
+  mirrors: { routes: ['GET /api/routine/workouts/[templateId]'], pages: ['/workouts/routine/workouts/[templateId]'] },
+  time: 'none',
+  sizeClass: 'small',
+  absenceTerms: ['no workout', 'no template', 'no plan'],
+  params: {
+    type: 'object',
+    required: ['templateId'],
+    properties: { templateId: { type: 'string', maxLength: MAX_TEMPLATE_ID, description: 'A template id of the active plan.' } },
+    additionalProperties: false,
+  },
+  coverage: unknownCoverage,
+  read: (args, ctx) => readWorkoutTemplate(args, ctx),
 };

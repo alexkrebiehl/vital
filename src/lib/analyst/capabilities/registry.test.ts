@@ -76,6 +76,15 @@ const EXPECTED: [id: string, tool: string][] = [
   ['body.nutrition_adherence', 'get_app_data'],
   ['insights.current', 'get_app_data'],
   ['insights.reports', 'get_app_data'],
+  ['activity.coverage', 'get_app_data'],
+  ['activity.maps', 'get_app_data'],
+  ['app.data_quality', 'get_app_data'],
+  ['app.pipeline', 'get_app_data'],
+  ['app.profile', 'get_app_data'],
+  ['app.preferences', 'get_app_data'],
+  ['app.briefing', 'get_app_data'],
+  ['app.dashboard', 'get_app_data'],
+  ['training.workout_template', 'get_app_data'],
 ];
 
 describe('manifest and registry', () => {
@@ -112,7 +121,7 @@ describe('manifest and registry', () => {
   });
 
   it('give each plan read tool the status line the client derives for it', () => {
-    for (const entry of CAPABILITY_MANIFEST.filter(e => e.area === 'training')) {
+    for (const entry of CAPABILITY_MANIFEST.filter(e => e.area === 'training' && e.tool !== 'get_app_data')) {
       expect(entry.statusLabel).toBe(`Using the plan tool: ${entry.tool.replace(/_/g, ' ')}…`);
     }
   });
