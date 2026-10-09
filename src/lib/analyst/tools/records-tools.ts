@@ -46,7 +46,7 @@ export const getSleep: AnalystTool = {
   name: 'get_sleep',
   kind: 'read',
   description:
-    'Sleep night by night: bedtime and wake time, time asleep and in bed, and the deep, core, REM and awake split. A night recorded only as time in bed has no time asleep and no stages (hasStages false). view "nights" is the default for up to 31 nights, "summary" (means by week or month, longest and shortest nights) for more. Sort, e.g. deep desc with a small limit, to find the deepest nights. Quote the "display" strings.',
+    'Sleep night by night: bedtime and wake time, time asleep and in bed, and the deep, core, REM and awake split. A night recorded only as time in bed has no time asleep and no stages. view "nights" (default, up to 31 nights) or "summary" (means by week or month, longest and shortest nights). Sort, e.g. deep desc with a small limit, finds the deepest nights.',
   parameters: {
     type: 'object',
     properties: {

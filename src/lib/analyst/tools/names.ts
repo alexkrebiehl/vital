@@ -2,6 +2,7 @@
 // client can label a lookup without importing server code.
 
 export const DATA_TOOL_NAMES = [
+  'list_capabilities',
   'get_metrics',
   'compare_periods',
   'get_metric_series',

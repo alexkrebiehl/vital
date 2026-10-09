@@ -106,6 +106,10 @@ export interface Capability<A, R> extends CapabilityManifestEntry {
   citesAs?: string[];
   /** The arguments of a capability served through `get_app_data`; absent means none. */
   params?: Schema;
+  /** A short phrase for the capability map (guide.holds.ts); attached by the registry. */
+  holds?: string;
+  /** Example arguments of the capability's tool (guide.examples.ts): two, or one when it takes none. */
+  examples?: readonly Record<string, unknown>[];
   /** Cheap: first and last day and count, or 'unknown' when only the upstream can tell. */
   coverage(ctx: CapabilityContext): Promise<Coverage>;
   read(args: A, ctx: CapabilityContext): Promise<Envelope<R>>;

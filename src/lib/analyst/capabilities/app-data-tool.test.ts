@@ -9,7 +9,7 @@ import { resetToDemoDataset } from '../../adapters/dataset';
 import { createDataAccess } from '../dataAccess';
 import { runTool } from '../tools';
 import { CAPABILITIES } from './registry';
-import { DATA_TOOLS_PROMPT } from '../systemPrompt';
+import { buildDataToolsPrompt } from '../systemPrompt';
 import { toolSpecs } from '../tools';
 import { DATA_TOOLS } from '../tools/data';
 import { healthyReaders, installBodyDataset } from './app.fake';
@@ -95,6 +95,6 @@ describe('get_app_data, all its capabilities', () => {
   });
 
   it('tells the model to name a source only when the question is about sources', () => {
-    expect(DATA_TOOLS_PROMPT).toContain('Name a data source only when the question is about sources or connections.');
+    expect(buildDataToolsPrompt('')).toContain('Name a data source only when the question is about sources or connections.');
   });
 });

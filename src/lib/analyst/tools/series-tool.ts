@@ -15,7 +15,7 @@ export const getMetricSeries: AnalystTool = {
     type: 'object',
     required: ['metrics'],
     properties: {
-      metrics: { type: 'array', items: { type: 'string' }, maxItems: MAX_SERIES_METRICS, description: 'Metric ids from the index, e.g. "resting_heart_rate".' },
+      metrics: { type: 'array', items: { type: 'string' }, maxItems: MAX_SERIES_METRICS, description: 'Metric ids.' },
       window: { ...WINDOW_SCHEMA, description: `${WINDOW_SCHEMA.description} Default: the last 30 days.` },
       granularity: { type: 'string', enum: GRANULARITIES, description: 'auto (default): days up to 92 points, then weeks, then months. summary: no points.' },
       compareTo: { description: '"previous" (default), "none", or { start, end }.' },

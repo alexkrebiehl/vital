@@ -328,6 +328,9 @@ function joinSentences(items: string[]): string {
 /** The lab selection used when a handler declares none: the bounded overview. */
 export const DEFAULT_LAB_SPEC: LabSpec = { mode: 'overview' };
 
+/** The lab selection for a question about a lab result, whichever route it took. */
+export const ANALYTE_LAB_SPEC: LabSpec = { mode: 'analyte' };
+
 /** The lab selection a handler declared, or null when it declared none. */
 export function labSpecOf(handlerId: string): LabSpec | null {
   return RETRIEVAL_SPECS[handlerId]?.lab ?? null;

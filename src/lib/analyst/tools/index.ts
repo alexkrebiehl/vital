@@ -28,6 +28,7 @@ import { redactCredentials, scrubForModel } from '../scrub';
 import { checkArgs, type Schema } from './args';
 import type { DataAccess } from '../dataAccess';
 import { DATA_TOOLS } from './data';
+import { policyGate } from './capability-tool';
 import { getTrainingSessions } from './training-sessions';
 
 export const MAX_TOOL_RESULT_CHARS = 14_000;
@@ -407,8 +408,11 @@ export function toolSpecs(tools: AnalystTool[] = ANALYST_TOOLS): ToolSpec[] {
 export async function runTool(name: string, args: Record<string, unknown>, ctx: ToolContext): Promise<{ content: string; isError: boolean }> {
   const offered = availableTools(ctx);
   const tool = offered.find(t => t.name === name);
+  // Withheld by the AI privacy setting: nothing is read, whatever the arguments.
+  const blocked = tool ? policyGate(tool.name, ctx) : null;
   let outcome: ToolOutcome;
   if (!tool) outcome = { isError: true, content: { error: `There is no tool "${name}". Tools: ${offered.map(t => t.name).join(', ')}.` } };
+  else if (blocked) outcome = blocked;
   else if ('__unparseable' in args) outcome = { isError: true, content: { error: 'The arguments were not valid JSON.' } };
   else {
     const problems = checkArgs(tool.parameters, args);

@@ -85,6 +85,7 @@ export function fitToBudget(bundle: RetrievalBundle, system: UnitSystem, maxChar
     current = {
       ...current,
       note: `${current.note} NOT SENT, to fit the size limit: ${dropped.join('; ')}. Anything listed here exists in the data but was not given to you — do not say it is not recorded.`,
+      selectionNote: `NOT SENT, to fit the size limit: ${dropped.join('; ')}. Anything listed here exists in the data but was not given to you — do not say it is not recorded.`,
     };
     chars = sizeOf(current, system);
   }

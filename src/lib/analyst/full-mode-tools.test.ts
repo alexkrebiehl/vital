@@ -58,7 +58,12 @@ describe('full context mode', () => {
     const names = (model.bodies[0].tools as { function: { name: string } }[]).map(t => t.function.name);
     expect(names).toEqual(expect.arrayContaining(['get_workouts', 'get_sleep', 'get_blood_pressure', 'get_metric_series', 'get_metrics', 'get_lab_results', 'get_routine_progress']));
     expect(model.bodies[0].messages.at(-1).content).toContain('"context"');
-    expect(model.bodies[0].messages[0].content).toContain('In addition to any selection you were given, these tools read everything the app holds.');
+    const system = model.bodies[0].messages[0].content as string;
+    expect(system).toContain('Any selection in the message is a STARTING SELECTION, not the record.');
+    expect(system).toContain('workouts.sessions — Workout sessions');
+    const user = model.bodies[0].messages.at(-1).content as string;
+    expect(user.indexOf('COVERAGE')).toBeGreaterThan(-1);
+    expect(user.indexOf('COVERAGE')).toBeLessThan(user.indexOf('"selection"'));
   });
 
   it('runs a data tool call and audits the answer against what it returned', async () => {

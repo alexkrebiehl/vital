@@ -24,6 +24,7 @@ import type { LabSourceInput } from './labSnapshot';
 import { loadTrainingData, type TrainingData } from '../workout-sources/store';
 import type { SourceRequestDeps } from '../workout-sources/types';
 import type { AppReaders } from './capabilities/reads/app-readers';
+import type { PrivacyPolicy } from './capabilities/types';
 import { loadMedicationSnapshot } from './medicationsContext';
 import { loadMedicationLog, type DayRange, type MedicationLog, type MedicationLogReader } from './medicationLog';
 import type {
@@ -61,6 +62,8 @@ export interface DataAccess {
   trainingData(deps: SourceRequestDeps): Promise<TrainingData>;
   /** Test seam: replaces the readers behind get_app_data. Production leaves it unset. */
   app?: Partial<AppReaders>;
+  /** The AI privacy setting that decides what the tools and the fixed selection may send; unset means everything (design §9.2). */
+  policy?: PrivacyPolicy;
   fetched: Fetched;
 }
 
@@ -73,6 +76,7 @@ export interface DataAccessOptions {
   medicationLog?: MedicationLogReader;
   training?: (deps: SourceRequestDeps) => Promise<TrainingData>;
   app?: Partial<AppReaders>;
+  policy?: PrivacyPolicy;
 }
 
 export function createDataAccess(options: DataAccessOptions): DataAccess {
@@ -97,6 +101,7 @@ export function createDataAccess(options: DataAccessOptions): DataAccess {
     medicationLog: range => (options.medicationLog ?? (r => loadMedicationLog(r, { env: options.env })))(range),
     trainingData: deps => (training ??= (options.training ?? loadTrainingData)(deps)),
     ...(options.app ? { app: options.app } : {}),
+    ...(options.policy ? { policy: options.policy } : {}),
     fetched,
   };
 }

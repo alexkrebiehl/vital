@@ -355,6 +355,9 @@ abstract class RemoteAnalystProviderBase implements AnalystProvider {
         history: context.history,
         pageContext: context.pageContext,
         goalContext: context.goalContext,
+        index: context.index,
+        // This path never has tools: a question answered with them goes through the tool loop.
+        tools: false,
       }),
     };
   }

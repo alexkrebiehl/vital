@@ -6,6 +6,7 @@
 // that a server which refuses tools still gets the whole question answered from the
 // fixed context. Also the size budget on that fixed context.
 
+import { COVERAGE_INDEX_MAX_CHARS } from './capabilities/coverage-index';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -178,7 +179,11 @@ describe('when tools are refused or off', () => {
     expect(last.tools).toBeUndefined();
     const user = last.messages.at(-1).content as string;
     expect(user).toContain('"context"');
-    expect(user).not.toContain('INDEX of the reader');
+    // The selection is sent, labelled as incomplete and without tools; the coverage index still comes first.
+    expect(user).toContain('STARTING SELECTION');
+    expect(user).toContain('You cannot fetch more in this answer.');
+    expect(user.indexOf('COVERAGE')).toBeLessThan(user.indexOf('"context"'));
+    expect(user).not.toContain('Fetch the data this question needs');
   });
 
   it('streams through the same fallback', async () => {
@@ -270,7 +275,8 @@ describe('the size budget on the fixed context', () => {
     await askAnalyst({ query: 'How is my sleep?' }, { env: env(model.url, { ANALYST_CONTEXT: 'full', ANALYST_CONTEXT_MAX_CHARS: '12000' }), labLoader: async () => big, medicationLoader: noMeds });
     const user = model.bodies[0].messages.at(-1).content as string;
     expect(user).toContain('NOT SENT, to fit the size limit');
-    expect(user.length).toBeLessThan(40_000);
+    // The fixed context honours its budget; the coverage index in front of it has its own bound.
+    expect(user.length).toBeLessThan(40_000 + COVERAGE_INDEX_MAX_CHARS);
   });
 });
 

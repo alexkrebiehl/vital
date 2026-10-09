@@ -16,6 +16,8 @@ import * as insights from './areas/insights';
 import * as activity from './areas/activity';
 import * as app from './areas/app';
 import { CAPABILITY_MANIFEST } from './manifest';
+import { EXAMPLES } from './guide.examples';
+import { HOLDS } from './guide.holds';
 import type { Capability } from './types';
 
 export type AnyCapability = Capability<Record<string, unknown>, unknown>;
@@ -59,7 +61,8 @@ const IMPLEMENTED: readonly AnyCapability[] = [
 export const CAPABILITIES: readonly AnyCapability[] = CAPABILITY_MANIFEST.map(entry => {
   const cap = IMPLEMENTED.find(c => c.id === entry.id);
   if (!cap) throw new Error(`Capability "${entry.id}" is in the manifest but has no area implementation.`);
-  return cap;
+  // The words the model reads about it, written once beside the registry (guide.*.ts).
+  return { ...cap, holds: HOLDS[cap.id], examples: EXAMPLES[cap.id] };
 });
 
 if (IMPLEMENTED.length !== CAPABILITIES.length) {

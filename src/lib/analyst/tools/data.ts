@@ -20,6 +20,7 @@ import { getMetricSeries } from './series-tool';
 import { getBloodPressure, getSleep, getWorkouts } from './records-tools';
 import { getMedications } from './medications-tool';
 import { getAppData } from './app-data-tool';
+import { listCapabilities } from './list-capabilities';
 import { formatDeltaWithUnit, formatMetricWithUnit, metricUnit } from '../../metrics/format';
 import { formatPercent } from '../../metrics/format';
 import { containsDay, makeWindow } from '../../analytics/windows';
@@ -74,7 +75,7 @@ const getMetrics: AnalystTool = {
   name: 'get_metrics',
   kind: 'read',
   description:
-    `Up to ${MAX_METRICS_PER_CALL} metrics over the last N days against the N before: current and baseline, change, mean/median/min/max, observations, daily series. Quote the "display" strings, never re-derive a number. Ids are in the index. For a named past period use compare_periods.`,
+    `Up to ${MAX_METRICS_PER_CALL} metrics over the last N days against the N before, with a daily series. Quote the "display" strings. get_metric_series does more.`,
   parameters: {
     type: 'object',
     required: ['metrics'],
@@ -146,7 +147,7 @@ const compareMetricPeriods: AnalystTool = {
   name: 'compare_periods',
   kind: 'read',
   description:
-    'One metric over two date ranges you name (YYYY-MM-DD, inclusive): each period\'s mean, median, min, max and observations, and the change from A to B, as display strings. For "the last N days" use get_metrics.',
+    'One metric over two date ranges you name (YYYY-MM-DD): each one\'s summary and the change from A to B, as display strings.',
   parameters: {
     type: 'object',
     required: ['metric', 'aStart', 'aEnd', 'bStart', 'bEnd'],
@@ -314,7 +315,7 @@ const COMPACT_KEYS = ['name', 'specimen', 'observations', 'latest', 'latestOn', 
 const getLabResults: AnalystTool = {
   name: 'get_lab_results',
   kind: 'read',
-  description: `Stored lab results, by name. Each series: latest value, unit, date, reference interval (as printed, or the fallback and which), status, previous observation and change; with history=true, every earlier observation too (at most ${MAX_POINTS_PER_SERIES}). Qualitative results come back as the report printed them. Name analytes as in the index (a series key, or a name like "LDL" or "hemoglobin"); a category from the index returns all its series. At most ${MAX_LAB_SERIES_PER_CALL} series per call.`,
+  description: `Stored lab results by name or category. Each series: latest value, unit, date, reference interval (as printed, or the fallback and which), status, previous observation and change; history=true adds earlier observations (at most ${MAX_POINTS_PER_SERIES}). Qualitative results come back as printed. Name analytes as in the index (a series key, or a name like "LDL"). At most ${MAX_LAB_SERIES_PER_CALL} series per call.`,
   parameters: {
     type: 'object',
     properties: {
@@ -469,4 +470,4 @@ const compareLabPanels: AnalystTool = {
   },
 };
 
-export const DATA_TOOLS: AnalystTool[] = [getMetrics, compareMetricPeriods, getMetricSeries, getRelationship, getWorkouts, getSleep, getBloodPressure, getLabResults, compareLabPanels, getMedications, getAppData];
+export const DATA_TOOLS: AnalystTool[] = [listCapabilities, getMetrics, compareMetricPeriods, getMetricSeries, getRelationship, getWorkouts, getSleep, getBloodPressure, getLabResults, compareLabPanels, getMedications, getAppData];

@@ -7,7 +7,8 @@
 
 import { describe, expect, it } from 'vitest';
 import { createDataAccess, mergeFetched, nothingFetched } from './dataAccess';
-import { buildDataIndex, renderDataIndex } from './dataIndex';
+import { buildLabIndex, buildMetricIndex } from './dataIndex';
+import { COVERAGE_INDEX_MAX_CHARS, renderCoverageIndex } from './capabilities/coverage-index';
 import { buildContextPayload } from './systemPrompt';
 import { DATA_TOOLS, MAX_COMPARE_ROWS, MAX_DATA_RESULT_CHARS, MAX_LAB_SERIES_PER_CALL } from './tools/data';
 import { availableTools, runTool, type ToolContext } from './tools';
@@ -397,10 +398,11 @@ describe('what was fetched is what can be cited and audited', () => {
   });
 });
 
-describe('the data index', () => {
+describe('the coverage index', () => {
+  const render = (lab: LabSourceInput) => renderCoverageIndex({ refKey: '2026-09-17', rows: [], metrics: buildMetricIndex(), labs: buildLabIndex(lab) });
+
   it('lists what exists with no values in it', async () => {
-    const index = buildDataIndex('2026-09-17', twoPanels());
-    const text = renderDataIndex(index);
+    const text = render(twoPanels());
     expect(text).toContain('resting_heart_rate');
     expect(text).toContain('Panel dates (date: series measured): 2026-09-29: 4, 2026-10-01: 3');
     expect(text).toContain('Lipids: LDL cholesterol (2×), Total cholesterol (2×)');
@@ -408,13 +410,12 @@ describe('the data index', () => {
   });
 
   it('states why labs are missing instead of listing nothing', () => {
-    const text = renderDataIndex(buildDataIndex('2026-09-17', { available: false, reason: 'No Postgres database is configured.', documents: 0, totalObservations: 0, collisions: 0, series: [] }));
+    const text = render({ available: false, reason: 'No Postgres database is configured.', documents: 0, totalObservations: 0, collisions: 0, series: [] });
     expect(text).toContain('LAB RESULTS — not available: No Postgres database is configured.');
   });
 
-  it('stays small however much lab data there is', () => {
+  it('stays within its bound however much lab data there is', () => {
     const lots = Array.from({ length: 150 }, (_, i) => series(`s${i}`, `Analyte number ${i}`, `Cat ${i % 12}`, [obs('2026-09-29', i), obs('2026-10-01', i)]));
-    const text = renderDataIndex(buildDataIndex('2026-09-17', twoPanels(lots)));
-    expect(text.length).toBeLessThan(14_000);
+    expect(render(twoPanels(lots)).length).toBeLessThanOrEqual(COVERAGE_INDEX_MAX_CHARS);
   });
 });

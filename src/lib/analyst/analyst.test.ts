@@ -318,13 +318,13 @@ describe('routing a free-form question to the right context (SPEC §8)', () => {
     expect(selected).toContain('sleep_analysis');
   });
 
-  it('still routes the canonical question to its own handler under a configured provider', async () => {
-    const response = await askAnalyst(
-      { query: 'How has my sleep changed over the last month?' },
-      { env: REMOTE_ENV }
-    );
-    expect(response.handlerId).toBe('sleep-1-month');
-    expect(response.retrieval.metrics.map(m => m.metricId)).toEqual(['sleep_analysis']);
+  it('routes every handler\'s canonical question to the general selection under a configured provider (design §5.4)', async () => {
+    for (const prompt of SUPPORTED_PROMPTS) {
+      const response = await askAnalyst({ query: prompt }, { env: REMOTE_ENV });
+      expect(response.handlerId, prompt).toBe(GENERAL_HANDLER_ID);
+      // The wider selection, not one handler's narrower bundle: the workout log and more than one metric.
+      expect(response.retrieval.metrics.length, prompt).toBeGreaterThan(1);
+    }
   });
 
   it('keeps the demo catch-all exactly as it was for the same question', async () => {
