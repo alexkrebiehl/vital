@@ -23,6 +23,7 @@ import { loadLabSource } from './labContext';
 import type { LabSourceInput } from './labSnapshot';
 import { loadTrainingData, type TrainingData } from '../workout-sources/store';
 import type { SourceRequestDeps } from '../workout-sources/types';
+import type { AppReaders } from './capabilities/reads/app-readers';
 import { loadMedicationSnapshot } from './medicationsContext';
 import { loadMedicationLog, type DayRange, type MedicationLog, type MedicationLogReader } from './medicationLog';
 import type {
@@ -58,6 +59,8 @@ export interface DataAccess {
   medicationLog(range: DayRange): Promise<MedicationLog>;
   /** The strength sessions of the connected workout sources, read once per question. */
   trainingData(deps: SourceRequestDeps): Promise<TrainingData>;
+  /** Test seam: replaces the readers behind get_app_data. Production leaves it unset. */
+  app?: Partial<AppReaders>;
   fetched: Fetched;
 }
 
@@ -69,6 +72,7 @@ export interface DataAccessOptions {
   medications?: (days: number) => Promise<MedicationContextSnapshot>;
   medicationLog?: MedicationLogReader;
   training?: (deps: SourceRequestDeps) => Promise<TrainingData>;
+  app?: Partial<AppReaders>;
 }
 
 export function createDataAccess(options: DataAccessOptions): DataAccess {
@@ -92,6 +96,7 @@ export function createDataAccess(options: DataAccessOptions): DataAccess {
       (options.medications ?? (d => loadMedicationSnapshot('', { ...(options.env ? { env: options.env } : {}), lookbackDays: d })))(days),
     medicationLog: range => (options.medicationLog ?? (r => loadMedicationLog(r, { env: options.env })))(range),
     trainingData: deps => (training ??= (options.training ?? loadTrainingData)(deps)),
+    ...(options.app ? { app: options.app } : {}),
     fetched,
   };
 }

@@ -18,7 +18,7 @@ import type { TrainingData } from '../../workout-sources/store';
 import { runTool } from '../tools';
 import { CAPABILITIES } from './registry';
 import { installTestDataset } from './test-dataset.fake';
-import { ARGS, ctxFor, type Canaries, type Mode } from './privacy.fake';
+import { ARGS, ctxFor, toolArgs, type Canaries, type Mode } from './privacy.fake';
 import type { CapabilityContext } from './types';
 
 // The variables of design §9.1, a distinct canary for each, and a stored credential per source.
@@ -123,14 +123,14 @@ describe.each(MODES)('with sources that are %s', mode => {
     const statuses = out.map(o => o.status);
     if (mode === 'healthy') expect(statuses).not.toContain('source_unavailable');
     // The failing sources really were reached: the medication log and the lab store each say so.
-    else for (const id of ['labs.series', 'labs.compare', 'medications.summary', 'medications.doses']) expect(out.find(o => o.id === id)?.status, id).toBe('source_unavailable');
+    else for (const id of ['labs.series', 'labs.compare', 'medications.summary', 'medications.doses', 'labs.documents', 'body.goal', 'body.nutrition_adherence']) expect(out.find(o => o.id === id)?.status, id).toBe('source_unavailable');
   });
 
   it('leaks no canary from any tool the model calls', async () => {
     const ctx = ctxFor(mode, data, routine(), CANARIES);
     const seen: string[] = [];
     for (const cap of CAPABILITIES) {
-      const r = await runTool(cap.tool, ARGS[cap.id], { system: 'metric', deps: ctx.routine, changes: [], data: ctx.access });
+      const r = await runTool(cap.tool, toolArgs(cap), { system: 'metric', deps: ctx.routine, changes: [], data: ctx.access });
       seen.push(r.content);
       expect(leaked(r.content), `${cap.tool} (${cap.id})`).toEqual([]);
     }

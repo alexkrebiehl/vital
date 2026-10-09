@@ -6,7 +6,9 @@
 import type { UnitSystem } from '../../prefs';
 import type { RoutineDeps } from '../../routine/service';
 import type { DataAccess } from '../dataAccess';
+import type { Schema } from '../tools/args';
 import type { Envelope } from './envelope';
+import type { AppReaders } from './reads/app-readers';
 
 export type CapabilityArea =
   | 'metrics'
@@ -84,6 +86,8 @@ export interface CapabilityContext {
   access: DataAccess;
   routine: RoutineDeps;
   policy: PrivacyPolicy;
+  /** Test seam: replaces the readers behind `get_app_data` (reads/app-readers.ts). Production leaves it unset. */
+  app?: Partial<AppReaders>;
 }
 
 export interface Capability<A, R> extends CapabilityManifestEntry {
@@ -100,6 +104,8 @@ export interface Capability<A, R> extends CapabilityManifestEntry {
   absenceTerms: string[];
   /** Metric ids an evidence card may cite after a successful read. */
   citesAs?: string[];
+  /** The arguments of a capability served through `get_app_data`; absent means none. */
+  params?: Schema;
   /** Cheap: first and last day and count, or 'unknown' when only the upstream can tell. */
   coverage(ctx: CapabilityContext): Promise<Coverage>;
   read(args: A, ctx: CapabilityContext): Promise<Envelope<R>>;

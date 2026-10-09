@@ -9,6 +9,15 @@
 
 import type { CapabilityManifestEntry } from './types';
 
+/**
+ * Every get_app_data capability shares one status line and one source tag: sources are
+ * tagged per TOOL (a turn records the tool, not the capability), and a tool with several
+ * tags is read as opaque. So the configuration-only capabilities are over-tagged with every
+ * active source: removing one deletes more conversations, never fewer (design §13).
+ */
+const APP_DATA_STATUS = 'Looking up your app data…';
+const APP_DATA_SOURCES = 'metric-provenance';
+
 export const CAPABILITY_MANIFEST: CapabilityManifestEntry[] = [
   {
     id: 'metrics.summary',
@@ -171,6 +180,51 @@ export const CAPABILITY_MANIFEST: CapabilityManifestEntry[] = [
     statusLabel: 'Using the plan tool: get reference plan…',
     sources: 'configuration',
     category: 'app-status',
+  },
+  {
+    id: 'labs.documents',
+    area: 'labs',
+    title: 'Lab documents',
+    tool: 'get_app_data',
+    statusLabel: APP_DATA_STATUS,
+    sources: APP_DATA_SOURCES,
+    category: 'lab-results',
+  },
+  {
+    id: 'body.goal',
+    area: 'body',
+    title: 'Body goal',
+    tool: 'get_app_data',
+    statusLabel: APP_DATA_STATUS,
+    sources: APP_DATA_SOURCES,
+    category: 'body-goal',
+  },
+  {
+    id: 'body.nutrition_adherence',
+    area: 'body',
+    title: 'Nutrition adherence',
+    tool: 'get_app_data',
+    statusLabel: APP_DATA_STATUS,
+    sources: APP_DATA_SOURCES,
+    category: 'body-goal',
+  },
+  {
+    id: 'insights.current',
+    area: 'insights',
+    title: 'Insights',
+    tool: 'get_app_data',
+    statusLabel: APP_DATA_STATUS,
+    sources: APP_DATA_SOURCES,
+    category: 'metric-summaries',
+  },
+  {
+    id: 'insights.reports',
+    area: 'insights',
+    title: 'Weekly and monthly reports',
+    tool: 'get_app_data',
+    statusLabel: APP_DATA_STATUS,
+    sources: APP_DATA_SOURCES,
+    category: 'metric-summaries',
   },
 ];
 

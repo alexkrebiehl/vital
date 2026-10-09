@@ -11,12 +11,12 @@ export const MAX_WINDOW_DAYS = 730;
 
 export const WINDOW_SCHEMA: Schema & { type: 'object' } = {
   type: 'object',
-  description: 'ONE of: day, month, start+end, lastDays.',
+  description: 'ONE of: day, month (YYYY-MM), start+end, lastDays. Days are YYYY-MM-DD.',
   properties: {
-    day: { type: 'string', description: 'YYYY-MM-DD' },
-    month: { type: 'string', description: 'YYYY-MM' },
-    start: { type: 'string', description: 'YYYY-MM-DD' },
-    end: { type: 'string', description: 'YYYY-MM-DD' },
+    day: { type: 'string' },
+    month: { type: 'string' },
+    start: { type: 'string' },
+    end: { type: 'string' },
     lastDays: { type: 'integer', minimum: 1, maximum: MAX_WINDOW_DAYS },
   },
   additionalProperties: false,

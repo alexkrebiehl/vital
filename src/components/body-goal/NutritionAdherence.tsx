@@ -13,14 +13,12 @@
 
 import { formatDayKeyLong, formatDayKeyShort } from '@/lib/analytics/windows';
 import { TREND_DAYS } from '@/lib/body-goal/constants';
-import type { AdherenceDay } from '@/lib/body-goal/intake';
+import { calorieVerdict, proteinVerdict, type AdherenceDay, type Verdict } from '@/lib/body-goal/intake';
 import type { BodyGoalReport } from '@/lib/body-goal/report';
 import type { Range } from '@/lib/body-goal/targets';
 import { Card } from '@/components/ui/primitives';
 import { SectionTitle } from '@/components/domain/DomainShared';
 import { formatGrams, formatKcal, formatRange } from './format';
-
-type Verdict = 'met' | 'ok' | 'above' | 'below';
 
 const MET = 'var(--color-category-nutrition)';
 /** OK days: the target colour, lighter. Dots also get a ring in the full colour, so the two read apart in every theme. */
@@ -70,7 +68,7 @@ export function NutritionAdherence({ report }: { report: BodyGoalReport | null }
       band: cal,
       okBand: calOk,
       values: a.days.map(d => ({ key: d.key, value: d.kcal, log: d.log })),
-      judge: v => (v >= cal.min && v <= cal.max ? 'met' : v > calOk.max ? 'above' : v < calOk.min ? 'below' : 'ok'),
+      judge: v => calorieVerdict(v, cal, calOk),
       format: v => formatKcal(v),
       verdictText: { met: 'on target', ok: 'OK, close to the target', above: 'above the OK range', below: 'below the OK range' },
       offLabel: 'outside the OK range',
@@ -92,7 +90,7 @@ export function NutritionAdherence({ report }: { report: BodyGoalReport | null }
       band: t.protein,
       okBand: { min: okFloor, max: t.protein.max },
       values: a.days.map(d => ({ key: d.key, value: d.protein, log: d.protein === null && d.log !== 'none' ? 'none' : d.log })),
-      judge: v => (v >= t.proteinFloor ? 'met' : v >= okFloor ? 'ok' : 'below'),
+      judge: v => proteinVerdict(v, t),
       format: v => formatGrams(v),
       verdictText: { met: `on target (${t.proteinFloor} g or more)`, ok: 'OK, close to the floor', above: 'on target', below: `under ${okFloor} g` },
       offLabel: `under ${okFloor} g`,

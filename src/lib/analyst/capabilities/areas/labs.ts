@@ -4,6 +4,8 @@ import type { Capability, CapabilityContext, Coverage } from '../types';
 import { manifestEntry } from '../manifest';
 import { readThrough, type SourceDown } from './legacy';
 import { scrubForModel } from '../../scrub';
+import { labDocumentsCoverage, readLabDocuments } from '../reads/app-labs';
+import { NO_PARAMS } from '../reads/app-common';
 
 type Args = Record<string, unknown>;
 
@@ -46,4 +48,18 @@ export const compare: Capability<Args, unknown> = {
   absenceTerms: ABSENCE,
   coverage: labsCoverage,
   read: (args, ctx) => readThrough(compare, labDown)(args, ctx),
+};
+
+export const documents: Capability<Args, unknown> = {
+  ...manifestEntry('labs.documents'),
+  description:
+    'The stored lab documents, newest first: report date, collection dates, lab name and how many results each holds. Dates and counts only; for the results themselves use get_lab_results.',
+  owner: 'lab-store',
+  mirrors: { routes: ['GET /api/lab/reports', 'GET /api/lab/reports/[id]'] },
+  time: 'none',
+  sizeClass: 'per-record',
+  absenceTerms: ['no lab documents', 'no lab reports', 'no panels on file', 'never had labs'],
+  params: NO_PARAMS,
+  coverage: labDocumentsCoverage,
+  read: (args, ctx) => readLabDocuments(args, ctx),
 };

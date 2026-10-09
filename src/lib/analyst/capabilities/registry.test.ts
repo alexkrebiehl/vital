@@ -71,6 +71,11 @@ const EXPECTED: [id: string, tool: string][] = [
   ['training.sessions', 'get_training_sessions'],
   ['training.exercise_templates', 'search_exercise_templates'],
   ['training.reference_plans', 'get_reference_plan'],
+  ['labs.documents', 'get_app_data'],
+  ['body.goal', 'get_app_data'],
+  ['body.nutrition_adherence', 'get_app_data'],
+  ['insights.current', 'get_app_data'],
+  ['insights.reports', 'get_app_data'],
 ];
 
 describe('manifest and registry', () => {

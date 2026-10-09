@@ -12,6 +12,7 @@ export const DATA_TOOL_NAMES = [
   'get_lab_results',
   'compare_lab_panels',
   'get_medications',
+  'get_app_data',
 ] as const;
 
 export function isDataTool(name: string): boolean {

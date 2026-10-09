@@ -19,6 +19,7 @@ import { PAIRED_REASON, resolveMetric } from './metric-resolve';
 import { getMetricSeries } from './series-tool';
 import { getBloodPressure, getSleep, getWorkouts } from './records-tools';
 import { getMedications } from './medications-tool';
+import { getAppData } from './app-data-tool';
 import { formatDeltaWithUnit, formatMetricWithUnit, metricUnit } from '../../metrics/format';
 import { formatPercent } from '../../metrics/format';
 import { containsDay, makeWindow } from '../../analytics/windows';
@@ -73,7 +74,7 @@ const getMetrics: AnalystTool = {
   name: 'get_metrics',
   kind: 'read',
   description:
-    `Summaries of up to ${MAX_METRICS_PER_CALL} health metrics over the last N days, each compared with the N days before: the current and baseline value, the change, the mean/median/min/max, how many observations back it, and the daily series. Every value comes with a "display" string: quote those, never re-derive a number. Metric ids are listed in the data index. For a question about a specific past period use compare_periods instead.`,
+    `Up to ${MAX_METRICS_PER_CALL} metrics over the last N days against the N before: current and baseline, change, mean/median/min/max, observations, daily series. Quote the "display" strings, never re-derive a number. Ids are in the index. For a named past period use compare_periods.`,
   parameters: {
     type: 'object',
     required: ['metrics'],
@@ -145,7 +146,7 @@ const compareMetricPeriods: AnalystTool = {
   name: 'compare_periods',
   kind: 'read',
   description:
-    'Compare one metric between two date ranges of your choosing (for example "the week of Sept 22" against "the week of Sept 29"). Returns each period\'s mean, median, min, max and observation count, and the change from A to B, all as display strings. Dates are YYYY-MM-DD, inclusive. Use this when the question names specific periods; use get_metrics for "the last N days".',
+    'One metric over two date ranges you name (YYYY-MM-DD, inclusive): each period\'s mean, median, min, max and observations, and the change from A to B, as display strings. For "the last N days" use get_metrics.',
   parameters: {
     type: 'object',
     required: ['metric', 'aStart', 'aEnd', 'bStart', 'bEnd'],
@@ -468,4 +469,4 @@ const compareLabPanels: AnalystTool = {
   },
 };
 
-export const DATA_TOOLS: AnalystTool[] = [getMetrics, compareMetricPeriods, getMetricSeries, getRelationship, getWorkouts, getSleep, getBloodPressure, getLabResults, compareLabPanels, getMedications];
+export const DATA_TOOLS: AnalystTool[] = [getMetrics, compareMetricPeriods, getMetricSeries, getRelationship, getWorkouts, getSleep, getBloodPressure, getLabResults, compareLabPanels, getMedications, getAppData];

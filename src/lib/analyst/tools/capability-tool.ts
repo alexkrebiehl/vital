@@ -14,7 +14,7 @@ export function capabilityContext(ctx: ToolContext): CapabilityContext | ToolOut
   if (!ctx.data) {
     return { isError: true, content: { error: 'Health data is not available through tools for this question; use the context provided.' } };
   }
-  return { system: ctx.system, refKey: ctx.data.refKey, tz: REFERENCE_TZ, env: process.env, access: ctx.data, routine: ctx.deps, policy: ALLOW_ALL };
+  return { system: ctx.system, refKey: ctx.data.refKey, tz: REFERENCE_TZ, env: process.env, access: ctx.data, routine: ctx.deps, policy: ALLOW_ALL, ...(ctx.data.app ? { app: ctx.data.app } : {}) };
 }
 
 export const isOutcome = (x: CapabilityContext | ToolOutcome): x is ToolOutcome => 'content' in x;

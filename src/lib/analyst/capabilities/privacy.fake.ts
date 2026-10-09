@@ -10,6 +10,8 @@ import { createDataAccess, type DataAccess } from '../dataAccess';
 import type { MedicationLogReader } from '../medicationLog';
 import type { LabSourceInput } from '../labSnapshot';
 import type { TrainingData } from '../../workout-sources/store';
+import { healthyReaders } from './app.fake';
+import type { AppReaders } from './reads/app-readers';
 import { DATED_LABS } from './lab.fake';
 import { REF, strengthSessions, trainingData } from './test-dataset.fake';
 import type { HealthFixtures } from '../../metrics/types';
@@ -48,13 +50,20 @@ const meds = (mode: Mode, leaky: string): MedicationLogReader =>
           records: [toMedicationRecord({ _id: 'm1', displayText: 'Carvedilol 6.25mg Oral tablet', scheduledDate: `${addDays(REF, -1)}T13:00:00.000Z`, status: 'Taken' })],
         });
 
+/** The readers behind get_app_data: working, throwing a message that carries the canaries, or with no store configured. */
+export function appReadersFor(mode: Mode, leaky: string): Partial<AppReaders> {
+  if (mode === 'healthy') return healthyReaders();
+  if (mode === 'unavailable') return { databaseConfigured: () => false, labReports: async () => null };
+  return { databaseConfigured: () => true, labReports: async () => fail(leaky), goalSummary: async () => fail(leaky), goalReport: async () => fail(leaky) };
+}
+
 export function accessFor(mode: Mode, data: HealthFixtures, c: Canaries): DataAccess {
   const training: () => Promise<TrainingData> = mode === 'throwing' ? async () => fail(c.leaky) : async () => trainingData(strengthSessions(data));
-  return createDataAccess({ system: 'metric', refKey: REF, env: c.env, labSource: labs(mode, c.leaky), medicationLog: meds(mode, c.leaky), training });
+  return createDataAccess({ system: 'metric', refKey: REF, env: c.env, labSource: labs(mode, c.leaky), medicationLog: meds(mode, c.leaky), training, app: appReadersFor(mode, c.leaky) });
 }
 
 export function ctxFor(mode: Mode, data: HealthFixtures, routine: CapabilityContext['routine'], c: Canaries): CapabilityContext {
-  return { system: 'metric', refKey: REF, tz: 'America/Chicago', env: c.env, access: accessFor(mode, data, c), routine, policy: ALLOW_ALL };
+  return { system: 'metric', refKey: REF, tz: 'America/Chicago', env: c.env, access: accessFor(mode, data, c), routine, policy: ALLOW_ALL, app: appReadersFor(mode, c.leaky) };
 }
 
 /** One representative call for every capability id. */
@@ -77,4 +86,14 @@ export const ARGS: Record<string, Record<string, unknown>> = {
   'training.sessions': { days: 60 },
   'training.exercise_templates': { query: 'squat' },
   'training.reference_plans': {},
+  'labs.documents': {},
+  'body.goal': {},
+  'body.nutrition_adherence': { window: { lastDays: 30 } },
+  'insights.current': {},
+  'insights.reports': { kind: 'weekly', count: 2 },
 };
+
+/** The arguments a model sends for a capability: get_app_data takes the capability and its params. */
+export function toolArgs(cap: { id: string; tool: string }): Record<string, unknown> {
+  return cap.tool === 'get_app_data' ? { capability: cap.id, params: ARGS[cap.id] } : ARGS[cap.id];
+}

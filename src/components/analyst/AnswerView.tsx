@@ -95,6 +95,7 @@ const DATA_LOOKUPS: Record<string, string> = {
   get_lab_results: 'Looking up your lab results…',
   compare_lab_panels: 'Comparing your lab panels…',
   get_medications: 'Looking up your medication log…',
+  get_app_data: 'Looking up your app data…',
 };
 
 /** A tool as a status line: a data lookup in plain words, a plan tool as "Using the plan tool: get routine progress…". */
