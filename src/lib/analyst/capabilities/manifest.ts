@@ -119,6 +119,15 @@ export const CAPABILITY_MANIFEST: CapabilityManifestEntry[] = [
     category: 'medication-records',
   },
   {
+    id: 'medications.doses',
+    area: 'medications',
+    title: 'Medication doses',
+    tool: 'get_medications',
+    statusLabel: 'Looking up your medication log…',
+    sources: 'hae',
+    category: 'medication-records',
+  },
+  {
     id: 'training.progress',
     area: 'training',
     title: 'Training progress',

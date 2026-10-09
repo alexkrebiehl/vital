@@ -30,6 +30,7 @@ const BY_ID = new Map<string, AnyCapability>(
     labs.series,
     labs.compare,
     medications.summary,
+    medications.doses,
     training.progress,
     training.plan,
     training.sessions,

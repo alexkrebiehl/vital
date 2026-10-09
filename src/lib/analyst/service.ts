@@ -33,6 +33,7 @@ import {
 import { loadLabSnapshot, type LabLoader } from './labContext';
 import { loadMedicationSnapshot, type MedicationLoader } from './medicationsContext';
 import { unavailableMedicationSnapshot } from './medicationSnapshot';
+import type { MedicationLogReader } from './medicationLog';
 import { AnalystProviderError, createProvider, DEMO_LABEL, supportsStreaming, supportsTools, type ToolCallingProvider } from './provider';
 import { parseAnalystSse } from './stream';
 import { StreamGuard, type GuardLimits } from './guard';
@@ -209,6 +210,8 @@ export interface AnalystDeps {
   env?: NodeJS.ProcessEnv;
   labLoader?: LabLoader;
   medicationLoader?: MedicationLoader;
+  /** Test seam: the dose records of a window, for get_medications. */
+  medicationLog?: MedicationLogReader;
   /** The stored lab series, for the on-demand tools and the data index. */
   labSource?: () => Promise<LabSourceInput>;
   /** Where the training plan is read and written (plan tools, page context). */
@@ -390,6 +393,7 @@ async function prepareAnalyst(
       refKey: REFERENCE_KEY,
       env: deps.env,
       ...(deps.labSource ? { labSource: deps.labSource } : {}),
+      ...(deps.medicationLog ? { medicationLog: deps.medicationLog } : {}),
       medications: async days =>
         ((await (deps.medicationLoader ?? loadMedicationSnapshot)(validated.query, {
           ...(deps.env ? { env: deps.env } : {}),

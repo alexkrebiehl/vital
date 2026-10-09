@@ -16,26 +16,26 @@ import { runCapability } from './capability-tool';
 
 const window = (fallback: string) => ({ ...WINDOW_SCHEMA, description: `${WINDOW_SCHEMA.description} Default: ${fallback}.` });
 const paging = (max: number) => ({
-  limit: { type: 'integer' as const, minimum: 1, maximum: max, description: `Rows per call, at most ${max}.` },
-  offset: { type: 'integer' as const, minimum: 0, description: 'Skip this many rows; use page.nextOffset to read on.' },
+  limit: { type: 'integer' as const, minimum: 1, maximum: max, description: 'Rows per call.' },
+  offset: { type: 'integer' as const, minimum: 0, description: 'Use page.nextOffset.' },
 });
 
 export const getWorkouts: AnalystTool = {
   name: 'get_workouts',
   kind: 'read',
   description:
-    'The recorded workouts in a window. view "sessions" (default) lists each one: date, start and end time, type, duration, and distance, calories and heart rate when recorded, newest first. view "summary" rolls the window up: totals, sessions per week, time by type and by month, the latest three. Quote the "display" strings. typesInWindow lists the types present, so a wrong type can be corrected. detail: true adds the exercises of the strength session that is the same workout.',
+    'The recorded workouts in a window. view "sessions" (default): each one with date, start and end time, type, duration, and distance, calories and heart rate when recorded, newest first. view "summary": totals, sessions per week, time by type and by month, the latest three. Quote the "display" strings. typesInWindow lists the types present. detail: true adds the exercises of the matching strength session.',
   parameters: {
     type: 'object',
     properties: {
       window: window('the last 30 days'),
       view: { type: 'string', enum: ['sessions', 'summary'], description: 'sessions (default) or summary.' },
-      type: { type: 'string', maxLength: 60, description: 'An activity type as recorded, e.g. "Running", any letter case. Omit for all.' },
-      sort: { type: 'string', enum: WORKOUT_SORTS, description: 'date (default), duration, calories or distance.' },
-      order: { type: 'string', enum: ORDERS, description: 'desc (default) or asc.' },
-      detail: { type: 'boolean', description: 'Attach the matching strength session\'s exercises. Default false.' },
+      type: { type: 'string', maxLength: 60, description: 'An activity type, e.g. "Running". Omit for all.' },
+      sort: { type: 'string', enum: WORKOUT_SORTS, description: 'Default date.' },
+      order: { type: 'string', enum: ORDERS, description: 'Default desc.' },
+      detail: { type: 'boolean', description: 'Add the matching strength session\'s exercises.' },
       ...paging(WORKOUT_MAX),
-      days: { type: 'integer', minimum: 1, maximum: 730, description: 'The last N days; the same as window.lastDays.' },
+      days: { type: 'integer', minimum: 1, maximum: 730, description: 'Same as window.lastDays.' },
     },
     additionalProperties: false,
   },
@@ -46,14 +46,14 @@ export const getSleep: AnalystTool = {
   name: 'get_sleep',
   kind: 'read',
   description:
-    'Sleep night by night: bedtime and wake time, time asleep and in bed, and the deep, core, REM and awake split. A night recorded only as time in bed has no time asleep and no stages (hasStages false). view "nights" is the default for up to 31 nights; a longer window defaults to "summary" (means by week or month, longest and shortest nights). Give a sort, e.g. deep desc with a small limit, to find the deepest nights. Quote the "display" strings.',
+    'Sleep night by night: bedtime and wake time, time asleep and in bed, and the deep, core, REM and awake split. A night recorded only as time in bed has no time asleep and no stages (hasStages false). view "nights" is the default for up to 31 nights, "summary" (means by week or month, longest and shortest nights) for more. Sort, e.g. deep desc with a small limit, to find the deepest nights. Quote the "display" strings.',
   parameters: {
     type: 'object',
     properties: {
       window: window('the last 14 days'),
       view: { type: 'string', enum: ['nights', 'summary'], description: 'nights or summary.' },
-      sort: { type: 'string', enum: SLEEP_SORTS, description: 'date (default), asleep, inBed, deep, rem, core, awake, bedtime or wake.' },
-      order: { type: 'string', enum: ORDERS, description: 'desc (default) or asc.' },
+      sort: { type: 'string', enum: SLEEP_SORTS, description: 'Default date.' },
+      order: { type: 'string', enum: ORDERS, description: 'Default desc.' },
       ...paging(SLEEP_MAX),
     },
     additionalProperties: false,
@@ -65,13 +65,13 @@ export const getBloodPressure: AnalystTool = {
   name: 'get_blood_pressure',
   kind: 'read',
   description:
-    'Blood pressure readings in a window, each a systolic/diastolic pair, flagged against the 120/80 reference threshold (a reference, never a diagnosis); or view "summary": mean, median and range as pairs, the share above the reference, and the change against the window before. aboveReferenceOnly keeps only readings above it. Quote the "display" strings.',
+    'Blood pressure readings in a window, each a systolic/diastolic pair flagged against the 120/80 reference threshold (a reference, never a diagnosis); view "summary": mean, median and range as pairs, share above the reference, change against the window before. Quote the "display" strings.',
   parameters: {
     type: 'object',
     properties: {
       window: window('the last 30 days'),
       view: { type: 'string', enum: ['readings', 'summary'], description: 'readings (default) or summary.' },
-      aboveReferenceOnly: { type: 'boolean', description: 'Only readings above the reference threshold. Default false.' },
+      aboveReferenceOnly: { type: 'boolean', description: 'Only readings above the reference.' },
       ...paging(BP_MAX),
     },
     additionalProperties: false,

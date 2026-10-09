@@ -339,10 +339,19 @@ describe('the other reads', () => {
     expect(typeof r.json.pairedDays).toBe('number');
   });
 
-  it('get_medications asks the loader for the window the model chose', async () => {
-    const r = await call(ctxFor(), 'get_medications', { days: 14 });
-    expect(r.json.lookbackDays).toBe(14);
-    expect(r.json.kind).toBe('record');
+  it('get_medications asks the reader for the window the model chose', async () => {
+    const asked: { start: string; end: string }[] = [];
+    const ctx = ctxFor();
+    ctx.data = createDataAccess({
+      system: 'metric',
+      refKey: '2026-09-17',
+      env: DEMO,
+      medicationLog: async range => (asked.push(range), { available: true, reason: null, timezone: 'UTC', records: [] }),
+    });
+    const r = await call(ctx, 'get_medications', { days: 14 });
+    expect(asked).toEqual([{ start: '2026-09-04', end: '2026-09-17' }]);
+    expect(r.json.status).toBe('no_data_in_window');
+    expect(r.json.window).toMatchObject({ start: '2026-09-04', end: '2026-09-17', asked: 'lastDays 14' });
   });
 });
 

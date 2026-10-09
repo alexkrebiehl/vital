@@ -65,6 +65,7 @@ const EXPECTED: [id: string, tool: string][] = [
   ['labs.series', 'get_lab_results'],
   ['labs.compare', 'compare_lab_panels'],
   ['medications.summary', 'get_medications'],
+  ['medications.doses', 'get_medications'],
   ['training.progress', 'get_routine_progress'],
   ['training.plan', 'get_training_plan'],
   ['training.sessions', 'get_training_sessions'],
@@ -190,7 +191,7 @@ describe('a capability read', () => {
   });
 
   it('reports a thrown reader error as source_unavailable with the text scrubbed', async () => {
-    const access = createDataAccess({ system: 'metric', refKey: REF, env: DEMO, medications: async () => { throw new Error('boom https://u:secretpw@host.example/x'); } });
+    const access = createDataAccess({ system: 'metric', refKey: REF, env: DEMO, medicationLog: async () => { throw new Error('boom https://u:secretpw@host.example/x'); } });
     const env = await capabilityById('medications.summary')!.read({}, ctxFor({ access }));
     expect(env.status).toBe('source_unavailable');
     expect(JSON.stringify(env)).not.toMatch(/secretpw/);

@@ -21,7 +21,7 @@ const ABSENCE = ['no lab results', 'no labs', 'no blood work', 'no results on fi
 
 export const series: Capability<Args, unknown> = {
   ...manifestEntry('labs.series'),
-  description: 'Stored lab results by analyte or category: latest value, unit, date, reference interval, status and change, with history on request. Documents (dates, lab names) are not here.',
+  description: 'Stored lab results by analyte or category, optionally limited to a date window: latest value, unit, date, reference interval, status and change, with history on request. Documents (dates, lab names) are not here.',
   owner: 'lab-store',
   mirrors: { routes: ['GET /api/lab/summary'], pages: ['/lab', '/lab/[analyteKey]'] },
   time: 'none',

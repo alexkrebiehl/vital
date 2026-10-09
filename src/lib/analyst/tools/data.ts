@@ -17,10 +17,12 @@ import { getMetric } from '../../metrics/registry';
 import { PAIRED_REASON, resolveMetric } from './metric-resolve';
 import { getMetricSeries } from './series-tool';
 import { getBloodPressure, getSleep, getWorkouts } from './records-tools';
+import { getMedications } from './medications-tool';
 import { formatDeltaWithUnit, formatMetricWithUnit, metricUnit } from '../../metrics/format';
 import { formatPercent } from '../../metrics/format';
 import { containsDay, makeWindow } from '../../analytics/windows';
 import { resolveWindow, WINDOW_SCHEMA } from '../capabilities/window';
+import { labInWindow, namesNotInWindow } from '../capabilities/reads/lab-window';
 import { mean, median, max as maxOf, min as minOf, percentChange } from '../../analytics/stats';
 import { analyteRequestedBy, changeText, readingText, seriesSnapshot, toReading, type LabSeriesInput } from '../labSnapshot';
 import { MAX_POINTS_PER_SERIES, pairFor, summaryFor } from '../retrieval';
@@ -77,7 +79,7 @@ const getMetrics: AnalystTool = {
     properties: {
       metrics: { type: 'array', items: { type: 'string' }, maxItems: MAX_METRICS_PER_CALL, description: 'Metric ids from the index, e.g. "resting_heart_rate".' },
       days: { type: 'integer', minimum: 1, maximum: MAX_WINDOW_DAYS, description: 'Length of the window in days, ending on the latest day with data. Default 30.' },
-      series: { type: 'boolean', description: 'Include the daily series (at most 90 points). Default true; false when only the totals are needed.' },
+      series: { type: 'boolean', description: 'Include the daily series (at most 90 points). Default true.' },
     },
     additionalProperties: false,
   },
@@ -231,7 +233,7 @@ const getRelationship: AnalystTool = {
       x: { type: 'string' },
       y: { type: 'string' },
       window: { ...WINDOW_SCHEMA, description: `${WINDOW_SCHEMA.description} Default: the last 90 days.` },
-      days: { type: 'integer', minimum: 7, maximum: MAX_WINDOW_DAYS, description: 'The last N days; the same as window.lastDays. Default 90.' },
+      days: { type: 'integer', minimum: 7, maximum: MAX_WINDOW_DAYS, description: 'Same as window.lastDays. Default 90.' },
       lagDays: { type: 'integer', minimum: 1, maximum: 14, description: 'Pair X with Y this many days later. Omit for same-day.' },
     },
     additionalProperties: false,
@@ -310,7 +312,7 @@ const COMPACT_KEYS = ['name', 'specimen', 'observations', 'latest', 'latestOn', 
 const getLabResults: AnalystTool = {
   name: 'get_lab_results',
   kind: 'read',
-  description: `Stored lab results, by name. Each series comes with its latest value, unit, observation date, the reference interval the report printed (or the fallback and which), the status, the previous observation and the change; with history=true, every earlier observation too (at most ${MAX_POINTS_PER_SERIES}). Qualitative results come back as the report printed them. Name analytes as in the index (a series key, or a name like "LDL" or "hemoglobin"); a category from the index returns all its series. At most ${MAX_LAB_SERIES_PER_CALL} series per call.`,
+  description: `Stored lab results, by name. Each series: latest value, unit, date, reference interval (as printed, or the fallback and which), status, previous observation and change; with history=true, every earlier observation too (at most ${MAX_POINTS_PER_SERIES}). Qualitative results come back as the report printed them. Name analytes as in the index (a series key, or a name like "LDL" or "hemoglobin"); a category from the index returns all its series. At most ${MAX_LAB_SERIES_PER_CALL} series per call.`,
   parameters: {
     type: 'object',
     properties: {
@@ -318,6 +320,7 @@ const getLabResults: AnalystTool = {
       category: { type: 'string', description: 'A lab category from the index, for every series in it.' },
       flaggedOnly: { type: 'boolean', description: 'Only series whose latest result is outside its interval.' },
       history: { type: 'boolean', description: 'Include every earlier observation. Default false.' },
+      window: { ...WINDOW_SCHEMA, description: 'Only results measured in it (latest, change and history too). Default: all.' },
     },
     additionalProperties: false,
   },
@@ -326,23 +329,34 @@ const getLabResults: AnalystTool = {
     if (isOutcome(access)) return access;
     const src = await access.labSource();
     if (!src.available) return fail(src.reason ?? 'No lab results are available.');
-    let pool = src.series;
+    let all = src.series;
+    let windowEcho: { start: string; end: string; asked: string; clipped?: string } | null = null;
+    if (args.window !== undefined) {
+      const w = resolveWindow(args.window, { refKey: access.refKey, defaultLastDays: 90 });
+      if (!w.ok) return fail(w.problems.join(' '));
+      windowEcho = w.window;
+      all = labInWindow(src.series, w.window);
+    }
+    let pool = all;
     const names = Array.isArray(args.analytes) ? (args.analytes as string[]) : [];
     let unmatched: string[] = [];
     if (names.length) {
-      const m = matchSeries(src.series, names);
+      const m = matchSeries(all, names);
       pool = m.matched;
       unmatched = m.unmatched;
     }
     if (typeof args.category === 'string' && args.category.trim()) {
       const c = args.category.trim().toLowerCase();
-      const inCat = src.series.filter(s => s.category.toLowerCase() === c);
+      const inCat = all.filter(s => s.category.toLowerCase() === c);
       if (!inCat.length) return fail(`No lab category "${args.category}".`, { categories: [...new Set(src.series.map(s => s.category))] });
       pool = names.length ? pool.filter(s => s.category.toLowerCase() === c) : inCat;
     }
     if (!names.length && !(typeof args.category === 'string' && args.category.trim()) && args.flaggedOnly !== true) {
       return fail('Say which results to fetch: analytes, a category, or flaggedOnly. The index lists every series.');
     }
+    // A series with nothing measured in the window is named, never dropped.
+    const emptyInWindow = windowEcho ? pool.filter(s => s.points.length === 0) : [];
+    if (windowEcho) pool = pool.filter(s => s.points.length > 0);
     if (args.flaggedOnly === true) pool = pool.filter(s => s.points.length > 0 && s.points[s.points.length - 1]!.status !== 'in_range' && s.points[s.points.length - 1]!.status !== 'unscored_no_range');
     const history = args.history === true;
     const cut = pool.length > MAX_LAB_SERIES_PER_CALL;
@@ -368,6 +382,7 @@ const getLabResults: AnalystTool = {
     return {
       content: {
         results: view(),
+        ...(windowEcho ? { window: windowEcho, ...(emptyInWindow.length ? { notInWindow: namesNotInWindow(emptyInWindow), notInWindowNote: 'Nothing was measured for these in the window; that says nothing about other dates.' } : {}) } : {}),
         ...(unmatched.length ? { notFound: unmatched, note: 'These names matched no stored series; check the index before saying a result does not exist.' } : {}),
         ...(left.length || cut ? { notReturned: left, why: 'over the per-call limit; ask for these in another call' } : {}),
       },
@@ -449,28 +464,6 @@ const compareLabPanels: AnalystTool = {
         ...(onlyB.length ? { onlyOnDateB: onlyB.slice(0, 40) } : {}),
       },
     };
-  },
-};
-
-const getMedications: AnalystTool = {
-  name: 'get_medications',
-  kind: 'read',
-  description:
-    'The medication log for the last N days: for each medication, how many dose records, on how many days, the last day, and how many were taken, skipped or unknown. It is a RECORD of what was logged, not a treatment plan and not known to be complete. Never advise on starting, stopping or changing a dose from it.',
-  parameters: {
-    type: 'object',
-    properties: { days: { type: 'integer', minimum: 1, maximum: 90, description: 'Default 30.' } },
-    additionalProperties: false,
-  },
-  async run(args, ctx) {
-    const access = need(ctx);
-    if (isOutcome(access)) return access;
-    const days = typeof args.days === 'number' ? Math.round(args.days) : 30;
-    const snap = await access.medications(days);
-    access.fetched.medications = snap;
-    if (snap.available) access.fetched.recordsRead += snap.totalRecords;
-    note(access, `medication log, last ${days} days`);
-    return { content: snap, isError: !snap.available };
   },
 };
 
