@@ -221,3 +221,28 @@ export function metricOrDefaultFormatter(meta: MetricDefinition | undefined, val
   if (!meta) return isFinite(value) ? String(value) : '—';
   return meta.formatter(value);
 }
+// ── Blood pressure: a pair, printed through the registry formatter ──────
+
+/** '111/71 mmHg'. A missing number gives a dash, never a zero or half a pair. */
+export function formatBloodPressure(systolic: number, diastolic: number, system: UnitSystem = 'metric'): string {
+  if (!isFinite(systolic) || !isFinite(diastolic)) return '—';
+  const unit = metricUnit('blood_pressure', system);
+  const pair = `${formatMetricValue('blood_pressure', systolic, system)}/${formatMetricValue('blood_pressure', diastolic, system)}`;
+  return unit ? `${pair} ${unit}` : pair;
+}
+
+/** 'Systolic 111 · Diastolic 71' — names each number of a pair. */
+export function formatBloodPressureBreakdown(systolic: number, diastolic: number, system: UnitSystem = 'metric'): string {
+  if (!isFinite(systolic) || !isFinite(diastolic)) return '—';
+  return `Systolic ${formatMetricValue('blood_pressure', systolic, system)} · Diastolic ${formatMetricValue('blood_pressure', diastolic, system)}`;
+}
+
+/** '+2/-1 mmHg': the change of each series, signed separately. */
+export function formatBloodPressureChange(systolic: number, diastolic: number, system: UnitSystem = 'metric'): string {
+  if (!isFinite(systolic) || !isFinite(diastolic)) return '—';
+  if (systolic === 0 && diastolic === 0) return NO_CHANGE;
+  const part = (d: number) => (d === 0 ? '0' : formatDeltaValue('blood_pressure', d, system));
+  const unit = metricUnit('blood_pressure', system);
+  const pair = `${part(systolic)}/${part(diastolic)}`;
+  return unit ? `${pair} ${unit}` : pair;
+}

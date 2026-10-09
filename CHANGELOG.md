@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.2] - 2026-10-09
+
+### Added
+
+- Add a Dashboard page where you pin cards for any metric on Today, Yesterday or a date range, then drag or use the keyboard to arrange them; your layout is saved separately for demo and live data ([`377f41d`](https://github.com/echupkin/vital/commit/377f41d), [`37442cf`](https://github.com/echupkin/vital/commit/37442cf), [`6832b38`](https://github.com/echupkin/vital/commit/6832b38), [`9d6b41c`](https://github.com/echupkin/vital/commit/9d6b41c), [`502bf63`](https://github.com/echupkin/vital/commit/502bf63), [`91aa4ca`](https://github.com/echupkin/vital/commit/91aa4ca), [`6105328`](https://github.com/echupkin/vital/commit/6105328), [`9426f28`](https://github.com/echupkin/vital/commit/9426f28), [`3c2eab1`](https://github.com/echupkin/vital/commit/3c2eab1))
+
+### Fixed
+
+- Fix blood pressure showing only the systolic number: charts, tables, averages and baselines now show systolic and diastolic together, with both values on hover ([`21044fb`](https://github.com/echupkin/vital/commit/21044fb), [`6b0fd0b`](https://github.com/echupkin/vital/commit/6b0fd0b), [`d838c57`](https://github.com/echupkin/vital/commit/d838c57))
+- Fix the AI Analyst claiming it has no data it could have looked up: it can now fetch any metric, workout, sleep night, blood pressure reading, lab result, medication dose, goal or report for any date or window, and it checks before saying something is missing ([`00fb88b`](https://github.com/echupkin/vital/commit/00fb88b), [`f286f1d`](https://github.com/echupkin/vital/commit/f286f1d), [`5f2069a`](https://github.com/echupkin/vital/commit/5f2069a), [`721e00e`](https://github.com/echupkin/vital/commit/721e00e), [`e6b8fc8`](https://github.com/echupkin/vital/commit/e6b8fc8), [`67b434b`](https://github.com/echupkin/vital/commit/67b434b), [`6babbd9`](https://github.com/echupkin/vital/commit/6babbd9), [`8e87200`](https://github.com/echupkin/vital/commit/8e87200), [`4527549`](https://github.com/echupkin/vital/commit/4527549))
+
 ## [0.3.1] - 2026-10-07
 
 ### Changed
@@ -132,6 +143,7 @@ _Documentation only; this version was merged but never tagged._
 
 - Fix analyst conversations being ordered by when they were last touched instead of when they were asked ([`2e9a981`](https://github.com/echupkin/vital/commit/2e9a981))
 
+[0.3.2]: https://github.com/echupkin/vital/commits/release/v0.3.2
 [0.3.1]: https://github.com/echupkin/vital/releases/tag/v0.3.1
 [0.3.0]: https://github.com/echupkin/vital/releases/tag/v0.3.0
 [0.2.4]: https://github.com/echupkin/vital/releases/tag/v0.2.4

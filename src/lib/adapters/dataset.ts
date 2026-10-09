@@ -312,10 +312,22 @@ export function hasSleepStages(day: SleepDay): boolean {
   return s.deep + s.rem + s.core > 0;
 }
 
+/**
+ * Blood pressure readings, oldest first, each with BOTH numbers. Several
+ * readings on one day stay separate and keep their stored (time) order, because
+ * the sort is stable. A reading missing either number is dropped, never shown
+ * half. This is the only way to read blood pressure: it is a pair, not a series.
+ */
 export function bloodPressureSeries(): BloodPressureObservation[] {
   return ((ACTIVE.metrics['blood_pressure'] as BloodPressureObservation[]) || [])
+    .filter(r => Number.isFinite(r.systolic) && Number.isFinite(r.diastolic))
     .map(r => ({ ...r, date: canonicalDayKey(r.date) }))
     .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** Metrics whose observation is more than one number; `seriesFor` yields nothing for them. */
+export function isPairedMetric(metricId: string): boolean {
+  return metricId === 'blood_pressure';
 }
 
 export function bloodOxygenSeries(): DayPoint[] {
@@ -353,13 +365,12 @@ export function seriesFor(metricId: string): DayPoint[] {
       source: s.source,
     }));
   }
-  if (metricId === 'blood_pressure') {
-    return bloodPressureSeries().map(b => ({
-      key: b.date,
-      value: b.systolic,
-      source: b.source,
-    }));
-  }
+  // Blood pressure is a PAIR (systolic AND diastolic). It used to be mapped to
+  // its systolic number here, so every generic chart, stat and baseline showed
+  // 111 for a 111/71 reading. It has no single-number series: read it through
+  // bloodPressureSeries(). Generic consumers therefore skip it rather than show
+  // half of it; metricHasData/metricObservationCount still know it exists.
+  if (isPairedMetric(metricId)) return [];
   return metricSeries(metricId);
 }
 
@@ -401,11 +412,18 @@ export function pointOn(points: DayPoint[], key: string): DayPoint | undefined {
 
 /** Metrics the active dataset can actually render. */
 export function metricHasData(metricId: string): boolean {
-  return seriesFor(metricId).length > 0;
+  return metricObservationCount(metricId) > 0;
+}
+
+/** Observations inside a window; blood pressure counts readings, since it has no single series. */
+export function metricObservationsInWindow(metricId: string, win: DayWindow): number {
+  return isPairedMetric(metricId)
+    ? bloodPressureSeries().filter(r => r.date >= win.startKey && r.date <= win.endKey).length
+    : seriesInWindow(metricId, win).length;
 }
 
 export function metricObservationCount(metricId: string): number {
-  return seriesFor(metricId).length;
+  return isPairedMetric(metricId) ? bloodPressureSeries().length : seriesFor(metricId).length;
 }
 
 /**

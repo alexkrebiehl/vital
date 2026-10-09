@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { BodyMap } from '@/components/art/BodyMap';
 import { TriangleAlert } from 'lucide-react';
 import { getMetric } from '@/lib/metrics';
-import { formatMetricWithUnit } from '@/lib/metrics/format';
+import { formatBloodPressure, formatMetricWithUnit } from '@/lib/metrics/format';
 import {
   REFERENCE_KEY,
   bloodPressureSeries,
@@ -23,7 +23,7 @@ import {
 } from '@/lib/analytics';
 import { HeroFigure } from '@/components/art/HeroFigure';
 import { Card, Badge, DataStateNote } from '@/components/ui/primitives';
-import { MetricChart, TrendFigure } from '@/components/charts';
+import { BloodPressureChart, MetricChart, TrendFigure } from '@/components/charts';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import {
   DomainHeader, SectionTitle, SeriesCard, MetricGrid, metricsForCategories,
@@ -112,14 +112,15 @@ export function HealthPage() {
             Blood pressure
           </SectionTitle>
           <Card className="p-5">
+            <BloodPressureChart records={bpRecent} units={units} height={220} className="mb-4" />
             <ul className="list-none p-0 m-0 divide-y divide-border">
-              {[...bpRecent].reverse().map(r => {
+              {[...bpRecent].reverse().map((r, i) => {
                 const above = isAboveBloodPressureReference(r);
                 return (
-                  <li key={r.date} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 text-sm">
+                  <li key={`${r.date}-${i}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 text-sm">
                     <span className="text-text-secondary w-40 shrink-0">{formatDayKeyLong(r.date)}</span>
                     <span className="text-text-primary font-medium tnum">
-                      {r.systolic}/{r.diastolic} mmHg
+                      {formatBloodPressure(r.systolic, r.diastolic, units)}
                     </span>
                     {above && (
                       <span className="inline-flex items-center gap-1 text-[11px] text-category-attention">
@@ -143,9 +144,9 @@ export function HealthPage() {
                       {BP_REFERENCE_THRESHOLD.systolic}/{BP_REFERENCE_THRESHOLD.diastolic} reference threshold
                     </p>
                     <ul className="list-none p-0 m-0 mt-1 space-y-0.5 tnum text-text-primary">
-                      {[...bpAbove].reverse().map(r => (
-                        <li key={r.date}>
-                          {formatDayKeyLong(r.date)} — {r.systolic}/{r.diastolic} mmHg
+                      {[...bpAbove].reverse().map((r, i) => (
+                        <li key={`${r.date}-${i}`}>
+                          {formatDayKeyLong(r.date)} — {formatBloodPressure(r.systolic, r.diastolic, units)}
                         </li>
                       ))}
                     </ul>

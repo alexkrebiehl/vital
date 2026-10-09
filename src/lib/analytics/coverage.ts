@@ -7,7 +7,7 @@
 
 import { getMetric } from '../metrics/registry';
 import type { MetricDefinition } from '../metrics/types';
-import { REFERENCE_KEY, coverageFor, seriesFor } from '../adapters/dataset';
+import { REFERENCE_KEY, coverageFor, metricObservationCount, seriesFor } from '../adapters/dataset';
 import { formatMetricWithUnit } from '../metrics/format';
 import type { UnitSystem } from '../prefs';
 import { mean, median, min as minOf, max as maxOf, sum } from './stats';
@@ -54,7 +54,7 @@ export function coverageFact(metricId: string): CoverageFact | null {
     sources: cov?.sourceNames ?? [...new Set(series.map(p => p.source))],
     firstKey: dayKeyOf(cov?.firstObservation ?? series[0]?.key ?? REFERENCE_KEY),
     lastKey: dayKeyOf(cov?.lastObservation ?? series[series.length - 1]?.key ?? REFERENCE_KEY),
-    observations: series.length,
+    observations: metricObservationCount(metricId),
   };
 }
 
@@ -173,7 +173,7 @@ export interface MetricAvailability {
 export function metricAvailability(metricId: string): MetricAvailability {
   const meta = getMetric(metricId);
   const fact = coverageFact(metricId);
-  const observations = seriesFor(metricId).length;
+  const observations = metricObservationCount(metricId);
   return {
     metricId,
     displayName: meta?.displayName ?? metricId,

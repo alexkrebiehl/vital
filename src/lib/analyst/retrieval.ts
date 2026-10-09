@@ -4,7 +4,7 @@
 // needs. A handler never reads the dataset directly: everything it may cite
 // arrives in the bundle, and the bundle records how many records were read.
 
-import { REFERENCE_KEY, seriesFor, workoutList } from '../adapters/dataset';
+import { REFERENCE_KEY, isPairedMetric, seriesFor, workoutList } from '../adapters/dataset';
 import { getMetric } from '../metrics/registry';
 import { compareWindows, type WindowComparison } from '../analytics/comparisons';
 import { coverageSentence } from '../analytics/coverage';
@@ -36,6 +36,8 @@ export interface PairSpec {
   alignment: 'same-day' | 'lagged';
   lagDays?: number;
   days?: number;
+  /** An explicit window; wins over `days`. */
+  window?: DayWindow;
   /** Split the paired days by the median of X. */
   splitByX?: boolean;
 }
@@ -118,6 +120,11 @@ function buildSummary(metricId: string, days: number, refKey: string): { summary
   if (!meta) {
     throw new AnalysisNotAvailable(`No metric is registered with the id "${metricId}", so this question cannot be answered.`);
   }
+  if (isPairedMetric(metricId)) {
+    throw new AnalysisNotAvailable(
+      `${meta.displayName} is a pair of numbers per reading (systolic and diastolic), which this summary cannot state without leaving one out.`
+    );
+  }
   const cmp: WindowComparison = compareWindows(metricId, refKey, days, { meta, label: `Last ${days} days` });
   // Bounded selection: read at most MAX_POINTS_PER_SERIES values from the store.
   const inWindow = seriesFor(metricId).filter(p => containsDay(cmp.requestedWindow, p.key));
@@ -153,7 +160,7 @@ function buildSummary(metricId: string, days: number, refKey: string): { summary
 }
 
 function buildPair(spec: PairSpec, refKey: string): { pair: RetrievedPair; recordsRead: number } {
-  const window = trailingWindow(refKey, spec.days ?? 90);
+  const window = spec.window ?? trailingWindow(refKey, spec.days ?? 90);
   const result = computeRelationship(
     spec.x,
     spec.y,
@@ -320,6 +327,9 @@ function joinSentences(items: string[]): string {
 
 /** The lab selection used when a handler declares none: the bounded overview. */
 export const DEFAULT_LAB_SPEC: LabSpec = { mode: 'overview' };
+
+/** The lab selection for a question about a lab result, whichever route it took. */
+export const ANALYTE_LAB_SPEC: LabSpec = { mode: 'analyte' };
 
 /** The lab selection a handler declared, or null when it declared none. */
 export function labSpecOf(handlerId: string): LabSpec | null {

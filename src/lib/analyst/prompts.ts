@@ -24,7 +24,7 @@ export const SUPPORTED_QUESTIONS: SupportedQuestion[] = [
   { handlerId: 'sleep-3-months', prompt: 'How has my sleep changed over the last 3 months?' },
   { handlerId: 'hrv-trend', prompt: 'How is my HRV trending?' },
   { handlerId: 'steps-vs-baseline', prompt: 'How do my steps compare with my baseline?' },
-  { handlerId: 'sleep-vs-recovery', prompt: 'Are my workouts associated with better sleep?' },
+  { handlerId: 'sleep-vs-recovery', prompt: 'Is more sleep associated with higher HRV?' },
   { handlerId: 'workout-frequency', prompt: 'How often am I working out?' },
   { handlerId: 'what-changed-this-week', prompt: 'What changed this week?' },
 ];

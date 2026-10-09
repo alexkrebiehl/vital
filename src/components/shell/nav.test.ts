@@ -16,6 +16,15 @@ describe('resolveTrail', () => {
     expect(trail.page?.id).toBe('overview');
   });
 
+  it('places the Dashboard as its own section, second after Overview and not in the bottom bar', () => {
+    expect(labels('/dashboard')).toEqual(['Dashboard']);
+    expect(resolveTrail('/dashboard').section?.id).toBe('dashboard');
+    expect(NAV_SECTIONS.findIndex(s => s.id === 'dashboard')).toBe(1);
+    expect(NAV_SECTIONS[0].id).toBe('overview');
+    expect(NAV_SECTIONS[1]).toMatchObject({ href: '/dashboard', placement: 'main' });
+    expect(NAV_SECTIONS[1].primary).toBeFalsy();
+  });
+
   it('places the workouts pages under Workouts', () => {
     expect(labels('/workouts/all')).toEqual(['Workouts', 'History']);
     expect(labels('/workouts/recovery')).toEqual(['Workouts', 'Recovery']);

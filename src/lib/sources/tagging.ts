@@ -17,9 +17,16 @@
 //   * medication block / tool          → `hae` (records come from the HAE server);
 //   * workouts                         → every active health source;
 //   * a generic data tool or anything unrecognised → every active source.
+//
+// A tool's class comes from the `sources` tag of its capability's manifest entry
+// (capabilities/manifest.ts), so a capability added later is classified by adding
+// its entry, not by editing this file. tagging-manifest.test.ts fails when a
+// manifest tool is not classified.
 
 import type { ProvenanceRow } from '@/lib/adapters/normalize';
 import { OURA_SOURCE_NAME } from '@/lib/adapters/oura/normalize';
+import { CAPABILITY_MANIFEST } from '@/lib/analyst/capabilities/manifest';
+import type { CapabilityManifestEntry, SourceTag } from '@/lib/analyst/capabilities/types';
 import type { AnalystResponse } from '@/lib/analyst/types';
 import { DATA_SOURCES, activeHealthSources, activeSourceIds, defaultContext, type SourceContext } from './registry';
 
@@ -34,14 +41,12 @@ export interface TurnSources {
 
 type TurnShape = Pick<AnalystResponse, 'handlerId' | 'status' | 'retrieval' | 'toolsUsed'> & { answer?: unknown };
 
-const LAB_TOOLS = new Set(['get_lab_results', 'compare_lab_panels']);
-const WORKOUT_TOOLS = new Set(['get_workouts']);
-const MEDICATION_TOOLS = new Set(['get_medications']);
-/** Plan editing tools: they read and write targets (configuration), never observations. */
-const CONFIGURATION_TOOLS = new Set([
-  'get_training_plan',
-  'get_reference_plan',
-  'search_exercise_templates',
+/**
+ * Plan editing tools. They are not capabilities (the analyst is read-only for health
+ * data, so the registry holds only reads), but they read and write targets, never
+ * observations: configuration, like the plan reads the manifest tags.
+ */
+export const PLAN_WRITE_TOOLS: ReadonlySet<string> = new Set([
   'create_training_plan',
   'update_training_plan',
   'set_current_stage',
@@ -50,6 +55,45 @@ const CONFIGURATION_TOOLS = new Set([
   'record_deload',
   'archive_training_plan',
 ]);
+
+export interface ToolSets {
+  /** Read the lab store. */
+  lab: ReadonlySet<string>;
+  /** Read the medication log, which the HAE server holds. */
+  hae: ReadonlySet<string>;
+  /** Read records every active health source may have supplied. */
+  allHealth: ReadonlySet<string>;
+  /** Read or edit targets, never observations. */
+  configuration: ReadonlySet<string>;
+  /**
+   * Read things the turn does not list: metrics the model fetched by itself
+   * (`metric-provenance`), or the plan weighed against health workouts, recovery
+   * signals and strength sessions (`workout-detail`). Which sources fed them cannot
+   * be read off the turn, so they are tagged with every active source, as ever:
+   * an under-tag would leak, an over-tag only deletes more.
+   */
+  opaque: ReadonlySet<string>;
+}
+
+/** The tool sets, from the `sources` tag of each manifest entry (design §13). */
+export function deriveToolSets(entries: readonly Pick<CapabilityManifestEntry, 'tool' | 'sources'>[]): ToolSets {
+  const tools = (...tags: SourceTag[]): ReadonlySet<string> => new Set(entries.filter(e => tags.includes(e.sources)).map(e => e.tool));
+  return {
+    lab: tools('lab'),
+    hae: tools('hae'),
+    allHealth: tools('all-health'),
+    configuration: new Set([...tools('configuration'), ...PLAN_WRITE_TOOLS]),
+    opaque: tools('metric-provenance', 'workout-detail'),
+  };
+}
+
+const TOOLS = deriveToolSets(CAPABILITY_MANIFEST);
+
+/** How a tool is tagged: its manifest tag, `plan-write` for a plan editing tool, or undefined when nothing classifies it. */
+export function toolTag(tool: string): SourceTag | 'plan-write' | undefined {
+  if (PLAN_WRITE_TOOLS.has(tool)) return 'plan-write';
+  return CAPABILITY_MANIFEST.find(e => e.tool === tool)?.sources;
+}
 
 const LAB_HANDLERS = new Set(['lab-results']);
 const WORKOUT_HANDLERS = new Set(['workout-frequency']);
@@ -72,7 +116,7 @@ export function sourceIdsForTurn(turn: TurnShape, sources: TurnSources): string[
 
   // A generic data tool reads metrics the turn does not list: treat it as opaque.
   for (const tool of tools) {
-    if (LAB_TOOLS.has(tool) || WORKOUT_TOOLS.has(tool) || MEDICATION_TOOLS.has(tool) || CONFIGURATION_TOOLS.has(tool)) continue;
+    if (TOOLS.lab.has(tool) || TOOLS.allHealth.has(tool) || TOOLS.hae.has(tool) || TOOLS.configuration.has(tool)) continue;
     return fallback;
   }
 
@@ -85,13 +129,13 @@ export function sourceIdsForTurn(turn: TurnShape, sources: TurnSources): string[
     for (const id of named) tags.add(id);
   }
 
-  if (LAB_HANDLERS.has(turn.handlerId) || note.includes('Lab results: ') || tools.some(t => LAB_TOOLS.has(t))) {
+  if (LAB_HANDLERS.has(turn.handlerId) || note.includes('Lab results: ') || tools.some(t => TOOLS.lab.has(t))) {
     tags.add('lab');
   }
-  if (note.includes('Medication records: ') || tools.some(t => MEDICATION_TOOLS.has(t))) {
+  if (note.includes('Medication records: ') || tools.some(t => TOOLS.hae.has(t))) {
     tags.add('hae');
   }
-  if (WORKOUT_HANDLERS.has(turn.handlerId) || tools.some(t => WORKOUT_TOOLS.has(t))) {
+  if (WORKOUT_HANDLERS.has(turn.handlerId) || tools.some(t => TOOLS.allHealth.has(t))) {
     for (const id of sources.activeHealthIds) tags.add(id);
   }
 

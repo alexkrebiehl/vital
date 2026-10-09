@@ -10,7 +10,7 @@
 
 import type { LucideIcon } from 'lucide-react';
 import {
-  LayoutDashboard, TrendingUp, Heart, Activity, Weight,
+  LayoutDashboard, LayoutGrid, TrendingUp, Heart, Activity, Weight,
   Dumbbell, Lightbulb, Bot, Settings, Palette,
 } from 'lucide-react';
 import { getMetric } from '@/lib/metrics/registry';
@@ -45,6 +45,7 @@ export interface NavSection extends NavPage {
 
 export const NAV_SECTIONS: NavSection[] = [
   { id: 'overview', label: 'Overview', href: '/', icon: LayoutDashboard, description: 'Daily health briefing', placement: 'main', primary: true, exact: true },
+  { id: 'dashboard', label: 'Dashboard', href: '/dashboard', icon: LayoutGrid, description: 'Your own cards for any metric', placement: 'main' },
   { id: 'trends', label: 'Trends', href: '/trends', icon: TrendingUp, description: 'What changed over time', placement: 'main', primary: true },
   {
     id: 'health',

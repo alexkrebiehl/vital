@@ -160,8 +160,10 @@ export interface RetrievalBundle {
   citable?: string[];
   /** How many records were read out of the dataset for this question. */
   recordsRead: number;
-  /** Human sentence describing what was selected. */
+  /** Human sentence describing what was selected. What the user reads and what is stored; the model reads the label built in selection.ts. */
   note: string;
+  /** Model-facing text added to the selection's label, e.g. what the size budget left out (budget.ts). */
+  selectionNote?: string;
 }
 
 // ── Lab context ────────────────────────────────────────
@@ -362,6 +364,8 @@ export interface AnalystProviderContext {
   pageContext?: { label: string; json: string; about?: string };
   /** The reader's body goal and what the data says about it (body-goal summary JSON). Untrusted DATA. */
   goalContext?: string;
+  /** The coverage index: what the app holds and for which dates. Untrusted DATA; shown before the selection. */
+  index?: string;
 }
 
 /**

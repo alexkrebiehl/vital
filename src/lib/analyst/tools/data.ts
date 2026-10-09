@@ -12,22 +12,24 @@
 // cut off mid-JSON. Whatever a tool returns is recorded in ctx.data.fetched, which is
 // what lets the answer cite it and the number audit check it.
 
-import { metricHasData, seriesFor, unavailableReasonFor } from '../../adapters/dataset';
-import { getAllMetrics, getMetric, searchMetrics } from '../../metrics/registry';
-import { formatDeltaWithUnit, formatMetricWithUnit, metricUnit } from '../../metrics/format';
-import { formatPercent } from '../../metrics/format';
-import { containsDay } from '../../analytics/windows';
-import { mean, median, max as maxOf, min as minOf, percentChange } from '../../analytics/stats';
+import { scrubForModel } from '../scrub';
+import { resolveMetric } from './metric-resolve';
+import { getMetricSeries } from './series-tool';
+import { getBloodPressure, getSleep, getWorkouts } from './records-tools';
+import { getMedications } from './medications-tool';
+import { getAppData } from './app-data-tool';
+import { listCapabilities } from './list-capabilities';
+import { formatMetricWithUnit } from '../../metrics/format';
+import { makeWindow } from '../../analytics/windows';
+import { resolveWindow, WINDOW_SCHEMA } from '../capabilities/window';
+import { labInWindow, namesNotInWindow } from '../capabilities/reads/lab-window';
 import { analyteRequestedBy, changeText, readingText, seriesSnapshot, toReading, type LabSeriesInput } from '../labSnapshot';
-import { MAX_POINTS_PER_SERIES, pairFor, summaryFor, workoutsFor } from '../retrieval';
-import { summaryPayload } from '../systemPrompt';
-import type { RetrievedSummary } from '../types';
+import { MAX_POINTS_PER_SERIES, pairFor } from '../retrieval';
 import type { DataAccess } from '../dataAccess';
 import type { AnalystTool, ToolContext, ToolOutcome } from './index';
 
 /** A data tool's result, in characters of JSON. Under the loop's own 14,000 cut-off, so nothing is ever sliced. */
 export const MAX_DATA_RESULT_CHARS = 12_000;
-export const MAX_METRICS_PER_CALL = 3;
 export const MAX_LAB_SERIES_PER_CALL = 20;
 export const MAX_COMPARE_ROWS = 60;
 export const MAX_WINDOW_DAYS = 730;
@@ -46,189 +48,14 @@ const isOutcome = (x: DataAccess | ToolOutcome): x is ToolOutcome => 'content' i
 
 const fail = (error: string, extra: Record<string, unknown> = {}): ToolOutcome => ({ isError: true, content: { error, ...extra } });
 
-const squash = (text: string): string => text.toLowerCase().replace(/[^a-z0-9]+/g, '');
-
-/** Ids the model may have meant: substring either way ignoring spaces and underscores, then shared words. */
-function suggest(name: string): string[] {
-  const q = squash(name);
-  if (q.length < 3) return [];
-  const words = name.toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length >= 3);
-  const candidates = getAllMetrics().filter(m => metricHasData(m.id));
-  const names = (m: (typeof candidates)[number]) => [m.id, m.displayName, ...m.aliases].map(squash);
-  const direct = candidates.filter(m => names(m).some(n => n.includes(q) || (n.length >= 4 && q.includes(n))));
-  const byWord = candidates.filter(m => !direct.includes(m) && words.some(w => names(m).some(n => n.includes(w))));
-  const found = [...direct, ...byWord, ...searchMetrics(name.trim()).filter(m => metricHasData(m.id))];
-  return [...new Set(found.map(m => m.id))].slice(0, 5);
-}
-
-/** A metric id the model gave, resolved against the registry (id, display name or alias). */
-function resolveMetric(name: string): { id: string } | { error: string; didYouMean: string[] } {
-  const raw = String(name).trim();
-  if (getMetric(raw)) return { id: raw };
-  const lowered = raw.toLowerCase();
-  const exact = getAllMetrics().find(m => m.displayName.toLowerCase() === lowered || m.aliases.some(a => a.toLowerCase() === lowered));
-  if (exact) return { id: exact.id };
-  return { error: `No metric "${raw}". Use an id from the index.`, didYouMean: suggest(raw) };
-}
-
-// ── Metric summaries ────────────────────────────────────
-
 function note(access: DataAccess, line: string): void {
   access.fetched.log.push(line);
 }
 
-function remember(access: DataAccess, s: RetrievedSummary, keepPoints: boolean): void {
-  const stored = keepPoints ? s : { ...s, points: [] };
-  const i = access.fetched.summaries.findIndex(
-    x => x.metricId === s.metricId && x.window.startKey === s.window.startKey && x.window.endKey === s.window.endKey
-  );
-  if (i >= 0) access.fetched.summaries[i] = stored;
-  else access.fetched.summaries.push(stored);
-  access.fetched.recordsRead += s.points.length;
+/** The two group means of a relationship split, in each metric's own formatter. */
+function groupDisplay(xId: string, yId: string, g: { xMean: number; yMean: number }, system: DataAccess['system']): Record<string, string> {
+  return { xMean: formatMetricWithUnit(xId, g.xMean, system), yMean: formatMetricWithUnit(yId, g.yMean, system) };
 }
-
-const getMetrics: AnalystTool = {
-  name: 'get_metrics',
-  kind: 'read',
-  description:
-    `Summaries of up to ${MAX_METRICS_PER_CALL} health metrics over the last N days, each compared with the N days before: the current and baseline value, the change, the mean/median/min/max, how many observations back it, and the daily series. Every value comes with a "display" string: quote those, never re-derive a number. Metric ids are listed in the data index. For a question about a specific past period use compare_periods instead.`,
-  parameters: {
-    type: 'object',
-    required: ['metrics'],
-    properties: {
-      metrics: { type: 'array', items: { type: 'string' }, maxItems: MAX_METRICS_PER_CALL, description: 'Metric ids from the index, e.g. "resting_heart_rate".' },
-      days: { type: 'integer', minimum: 1, maximum: MAX_WINDOW_DAYS, description: 'Length of the window in days, ending on the latest day with data. Default 30.' },
-      series: { type: 'boolean', description: 'Include the daily series (at most 90 points). Default true; false when only the totals are needed.' },
-    },
-    additionalProperties: false,
-  },
-  async run(args, ctx) {
-    const access = need(ctx);
-    if (isOutcome(access)) return access;
-    const days = typeof args.days === 'number' ? Math.round(args.days) : 30;
-    const wantSeries = args.series !== false;
-    const ids: string[] = [];
-    const problems: { metric: string; problem: string; didYouMean?: string[] }[] = [];
-    for (const name of args.metrics as string[]) {
-      const r = resolveMetric(name);
-      if ('error' in r) problems.push({ metric: name, problem: r.error, didYouMean: r.didYouMean });
-      else if (!ids.includes(r.id)) ids.push(r.id);
-    }
-
-    const out: { id: string; payload: ReturnType<typeof summaryPayload>; summary: RetrievedSummary }[] = [];
-    const empty: { metric: string; reason: string }[] = [];
-    for (const id of ids) {
-      if (!metricHasData(id)) {
-        empty.push({ metric: id, reason: unavailableReasonFor(id) });
-        continue;
-      }
-      const built = summaryFor(id, days, access.refKey);
-      out.push({ id, payload: summaryPayload(built.summary, access.system), summary: built.summary });
-    }
-
-    // Keep the whole result under the limit: drop daily series (latest-listed first), and say so.
-    const seriesOmitted: string[] = [];
-    const render = () =>
-      out.map(o => ({ ...o.payload, series: seriesOmitted.includes(o.id) || !wantSeries ? undefined : o.payload.series }));
-    if (!wantSeries) seriesOmitted.push(...out.map(o => o.id));
-    for (let i = out.length - 1; i >= 0 && size({ metrics: render() }) > MAX_DATA_RESULT_CHARS - 1500; i--) {
-      if (!seriesOmitted.includes(out[i].id)) seriesOmitted.push(out[i].id);
-    }
-    if (size({ metrics: render() }) > MAX_DATA_RESULT_CHARS) {
-      return fail(`The result is too large (${size({ metrics: render() })} characters, limit ${MAX_DATA_RESULT_CHARS}). Ask for fewer metrics or a shorter window.`);
-    }
-    for (const o of out) {
-      remember(access, o.summary, !seriesOmitted.includes(o.id));
-      note(access, `${o.summary.metricName}, last ${days} days`);
-    }
-    return {
-      content: {
-        unitSystem: access.system,
-        metrics: render(),
-        ...(seriesOmitted.length ? { seriesOmitted: { metrics: seriesOmitted, why: 'left out to keep the result within its size limit; ask for these metrics alone to get the series' } } : {}),
-        ...(empty.length ? { noData: empty } : {}),
-        ...(problems.length ? { notFound: problems } : {}),
-      },
-    };
-  },
-};
-
-// ── Any two periods ─────────────────────────────────────
-
-const compareMetricPeriods: AnalystTool = {
-  name: 'compare_periods',
-  kind: 'read',
-  description:
-    'Compare one metric between two date ranges of your choosing (for example "the week of Sept 22" against "the week of Sept 29"). Returns each period\'s mean, median, min, max and observation count, and the change from A to B, all as display strings. Dates are YYYY-MM-DD, inclusive. Use this when the question names specific periods; use get_metrics for "the last N days".',
-  parameters: {
-    type: 'object',
-    required: ['metric', 'aStart', 'aEnd', 'bStart', 'bEnd'],
-    properties: {
-      metric: { type: 'string', description: 'A metric id from the index.' },
-      aStart: { type: 'string' },
-      aEnd: { type: 'string' },
-      bStart: { type: 'string' },
-      bEnd: { type: 'string' },
-    },
-    additionalProperties: false,
-  },
-  async run(args, ctx) {
-    const access = need(ctx);
-    if (isOutcome(access)) return access;
-    const r = resolveMetric(String(args.metric));
-    if ('error' in r) return fail(r.error, { didYouMean: r.didYouMean });
-    const date = /^\d{4}-\d{2}-\d{2}$/;
-    for (const k of ['aStart', 'aEnd', 'bStart', 'bEnd']) if (!date.test(String(args[k]))) return fail(`${k} must be a date as YYYY-MM-DD.`);
-    const a = { startKey: String(args.aStart), endKey: String(args.aEnd), label: 'Period A' };
-    const b = { startKey: String(args.bStart), endKey: String(args.bEnd), label: 'Period B' };
-    if (a.startKey > a.endKey || b.startKey > b.endKey) return fail('A period must start on or before the day it ends.');
-    if (!metricHasData(r.id)) return fail(`No ${getMetric(r.id)?.displayName ?? r.id} data is recorded.`, { reason: unavailableReasonFor(r.id) });
-
-    const meta = getMetric(r.id);
-    const accumulating = meta?.aggregationStrategy === 'sum';
-    const take = (w: typeof a) => {
-      const pts = seriesFor(r.id).filter(p => containsDay(w, p.key));
-      // A day still accumulating is not a day: it would drag a daily total down.
-      const complete = accumulating ? pts.filter(p => p.partial !== true && p.key !== access.refKey) : pts;
-      return { values: complete.map(p => p.value), dropped: pts.length - complete.length };
-    };
-    const A = take(a);
-    const B = take(b);
-    const show = (v: number[], f: (x: number[]) => number) => (v.length ? formatMetricWithUnit(r.id, f(v), access.system) : 'no records');
-    const describe = (w: typeof a, t: ReturnType<typeof take>) => ({
-      range: `${w.startKey} to ${w.endKey}`,
-      observations: t.values.length,
-      mean: show(t.values, mean),
-      median: show(t.values, median),
-      min: show(t.values, minOf),
-      max: show(t.values, maxOf),
-      ...(t.dropped ? { note: `${t.dropped} day(s) still accumulating were left out` } : {}),
-    });
-    let change: Record<string, string>;
-    if (A.values.length && B.values.length) {
-      const d = mean(B.values) - mean(A.values);
-      const pct = percentChange(mean(B.values), mean(A.values));
-      change = { meanChange: formatDeltaWithUnit(r.id, d, access.system), meanChangePercent: formatPercent(pct) };
-    } else {
-      change = { meanChange: 'no comparison available: a period has no records' };
-    }
-    access.fetched.citable.add(r.id);
-    access.fetched.recordsRead += A.values.length + B.values.length;
-    note(access, `${meta?.displayName ?? r.id}, ${a.startKey}..${a.endKey} vs ${b.startKey}..${b.endKey}`);
-    return {
-      content: {
-        metric: r.id,
-        metricName: meta?.displayName ?? r.id,
-        unit: metricUnit(r.id, access.system) || 'count (no unit)',
-        aggregation: accumulating ? 'daily total, complete days only' : meta?.aggregationStrategy === 'latest' ? 'latest recorded value' : 'daily average',
-        periodA: describe(a, A),
-        periodB: describe(b, B),
-        ...change,
-        note: 'Quote the display strings; B is compared against A.',
-      },
-    };
-  },
-};
 
 const getRelationship: AnalystTool = {
   name: 'get_metric_relationship',
@@ -241,7 +68,8 @@ const getRelationship: AnalystTool = {
     properties: {
       x: { type: 'string' },
       y: { type: 'string' },
-      days: { type: 'integer', minimum: 7, maximum: MAX_WINDOW_DAYS, description: 'Default 90.' },
+      window: { ...WINDOW_SCHEMA, description: `${WINDOW_SCHEMA.description} Default: the last 90 days.` },
+      days: { type: 'integer', minimum: 7, maximum: MAX_WINDOW_DAYS, description: 'Same as window.lastDays. Default 90.' },
       lagDays: { type: 'integer', minimum: 1, maximum: 14, description: 'Pair X with Y this many days later. Omit for same-day.' },
     },
     additionalProperties: false,
@@ -254,8 +82,11 @@ const getRelationship: AnalystTool = {
     if ('error' in x) return fail(x.error, { didYouMean: x.didYouMean });
     if ('error' in y) return fail(y.error, { didYouMean: y.didYouMean });
     const lag = typeof args.lagDays === 'number' ? Math.round(args.lagDays) : 0;
+    if (typeof args.days === 'number' && args.window !== undefined) return fail('Give either window or days (the same as window.lastDays), not both.');
+    const w = resolveWindow(typeof args.days === 'number' ? { lastDays: Math.round(args.days) } : args.window, { refKey: access.refKey, defaultLastDays: 90 });
+    if (!w.ok) return fail(w.problems.join(' '));
     const built = pairFor(
-      { x: x.id, y: y.id, alignment: lag > 0 ? 'lagged' : 'same-day', lagDays: lag || undefined, days: typeof args.days === 'number' ? Math.round(args.days) : 90, splitByX: true },
+      { x: x.id, y: y.id, alignment: lag > 0 ? 'lagged' : 'same-day', lagDays: lag || undefined, window: makeWindow(w.window.start, w.window.end, `${w.window.asked}`), splitByX: true },
       access.refKey
     );
     const p = built.pair;
@@ -275,30 +106,15 @@ const getRelationship: AnalystTool = {
         valid: p.valid,
         reason: p.reason,
         window: { start: p.window.startKey, end: p.window.endKey },
-        split: p.split,
+        split: p.split && {
+          ...p.split,
+          low: { ...p.split.low, display: groupDisplay(x.id, y.id, p.split.low, access.system) },
+          high: { ...p.split.high, display: groupDisplay(x.id, y.id, p.split.high, access.system) },
+          display: { medianX: formatMetricWithUnit(x.id, p.split.medianX, access.system) },
+        },
+        display: { lagDays: p.lagDays ? `${p.lagDays} days later` : 'same day' },
       },
     };
-  },
-};
-
-const getWorkouts: AnalystTool = {
-  name: 'get_workouts',
-  kind: 'read',
-  description: 'The workout log rolled up over the last N days: sessions, sessions per week, total minutes and calories, a count by type, and the last 30 days against the 30 before.',
-  parameters: {
-    type: 'object',
-    properties: { days: { type: 'integer', minimum: 1, maximum: 365, description: 'Default 30.' } },
-    additionalProperties: false,
-  },
-  async run(args, ctx) {
-    const access = need(ctx);
-    if (isOutcome(access)) return access;
-    const days = typeof args.days === 'number' ? Math.round(args.days) : 30;
-    const built = workoutsFor(days, access.refKey);
-    access.fetched.workouts = built.workouts;
-    access.fetched.recordsRead += built.recordsRead;
-    note(access, `workouts, last ${days} days`);
-    return { content: { workouts: built.workouts } };
   },
 };
 
@@ -332,7 +148,7 @@ const COMPACT_KEYS = ['name', 'specimen', 'observations', 'latest', 'latestOn', 
 const getLabResults: AnalystTool = {
   name: 'get_lab_results',
   kind: 'read',
-  description: `Stored lab results, by name. Each series comes with its latest value, unit, observation date, the reference interval the report printed (or the fallback and which), the status, the previous observation and the change; with history=true, every earlier observation too (at most ${MAX_POINTS_PER_SERIES}). Qualitative results come back as the report printed them. Name analytes as in the index (a series key, or a name like "LDL" or "hemoglobin"); a category from the index returns all its series. At most ${MAX_LAB_SERIES_PER_CALL} series per call.`,
+  description: `Stored lab results by name or category. Each series: latest value, unit, date, reference interval (as printed, or the fallback and which), status, previous observation and change; history=true adds earlier observations (at most ${MAX_POINTS_PER_SERIES}). Qualitative results come back as printed. Name analytes as in the index (a series key, or a name like "LDL"). At most ${MAX_LAB_SERIES_PER_CALL} series per call.`,
   parameters: {
     type: 'object',
     properties: {
@@ -340,6 +156,7 @@ const getLabResults: AnalystTool = {
       category: { type: 'string', description: 'A lab category from the index, for every series in it.' },
       flaggedOnly: { type: 'boolean', description: 'Only series whose latest result is outside its interval.' },
       history: { type: 'boolean', description: 'Include every earlier observation. Default false.' },
+      window: { ...WINDOW_SCHEMA, description: 'Only results measured in it (latest, change and history too). Default: all.' },
     },
     additionalProperties: false,
   },
@@ -347,24 +164,35 @@ const getLabResults: AnalystTool = {
     const access = need(ctx);
     if (isOutcome(access)) return access;
     const src = await access.labSource();
-    if (!src.available) return fail(src.reason ?? 'No lab results are available.');
-    let pool = src.series;
+    if (!src.available) return fail(scrubForModel(src.reason ?? 'No lab results are available.'));
+    let all = src.series;
+    let windowEcho: { start: string; end: string; asked: string; clipped?: string } | null = null;
+    if (args.window !== undefined) {
+      const w = resolveWindow(args.window, { refKey: access.refKey, defaultLastDays: 90 });
+      if (!w.ok) return fail(w.problems.join(' '));
+      windowEcho = w.window;
+      all = labInWindow(src.series, w.window);
+    }
+    let pool = all;
     const names = Array.isArray(args.analytes) ? (args.analytes as string[]) : [];
     let unmatched: string[] = [];
     if (names.length) {
-      const m = matchSeries(src.series, names);
+      const m = matchSeries(all, names);
       pool = m.matched;
       unmatched = m.unmatched;
     }
     if (typeof args.category === 'string' && args.category.trim()) {
       const c = args.category.trim().toLowerCase();
-      const inCat = src.series.filter(s => s.category.toLowerCase() === c);
+      const inCat = all.filter(s => s.category.toLowerCase() === c);
       if (!inCat.length) return fail(`No lab category "${args.category}".`, { categories: [...new Set(src.series.map(s => s.category))] });
       pool = names.length ? pool.filter(s => s.category.toLowerCase() === c) : inCat;
     }
     if (!names.length && !(typeof args.category === 'string' && args.category.trim()) && args.flaggedOnly !== true) {
       return fail('Say which results to fetch: analytes, a category, or flaggedOnly. The index lists every series.');
     }
+    // A series with nothing measured in the window is named, never dropped.
+    const emptyInWindow = windowEcho ? pool.filter(s => s.points.length === 0) : [];
+    if (windowEcho) pool = pool.filter(s => s.points.length > 0);
     if (args.flaggedOnly === true) pool = pool.filter(s => s.points.length > 0 && s.points[s.points.length - 1]!.status !== 'in_range' && s.points[s.points.length - 1]!.status !== 'unscored_no_range');
     const history = args.history === true;
     const cut = pool.length > MAX_LAB_SERIES_PER_CALL;
@@ -390,6 +218,7 @@ const getLabResults: AnalystTool = {
     return {
       content: {
         results: view(),
+        ...(windowEcho ? { window: windowEcho, ...(emptyInWindow.length ? { notInWindow: namesNotInWindow(emptyInWindow), notInWindowNote: 'Nothing was measured for these in the window; that says nothing about other dates.' } : {}) } : {}),
         ...(unmatched.length ? { notFound: unmatched, note: 'These names matched no stored series; check the index before saying a result does not exist.' } : {}),
         ...(left.length || cut ? { notReturned: left, why: 'over the per-call limit; ask for these in another call' } : {}),
       },
@@ -416,7 +245,7 @@ const compareLabPanels: AnalystTool = {
     const access = need(ctx);
     if (isOutcome(access)) return access;
     const src = await access.labSource();
-    if (!src.available) return fail(src.reason ?? 'No lab results are available.');
+    if (!src.available) return fail(scrubForModel(src.reason ?? 'No lab results are available.'));
     const A = String(args.dateA);
     const B = String(args.dateB);
     const dates = new Map<string, number>();
@@ -474,26 +303,4 @@ const compareLabPanels: AnalystTool = {
   },
 };
 
-const getMedications: AnalystTool = {
-  name: 'get_medications',
-  kind: 'read',
-  description:
-    'The medication log for the last N days: for each medication, how many dose records, on how many days, the last day, and how many were taken, skipped or unknown. It is a RECORD of what was logged, not a treatment plan and not known to be complete. Never advise on starting, stopping or changing a dose from it.',
-  parameters: {
-    type: 'object',
-    properties: { days: { type: 'integer', minimum: 1, maximum: 90, description: 'Default 30.' } },
-    additionalProperties: false,
-  },
-  async run(args, ctx) {
-    const access = need(ctx);
-    if (isOutcome(access)) return access;
-    const days = typeof args.days === 'number' ? Math.round(args.days) : 30;
-    const snap = await access.medications(days);
-    access.fetched.medications = snap;
-    if (snap.available) access.fetched.recordsRead += snap.totalRecords;
-    note(access, `medication log, last ${days} days`);
-    return { content: snap, isError: !snap.available };
-  },
-};
-
-export const DATA_TOOLS: AnalystTool[] = [getMetrics, compareMetricPeriods, getRelationship, getWorkouts, getLabResults, compareLabPanels, getMedications];
+export const DATA_TOOLS: AnalystTool[] = [listCapabilities, getMetricSeries, getRelationship, getWorkouts, getSleep, getBloodPressure, getLabResults, compareLabPanels, getMedications, getAppData];

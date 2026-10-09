@@ -7,12 +7,13 @@
 
 import { describe, expect, it } from 'vitest';
 import { createDataAccess, mergeFetched, nothingFetched } from './dataAccess';
-import { buildDataIndex, renderDataIndex } from './dataIndex';
+import { buildLabIndex, buildMetricIndex } from './dataIndex';
+import { COVERAGE_INDEX_MAX_CHARS, renderCoverageIndex } from './capabilities/coverage-index';
 import { buildContextPayload } from './systemPrompt';
 import { DATA_TOOLS, MAX_COMPARE_ROWS, MAX_DATA_RESULT_CHARS, MAX_LAB_SERIES_PER_CALL } from './tools/data';
 import { availableTools, runTool, type ToolContext } from './tools';
 import { checkGrounding } from './validate';
-import { retrieveNone } from './retrieval';
+import { retrieveNone, summaryFor } from './retrieval';
 import type { LabSeriesInput, LabSeriesObservationInput, LabSourceInput } from './labSnapshot';
 import type { AnalystAnswer } from './types';
 
@@ -229,85 +230,125 @@ describe('compare_lab_panels', () => {
   });
 });
 
-describe('get_metrics', () => {
-  it('returns the same payload the fixed context carries for the metric', async () => {
+// get_metrics and compare_periods were retired in favour of get_metric_series (design §13).
+// These are their tests, moved: each behaviour they pinned is asserted again on the new tool.
+describe('get_metric_series (what get_metrics pinned)', () => {
+  it('returns the display strings the fixed context carries for the metric', async () => {
     const ctx = ctxFor();
-    const r = await call(ctx, 'get_metrics', { metrics: ['resting_heart_rate'], days: 7 });
+    const r = await call(ctx, 'get_metric_series', { metrics: ['resting_heart_rate'], window: { lastDays: 7 } });
     expect(r.isError).toBe(false);
-    const m = r.json.metrics[0];
+    const m = r.json.data.metrics[0];
     expect(m.metricId).toBe('resting_heart_rate');
-    expect(m.display.unit).toBeTruthy();
-    expect(m.display.current).toMatch(/\d/);
-    expect(m.series.length).toBeGreaterThan(0);
+    expect(m.unit).toBeTruthy();
+    expect(m.summary.mean).toMatch(/\d/);
+    expect(m.points.length).toBeGreaterThan(0);
+    expect(m.points.every((p: { display: string }) => /\d/.test(p.display))).toBe(true);
 
-    const fixed = buildContextPayload({ ...retrieveNone('x', '2026-09-17'), summaries: ctx.data!.fetched.summaries }, 'metric');
-    expect(fixed.metrics[0].display).toEqual(m.display);
+    const fixed = buildContextPayload({ ...retrieveNone('x', '2026-09-17'), summaries: [summaryFor('resting_heart_rate', 7, '2026-09-17').summary] }, 'metric').metrics[0].display;
+    expect({ mean: m.summary.mean, median: m.summary.median, min: m.summary.min, max: m.summary.max, delta: m.change.delta }).toEqual({ mean: fixed.mean, median: fixed.median, min: fixed.min, max: fixed.max, delta: fixed.delta });
   });
 
   it('accepts a display name and suggests ids for one it cannot place', async () => {
-    const ok = await call(ctxFor(), 'get_metrics', { metrics: ['Resting Heart Rate'] });
-    expect(ok.json.metrics[0].metricId).toBe('resting_heart_rate');
-    const bad = await call(ctxFor(), 'get_metrics', { metrics: ['heartrate'] });
-    expect(bad.json.metrics).toEqual([]);
-    expect(bad.json.notFound[0].metric).toBe('heartrate');
-    expect(bad.json.notFound[0].didYouMean.length).toBeGreaterThan(0);
+    const ok = await call(ctxFor(), 'get_metric_series', { metrics: ['Resting Heart Rate'] });
+    expect(ok.json.data.metrics[0].metricId).toBe('resting_heart_rate');
+    const bad = await call(ctxFor(), 'get_metric_series', { metrics: ['heartrate'] });
+    expect(bad.isError).toBe(true);
+    expect(bad.json.status).toBe('invalid_args');
+    expect(bad.json.data.didYouMean.length).toBeGreaterThan(0);
   });
 
-  it('series=false returns the totals only', async () => {
-    const r = await call(ctxFor(), 'get_metrics', { metrics: ['step_count'], days: 14, series: false });
-    expect(r.json.metrics[0].series).toBeUndefined();
-    expect(r.json.metrics[0].display.current).toMatch(/\d/);
-    expect(r.json.seriesOmitted.metrics).toEqual(['step_count']);
+  it('never summarises blood pressure by one of its two numbers, with or without a comparison', async () => {
+    const r = await call(ctxFor(), 'get_metric_series', { metrics: ['blood_pressure'], window: { lastDays: 90 } });
+    expect(r.isError).toBe(true);
+    expect(r.json.problems.join(' ')).toMatch(/pair of numbers.*get_blood_pressure/);
+    expect(r.json.data).toBeUndefined();
+    const c = await call(ctxFor(), 'get_metric_series', { metrics: ['blood_pressure'], window: { start: '2026-04-01', end: '2026-04-30' }, compareTo: { start: '2026-03-01', end: '2026-03-31' } });
+    expect(c.isError).toBe(true);
+    expect(c.json.problems.join(' ')).toMatch(/pair of numbers.*get_blood_pressure/);
   });
 
-  it('stays inside the size limit on a long window and says what it left out', async () => {
-    const r = await call(ctxFor(), 'get_metrics', { metrics: ['resting_heart_rate', 'step_count', 'heart_rate_variability'], days: 730 });
+  it('granularity summary returns the totals only', async () => {
+    const r = await call(ctxFor(), 'get_metric_series', { metrics: ['step_count'], window: { lastDays: 14 }, granularity: 'summary' });
+    const m = r.json.data.metrics[0];
+    expect(m.points).toBeUndefined();
+    expect(m.summary.mean).toMatch(/\d/);
+    expect(m.change.current).toMatch(/\d/);
+  });
+
+  it('stays inside the size limit on a long window, never cut mid-value, and says what it left out', async () => {
+    const r = await call(ctxFor(), 'get_metric_series', { metrics: ['resting_heart_rate', 'step_count', 'heart_rate_variability'], window: { lastDays: 730 }, granularity: 'day' });
     expect(r.content.length).toBeLessThanOrEqual(MAX_DATA_RESULT_CHARS);
+    expect(r.content).not.toContain('… [truncated]');
     expect(() => JSON.parse(r.content)).not.toThrow();
+    const left = r.json.data.metrics.filter((m: { page?: { nextOffset?: number } }) => m.page?.nextOffset !== undefined);
+    expect(left.length).toBeGreaterThan(0);
+    expect(left[0].page.how).toMatch(/offset/);
   });
 
   it('refuses more than three metrics at once', async () => {
-    const r = await call(ctxFor(), 'get_metrics', { metrics: ['a', 'b', 'c', 'd'] });
+    const r = await call(ctxFor(), 'get_metric_series', { metrics: ['a', 'b', 'c', 'd'] });
     expect(r.isError).toBe(true);
     expect(r.json.problems.join(' ')).toMatch(/at most 3/);
   });
 });
 
-describe('compare_periods', () => {
+describe('get_metric_series (what compare_periods pinned)', () => {
+  // Period A is the baseline (compareTo), period B the window: the change is B against A, as it was.
+  const periods = { window: { start: '2026-09-10', end: '2026-09-16' }, compareTo: { start: '2026-08-01', end: '2026-08-07' } };
+
   it('compares two named periods and states the change from A to B', async () => {
-    const r = await call(ctxFor(), 'compare_periods', { metric: 'resting_heart_rate', aStart: '2026-08-01', aEnd: '2026-08-07', bStart: '2026-09-10', bEnd: '2026-09-16' });
+    const r = await call(ctxFor(), 'get_metric_series', { metrics: ['resting_heart_rate'], ...periods });
     expect(r.isError).toBe(false);
-    expect(r.json.periodA.observations).toBeGreaterThan(0);
-    expect(r.json.periodB.observations).toBeGreaterThan(0);
-    expect(r.json.meanChange).toMatch(/[+-]?\d/);
-    expect(r.json.periodA.mean).toMatch(/bpm|\d/);
+    const m = r.json.data.metrics[0];
+    expect(m.observations).toBeGreaterThan(0);
+    expect(m.compareWindow).toEqual(periods.compareTo);
+    expect(m.change.basis).toMatch(/vs/);
+    expect(m.change.delta).toMatch(/^[+-]/);
+    expect(m.change.baseline).toMatch(/bpm|\d/);
+    expect(m.summary.mean).toMatch(/bpm|\d/);
   });
 
   it('says there is no comparison when a period has no records', async () => {
-    const r = await call(ctxFor(), 'compare_periods', { metric: 'resting_heart_rate', aStart: '2001-01-01', aEnd: '2001-01-07', bStart: '2026-09-10', bEnd: '2026-09-16' });
-    expect(r.json.periodA.observations).toBe(0);
-    expect(r.json.periodA.mean).toBe('no records');
-    expect(r.json.meanChange).toMatch(/no comparison available/);
+    const r = await call(ctxFor(), 'get_metric_series', { metrics: ['resting_heart_rate'], window: periods.window, compareTo: { start: '2001-01-01', end: '2001-01-07' } });
+    expect(r.isError).toBe(false);
+    const m = r.json.data.metrics[0];
+    expect(m.observations).toBeGreaterThan(0);
+    expect(m.change.note).toMatch(/^No comparison/);
+    expect(m.change.delta).toBeUndefined();
   });
 
   it('validates dates and order', async () => {
-    const base = { metric: 'resting_heart_rate', aStart: '2026-08-01', aEnd: '2026-08-07', bStart: '2026-09-10', bEnd: '2026-09-16' };
-    expect((await call(ctxFor(), 'compare_periods', { ...base, aStart: 'last week' })).json.error).toMatch(/YYYY-MM-DD/);
-    expect((await call(ctxFor(), 'compare_periods', { ...base, aStart: '2026-08-09' })).json.error).toMatch(/start on or before/);
+    const bad = (compareTo: unknown) => call(ctxFor(), 'get_metric_series', { metrics: ['resting_heart_rate'], window: periods.window, compareTo });
+    expect((await bad({ start: 'last week', end: '2026-08-07' })).json.problems.join(' ')).toMatch(/YYYY-MM-DD/);
+    expect((await bad({ start: '2026-08-09', end: '2026-08-07' })).json.problems.join(' ')).toMatch(/after end|on or before/);
   });
 
   it('leaves out a day that is still accumulating from a daily total', async () => {
-    const r = await call(ctxFor(), 'compare_periods', { metric: 'step_count', aStart: '2026-09-01', aEnd: '2026-09-07', bStart: '2026-09-11', bEnd: '2026-09-17' });
-    expect(r.json.periodB.note ?? '').toMatch(/still accumulating|^$/);
-    expect(r.json.aggregation).toBe('daily total, complete days only');
+    const r = await call(ctxFor(), 'get_metric_series', { metrics: ['step_count'], window: { start: '2026-09-11', end: '2026-09-17' }, compareTo: { start: '2026-09-01', end: '2026-09-07' } });
+    const m = r.json.data.metrics[0];
+    expect(m.aggregation).toBe('daily total, complete days only');
+    expect(m.points.some((p: { key: string }) => p.key === '2026-09-17')).toBe(false);
+    expect(m.observations).toBe(6);
+    expect(m.note).toMatch(/in progress/);
   });
 });
 
 describe('the other reads', () => {
-  it('get_workouts rolls the log up', async () => {
+  it('get_workouts rolls the log up under view: summary, with the figures the old roll-up carried', async () => {
+    const r = await call(ctxFor(), 'get_workouts', { view: 'summary', days: 90 });
+    expect(r.isError).toBe(false);
+    expect(r.json.data.rollup.sessions).toBeGreaterThanOrEqual(0);
+    expect(r.json.data.rollup.window).toBeTruthy();
+    expect(r.json.data.rollup.byType).toBeInstanceOf(Array);
+    expect(r.json.data.totals.sessions).toBe(r.json.data.rollup.sessions);
+  });
+
+  it('get_workouts lists the sessions by default, which the roll-up never could', async () => {
     const r = await call(ctxFor(), 'get_workouts', { days: 90 });
-    expect(r.json.workouts.sessions).toBeGreaterThanOrEqual(0);
-    expect(r.json.workouts.window).toBeTruthy();
+    expect(r.isError).toBe(false);
+    expect(r.json.status).toBe('ok');
+    expect(r.json.data.sessions.length).toBeGreaterThan(0);
+    expect(r.json.data.sessions[0]).toMatchObject({ id: expect.any(String), day: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), type: expect.any(String) });
   });
 
   it('get_metric_relationship returns an association, with its pairing counts', async () => {
@@ -316,10 +357,19 @@ describe('the other reads', () => {
     expect(typeof r.json.pairedDays).toBe('number');
   });
 
-  it('get_medications asks the loader for the window the model chose', async () => {
-    const r = await call(ctxFor(), 'get_medications', { days: 14 });
-    expect(r.json.lookbackDays).toBe(14);
-    expect(r.json.kind).toBe('record');
+  it('get_medications asks the reader for the window the model chose', async () => {
+    const asked: { start: string; end: string }[] = [];
+    const ctx = ctxFor();
+    ctx.data = createDataAccess({
+      system: 'metric',
+      refKey: '2026-09-17',
+      env: DEMO,
+      medicationLog: async range => (asked.push(range), { available: true, reason: null, timezone: 'UTC', records: [] }),
+    });
+    const r = await call(ctx, 'get_medications', { days: 14 });
+    expect(asked).toEqual([{ start: '2026-09-04', end: '2026-09-17' }]);
+    expect(r.json.status).toBe('no_data_in_window');
+    expect(r.json.window).toMatchObject({ start: '2026-09-04', end: '2026-09-17', asked: 'lastDays 14' });
   });
 });
 
@@ -335,9 +385,9 @@ describe('what was fetched is what can be cited and audited', () => {
 
   it('merges fetched metrics and lab series into the bundle the answer is checked against', async () => {
     const ctx = ctxFor();
-    await call(ctx, 'get_metrics', { metrics: ['resting_heart_rate'], days: 7 });
+    await call(ctx, 'get_metric_series', { metrics: ['resting_heart_rate'], window: { lastDays: 7 } });
     await call(ctx, 'get_lab_results', { analytes: ['total_cholesterol'] });
-    await call(ctx, 'compare_periods', { metric: 'step_count', aStart: '2026-09-01', aEnd: '2026-09-07', bStart: '2026-09-10', bEnd: '2026-09-16' });
+    await call(ctx, 'get_metric_series', { metrics: ['step_count'], window: { start: '2026-09-10', end: '2026-09-16' }, compareTo: { start: '2026-09-01', end: '2026-09-07' } });
     const start = retrieveNone('general', '2026-09-17');
     const merged = mergeFetched(start, ctx.data, await ctx.data!.labSource());
     expect(merged.summaries.map(s => s.metricId)).toEqual(['resting_heart_rate']);
@@ -365,10 +415,11 @@ describe('what was fetched is what can be cited and audited', () => {
   });
 });
 
-describe('the data index', () => {
+describe('the coverage index', () => {
+  const render = (lab: LabSourceInput) => renderCoverageIndex({ refKey: '2026-09-17', rows: [], metrics: buildMetricIndex(), labs: buildLabIndex(lab) });
+
   it('lists what exists with no values in it', async () => {
-    const index = buildDataIndex('2026-09-17', twoPanels());
-    const text = renderDataIndex(index);
+    const text = render(twoPanels());
     expect(text).toContain('resting_heart_rate');
     expect(text).toContain('Panel dates (date: series measured): 2026-09-29: 4, 2026-10-01: 3');
     expect(text).toContain('Lipids: LDL cholesterol (2×), Total cholesterol (2×)');
@@ -376,13 +427,12 @@ describe('the data index', () => {
   });
 
   it('states why labs are missing instead of listing nothing', () => {
-    const text = renderDataIndex(buildDataIndex('2026-09-17', { available: false, reason: 'No Postgres database is configured.', documents: 0, totalObservations: 0, collisions: 0, series: [] }));
+    const text = render({ available: false, reason: 'No Postgres database is configured.', documents: 0, totalObservations: 0, collisions: 0, series: [] });
     expect(text).toContain('LAB RESULTS — not available: No Postgres database is configured.');
   });
 
-  it('stays small however much lab data there is', () => {
+  it('stays within its bound however much lab data there is', () => {
     const lots = Array.from({ length: 150 }, (_, i) => series(`s${i}`, `Analyte number ${i}`, `Cat ${i % 12}`, [obs('2026-09-29', i), obs('2026-10-01', i)]));
-    const text = renderDataIndex(buildDataIndex('2026-09-17', twoPanels(lots)));
-    expect(text.length).toBeLessThan(14_000);
+    expect(render(twoPanels(lots)).length).toBeLessThanOrEqual(COVERAGE_INDEX_MAX_CHARS);
   });
 });
