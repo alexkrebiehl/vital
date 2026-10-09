@@ -810,9 +810,10 @@ function PrivacyTab() {
             )}
           </div>
           <DataStateNote>
-            Health context is never sent whole: retrieval selects only the summaries a question needs, caps each series at
-            90 points, and treats imported notes as untrusted data rather than instructions. Analyst responses are marked
-            private and uncacheable.
+            Health context is never sent whole: a question starts with a bounded selection, the model can ask for more
+            only through read-only lookups of the kinds listed above (each result is size-limited), and imported notes
+            are treated as untrusted data rather than instructions. Analyst responses are marked private and
+            uncacheable.
           </DataStateNote>
           <DataStateNote>
             This build claims no compliance certification and no production security boundary. A local demo may run
