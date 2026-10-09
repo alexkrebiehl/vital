@@ -56,7 +56,7 @@ describe('full context mode', () => {
     await askAnalyst({ query: 'How was my week?' }, { env: env(model.url), medicationLoader: noMeds, labLoader: noLabs });
 
     const names = (model.bodies[0].tools as { function: { name: string } }[]).map(t => t.function.name);
-    expect(names).toEqual(expect.arrayContaining(['get_workouts', 'get_metrics', 'get_lab_results', 'get_routine_progress']));
+    expect(names).toEqual(expect.arrayContaining(['get_workouts', 'get_sleep', 'get_blood_pressure', 'get_metric_series', 'get_metrics', 'get_lab_results', 'get_routine_progress']));
     expect(model.bodies[0].messages.at(-1).content).toContain('"context"');
     expect(model.bodies[0].messages[0].content).toContain('In addition to any selection you were given, these tools read everything the app holds.');
   });
@@ -68,12 +68,18 @@ describe('full context mode', () => {
     const in30 = workoutList().filter(w => workoutDayKey(w) >= addDays(REF, -29)).length;
     expect(in90).not.toBe(in30);
 
-    const model = await mockModel(n => (n === 0 ? toolCall('get_workouts', { days: 90 }) : said(ANSWER(`You logged ${in90} workouts in the last 90 days.`))));
+    const model = await mockModel(n => (n === 0 ? toolCall('get_workouts', { window: { lastDays: 90 }, limit: 5 }) : said(ANSWER(`You logged ${in90} workouts in the last 90 days.`))));
     const r = await askAnalyst({ query: 'How many workouts did I log in the last 90 days?' }, { env: env(model.url), medicationLoader: noMeds, labLoader: noLabs });
 
     expect(r.status).toBe('ok');
     expect(r.toolsUsed).toEqual(['get_workouts']);
-    expect(model.bodies[1].messages.at(-1).role).toBe('tool');
+    const toolMessage = model.bodies[1].messages.at(-1);
+    expect(toolMessage.role).toBe('tool');
+    // Individual sessions, not a roll-up: the failure this gate exists to fix.
+    const result = JSON.parse(toolMessage.content);
+    expect(result.data.sessions).toHaveLength(5);
+    expect(result.data.sessions[0]).toMatchObject({ id: expect.stringMatching(/^w-/), type: expect.any(String) });
+    expect(result.page.total).toBe(in90);
     // 90-day count exists only in the tool result: the selection carries the last 30 days.
     expect(r.grounding?.unmatched).toEqual([]);
   });

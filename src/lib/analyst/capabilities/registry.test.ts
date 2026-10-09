@@ -57,7 +57,11 @@ const EXPECTED: [id: string, tool: string][] = [
   ['metrics.compare', 'compare_periods'],
   ['metrics.series', 'get_metric_series'],
   ['metrics.relationship', 'get_metric_relationship'],
+  ['workouts.sessions', 'get_workouts'],
   ['workouts.summary', 'get_workouts'],
+  ['sleep.nights', 'get_sleep'],
+  ['sleep.summary', 'get_sleep'],
+  ['heart.blood_pressure', 'get_blood_pressure'],
   ['labs.series', 'get_lab_results'],
   ['labs.compare', 'compare_lab_panels'],
   ['medications.summary', 'get_medications'],
@@ -108,7 +112,8 @@ describe('manifest and registry', () => {
   });
 
   it('finds capabilities by tool', () => {
-    expect(capabilitiesForTool('get_workouts').map(c => c.id)).toEqual(['workouts.summary']);
+    expect(capabilitiesForTool('get_workouts').map(c => c.id)).toEqual(['workouts.sessions', 'workouts.summary']);
+    expect(capabilitiesForTool('get_sleep').map(c => c.id)).toEqual(['sleep.nights', 'sleep.summary']);
     expect(capabilitiesForTool('get_nothing')).toEqual([]);
     expect(capabilityById('labs.series')?.tool).toBe('get_lab_results');
     expect(capabilityById('nope')).toBeUndefined();
@@ -150,18 +155,18 @@ describe('the plan tools', () => {
 });
 
 describe('a capability read', () => {
-  it('returns what the existing tool returns, wrapped in an ok envelope', async () => {
+  it('returns what the tool returns: the ok envelope itself', async () => {
     const tool = DATA_TOOLS.find(t => t.name === 'get_workouts')!;
     const ctx = ctxFor();
     const direct = await tool.run({ days: 30 }, { system: 'metric', deps: ctx.routine, changes: [], data: ctx.access });
-    const env = await capabilityById('workouts.summary')!.read({ days: 30 }, ctx);
+    const env = await capabilityById('workouts.sessions')!.read({ days: 30 }, ctx);
     expect(env.status).toBe('ok');
-    expect(env.capability).toBe('workouts.summary');
-    expect(env.data).toEqual(direct.content);
+    expect(env.capability).toBe('workouts.sessions');
+    expect(env).toEqual(direct.content);
   });
 
   it('reports bad arguments as invalid_args with the checker\'s problems', async () => {
-    const env = await capabilityById('workouts.summary')!.read({ days: 'many' }, ctxFor());
+    const env = await capabilityById('workouts.sessions')!.read({ days: 'many' }, ctxFor());
     expect(env.status).toBe('invalid_args');
     expect(env.problems?.[0]).toMatch(/days must be a whole number/);
   });

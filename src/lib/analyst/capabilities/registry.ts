@@ -6,6 +6,8 @@
 
 import * as metrics from './areas/metrics';
 import * as workouts from './areas/workouts';
+import * as sleep from './areas/sleep';
+import * as heart from './areas/heart';
 import * as labs from './areas/labs';
 import * as medications from './areas/medications';
 import * as training from './areas/training';
@@ -20,7 +22,11 @@ const BY_ID = new Map<string, AnyCapability>(
     metrics.compare,
     metrics.series,
     metrics.relationship,
+    workouts.sessions,
     workouts.summary,
+    sleep.nights,
+    sleep.summary,
+    heart.bloodPressure,
     labs.series,
     labs.compare,
     medications.summary,

@@ -16,13 +16,14 @@ import { isPairedMetric, metricHasData, seriesFor, unavailableReasonFor } from '
 import { getMetric } from '../../metrics/registry';
 import { PAIRED_REASON, resolveMetric } from './metric-resolve';
 import { getMetricSeries } from './series-tool';
+import { getBloodPressure, getSleep, getWorkouts } from './records-tools';
 import { formatDeltaWithUnit, formatMetricWithUnit, metricUnit } from '../../metrics/format';
 import { formatPercent } from '../../metrics/format';
 import { containsDay, makeWindow } from '../../analytics/windows';
 import { resolveWindow, WINDOW_SCHEMA } from '../capabilities/window';
 import { mean, median, max as maxOf, min as minOf, percentChange } from '../../analytics/stats';
 import { analyteRequestedBy, changeText, readingText, seriesSnapshot, toReading, type LabSeriesInput } from '../labSnapshot';
-import { MAX_POINTS_PER_SERIES, pairFor, summaryFor, workoutsFor } from '../retrieval';
+import { MAX_POINTS_PER_SERIES, pairFor, summaryFor } from '../retrieval';
 import { summaryPayload } from '../systemPrompt';
 import type { RetrievedSummary } from '../types';
 import type { DataAccess } from '../dataAccess';
@@ -213,6 +214,11 @@ const compareMetricPeriods: AnalystTool = {
   },
 };
 
+/** The two group means of a relationship split, in each metric's own formatter. */
+function groupDisplay(xId: string, yId: string, g: { xMean: number; yMean: number }, system: DataAccess['system']): Record<string, string> {
+  return { xMean: formatMetricWithUnit(xId, g.xMean, system), yMean: formatMetricWithUnit(yId, g.yMean, system) };
+}
+
 const getRelationship: AnalystTool = {
   name: 'get_metric_relationship',
   kind: 'read',
@@ -262,30 +268,15 @@ const getRelationship: AnalystTool = {
         valid: p.valid,
         reason: p.reason,
         window: { start: p.window.startKey, end: p.window.endKey },
-        split: p.split,
+        split: p.split && {
+          ...p.split,
+          low: { ...p.split.low, display: groupDisplay(x.id, y.id, p.split.low, access.system) },
+          high: { ...p.split.high, display: groupDisplay(x.id, y.id, p.split.high, access.system) },
+          display: { medianX: formatMetricWithUnit(x.id, p.split.medianX, access.system) },
+        },
+        display: { lagDays: p.lagDays ? `${p.lagDays} days later` : 'same day' },
       },
     };
-  },
-};
-
-const getWorkouts: AnalystTool = {
-  name: 'get_workouts',
-  kind: 'read',
-  description: 'The workout log rolled up over the last N days: sessions, sessions per week, total minutes and calories, a count by type, and the last 30 days against the 30 before.',
-  parameters: {
-    type: 'object',
-    properties: { days: { type: 'integer', minimum: 1, maximum: 365, description: 'Default 30.' } },
-    additionalProperties: false,
-  },
-  async run(args, ctx) {
-    const access = need(ctx);
-    if (isOutcome(access)) return access;
-    const days = typeof args.days === 'number' ? Math.round(args.days) : 30;
-    const built = workoutsFor(days, access.refKey);
-    access.fetched.workouts = built.workouts;
-    access.fetched.recordsRead += built.recordsRead;
-    note(access, `workouts, last ${days} days`);
-    return { content: { workouts: built.workouts } };
   },
 };
 
@@ -483,4 +474,4 @@ const getMedications: AnalystTool = {
   },
 };
 
-export const DATA_TOOLS: AnalystTool[] = [getMetrics, compareMetricPeriods, getMetricSeries, getRelationship, getWorkouts, getLabResults, compareLabPanels, getMedications];
+export const DATA_TOOLS: AnalystTool[] = [getMetrics, compareMetricPeriods, getMetricSeries, getRelationship, getWorkouts, getSleep, getBloodPressure, getLabResults, compareLabPanels, getMedications];

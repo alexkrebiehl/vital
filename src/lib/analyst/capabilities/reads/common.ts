@@ -6,10 +6,10 @@
 // route installed for this question.
 
 import { containsDay, diffDays, type DayWindow } from '../../../analytics/windows';
-import { safeExcerpt } from '../../scrub';
+import { scrubForModel } from '../../scrub';
 import { invalidArgs, noDataInWindow, privacyBlocked, sourceUnavailable, type Envelope, type EnvelopeWindow } from '../envelope';
 import type { CapabilityContext, CapabilityManifestEntry, Coverage } from '../types';
-import { resolveWindow, type ResolvedWindow } from '../window';
+import { MAX_WINDOW_DAYS, resolveWindow, type ResolvedWindow } from '../window';
 
 export type Args = Record<string, unknown>;
 export type Entry = Pick<CapabilityManifestEntry, 'id' | 'title' | 'category'>;
@@ -27,7 +27,10 @@ export const windowLength = (w: ResolvedWindow): number => diffDays(w.start, w.e
  * as `window.lastDays`. Both together are ambiguous and refused.
  */
 export function windowOf(args: Args, ctx: CapabilityContext, defaultLastDays: number): { ok: true; window: ResolvedWindow } | { ok: false; problems: string[] } {
-  const hasDays = typeof args.days === 'number';
+  const hasDays = args.days !== undefined;
+  if (hasDays && (typeof args.days !== 'number' || !Number.isInteger(args.days) || args.days < 1 || args.days > MAX_WINDOW_DAYS)) {
+    return { ok: false, problems: [`days must be a whole number from 1 to ${MAX_WINDOW_DAYS}.`] };
+  }
   if (hasDays && args.window !== undefined) return { ok: false, problems: ['Give either window or days (the same as window.lastDays), not both.'] };
   const input = hasDays ? { lastDays: args.days } : args.window;
   return resolveWindow(input, { refKey: ctx.refKey, defaultLastDays });
@@ -39,7 +42,7 @@ export async function guarded(entry: Entry, ctx: CapabilityContext, work: () => 
   try {
     return await work();
   } catch (error) {
-    return sourceUnavailable(entry, safeExcerpt(error instanceof Error ? error.message : 'The read failed.'));
+    return sourceUnavailable(entry, scrubForModel(error instanceof Error ? error.message : 'The read failed.'));
   }
 }
 
@@ -59,4 +62,23 @@ export function spanOf(keys: string[], unit: string): Coverage {
   return { kind: 'known', first: sorted[0] ?? null, last: sorted[sorted.length - 1] ?? null, count: sorted.length, unit };
 }
 
-export const isOkSort = (value: unknown, allowed: readonly string[]): boolean => value === undefined || (typeof value === 'string' && allowed.includes(value));
+
+export interface Paging {
+  limit: number;
+  offset: number;
+}
+
+/** `limit` and `offset` of a record tool, or the problems with them. */
+export function pagingOf(args: Args, defaultLimit: number, maxLimit: number): { ok: true; paging: Paging } | { ok: false; problems: string[] } {
+  const problems: string[] = [];
+  const whole = (v: unknown) => typeof v === 'number' && Number.isInteger(v);
+  if (args.limit !== undefined && (!whole(args.limit) || (args.limit as number) < 1 || (args.limit as number) > maxLimit)) problems.push(`limit must be a whole number from 1 to ${maxLimit}.`);
+  if (args.offset !== undefined && (!whole(args.offset) || (args.offset as number) < 0)) problems.push('offset must be a whole number, 0 or more.');
+  if (problems.length) return { ok: false, problems };
+  return { ok: true, paging: { limit: (args.limit as number | undefined) ?? defaultLimit, offset: (args.offset as number | undefined) ?? 0 } };
+}
+
+/** A problem line when `value` is given and is not one of `allowed`. */
+export function choiceProblem(name: string, value: unknown, allowed: readonly string[]): string[] {
+  return value === undefined || (typeof value === 'string' && allowed.includes(value)) ? [] : [`${name} must be one of: ${allowed.join(', ')}.`];
+}

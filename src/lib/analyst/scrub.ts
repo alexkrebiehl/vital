@@ -57,3 +57,13 @@ export function safeExcerpt(text: string, secrets: (string | null | undefined)[]
   if (flat.length <= max) return flat;
   return `${flat.slice(0, max)}…`;
 }
+/**
+ * A reason for the MODEL to read: scrubbed like any error, and with every web
+ * address replaced, so no host, URL or path of a source reaches a result (design §9.1).
+ */
+export function scrubForModel(text: string, max = 200): string {
+  return safeExcerpt(text, [], max * 2)
+    .replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, '[address]')
+    .replace(/\b(?:[a-z0-9-]+\.)+(?:com|net|org|io|dev|app|cloud|local|lan|home|internal|example|test)\b(?::\d+)?(?:\/\S*)?/gi, '[address]')
+    .slice(0, max);
+}

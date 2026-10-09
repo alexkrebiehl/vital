@@ -44,7 +44,6 @@ export const PERMANENT_EXEMPTIONS: readonly Exemption[] = [
   accessor('excludePartialForSum', 'Drops the in-progress day before a sum; a rule applied inside the readers, not a reader.'),
   accessor('latestPoint', 'Picks the last point of a series already read; no data of its own.'),
   accessor('pointOn', 'Picks one day of a series already read; no data of its own.'),
-  accessor('hasSleepStages', 'Predicate over a sleep night already read; no data of its own.'),
   accessor('metaFor', 'Looks up a metric definition (name, unit); the registry already carries it.'),
   accessor('bloodOxygenSeries', HELPER),
   accessor('seriesInWindow', HELPER),

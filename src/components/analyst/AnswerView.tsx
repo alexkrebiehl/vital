@@ -90,6 +90,8 @@ const DATA_LOOKUPS: Record<string, string> = {
   get_metric_series: 'Looking up your metric series…',
   get_metric_relationship: 'Checking how two metrics move together…',
   get_workouts: 'Looking up your workouts…',
+  get_sleep: 'Looking up your sleep…',
+  get_blood_pressure: 'Looking up your blood pressure…',
   get_lab_results: 'Looking up your lab results…',
   compare_lab_panels: 'Comparing your lab panels…',
   get_medications: 'Looking up your medication log…',

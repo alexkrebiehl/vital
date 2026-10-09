@@ -7,6 +7,8 @@ export const DATA_TOOL_NAMES = [
   'get_metric_series',
   'get_metric_relationship',
   'get_workouts',
+  'get_sleep',
+  'get_blood_pressure',
   'get_lab_results',
   'compare_lab_panels',
   'get_medications',

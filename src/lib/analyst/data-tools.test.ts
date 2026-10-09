@@ -316,10 +316,21 @@ describe('compare_periods', () => {
 });
 
 describe('the other reads', () => {
-  it('get_workouts rolls the log up', async () => {
+  it('get_workouts rolls the log up under view: summary, with the figures the old roll-up carried', async () => {
+    const r = await call(ctxFor(), 'get_workouts', { view: 'summary', days: 90 });
+    expect(r.isError).toBe(false);
+    expect(r.json.data.rollup.sessions).toBeGreaterThanOrEqual(0);
+    expect(r.json.data.rollup.window).toBeTruthy();
+    expect(r.json.data.rollup.byType).toBeInstanceOf(Array);
+    expect(r.json.data.totals.sessions).toBe(r.json.data.rollup.sessions);
+  });
+
+  it('get_workouts lists the sessions by default, which the roll-up never could', async () => {
     const r = await call(ctxFor(), 'get_workouts', { days: 90 });
-    expect(r.json.workouts.sessions).toBeGreaterThanOrEqual(0);
-    expect(r.json.workouts.window).toBeTruthy();
+    expect(r.isError).toBe(false);
+    expect(r.json.status).toBe('ok');
+    expect(r.json.data.sessions.length).toBeGreaterThan(0);
+    expect(r.json.data.sessions[0]).toMatchObject({ id: expect.any(String), day: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/), type: expect.any(String) });
   });
 
   it('get_metric_relationship returns an association, with its pairing counts', async () => {

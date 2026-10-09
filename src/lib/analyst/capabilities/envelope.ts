@@ -3,7 +3,7 @@
 // Pure. Every capability answers with one of five statuses; `next` is one
 // sentence written for the model. An empty window is an answer, not an error.
 
-import { safeExcerpt } from '../scrub';
+import { scrubForModel } from '../scrub';
 import type { CapabilityManifestEntry, Coverage } from './types';
 
 export type Status = 'ok' | 'no_data_in_window' | 'source_unavailable' | 'privacy_blocked' | 'invalid_args';
@@ -56,7 +56,7 @@ export function ok<R>(cap: Pick<CapabilityManifestEntry, 'id'>, data: R, extra: 
 }
 
 /** A reason as a clause: scrubbed, one line, no closing full stop (the sentence adds its own). */
-const clause = (reason: string): string => safeExcerpt(reason).replace(/[.\s]+$/, '');
+const clause = (reason: string): string => scrubForModel(reason).replace(/[.\s]+$/, '');
 
 function holds(coverage: Coverage): string {
   if (coverage.kind === 'unknown') return `What else the app holds is unknown: ${clause(coverage.reason)}.`;
