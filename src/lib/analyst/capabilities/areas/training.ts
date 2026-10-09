@@ -90,7 +90,7 @@ export const workoutTemplate: Capability<Args, unknown> = {
   mirrors: { routes: ['GET /api/routine/workouts/[templateId]'], pages: ['/workouts/routine/workouts/[templateId]'] },
   time: 'none',
   sizeClass: 'small',
-  absenceTerms: ['no workout', 'no template', 'no plan'],
+  absenceTerms: ['no workout template', 'no template', 'no plan'],
   params: {
     type: 'object',
     required: ['templateId'],

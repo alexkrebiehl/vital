@@ -36,9 +36,13 @@ import {
 import { availableTools, runTool, toolSpecs, type ToolContext } from './tools';
 import { hasAnswerContent } from './validate';
 import type { StreamGuard } from './guard';
+import type { Lookup, Violation } from './capabilities/absence';
 
 export const MAX_TOOL_ROUNDS = 6;
 export const MAX_TOOL_CALLS = 12;
+/** Tool output a question may take in all (design §8); past it each call returns TOOL_BUDGET_SENTENCE. */
+export const MAX_TOOL_OUTPUT_CHARS = 48_000;
+export const TOOL_BUDGET_SENTENCE = 'Tool budget for this question is used up; answer from what you have and say what you could not fetch.';
 
 export const REPAIR_INSTRUCTION =
   'Your last reply was not the JSON object the instructions require, so it cannot be shown. Reply again with the same answer as one JSON object in the required shape ("title", "analysis", "recommendations", "summary", "uncertainty", "evidence", "followUps") and nothing outside it. Do not call tools.';
@@ -52,6 +56,27 @@ export interface ToolLoopResult {
   repaired: boolean;
   /** The prose reply that prompted a repair, kept in case the repair fails too. */
   draft?: string;
+  /** Every tool call that ran, with the capability and status its result named (the absence audit reads these). */
+  lookups: Lookup[];
+  /** Absence claims the model was not (or could not be) asked to fetch for: the caller states what the app holds. */
+  unaddressed: Violation[];
+}
+
+/**
+ * Checks a finished answer for claims that data is absent (capabilities/absence.ts). A finding
+ * carries the one corrective turn to send; the loop sends it at most once per question, and it
+ * shares the single repair budget with the repair of a reply that was not JSON.
+ */
+export type AbsenceAudit = (text: string, lookups: readonly Lookup[]) => { instruction: string; violations: Violation[] } | null;
+
+/** The capability and status an envelope-shaped tool result names; neither for any other result. */
+function lookupOf(tool: string, content: string): Lookup {
+  try {
+    const o = JSON.parse(content) as { capability?: unknown; status?: unknown };
+    return { tool, ...(typeof o.capability === 'string' ? { capability: o.capability } : {}), ...(typeof o.status === 'string' ? { status: o.status } : {}) };
+  } catch {
+    return { tool };
+  }
 }
 
 export interface ToolLoopHooks extends TurnStreamHooks {
@@ -85,7 +110,8 @@ export async function runToolLoop(
   user: string,
   ctx: ToolContext,
   hooks?: ToolLoopHooks,
-  guard?: StreamGuard
+  guard?: StreamGuard,
+  audit?: AbsenceAudit
 ): Promise<ToolLoopResult> {
   const specs = toolSpecs(availableTools(ctx));
   const messages: LoopMessage[] = [{ role: 'user', content: user }];
@@ -95,7 +121,13 @@ export async function runToolLoop(
   let model: string | null = null;
 
   let repairing = false;
+  // The absence audit's corrective turn: it uses the repair budget, and the model may still fetch in it.
+  let corrected = false;
   let draft: string | undefined;
+  let outputChars = 0;
+  const lookups: Lookup[] = [];
+  let unaddressed: Violation[] = [];
+  const done = (text: string, repaired: boolean) => ({ text, model, toolsUsed, toolOutputs, repaired, lookups, unaddressed, ...(draft ? { draft } : {}) });
 
   for (let round = 0; round < MAX_TOOL_ROUNDS + 1; round++) {
     const final = repairing || round >= MAX_TOOL_ROUNDS - 1 || calls >= MAX_TOOL_CALLS;
@@ -105,8 +137,24 @@ export async function runToolLoop(
     model = turn.model ?? model;
     if (turn.toolCalls.length === 0 || final) {
       if (!turn.text) throw new AnalystProviderError('The model kept calling tools and never answered.');
-      if (hasAnswerContent(turn.text)) return { text: turn.text, model, toolsUsed, toolOutputs, repaired: repairing, ...(draft ? { draft } : {}) };
-      if (repairing) return { text: turn.text, model, toolsUsed, toolOutputs, repaired: true, draft: draft ?? turn.text };
+      if (hasAnswerContent(turn.text)) {
+        const found = audit ? audit(turn.text, lookups) : null;
+        // One corrective turn, on the repair budget, and only while the next turn can still fetch.
+        const canFetch = !repairing && !corrected && round + 1 < MAX_TOOL_ROUNDS - 1 && calls < MAX_TOOL_CALLS && outputChars < MAX_TOOL_OUTPUT_CHARS;
+        if (found && canFetch) {
+          corrected = true;
+          messages.push({ role: 'assistant', text: turn.text, toolCalls: [] });
+          messages.push({ role: 'user', content: found.instruction });
+          hooks?.onStep?.({ tool: null });
+          continue;
+        }
+        if (found) unaddressed = found.violations;
+        return done(turn.text, repairing);
+      }
+      if (repairing || corrected) {
+        draft ??= turn.text;
+        return done(turn.text, true);
+      }
       // Prose, or a JSON object with none of the answer fields (a model that fetched data may
       // invent its own keys): ask once for the same answer in the required shape.
       draft = turn.text;
@@ -123,11 +171,18 @@ export async function runToolLoop(
         results.push({ callId: call.id, name: call.name, content: JSON.stringify({ error: 'Tool limit reached; answer now.' }), isError: true });
         continue;
       }
+      if (outputChars >= MAX_TOOL_OUTPUT_CHARS) {
+        // Nothing runs, and nothing counts as looked up.
+        results.push({ callId: call.id, name: call.name, content: JSON.stringify({ error: TOOL_BUDGET_SENTENCE }), isError: true });
+        continue;
+      }
       if (hooks?.signal?.aborted) throw new AnalystProviderError('The question was cancelled.');
       calls++;
       toolsUsed.push(call.name);
       hooks?.onStep?.({ tool: call.name });
       const out = await runTool(call.name, call.args, ctx);
+      outputChars += out.content.length;
+      lookups.push(lookupOf(call.name, out.content));
       toolOutputs.push(out.content);
       results.push({ callId: call.id, name: call.name, content: out.content, isError: out.isError });
     }

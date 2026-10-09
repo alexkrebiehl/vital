@@ -12,6 +12,7 @@
 import { buildLabIndex, buildMetricIndex, type LabIndex, type MetricIndexEntry } from '../dataIndex';
 import type { LabSourceInput } from '../labSnapshot';
 import { scrubForModel } from '../scrub';
+import type { AuditEntry } from './absence';
 import type { Capability, CapabilityContext, Coverage, SendingCategory } from './types';
 
 export const COVERAGE_INDEX_MAX_CHARS = 6_000;
@@ -124,8 +125,14 @@ export async function collectCoverageRows(caps: readonly Reader[], ctx: Capabili
 
 const allows = (ctx: CapabilityContext, category: SendingCategory): boolean => ctx.policy.allows(category);
 
+/** The coverage index of one question, and the rows it was made from (the absence audit reads the same rows). */
+export interface BuiltCoverage {
+  text: string;
+  rows: CoverageRow[];
+}
+
 /** The index for one question: the live coverages, the metrics the dataset holds, and the lab source (read once). */
-export async function buildCoverageIndex(caps: readonly Reader[], ctx: CapabilityContext): Promise<string> {
+export async function buildCoverageIndex(caps: readonly Reader[], ctx: CapabilityContext): Promise<BuiltCoverage> {
   const rows = await collectCoverageRows(caps, ctx);
   const withheld = { metrics: !allows(ctx, 'metric-summaries'), labs: !allows(ctx, 'lab-results') };
   let lab: LabSourceInput;
@@ -134,11 +141,20 @@ export async function buildCoverageIndex(caps: readonly Reader[], ctx: Capabilit
   } catch {
     lab = { available: false, reason: 'The lab results could not be read.', documents: 0, totalObservations: 0, collisions: 0, series: [] };
   }
-  return renderCoverageIndex({
+  const text = renderCoverageIndex({
     refKey: ctx.refKey,
     rows,
     metrics: withheld.metrics ? [] : buildMetricIndex(),
     labs: buildLabIndex(lab),
     withheld,
+  });
+  return { text, rows };
+}
+
+/** The rows joined to what the absence audit needs of each capability. */
+export function auditEntries(caps: readonly (Reader & Pick<Capability<never, never>, 'tool' | 'absenceTerms'>)[], rows: readonly CoverageRow[]): AuditEntry[] {
+  return caps.flatMap(c => {
+    const row = rows.find(r => r.id === c.id);
+    return row ? [{ id: c.id, title: c.title, tool: c.tool, absenceTerms: c.absenceTerms, coverage: row.coverage }] : [];
   });
 }

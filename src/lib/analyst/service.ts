@@ -41,7 +41,8 @@ import { StreamGuard, type GuardLimits } from './guard';
 import { buildAnalystUserMessage, buildDataToolsPrompt, buildOnDemandUserMessage, TRAINING_TOOLS_PROMPT } from './systemPrompt';
 import { fitToBudget } from './budget';
 import { createDataAccess, mergeFetched, type DataAccess } from './dataAccess';
-import { buildCoverageIndex } from './capabilities/coverage-index';
+import { appUncertaintyLines, answerFields, auditAbsence, correctiveTurn, type AuditEntry, type Violation } from './capabilities/absence';
+import { auditEntries, buildCoverageIndex } from './capabilities/coverage-index';
 import { renderCapabilityMap } from './capabilities/map';
 import { CAPABILITIES } from './capabilities/registry';
 import { ALLOW_ALL, type PrivacyPolicy } from './capabilities/types';
@@ -49,7 +50,7 @@ import { applyPolicy } from './selection';
 import { isLabQuestion } from './questionKind';
 import { capabilityContext, isOutcome } from './tools/capability-tool';
 import type { LabSourceInput } from './labSnapshot';
-import { runToolLoop, type ToolLoopHooks } from './tool-loop';
+import { runToolLoop, type AbsenceAudit, type ToolLoopHooks } from './tool-loop';
 import { combineChanges, type ToolContext } from './tools';
 import { demoPlanAnswer, PLAN_PROMPTS } from './demo-plan';
 import type { RoutineDeps } from '../routine/service';
@@ -252,6 +253,8 @@ interface Prepared {
   onDemand?: { access: DataAccess; full: () => Promise<RetrievalBundle> };
   /** The coverage index (capabilities/coverage-index.ts): in the message of every question a configured provider answers, in both modes. */
   index?: string;
+  /** What the index said each capability holds, joined to what the absence audit needs (capabilities/absence.ts). */
+  coverage?: AuditEntry[];
   /**
    * The readers the data tools use, set for every question a configured provider may
    * answer with tools, in either context mode. In `ondemand` mode it is the same object
@@ -420,6 +423,7 @@ async function prepareAnalyst(
     });
   let access: DataAccess | undefined;
   let index: string | undefined;
+  let coverage: AuditEntry[] | undefined;
   let bundle: RetrievalBundle;
   let onDemand: Prepared['onDemand'];
   let budgetDropped: string[] | undefined;
@@ -428,7 +432,11 @@ async function prepareAnalyst(
   const readers = isDemo ? undefined : makeAccess();
   if (readers) {
     const cctx = capabilityContext({ system, deps: routineDeps, changes: [], data: readers });
-    if (!isOutcome(cctx)) index = await buildCoverageIndex(CAPABILITIES, cctx);
+    if (!isOutcome(cctx)) {
+      const built = await buildCoverageIndex(CAPABILITIES, cctx);
+      index = built.text;
+      coverage = auditEntries(CAPABILITIES, built.rows);
+    }
   }
   if (onDemandMode) {
     // Nothing is pre-loaded: the model gets an index of what exists and fetches what
@@ -475,7 +483,7 @@ async function prepareAnalyst(
     }
   }
 
-  return { ok: true, config, query: validated.query, notes, notesEcho, bundle, handlerId, system, history, routineDeps, pageContext, goalContext, onDemand, index, access, budgetDropped };
+  return { ok: true, config, query: validated.query, notes, notesEcho, bundle, handlerId, system, history, routineDeps, pageContext, goalContext, onDemand, index, coverage, access, budgetDropped };
 }
 
 /** The runaway limits from the configuration. */
@@ -516,6 +524,23 @@ function usesTools(config: AnalystConfig, provider: ReturnType<typeof createProv
 }
 
 /**
+ * The app's own account of what an answer left out, added to `uncertainty` (design §5.5).
+ * Computed from the coverage the question started with, so it needs no grounding: it is added
+ * after the grounding check and carries no figure the model produced.
+ */
+function withAbsenceLines(answer: AnalystAnswer, violations: Violation[]): AnalystAnswer {
+  const lines = appUncertaintyLines(violations);
+  return lines.length ? { ...answer, uncertainty: [...answer.uncertainty, ...lines] } : answer;
+}
+
+/** An answer from a model with no tools: no lookup was possible, so any absence claim the app holds records against is stated. */
+function auditWithoutTools(answer: AnalystAnswer, prep: Prepared): AnalystAnswer {
+  if (!prep.coverage) return answer;
+  const text = { analysis: [answer.analysis, ...answer.observed, ...answer.interpretation].filter(Boolean).join('\n'), summary: answer.summary, uncertainty: answer.uncertainty };
+  return withAbsenceLines(answer, auditAbsence(text, prep.coverage, []));
+}
+
+/**
  * Answer through the training-plan tool loop. `rejected` means the server
  * refused the tool definitions before any tool ran: the caller answers the
  * ordinary way and shows the note. Anything else is a finished response, which
@@ -553,7 +578,13 @@ async function answerWithTools(
   const systemPrompt = `${config.systemPrompt}${access ? buildDataToolsPrompt(renderCapabilityMap(CAPABILITIES)) : ''}${TRAINING_TOOLS_PROMPT}`;
   try {
     const guard = new StreamGuard(guardLimits(config));
-    const looped = await runToolLoop(provider, systemPrompt, user, toolCtx, hooks, guard);
+    const audit: AbsenceAudit | undefined = prep.coverage
+      ? (text, lookups) => {
+          const violations = auditAbsence(answerFields(text), prep.coverage!, lookups);
+          return violations.length ? { instruction: correctiveTurn(violations), violations } : null;
+        }
+      : undefined;
+    const looped = await runToolLoop(provider, systemPrompt, user, toolCtx, hooks, guard, audit);
     const bundle = currentBundle();
     const planChange = combineChanges(toolCtx.changes);
     let parsed = parseAnalystReply(looped.text, { bundle });
@@ -576,7 +607,7 @@ async function answerWithTools(
       response: base('ok', {
         ...withContext(),
         model: looped.model ?? config.model,
-        answer: parsed.answer,
+        answer: withAbsenceLines(parsed.answer, looped.unaddressed),
         grounding: checkGrounding(parsed.answer, bundle, prep.system, [...pageGrounding(prep), ...looped.toolOutputs]),
         planChange,
         toolsUsed: looped.toolsUsed,
@@ -686,8 +717,8 @@ async function answerWithoutTools(
           message: parsed.reason ?? "The model's reply could not be read as an answer.",
         });
       }
-      answer = parsed.answer;
-      grounding = checkGrounding(answer, bundle, prep.system, pageGrounding(prep));
+      grounding = checkGrounding(parsed.answer, bundle, prep.system, pageGrounding(prep));
+      answer = auditWithoutTools(parsed.answer, prep);
     }
   } catch (error) {
     if (error instanceof AnalystProviderError) {
@@ -913,7 +944,7 @@ export function streamAnalyst(
       kind: 'result',
       response: base('ok', {
         ...withContext,
-        answer: parsed.answer,
+        answer: auditWithoutTools(parsed.answer, ready),
         message: null,
         grounding: checkGrounding(parsed.answer, bundle, ready.system, pageGrounding(ready)),
         // The streaming path reports the model the provider named, so the
