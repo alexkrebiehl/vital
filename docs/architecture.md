@@ -56,6 +56,9 @@ else that wants a machine-readable view of what the app shows.
   explicit `Regenerate` control writes again.
 - **All model calls.** The briefing and the analyst both run server-side, which is why their keys are
   configuration the client never sees.
+- **The analyst reads through a capability registry.** Each thing it can read is one capability, with
+  a client-safe manifest entry and a server read. How to add one is in
+  [The AI Analyst](analyst.md#adding-a-capability).
 
 PostgreSQL holds configuration, profile, preferences and AI conversations. It deliberately holds **no
 health data**.

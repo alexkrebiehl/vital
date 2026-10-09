@@ -1,6 +1,7 @@
 # The AI Analyst
 
-What the AI Analyst can see, how it gets your data, and what it says when something is missing.
+What the AI Analyst can see, how it gets your data, what it says when something is missing, and
+how a developer adds to what it can see ([Adding a capability](#adding-a-capability)).
 
 [← Back to the README](../README.md)
 
@@ -202,3 +203,154 @@ Each of these is in the evaluation set, so each is answerable by a tool that exi
 | App status | "Is my data up to date?" |
 
 You can also ask "What can you look up for me?" and it lists what it holds, with the dates.
+
+## Adding a capability
+
+A capability is one thing the analyst can read, with a stable id such as `sleep.nights`. This
+section is for a developer adding one. Paths are under `src/lib/analyst/`.
+
+### Two files, one entry each
+
+| File | Holds | Why it is separate |
+|---|---|---|
+| `capabilities/manifest.ts` | `id`, `area`, `title`, `tool`, `statusLabel`, `sources`, `category` | **Client-safe.** It imports nothing but `./types`, so the Analyst page can label a lookup ("Looking up your sleep…") without pulling server code into the browser bundle. |
+| `capabilities/areas/<area>.ts` | The rest: description, owner, mirrors, coverage, read | **Server reads.** It reaches the data, which the browser must never import. |
+
+`capabilities/registry.ts` joins them in manifest order and throws when it loads if one side has an
+entry the other lacks. Add the manifest entry, write the area implementation, and list it in
+`IMPLEMENTED` in the registry.
+
+### The fields every capability declares
+
+| Field | What it is for |
+|---|---|
+| `id`, `area`, `title`, `tool` | Identity. `tool` is the tool the model calls to reach it; several capabilities may share one tool. |
+| `statusLabel` | The line the page shows while the lookup runs. |
+| `description` | One or two sentences for the model and for the generated table: what it holds, and what it does not. |
+| `owner` | Who owns the data: `dataset`, `lab-store`, `workout-sources`, `medications-upstream`, `config-store` or `computed`. |
+| `mirrors` | The routes, pages, accessors and metrics this capability covers. The parity test reads it. |
+| `time` | `window` when the read takes a window, `none` otherwise. |
+| `sizeClass` | `small`, `per-day`, `per-record` or `per-series`: how a result grows. |
+| `page` | Default and maximum rows per call, for the row-per-record and row-per-day classes. |
+| `absenceTerms` | The words a reply uses to claim absence. The absence audit looks for them. |
+| `citesAs` | The metric ids an evidence card may cite after a successful read. |
+| `params` | The arguments, for a capability served through `get_app_data`. |
+| `coverage(ctx)` | Cheap: first day, last day and count, or `unknown`/`unavailable` with a reason. It feeds the coverage index and the "nothing in that period" message. |
+| `read(args, ctx)` | The read. It returns an envelope. |
+| `sources` | The source tag (see Source tagging). |
+| `category` | The privacy category (see Privacy). |
+
+The words the model reads about a capability live in `capabilities/guide.holds.ts` (a short phrase
+for the capability map: no values, dates, counts or digits) and `capabilities/guide.examples.ts`
+(two example calls, or one when it takes none). A test checks each example against the tool's own
+schema.
+
+### A dedicated tool, or `get_app_data`
+
+Use `get_app_data` for small state that has no time axis: one capability per call, chosen by its
+id, with its own `params`. The tool enum is built from the manifest, so a new entry appears in it.
+Use a dedicated tool when the read takes a window, returns rows that need paging, or has its own
+vocabulary (a view, a sort, a filter). A dedicated tool is an `AnalystTool` in `tools/`, added to
+`DATA_TOOLS` in `tools/data.ts`, and it runs the capability with `runCapability` from
+`tools/capability-tool.ts`. A tool may serve several capabilities, as `get_workouts` serves
+`workouts.sessions` and `workouts.summary`. A tool that serves several must give them all one
+`sources` tag.
+
+### Windows and envelopes
+
+Take a window with `windowOf` (`capabilities/reads/common.ts`), which calls `resolveWindow`. It
+accepts one of `day`, `month` (`YYYY-MM`), `start` with `end`, or `lastDays`, allows at most 730
+days, and clips an end date after today to today with a note. Do not do your own date arithmetic.
+
+Answer with an envelope (`capabilities/envelope.ts`), one of five statuses:
+
+| Status | When | Helper |
+|---|---|---|
+| `ok` | There is data | `ok` |
+| `no_data_in_window` | The read worked and the window is empty. Not an error | `noDataInWindow`, `emptyWindow` |
+| `source_unavailable` | The data could not be read | `sourceUnavailable` |
+| `privacy_blocked` | The AI privacy setting withholds the category | `privacyBlocked` |
+| `invalid_args` | The arguments are wrong; `problems` says how to fix them | `invalidArgs` |
+
+Wrap the read in `guarded`: it checks the privacy policy first, then turns a thrown error into
+`source_unavailable` with the text scrubbed. Page rows with `pagingOf` and `pageRows`; a row is kept
+whole or left out, and the page says how many of how many it shows and the next offset.
+`no_data_in_window` must carry the coverage, so the analyst can say what the app does hold.
+
+### The number rule
+
+Every number a result returns has a display string beside it, made by the metric formatters, so the
+model quotes a formatted figure and never works one out. `capabilities/number-rule.ts` checks a
+result for it. A count, an offset and a coefficient are exempt by key name (`COUNT_KEYS`); a
+non-finite number never passes, and a missing value is left out rather than sent as zero.
+
+### Privacy category and the canary test
+
+Give the capability a `category` from the closed list in `capabilities/types.ts`
+(`SendingCategory`) and, if none fits, add one with its sentence in `capabilities/categories.ts`.
+The sentence is what [Privacy controls](#privacy-controls) and Settings → AI privacy show, built
+from the categories in use, so a category with no capability is never listed.
+
+`capabilities/privacy.test.ts` is the canary test. It sets every credential variable and stored
+credential the app reads to a distinct canary value, runs every capability, directly and through the
+tool the model calls, against sources that work, throw and report themselves unavailable, and fails
+if a canary appears anywhere in a result, a `next` sentence, a problem or a thrown message. A new
+capability is covered by iterating the registry; a read that builds its own error text must scrub it
+(`scrubForModel`).
+
+### Source tagging
+
+Each answer is stored with the ids of the sources whose data it used, so removing a source deletes
+exactly the conversations that came from it. A capability's `sources` tag
+(`metric-provenance`, `all-health`, `lab`, `hae`, `workout-detail` or `configuration`) is how
+`src/lib/sources/tagging.ts` classifies its tool. The tag is per tool, not per capability, because a
+turn records the tool it called. When unsure, over-tag: an extra source only deletes more on
+removal, and an under-tag would leak. `src/lib/sources/tagging-manifest.test.ts` fails when a tool
+is not classified or a tool has two tags.
+
+### The parity test and exemptions
+
+`capabilities/parity.test.ts` enumerates what the app serves (API routes, dataset accessors,
+metrics, pages and data sources) and fails when one is neither mirrored by a capability nor
+exempted. The failure message names the fix. Either add the key to the `mirrors` of the capability
+that serves it, or add an exemption to `capabilities/exemptions.permanent.ts`:
+
+```
+{ kind: 'route' | 'accessor' | 'page' | 'metric' | 'source', key: '...', reason: '...' }
+```
+
+The `reason` is at least 30 characters and says why the analyst does not need it. Exemptions are
+code, so they are reviewed in the diff. A tracked exemption (a known gap to close later,
+`exemptions.tracked.ts`) is no longer allowed: `ALLOW_TRACKED` is `false`, and a tracked entry
+fails the test. The test also fails on an exemption that is no longer needed, so delete the entry
+when a capability starts to cover the key.
+
+### Regenerating the table
+
+`docs/analyst-capabilities.md` is generated from the registry. Do not edit it by hand.
+
+```
+npm run analyst:capabilities
+node scripts/analyst-capabilities.mjs --check
+```
+
+The first writes the file; the second exits 1 when the committed file is out of date. The parity
+test fails in the same case.
+
+### The evaluation set
+
+`eval/questions.ts` holds 32 questions, each with the first calls a good model makes, as checks on
+the tool and the window. The suite runs them offline: an oracle model issues the expected calls
+against a synthetic world and the test proves that the calls validate, the statuses are the stated
+ones and the answer reads, grounds and passes the absence audit. That says nothing about a real
+model's judgement. To measure one, the owner runs the set live:
+
+```
+ANALYST_PROVIDER=... ANALYST_MODEL=... ANALYST_API_URL=... ANALYST_API_KEY=... \
+  npm run analyst:eval -- --yes [--only 1,4,32]
+```
+
+It sends each question, and every tool round, to the configured model, so run it on demand. It
+refuses to run with the demo analyst or without `--yes`, reads configuration from the process
+environment only, and prints tool names and yes/no results: no value, no answer text and no key. If the new
+capability adds a tool or changes how a question is best asked, add or adjust a question.

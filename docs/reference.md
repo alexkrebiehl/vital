@@ -96,3 +96,5 @@ What is still demo or unwired in this build, exhaustively:
 | `npm run lint` | ESLint (`next lint`) |
 | `npm run test` | Vitest suite |
 | `npm run build` | Production build (standalone output) |
+| `npm run analyst:capabilities` | Regenerate `docs/analyst-capabilities.md` from the capability registry (`node scripts/analyst-capabilities.mjs --check` exits 1 when it is out of date) |
+| `npm run analyst:eval -- --yes` | Send the 32 evaluation questions to the configured model and print, per question, whether the expected tool was called and the window resolved (live and owner-run, not part of `npm run test`; prints tool names and yes/no, no values) |
