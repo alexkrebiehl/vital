@@ -9,6 +9,7 @@
 ### Fixed
 
 - Fix blood pressure showing only the systolic number: charts, tables, averages and baselines now show systolic and diastolic together, with both values on hover ([`21044fb`](https://github.com/echupkin/vital/commit/21044fb), [`6b0fd0b`](https://github.com/echupkin/vital/commit/6b0fd0b), [`d838c57`](https://github.com/echupkin/vital/commit/d838c57))
+- Fix the AI Analyst claiming it has no data it could have looked up: it can now fetch any metric, workout, sleep night, blood pressure reading, lab result, medication dose, goal or report for any date or window, and it checks before saying something is missing ([`00fb88b`](https://github.com/echupkin/vital/commit/00fb88b), [`f286f1d`](https://github.com/echupkin/vital/commit/f286f1d), [`5f2069a`](https://github.com/echupkin/vital/commit/5f2069a), [`721e00e`](https://github.com/echupkin/vital/commit/721e00e), [`e6b8fc8`](https://github.com/echupkin/vital/commit/e6b8fc8), [`67b434b`](https://github.com/echupkin/vital/commit/67b434b), [`6babbd9`](https://github.com/echupkin/vital/commit/6babbd9), [`8e87200`](https://github.com/echupkin/vital/commit/8e87200), [`4527549`](https://github.com/echupkin/vital/commit/4527549))
 
 ## [0.3.1] - 2026-10-07
 
