@@ -55,6 +55,7 @@ function ctxFor(over: Partial<CapabilityContext> = {}): CapabilityContext {
 const EXPECTED: [id: string, tool: string][] = [
   ['metrics.summary', 'get_metrics'],
   ['metrics.compare', 'compare_periods'],
+  ['metrics.series', 'get_metric_series'],
   ['metrics.relationship', 'get_metric_relationship'],
   ['workouts.summary', 'get_workouts'],
   ['labs.series', 'get_lab_results'],

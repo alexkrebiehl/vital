@@ -18,6 +18,7 @@ const BY_ID = new Map<string, AnyCapability>(
   [
     metrics.summary,
     metrics.compare,
+    metrics.series,
     metrics.relationship,
     workouts.summary,
     labs.series,

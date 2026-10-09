@@ -36,6 +36,8 @@ export interface PairSpec {
   alignment: 'same-day' | 'lagged';
   lagDays?: number;
   days?: number;
+  /** An explicit window; wins over `days`. */
+  window?: DayWindow;
   /** Split the paired days by the median of X. */
   splitByX?: boolean;
 }
@@ -158,7 +160,7 @@ function buildSummary(metricId: string, days: number, refKey: string): { summary
 }
 
 function buildPair(spec: PairSpec, refKey: string): { pair: RetrievedPair; recordsRead: number } {
-  const window = trailingWindow(refKey, spec.days ?? 90);
+  const window = spec.window ?? trailingWindow(refKey, spec.days ?? 90);
   const result = computeRelationship(
     spec.x,
     spec.y,

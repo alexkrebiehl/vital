@@ -4,6 +4,7 @@
 export const DATA_TOOL_NAMES = [
   'get_metrics',
   'compare_periods',
+  'get_metric_series',
   'get_metric_relationship',
   'get_workouts',
   'get_lab_results',

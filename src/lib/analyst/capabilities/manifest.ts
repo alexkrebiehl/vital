@@ -29,6 +29,15 @@ export const CAPABILITY_MANIFEST: CapabilityManifestEntry[] = [
     category: 'metric-summaries',
   },
   {
+    id: 'metrics.series',
+    area: 'metrics',
+    title: 'Metric series',
+    tool: 'get_metric_series',
+    statusLabel: 'Looking up your metric series…',
+    sources: 'metric-provenance',
+    category: 'metric-summaries',
+  },
+  {
     id: 'metrics.relationship',
     area: 'metrics',
     title: 'Metric relationship',

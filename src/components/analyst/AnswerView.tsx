@@ -87,6 +87,7 @@ export function ReasoningBlock({ reasoning }: { reasoning: string }) {
 const DATA_LOOKUPS: Record<string, string> = {
   get_metrics: 'Looking up your metrics…',
   compare_periods: 'Comparing two periods…',
+  get_metric_series: 'Looking up your metric series…',
   get_metric_relationship: 'Checking how two metrics move together…',
   get_workouts: 'Looking up your workouts…',
   get_lab_results: 'Looking up your lab results…',

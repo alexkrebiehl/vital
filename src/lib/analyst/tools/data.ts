@@ -13,10 +13,13 @@
 // what lets the answer cite it and the number audit check it.
 
 import { isPairedMetric, metricHasData, seriesFor, unavailableReasonFor } from '../../adapters/dataset';
-import { getAllMetrics, getMetric, searchMetrics } from '../../metrics/registry';
+import { getMetric } from '../../metrics/registry';
+import { PAIRED_REASON, resolveMetric } from './metric-resolve';
+import { getMetricSeries } from './series-tool';
 import { formatDeltaWithUnit, formatMetricWithUnit, metricUnit } from '../../metrics/format';
 import { formatPercent } from '../../metrics/format';
-import { containsDay } from '../../analytics/windows';
+import { containsDay, makeWindow } from '../../analytics/windows';
+import { resolveWindow, WINDOW_SCHEMA } from '../capabilities/window';
 import { mean, median, max as maxOf, min as minOf, percentChange } from '../../analytics/stats';
 import { analyteRequestedBy, changeText, readingText, seriesSnapshot, toReading, type LabSeriesInput } from '../labSnapshot';
 import { MAX_POINTS_PER_SERIES, pairFor, summaryFor, workoutsFor } from '../retrieval';
@@ -46,36 +49,7 @@ const isOutcome = (x: DataAccess | ToolOutcome): x is ToolOutcome => 'content' i
 
 const fail = (error: string, extra: Record<string, unknown> = {}): ToolOutcome => ({ isError: true, content: { error, ...extra } });
 
-const squash = (text: string): string => text.toLowerCase().replace(/[^a-z0-9]+/g, '');
-
-/** Ids the model may have meant: substring either way ignoring spaces and underscores, then shared words. */
-function suggest(name: string): string[] {
-  const q = squash(name);
-  if (q.length < 3) return [];
-  const words = name.toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length >= 3);
-  const candidates = getAllMetrics().filter(m => metricHasData(m.id));
-  const names = (m: (typeof candidates)[number]) => [m.id, m.displayName, ...m.aliases].map(squash);
-  const direct = candidates.filter(m => names(m).some(n => n.includes(q) || (n.length >= 4 && q.includes(n))));
-  const byWord = candidates.filter(m => !direct.includes(m) && words.some(w => names(m).some(n => n.includes(w))));
-  const found = [...direct, ...byWord, ...searchMetrics(name.trim()).filter(m => metricHasData(m.id))];
-  return [...new Set(found.map(m => m.id))].slice(0, 5);
-}
-
-/** A metric id the model gave, resolved against the registry (id, display name or alias). */
-function resolveMetric(name: string): { id: string } | { error: string; didYouMean: string[] } {
-  const raw = String(name).trim();
-  if (getMetric(raw)) return { id: raw };
-  const lowered = raw.toLowerCase();
-  const exact = getAllMetrics().find(m => m.displayName.toLowerCase() === lowered || m.aliases.some(a => a.toLowerCase() === lowered));
-  if (exact) return { id: exact.id };
-  return { error: `No metric "${raw}". Use an id from the index.`, didYouMean: suggest(raw) };
-}
-
 // ── Metric summaries ────────────────────────────────────
-
-/** Blood pressure is two numbers per reading; these tools summarise one number per day. */
-const PAIRED_REASON =
-  'Blood pressure is a pair of numbers per reading (systolic and diastolic). These tools summarise a single number, which would leave out half of it, so it is not summarised here. The Health page lists each reading as systolic/diastolic.';
 
 function note(access: DataAccess, line: string): void {
   access.fetched.log.push(line);
@@ -250,7 +224,8 @@ const getRelationship: AnalystTool = {
     properties: {
       x: { type: 'string' },
       y: { type: 'string' },
-      days: { type: 'integer', minimum: 7, maximum: MAX_WINDOW_DAYS, description: 'Default 90.' },
+      window: { ...WINDOW_SCHEMA, description: `${WINDOW_SCHEMA.description} Default: the last 90 days.` },
+      days: { type: 'integer', minimum: 7, maximum: MAX_WINDOW_DAYS, description: 'The last N days; the same as window.lastDays. Default 90.' },
       lagDays: { type: 'integer', minimum: 1, maximum: 14, description: 'Pair X with Y this many days later. Omit for same-day.' },
     },
     additionalProperties: false,
@@ -263,8 +238,11 @@ const getRelationship: AnalystTool = {
     if ('error' in x) return fail(x.error, { didYouMean: x.didYouMean });
     if ('error' in y) return fail(y.error, { didYouMean: y.didYouMean });
     const lag = typeof args.lagDays === 'number' ? Math.round(args.lagDays) : 0;
+    if (typeof args.days === 'number' && args.window !== undefined) return fail('Give either window or days (the same as window.lastDays), not both.');
+    const w = resolveWindow(typeof args.days === 'number' ? { lastDays: Math.round(args.days) } : args.window, { refKey: access.refKey, defaultLastDays: 90 });
+    if (!w.ok) return fail(w.problems.join(' '));
     const built = pairFor(
-      { x: x.id, y: y.id, alignment: lag > 0 ? 'lagged' : 'same-day', lagDays: lag || undefined, days: typeof args.days === 'number' ? Math.round(args.days) : 90, splitByX: true },
+      { x: x.id, y: y.id, alignment: lag > 0 ? 'lagged' : 'same-day', lagDays: lag || undefined, window: makeWindow(w.window.start, w.window.end, `${w.window.asked}`), splitByX: true },
       access.refKey
     );
     const p = built.pair;
@@ -505,4 +483,4 @@ const getMedications: AnalystTool = {
   },
 };
 
-export const DATA_TOOLS: AnalystTool[] = [getMetrics, compareMetricPeriods, getRelationship, getWorkouts, getLabResults, compareLabPanels, getMedications];
+export const DATA_TOOLS: AnalystTool[] = [getMetrics, compareMetricPeriods, getMetricSeries, getRelationship, getWorkouts, getLabResults, compareLabPanels, getMedications];

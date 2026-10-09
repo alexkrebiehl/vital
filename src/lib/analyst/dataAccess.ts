@@ -21,6 +21,8 @@
 import type { UnitSystem } from '../prefs';
 import { loadLabSource } from './labContext';
 import type { LabSourceInput } from './labSnapshot';
+import { loadTrainingData, type TrainingData } from '../workout-sources/store';
+import type { SourceRequestDeps } from '../workout-sources/types';
 import { loadMedicationSnapshot } from './medicationsContext';
 import type {
   LabContextSnapshot,
@@ -51,6 +53,8 @@ export interface DataAccess {
   /** The stored lab series, read once per question. */
   labSource(): Promise<LabSourceInput>;
   medications(days: number): Promise<MedicationContextSnapshot>;
+  /** The strength sessions of the connected workout sources, read once per question. */
+  trainingData(deps: SourceRequestDeps): Promise<TrainingData>;
   fetched: Fetched;
 }
 
@@ -60,10 +64,12 @@ export interface DataAccessOptions {
   env?: NodeJS.ProcessEnv;
   labSource?: () => Promise<LabSourceInput>;
   medications?: (days: number) => Promise<MedicationContextSnapshot>;
+  training?: (deps: SourceRequestDeps) => Promise<TrainingData>;
 }
 
 export function createDataAccess(options: DataAccessOptions): DataAccess {
   let lab: Promise<LabSourceInput> | null = null;
+  let training: Promise<TrainingData> | null = null;
   const fetched: Fetched = {
     summaries: [],
     pairs: [],
@@ -80,6 +86,7 @@ export function createDataAccess(options: DataAccessOptions): DataAccess {
     labSource: () => (lab ??= (options.labSource ?? (() => loadLabSource({ env: options.env })))()),
     medications: days =>
       (options.medications ?? (d => loadMedicationSnapshot('', { ...(options.env ? { env: options.env } : {}), lookbackDays: d })))(days),
+    trainingData: deps => (training ??= (options.training ?? loadTrainingData)(deps)),
     fetched,
   };
 }

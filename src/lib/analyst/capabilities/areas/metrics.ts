@@ -5,6 +5,7 @@ import { getAllMetrics } from '../../../metrics/registry';
 import type { Capability, CapabilityContext, Coverage } from '../types';
 import { manifestEntry } from '../manifest';
 import { readThrough } from './legacy';
+import { readMetricSeries } from '../reads/metric-series';
 
 type Args = Record<string, unknown>;
 
@@ -50,6 +51,25 @@ export const compare: Capability<Args, unknown> = {
   absenceTerms: ABSENCE,
   coverage: metricsCoverage,
   read: (args, ctx) => readThrough(compare)(args, ctx),
+};
+
+export const series: Capability<Args, unknown> = {
+  ...manifestEntry('metrics.series'),
+  description:
+    'One to three daily health metrics (heart, activity, body, nutrition, sleep minutes) over any window: a summary, the daily, weekly or monthly points, and the change against the window before or one you name. Blood pressure and sleep stages are not here.',
+  owner: 'dataset',
+  mirrors: {
+    pages: ['/metric/[metricId]', '/trends'],
+    accessors: ['seriesFor', 'metricSeries', 'metricHasData', 'unavailableReasonFor', 'isPairedMetric', 'coverageFor', 'availableMetricIds'],
+    metrics: singleNumberMetricIds(),
+  },
+  time: 'window',
+  sizeClass: 'per-series',
+  page: { defaultLimit: 92, maxLimit: 92 },
+  absenceTerms: ABSENCE,
+  citesAs: [],
+  coverage: metricsCoverage,
+  read: (args, ctx) => readMetricSeries(args, ctx),
 };
 
 export const relationship: Capability<Args, unknown> = {
