@@ -1,3 +1,5 @@
+Implemented in 0.3.2; the user documentation is `docs/analyst.md`.
+
 # AI Analyst: data access for any capability, any time (design)
 
 Status: design for the 0.3.2 line. Gates AN-D1 … AN-D7 implement it, AN-W1 documents it.

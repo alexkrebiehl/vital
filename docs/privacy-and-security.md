@@ -60,6 +60,12 @@ What Vital does and does not do with your data, and what to put in front of it b
   the environment are ignored. The environment holds only admin settings.
 - **Vital has no login.** Anyone who can reach it can press **Connect** or **Disconnect** on
   Oura. Put your own authentication in front of it before exposing it.
+- **What reaches an analyst model is listed, by category.** With a remote model configured, the
+  analyst can read your metric summaries, sleep nights, blood pressure, workouts, strength
+  sessions, lab results, medication records, body goal, profile context, app state and coarse
+  locations (distance and counts per saved map area, never a route or a coordinate). Your name and
+  date of birth are never sent. The exact sentences, which Settings → AI privacy also shows, and
+  the controls are in [The AI Analyst](analyst.md#privacy-controls). The demo analyst sends nothing.
 - **Removing a source erases what Vital holds, at once, not what you copied.** See *Removing a
   source* in [Data sources](data-sources.md#removing-a-source). Screenshots and exports you made
   yourself, and Postgres backups taken before the removal, are outside Vital's reach.

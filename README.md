@@ -78,6 +78,9 @@ Ask in ordinary language and get an answer that reads like a short medical analy
 - **Prose with meaning.** The reply explains what the pattern is consistent with (named as
   *possibilities*, never as a diagnosis), what it does not tell you, and what to do next — with a
   short list of next steps and a closing summary.
+- **It looks things up.** It can read any of your recorded data for any period, sleep nights,
+  workouts, labs, medications and more, and says how much the app holds when something is empty.
+  See [The AI Analyst](docs/analyst.md).
 - **It points rather than recites.** Measurements appear as links to their own pages, so the answer
   stays readable and the numbers are one click away.
 - **What you tell it counts.** Say *"I have no fever"* and, if a temperature reading exists, it
