@@ -51,9 +51,17 @@ describe('get_metric_series', () => {
     expect(empty.json.status).toBe('no_data_in_window');
   });
 
-  it('keeps get_metrics and compare_periods working beside it', async () => {
-    expect((await call('get_metrics', { metrics: ['resting_heart_rate'] })).isError).toBe(false);
-    expect((await call('compare_periods', { metric: 'resting_heart_rate', aStart: '2026-09-01', aEnd: '2026-09-07', bStart: '2026-09-08', bEnd: '2026-09-14' })).isError).toBe(false);
+  it('replaced get_metrics and compare_periods: they are gone, with no alias', async () => {
+    const offered = availableTools({ data: testCtx().access }).map(t => t.name);
+    expect(offered).not.toContain('get_metrics');
+    expect(offered).not.toContain('compare_periods');
+    expect(DATA_TOOL_NAMES).not.toContain('get_metrics');
+    expect(DATA_TOOL_NAMES).not.toContain('compare_periods');
+    for (const name of ['get_metrics', 'compare_periods']) {
+      const r = await call(name, { metrics: ['resting_heart_rate'] });
+      expect(r.isError).toBe(true);
+      expect(r.json.error).toMatch(new RegExp(`There is no tool "${name}"`));
+    }
   });
 
   it('carries the figures an answer may quote as display strings', async () => {

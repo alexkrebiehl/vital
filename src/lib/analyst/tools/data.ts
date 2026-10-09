@@ -12,31 +12,24 @@
 // cut off mid-JSON. Whatever a tool returns is recorded in ctx.data.fetched, which is
 // what lets the answer cite it and the number audit check it.
 
-import { isPairedMetric, metricHasData, seriesFor, unavailableReasonFor } from '../../adapters/dataset';
-import { getMetric } from '../../metrics/registry';
 import { scrubForModel } from '../scrub';
-import { PAIRED_REASON, resolveMetric } from './metric-resolve';
+import { resolveMetric } from './metric-resolve';
 import { getMetricSeries } from './series-tool';
 import { getBloodPressure, getSleep, getWorkouts } from './records-tools';
 import { getMedications } from './medications-tool';
 import { getAppData } from './app-data-tool';
 import { listCapabilities } from './list-capabilities';
-import { formatDeltaWithUnit, formatMetricWithUnit, metricUnit } from '../../metrics/format';
-import { formatPercent } from '../../metrics/format';
-import { containsDay, makeWindow } from '../../analytics/windows';
+import { formatMetricWithUnit } from '../../metrics/format';
+import { makeWindow } from '../../analytics/windows';
 import { resolveWindow, WINDOW_SCHEMA } from '../capabilities/window';
 import { labInWindow, namesNotInWindow } from '../capabilities/reads/lab-window';
-import { mean, median, max as maxOf, min as minOf, percentChange } from '../../analytics/stats';
 import { analyteRequestedBy, changeText, readingText, seriesSnapshot, toReading, type LabSeriesInput } from '../labSnapshot';
-import { MAX_POINTS_PER_SERIES, pairFor, summaryFor } from '../retrieval';
-import { summaryPayload } from '../systemPrompt';
-import type { RetrievedSummary } from '../types';
+import { MAX_POINTS_PER_SERIES, pairFor } from '../retrieval';
 import type { DataAccess } from '../dataAccess';
 import type { AnalystTool, ToolContext, ToolOutcome } from './index';
 
 /** A data tool's result, in characters of JSON. Under the loop's own 14,000 cut-off, so nothing is ever sliced. */
 export const MAX_DATA_RESULT_CHARS = 12_000;
-export const MAX_METRICS_PER_CALL = 3;
 export const MAX_LAB_SERIES_PER_CALL = 20;
 export const MAX_COMPARE_ROWS = 60;
 export const MAX_WINDOW_DAYS = 730;
@@ -55,169 +48,9 @@ const isOutcome = (x: DataAccess | ToolOutcome): x is ToolOutcome => 'content' i
 
 const fail = (error: string, extra: Record<string, unknown> = {}): ToolOutcome => ({ isError: true, content: { error, ...extra } });
 
-// ── Metric summaries ────────────────────────────────────
-
 function note(access: DataAccess, line: string): void {
   access.fetched.log.push(line);
 }
-
-function remember(access: DataAccess, s: RetrievedSummary, keepPoints: boolean): void {
-  const stored = keepPoints ? s : { ...s, points: [] };
-  const i = access.fetched.summaries.findIndex(
-    x => x.metricId === s.metricId && x.window.startKey === s.window.startKey && x.window.endKey === s.window.endKey
-  );
-  if (i >= 0) access.fetched.summaries[i] = stored;
-  else access.fetched.summaries.push(stored);
-  access.fetched.recordsRead += s.points.length;
-}
-
-const getMetrics: AnalystTool = {
-  name: 'get_metrics',
-  kind: 'read',
-  description:
-    `Up to ${MAX_METRICS_PER_CALL} metrics over the last N days against the N before, with a daily series. Quote the "display" strings. get_metric_series does more.`,
-  parameters: {
-    type: 'object',
-    required: ['metrics'],
-    properties: {
-      metrics: { type: 'array', items: { type: 'string' }, maxItems: MAX_METRICS_PER_CALL, description: 'Metric ids from the index, e.g. "resting_heart_rate".' },
-      days: { type: 'integer', minimum: 1, maximum: MAX_WINDOW_DAYS, description: 'Length of the window in days, ending on the latest day with data. Default 30.' },
-      series: { type: 'boolean', description: 'Include the daily series (at most 90 points). Default true.' },
-    },
-    additionalProperties: false,
-  },
-  async run(args, ctx) {
-    const access = need(ctx);
-    if (isOutcome(access)) return access;
-    const days = typeof args.days === 'number' ? Math.round(args.days) : 30;
-    const wantSeries = args.series !== false;
-    const ids: string[] = [];
-    const problems: { metric: string; problem: string; didYouMean?: string[] }[] = [];
-    for (const name of args.metrics as string[]) {
-      const r = resolveMetric(name);
-      if ('error' in r) problems.push({ metric: name, problem: r.error, didYouMean: r.didYouMean });
-      else if (!ids.includes(r.id)) ids.push(r.id);
-    }
-
-    const out: { id: string; payload: ReturnType<typeof summaryPayload>; summary: RetrievedSummary }[] = [];
-    const empty: { metric: string; reason: string }[] = [];
-    for (const id of ids) {
-      if (isPairedMetric(id)) {
-        empty.push({ metric: id, reason: PAIRED_REASON });
-        continue;
-      }
-      if (!metricHasData(id)) {
-        empty.push({ metric: id, reason: unavailableReasonFor(id) });
-        continue;
-      }
-      const built = summaryFor(id, days, access.refKey);
-      out.push({ id, payload: summaryPayload(built.summary, access.system), summary: built.summary });
-    }
-
-    // Keep the whole result under the limit: drop daily series (latest-listed first), and say so.
-    const seriesOmitted: string[] = [];
-    const render = () =>
-      out.map(o => ({ ...o.payload, series: seriesOmitted.includes(o.id) || !wantSeries ? undefined : o.payload.series }));
-    if (!wantSeries) seriesOmitted.push(...out.map(o => o.id));
-    for (let i = out.length - 1; i >= 0 && size({ metrics: render() }) > MAX_DATA_RESULT_CHARS - 1500; i--) {
-      if (!seriesOmitted.includes(out[i].id)) seriesOmitted.push(out[i].id);
-    }
-    if (size({ metrics: render() }) > MAX_DATA_RESULT_CHARS) {
-      return fail(`The result is too large (${size({ metrics: render() })} characters, limit ${MAX_DATA_RESULT_CHARS}). Ask for fewer metrics or a shorter window.`);
-    }
-    for (const o of out) {
-      remember(access, o.summary, !seriesOmitted.includes(o.id));
-      note(access, `${o.summary.metricName}, last ${days} days`);
-    }
-    return {
-      content: {
-        unitSystem: access.system,
-        metrics: render(),
-        ...(seriesOmitted.length ? { seriesOmitted: { metrics: seriesOmitted, why: 'left out to keep the result within its size limit; ask for these metrics alone to get the series' } } : {}),
-        ...(empty.length ? { noData: empty } : {}),
-        ...(problems.length ? { notFound: problems } : {}),
-      },
-    };
-  },
-};
-
-// ── Any two periods ─────────────────────────────────────
-
-const compareMetricPeriods: AnalystTool = {
-  name: 'compare_periods',
-  kind: 'read',
-  description:
-    'One metric over two date ranges you name (YYYY-MM-DD): each one\'s summary and the change from A to B, as display strings.',
-  parameters: {
-    type: 'object',
-    required: ['metric', 'aStart', 'aEnd', 'bStart', 'bEnd'],
-    properties: {
-      metric: { type: 'string', description: 'A metric id from the index.' },
-      aStart: { type: 'string' },
-      aEnd: { type: 'string' },
-      bStart: { type: 'string' },
-      bEnd: { type: 'string' },
-    },
-    additionalProperties: false,
-  },
-  async run(args, ctx) {
-    const access = need(ctx);
-    if (isOutcome(access)) return access;
-    const r = resolveMetric(String(args.metric));
-    if ('error' in r) return fail(r.error, { didYouMean: r.didYouMean });
-    const date = /^\d{4}-\d{2}-\d{2}$/;
-    for (const k of ['aStart', 'aEnd', 'bStart', 'bEnd']) if (!date.test(String(args[k]))) return fail(`${k} must be a date as YYYY-MM-DD.`);
-    const a = { startKey: String(args.aStart), endKey: String(args.aEnd), label: 'Period A' };
-    const b = { startKey: String(args.bStart), endKey: String(args.bEnd), label: 'Period B' };
-    if (a.startKey > a.endKey || b.startKey > b.endKey) return fail('A period must start on or before the day it ends.');
-    if (isPairedMetric(r.id)) return fail(PAIRED_REASON);
-    if (!metricHasData(r.id)) return fail(`No ${getMetric(r.id)?.displayName ?? r.id} data is recorded.`, { reason: unavailableReasonFor(r.id) });
-
-    const meta = getMetric(r.id);
-    const accumulating = meta?.aggregationStrategy === 'sum';
-    const take = (w: typeof a) => {
-      const pts = seriesFor(r.id).filter(p => containsDay(w, p.key));
-      // A day still accumulating is not a day: it would drag a daily total down.
-      const complete = accumulating ? pts.filter(p => p.partial !== true && p.key !== access.refKey) : pts;
-      return { values: complete.map(p => p.value), dropped: pts.length - complete.length };
-    };
-    const A = take(a);
-    const B = take(b);
-    const show = (v: number[], f: (x: number[]) => number) => (v.length ? formatMetricWithUnit(r.id, f(v), access.system) : 'no records');
-    const describe = (w: typeof a, t: ReturnType<typeof take>) => ({
-      range: `${w.startKey} to ${w.endKey}`,
-      observations: t.values.length,
-      mean: show(t.values, mean),
-      median: show(t.values, median),
-      min: show(t.values, minOf),
-      max: show(t.values, maxOf),
-      ...(t.dropped ? { note: `${t.dropped} day(s) still accumulating were left out` } : {}),
-    });
-    let change: Record<string, string>;
-    if (A.values.length && B.values.length) {
-      const d = mean(B.values) - mean(A.values);
-      const pct = percentChange(mean(B.values), mean(A.values));
-      change = { meanChange: formatDeltaWithUnit(r.id, d, access.system), meanChangePercent: formatPercent(pct) };
-    } else {
-      change = { meanChange: 'no comparison available: a period has no records' };
-    }
-    access.fetched.citable.add(r.id);
-    access.fetched.recordsRead += A.values.length + B.values.length;
-    note(access, `${meta?.displayName ?? r.id}, ${a.startKey}..${a.endKey} vs ${b.startKey}..${b.endKey}`);
-    return {
-      content: {
-        metric: r.id,
-        metricName: meta?.displayName ?? r.id,
-        unit: metricUnit(r.id, access.system) || 'count (no unit)',
-        aggregation: accumulating ? 'daily total, complete days only' : meta?.aggregationStrategy === 'latest' ? 'latest recorded value' : 'daily average',
-        periodA: describe(a, A),
-        periodB: describe(b, B),
-        ...change,
-        note: 'Quote the display strings; B is compared against A.',
-      },
-    };
-  },
-};
 
 /** The two group means of a relationship split, in each metric's own formatter. */
 function groupDisplay(xId: string, yId: string, g: { xMean: number; yMean: number }, system: DataAccess['system']): Record<string, string> {
@@ -470,4 +303,4 @@ const compareLabPanels: AnalystTool = {
   },
 };
 
-export const DATA_TOOLS: AnalystTool[] = [listCapabilities, getMetrics, compareMetricPeriods, getMetricSeries, getRelationship, getWorkouts, getSleep, getBloodPressure, getLabResults, compareLabPanels, getMedications, getAppData];
+export const DATA_TOOLS: AnalystTool[] = [listCapabilities, getMetricSeries, getRelationship, getWorkouts, getSleep, getBloodPressure, getLabResults, compareLabPanels, getMedications, getAppData];

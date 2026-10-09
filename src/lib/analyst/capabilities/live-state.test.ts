@@ -64,7 +64,7 @@ describe('removing a source between two questions', () => {
     expect((await after.tool('get_metric_series', { metrics: ['resting_heart_rate'], window: { lastDays: 30 } })).status).not.toBe('ok');
     const sleep = await after.tool('get_sleep', { window: { lastDays: 14 } });
     expect(sleep.status).toBe('no_data_in_window');
-    const coverage = await capabilityById('metrics.summary')!.coverage(after.ctx);
+    const coverage = await capabilityById('metrics.series')!.coverage(after.ctx);
     expect(coverage.kind === 'known' && coverage.count).toBe(0);
   });
 });

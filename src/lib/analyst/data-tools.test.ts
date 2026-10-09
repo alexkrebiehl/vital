@@ -13,7 +13,7 @@ import { buildContextPayload } from './systemPrompt';
 import { DATA_TOOLS, MAX_COMPARE_ROWS, MAX_DATA_RESULT_CHARS, MAX_LAB_SERIES_PER_CALL } from './tools/data';
 import { availableTools, runTool, type ToolContext } from './tools';
 import { checkGrounding } from './validate';
-import { retrieveNone } from './retrieval';
+import { retrieveNone, summaryFor } from './retrieval';
 import type { LabSeriesInput, LabSeriesObservationInput, LabSourceInput } from './labSnapshot';
 import type { AnalystAnswer } from './types';
 
@@ -230,89 +230,106 @@ describe('compare_lab_panels', () => {
   });
 });
 
-describe('get_metrics', () => {
-  it('returns the same payload the fixed context carries for the metric', async () => {
+// get_metrics and compare_periods were retired in favour of get_metric_series (design §13).
+// These are their tests, moved: each behaviour they pinned is asserted again on the new tool.
+describe('get_metric_series (what get_metrics pinned)', () => {
+  it('returns the display strings the fixed context carries for the metric', async () => {
     const ctx = ctxFor();
-    const r = await call(ctx, 'get_metrics', { metrics: ['resting_heart_rate'], days: 7 });
+    const r = await call(ctx, 'get_metric_series', { metrics: ['resting_heart_rate'], window: { lastDays: 7 } });
     expect(r.isError).toBe(false);
-    const m = r.json.metrics[0];
+    const m = r.json.data.metrics[0];
     expect(m.metricId).toBe('resting_heart_rate');
-    expect(m.display.unit).toBeTruthy();
-    expect(m.display.current).toMatch(/\d/);
-    expect(m.series.length).toBeGreaterThan(0);
+    expect(m.unit).toBeTruthy();
+    expect(m.summary.mean).toMatch(/\d/);
+    expect(m.points.length).toBeGreaterThan(0);
+    expect(m.points.every((p: { display: string }) => /\d/.test(p.display))).toBe(true);
 
-    const fixed = buildContextPayload({ ...retrieveNone('x', '2026-09-17'), summaries: ctx.data!.fetched.summaries }, 'metric');
-    expect(fixed.metrics[0].display).toEqual(m.display);
+    const fixed = buildContextPayload({ ...retrieveNone('x', '2026-09-17'), summaries: [summaryFor('resting_heart_rate', 7, '2026-09-17').summary] }, 'metric').metrics[0].display;
+    expect({ mean: m.summary.mean, median: m.summary.median, min: m.summary.min, max: m.summary.max, delta: m.change.delta }).toEqual({ mean: fixed.mean, median: fixed.median, min: fixed.min, max: fixed.max, delta: fixed.delta });
   });
 
   it('accepts a display name and suggests ids for one it cannot place', async () => {
-    const ok = await call(ctxFor(), 'get_metrics', { metrics: ['Resting Heart Rate'] });
-    expect(ok.json.metrics[0].metricId).toBe('resting_heart_rate');
-    const bad = await call(ctxFor(), 'get_metrics', { metrics: ['heartrate'] });
-    expect(bad.json.metrics).toEqual([]);
-    expect(bad.json.notFound[0].metric).toBe('heartrate');
-    expect(bad.json.notFound[0].didYouMean.length).toBeGreaterThan(0);
+    const ok = await call(ctxFor(), 'get_metric_series', { metrics: ['Resting Heart Rate'] });
+    expect(ok.json.data.metrics[0].metricId).toBe('resting_heart_rate');
+    const bad = await call(ctxFor(), 'get_metric_series', { metrics: ['heartrate'] });
+    expect(bad.isError).toBe(true);
+    expect(bad.json.status).toBe('invalid_args');
+    expect(bad.json.data.didYouMean.length).toBeGreaterThan(0);
   });
 
-  it('never summarises blood pressure by one of its two numbers', async () => {
-    const r = await call(ctxFor(), 'get_metrics', { metrics: ['blood_pressure'], days: 90 });
-    expect(r.json.metrics).toEqual([]);
-    expect(r.json.noData[0].metric).toBe('blood_pressure');
-    expect(r.json.noData[0].reason).toMatch(/systolic and diastolic/);
-    const c = await call(ctxFor(), 'compare_periods', {
-      metric: 'blood_pressure', aStart: '2026-03-01', aEnd: '2026-03-31', bStart: '2026-04-01', bEnd: '2026-04-30',
-    });
+  it('never summarises blood pressure by one of its two numbers, with or without a comparison', async () => {
+    const r = await call(ctxFor(), 'get_metric_series', { metrics: ['blood_pressure'], window: { lastDays: 90 } });
+    expect(r.isError).toBe(true);
+    expect(r.json.problems.join(' ')).toMatch(/pair of numbers.*get_blood_pressure/);
+    expect(r.json.data).toBeUndefined();
+    const c = await call(ctxFor(), 'get_metric_series', { metrics: ['blood_pressure'], window: { start: '2026-04-01', end: '2026-04-30' }, compareTo: { start: '2026-03-01', end: '2026-03-31' } });
     expect(c.isError).toBe(true);
-    expect(c.json.error).toMatch(/systolic and diastolic/);
+    expect(c.json.problems.join(' ')).toMatch(/pair of numbers.*get_blood_pressure/);
   });
 
-  it('series=false returns the totals only', async () => {
-    const r = await call(ctxFor(), 'get_metrics', { metrics: ['step_count'], days: 14, series: false });
-    expect(r.json.metrics[0].series).toBeUndefined();
-    expect(r.json.metrics[0].display.current).toMatch(/\d/);
-    expect(r.json.seriesOmitted.metrics).toEqual(['step_count']);
+  it('granularity summary returns the totals only', async () => {
+    const r = await call(ctxFor(), 'get_metric_series', { metrics: ['step_count'], window: { lastDays: 14 }, granularity: 'summary' });
+    const m = r.json.data.metrics[0];
+    expect(m.points).toBeUndefined();
+    expect(m.summary.mean).toMatch(/\d/);
+    expect(m.change.current).toMatch(/\d/);
   });
 
-  it('stays inside the size limit on a long window and says what it left out', async () => {
-    const r = await call(ctxFor(), 'get_metrics', { metrics: ['resting_heart_rate', 'step_count', 'heart_rate_variability'], days: 730 });
+  it('stays inside the size limit on a long window, never cut mid-value, and says what it left out', async () => {
+    const r = await call(ctxFor(), 'get_metric_series', { metrics: ['resting_heart_rate', 'step_count', 'heart_rate_variability'], window: { lastDays: 730 }, granularity: 'day' });
     expect(r.content.length).toBeLessThanOrEqual(MAX_DATA_RESULT_CHARS);
+    expect(r.content).not.toContain('… [truncated]');
     expect(() => JSON.parse(r.content)).not.toThrow();
+    const left = r.json.data.metrics.filter((m: { page?: { nextOffset?: number } }) => m.page?.nextOffset !== undefined);
+    expect(left.length).toBeGreaterThan(0);
+    expect(left[0].page.how).toMatch(/offset/);
   });
 
   it('refuses more than three metrics at once', async () => {
-    const r = await call(ctxFor(), 'get_metrics', { metrics: ['a', 'b', 'c', 'd'] });
+    const r = await call(ctxFor(), 'get_metric_series', { metrics: ['a', 'b', 'c', 'd'] });
     expect(r.isError).toBe(true);
     expect(r.json.problems.join(' ')).toMatch(/at most 3/);
   });
 });
 
-describe('compare_periods', () => {
+describe('get_metric_series (what compare_periods pinned)', () => {
+  // Period A is the baseline (compareTo), period B the window: the change is B against A, as it was.
+  const periods = { window: { start: '2026-09-10', end: '2026-09-16' }, compareTo: { start: '2026-08-01', end: '2026-08-07' } };
+
   it('compares two named periods and states the change from A to B', async () => {
-    const r = await call(ctxFor(), 'compare_periods', { metric: 'resting_heart_rate', aStart: '2026-08-01', aEnd: '2026-08-07', bStart: '2026-09-10', bEnd: '2026-09-16' });
+    const r = await call(ctxFor(), 'get_metric_series', { metrics: ['resting_heart_rate'], ...periods });
     expect(r.isError).toBe(false);
-    expect(r.json.periodA.observations).toBeGreaterThan(0);
-    expect(r.json.periodB.observations).toBeGreaterThan(0);
-    expect(r.json.meanChange).toMatch(/[+-]?\d/);
-    expect(r.json.periodA.mean).toMatch(/bpm|\d/);
+    const m = r.json.data.metrics[0];
+    expect(m.observations).toBeGreaterThan(0);
+    expect(m.compareWindow).toEqual(periods.compareTo);
+    expect(m.change.basis).toMatch(/vs/);
+    expect(m.change.delta).toMatch(/^[+-]/);
+    expect(m.change.baseline).toMatch(/bpm|\d/);
+    expect(m.summary.mean).toMatch(/bpm|\d/);
   });
 
   it('says there is no comparison when a period has no records', async () => {
-    const r = await call(ctxFor(), 'compare_periods', { metric: 'resting_heart_rate', aStart: '2001-01-01', aEnd: '2001-01-07', bStart: '2026-09-10', bEnd: '2026-09-16' });
-    expect(r.json.periodA.observations).toBe(0);
-    expect(r.json.periodA.mean).toBe('no records');
-    expect(r.json.meanChange).toMatch(/no comparison available/);
+    const r = await call(ctxFor(), 'get_metric_series', { metrics: ['resting_heart_rate'], window: periods.window, compareTo: { start: '2001-01-01', end: '2001-01-07' } });
+    expect(r.isError).toBe(false);
+    const m = r.json.data.metrics[0];
+    expect(m.observations).toBeGreaterThan(0);
+    expect(m.change.note).toMatch(/^No comparison/);
+    expect(m.change.delta).toBeUndefined();
   });
 
   it('validates dates and order', async () => {
-    const base = { metric: 'resting_heart_rate', aStart: '2026-08-01', aEnd: '2026-08-07', bStart: '2026-09-10', bEnd: '2026-09-16' };
-    expect((await call(ctxFor(), 'compare_periods', { ...base, aStart: 'last week' })).json.error).toMatch(/YYYY-MM-DD/);
-    expect((await call(ctxFor(), 'compare_periods', { ...base, aStart: '2026-08-09' })).json.error).toMatch(/start on or before/);
+    const bad = (compareTo: unknown) => call(ctxFor(), 'get_metric_series', { metrics: ['resting_heart_rate'], window: periods.window, compareTo });
+    expect((await bad({ start: 'last week', end: '2026-08-07' })).json.problems.join(' ')).toMatch(/YYYY-MM-DD/);
+    expect((await bad({ start: '2026-08-09', end: '2026-08-07' })).json.problems.join(' ')).toMatch(/after end|on or before/);
   });
 
   it('leaves out a day that is still accumulating from a daily total', async () => {
-    const r = await call(ctxFor(), 'compare_periods', { metric: 'step_count', aStart: '2026-09-01', aEnd: '2026-09-07', bStart: '2026-09-11', bEnd: '2026-09-17' });
-    expect(r.json.periodB.note ?? '').toMatch(/still accumulating|^$/);
-    expect(r.json.aggregation).toBe('daily total, complete days only');
+    const r = await call(ctxFor(), 'get_metric_series', { metrics: ['step_count'], window: { start: '2026-09-11', end: '2026-09-17' }, compareTo: { start: '2026-09-01', end: '2026-09-07' } });
+    const m = r.json.data.metrics[0];
+    expect(m.aggregation).toBe('daily total, complete days only');
+    expect(m.points.some((p: { key: string }) => p.key === '2026-09-17')).toBe(false);
+    expect(m.observations).toBe(6);
+    expect(m.note).toMatch(/in progress/);
   });
 });
 
@@ -368,9 +385,9 @@ describe('what was fetched is what can be cited and audited', () => {
 
   it('merges fetched metrics and lab series into the bundle the answer is checked against', async () => {
     const ctx = ctxFor();
-    await call(ctx, 'get_metrics', { metrics: ['resting_heart_rate'], days: 7 });
+    await call(ctx, 'get_metric_series', { metrics: ['resting_heart_rate'], window: { lastDays: 7 } });
     await call(ctx, 'get_lab_results', { analytes: ['total_cholesterol'] });
-    await call(ctx, 'compare_periods', { metric: 'step_count', aStart: '2026-09-01', aEnd: '2026-09-07', bStart: '2026-09-10', bEnd: '2026-09-16' });
+    await call(ctx, 'get_metric_series', { metrics: ['step_count'], window: { start: '2026-09-10', end: '2026-09-16' }, compareTo: { start: '2026-09-01', end: '2026-09-07' } });
     const start = retrieveNone('general', '2026-09-17');
     const merged = mergeFetched(start, ctx.data, await ctx.data!.labSource());
     expect(merged.summaries.map(s => s.metricId)).toEqual(['resting_heart_rate']);

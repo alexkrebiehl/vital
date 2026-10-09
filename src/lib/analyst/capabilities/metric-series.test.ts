@@ -140,7 +140,7 @@ describe('comparison', () => {
 });
 
 describe('an accumulating metric', () => {
-  it('drops the day still in progress, as compare_periods does', async () => {
+  it('drops the day still in progress (the rule compare_periods had)', async () => {
     const env = await run({ metrics: ['step_count'] });
     const [m] = metrics(env);
     expect(m.points!.some(p => p.key === REF)).toBe(false);

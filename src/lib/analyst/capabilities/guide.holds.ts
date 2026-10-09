@@ -4,8 +4,6 @@
 // dates, no counts and no digits (those change per request and belong in the message).
 
 export const HOLDS: Record<string, string> = {
-  'metrics.summary': 'daily metrics over the last N days against the N before',
-  'metrics.compare': 'one daily metric over two periods you name',
   'metrics.series': 'daily metrics by day, week or month, any window',
   'metrics.relationship': 'how two metrics move together (association only)',
   'workouts.sessions': 'each workout: type, duration, distance, calories',

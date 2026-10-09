@@ -23,8 +23,6 @@ import type { Capability } from './types';
 export type AnyCapability = Capability<Record<string, unknown>, unknown>;
 
 const IMPLEMENTED: readonly AnyCapability[] = [
-  metrics.summary,
-  metrics.compare,
   metrics.series,
   metrics.relationship,
   workouts.sessions,

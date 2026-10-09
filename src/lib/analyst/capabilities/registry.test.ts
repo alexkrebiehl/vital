@@ -13,7 +13,7 @@ import { ANALYST_TOOLS, availableTools } from '../tools';
 import { DATA_TOOLS } from '../tools/data';
 import { DATA_TOOL_NAMES } from '../tools/names';
 import type { LabSourceInput } from '../labSnapshot';
-import { CAPABILITY_MANIFEST } from './manifest';
+import { CAPABILITY_MANIFEST, DATA_TOOL_LABELS } from './manifest';
 import { CAPABILITIES, capabilitiesForTool, capabilityById } from './registry';
 import { ALLOW_ALL, type CapabilityContext, type PrivacyPolicy } from './types';
 
@@ -53,8 +53,6 @@ function ctxFor(over: Partial<CapabilityContext> = {}): CapabilityContext {
 }
 
 const EXPECTED: [id: string, tool: string][] = [
-  ['metrics.summary', 'get_metrics'],
-  ['metrics.compare', 'compare_periods'],
   ['metrics.series', 'get_metric_series'],
   ['metrics.relationship', 'get_metric_relationship'],
   ['workouts.sessions', 'get_workouts'],
@@ -110,14 +108,18 @@ describe('manifest and registry', () => {
     for (const entry of CAPABILITY_MANIFEST) expect(offered, entry.id).toContain(entry.tool);
   });
 
-  it('give the seven data tools the status line the client shows today, verbatim', () => {
-    const src = fs.readFileSync(path.join(process.cwd(), 'src/components/analyst/AnswerView.tsx'), 'utf8');
-    const block = /const DATA_LOOKUPS[^{]*\{([^}]*)\}/.exec(src)?.[1] ?? '';
-    const lookups = Object.fromEntries([...block.matchAll(/(\w+):\s*'([^']*)'/g)].map(m => [m[1], m[2]]));
-    expect(Object.keys(lookups).sort()).toEqual([...DATA_TOOL_NAMES].sort());
+  it('give every data tool one status line, and the client reads it from the manifest', () => {
+    // The tools the server offers are exactly the tools the manifest labels.
+    expect([...DATA_TOOL_NAMES].sort()).toEqual(DATA_TOOLS.map(t => t.name).sort());
+    expect(DATA_TOOL_NAMES).toEqual(Object.keys(DATA_TOOL_LABELS));
+    // A tool shared by several capabilities (get_workouts, get_app_data) says the same words for each.
     for (const entry of CAPABILITY_MANIFEST.filter(e => (DATA_TOOL_NAMES as readonly string[]).includes(e.tool))) {
-      expect(entry.statusLabel, entry.tool).toBe(lookups[entry.tool]);
+      expect(entry.statusLabel, entry.id).toBe(DATA_TOOL_LABELS[entry.tool]);
     }
+    // The answer view holds no copy of them: its table is the manifest's.
+    const src = fs.readFileSync(path.join(process.cwd(), 'src/components/analyst/AnswerView.tsx'), 'utf8');
+    expect(src).toMatch(/const DATA_LOOKUPS[^=]*= DATA_TOOL_LABELS;/);
+    expect(src).not.toMatch(/Looking up your/);
   });
 
   it('give each plan read tool the status line the client derives for it', () => {
@@ -224,7 +226,7 @@ describe('coverage', () => {
   });
 
   it('is known for metrics from the installed dataset', async () => {
-    const c = await capabilityById('metrics.summary')!.coverage(ctxFor());
+    const c = await capabilityById('metrics.series')!.coverage(ctxFor());
     expect(c).toMatchObject({ kind: 'known', unit: 'metrics' });
     if (c.kind === 'known') expect(c.count).toBeGreaterThan(0);
   });

@@ -88,13 +88,18 @@ describe('the tool names that existed before are tagged as they were', () => {
     expect(tagged(tools)).toEqual(ids);
   });
 
-  it.each(['get_metrics', 'compare_periods', 'get_metric_series', 'get_metric_relationship', 'get_sleep', 'get_blood_pressure', 'get_routine_progress', 'get_training_sessions'])(
+  it.each(['get_metric_series', 'get_metric_relationship', 'get_sleep', 'get_blood_pressure', 'get_routine_progress', 'get_training_sessions'])(
     '%s reads what the turn does not list, so it is tagged with every active source',
     tool => {
       expect(tagged([tool])).toEqual(['hae', 'hevy', 'lab', 'oura']);
       expect(tagged([tool, 'get_medications'])).toEqual(['hae', 'hevy', 'lab', 'oura']);
     }
   );
+
+  // get_metrics and compare_periods are retired, but a stored conversation still lists them.
+  it.each(['get_metrics', 'compare_periods'])('%s, a retired tool in a stored turn, is read as opaque: tagged with every active source', tool => {
+    expect(tagged([tool])).toEqual(['hae', 'hevy', 'lab', 'oura']);
+  });
 
   it.each(['get_training_plan', 'get_reference_plan', 'search_exercise_templates', 'create_training_plan', 'update_training_plan', 'set_current_stage', 'set_path_hold', 'clear_path_hold', 'record_deload', 'archive_training_plan'])(
     '%s reads or writes configuration, so it adds no source on its own',

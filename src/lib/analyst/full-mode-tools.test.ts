@@ -56,7 +56,10 @@ describe('full context mode', () => {
     await askAnalyst({ query: 'How was my week?' }, { env: env(model.url), medicationLoader: noMeds, labLoader: noLabs });
 
     const names = (model.bodies[0].tools as { function: { name: string } }[]).map(t => t.function.name);
-    expect(names).toEqual(expect.arrayContaining(['get_workouts', 'get_sleep', 'get_blood_pressure', 'get_metric_series', 'get_metrics', 'get_lab_results', 'get_routine_progress']));
+    expect(names).toEqual(expect.arrayContaining(['get_workouts', 'get_sleep', 'get_blood_pressure', 'get_metric_series', 'get_lab_results', 'get_routine_progress']));
+    // The two tools get_metric_series replaced are gone.
+    expect(names).not.toContain('get_metrics');
+    expect(names).not.toContain('compare_periods');
     expect(model.bodies[0].messages.at(-1).content).toContain('"context"');
     const system = model.bodies[0].messages[0].content as string;
     expect(system).toContain('Any selection in the message is a STARTING SELECTION, not the record.');

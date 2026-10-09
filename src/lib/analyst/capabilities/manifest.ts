@@ -20,24 +20,6 @@ const APP_DATA_SOURCES = 'metric-provenance';
 
 export const CAPABILITY_MANIFEST: CapabilityManifestEntry[] = [
   {
-    id: 'metrics.summary',
-    area: 'metrics',
-    title: 'Metric summaries',
-    tool: 'get_metrics',
-    statusLabel: 'Looking up your metrics…',
-    sources: 'metric-provenance',
-    category: 'metric-summaries',
-  },
-  {
-    id: 'metrics.compare',
-    area: 'metrics',
-    title: 'Period comparison',
-    tool: 'compare_periods',
-    statusLabel: 'Comparing two periods…',
-    sources: 'metric-provenance',
-    category: 'metric-summaries',
-  },
-  {
     id: 'metrics.series',
     area: 'metrics',
     title: 'Metric series',
@@ -315,3 +297,20 @@ export function manifestEntry(id: string): CapabilityManifestEntry {
   if (!entry) throw new Error(`No manifest entry "${id}".`);
   return entry;
 }
+
+// ── What the client shows while a tool runs ─────────────
+
+/** `list_capabilities` is not a capability: it is the tool that lists them. */
+const META_TOOL_LABELS: Record<string, string> = { list_capabilities: 'Checking what the app holds…' };
+
+/** The training-plan read tools: their status line is derived from their name, not stored here. */
+const isPlanEntry = (e: CapabilityManifestEntry): boolean => e.area === 'training' && e.tool !== 'get_app_data';
+
+/**
+ * Tool name -> status line, for every health-data tool: the meta tool, then each tool a
+ * capability names (the plan reads excluded). The answer view and `isDataTool` read this.
+ */
+export const DATA_TOOL_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  ...META_TOOL_LABELS,
+  ...Object.fromEntries(CAPABILITY_MANIFEST.filter(e => !isPlanEntry(e)).map(e => [e.tool, e.statusLabel])),
+});

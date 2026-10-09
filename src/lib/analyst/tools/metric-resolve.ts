@@ -1,7 +1,7 @@
 // ── Metric names the model gives, resolved against the registry (SERVER ONLY) ──
 //
-// Shared by every tool that takes a metric: get_metrics, compare_periods,
-// get_metric_relationship and get_metric_series.
+// Shared by every tool that takes a metric: get_metric_relationship and
+// get_metric_series.
 
 import { metricHasData } from '../../adapters/dataset';
 import { getAllMetrics, getMetric, searchMetrics } from '../../metrics/registry';

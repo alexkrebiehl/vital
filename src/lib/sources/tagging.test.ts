@@ -112,7 +112,7 @@ describe('sourceIdsForTurn', () => {
   });
 
   it('falls back to every active source when the set cannot be determined', () => {
-    // A tool whose metric is not known.
+    // A tool whose metric is not known (get_metrics, retired, is one a stored turn may still name).
     expect(sourceIdsForTurn(turn({ tools: ['get_metrics'] }), BOTH)).toEqual(['hae', 'lab', 'oura']);
     // A metric with no provenance row.
     expect(sourceIdsForTurn(turn({ metrics: ['unlisted_metric'] }), BOTH)).toEqual(['hae', 'lab', 'oura']);

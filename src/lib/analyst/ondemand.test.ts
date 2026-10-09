@@ -86,7 +86,9 @@ describe('on-demand mode', () => {
     expect(user).not.toMatch(/231|"series":\[/);
     expect(user.length).toBeLessThan(20_000);
     const names = (first.tools as { function: { name: string } }[]).map(t => t.function.name);
-    expect(names).toEqual(expect.arrayContaining(['get_lab_results', 'compare_lab_panels', 'get_metrics', 'get_medications', 'get_routine_progress']));
+    expect(names).toEqual(expect.arrayContaining(['get_lab_results', 'compare_lab_panels', 'get_metric_series', 'get_medications', 'get_routine_progress']));
+    expect(names).not.toContain('get_metrics');
+    expect(names).not.toContain('compare_periods');
     expect(first.messages[0].content).toContain('YOUR DATA IS FETCHED, NOT HANDED TO YOU');
   });
 

@@ -84,8 +84,6 @@ export function ctxFor(mode: Mode, data: HealthFixtures, routine: CapabilityCont
 
 /** One representative call for every capability id. */
 export const ARGS: Record<string, Record<string, unknown>> = {
-  'metrics.summary': { metrics: ['resting_heart_rate'], days: 30 },
-  'metrics.compare': { metric: 'step_count', aStart: '2026-09-01', aEnd: '2026-09-07', bStart: '2026-09-10', bEnd: '2026-09-16' },
   'metrics.series': { metrics: ['resting_heart_rate'], window: { lastDays: 30 } },
   'metrics.relationship': { x: 'resting_heart_rate', y: 'heart_rate_variability', days: 90 },
   'workouts.sessions': { window: { lastDays: 30 }, detail: true },

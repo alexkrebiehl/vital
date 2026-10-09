@@ -151,5 +151,8 @@ describe('the data tools prompt', () => {
   });
   it('no longer lists the tools by name in prose (the map does)', () => {
     expect(prompt).not.toContain('get_metrics (one to three metrics');
+    // Nor does it name the two tools get_metric_series replaced.
+    expect(prompt).not.toContain('get_metrics');
+    expect(prompt).not.toContain('compare_periods');
   });
 });

@@ -9,11 +9,6 @@ type Call = Record<string, unknown>;
 const app = (capability: string, params?: Call): Call => ({ capability, ...(params ? { params } : {}) });
 
 export const EXAMPLES: Record<string, readonly Call[]> = {
-  'metrics.summary': [{ metrics: ['resting_heart_rate'], days: 30 }, { metrics: ['step_count', 'sleep_analysis'], days: 7, series: false }],
-  'metrics.compare': [
-    { metric: 'resting_heart_rate', aStart: '2026-01-01', aEnd: '2026-01-31', bStart: '2026-02-01', bEnd: '2026-02-28' },
-    { metric: 'step_count', aStart: '2026-03-01', aEnd: '2026-03-07', bStart: '2026-03-08', bEnd: '2026-03-14' },
-  ],
   'metrics.series': [
     { metrics: ['resting_heart_rate'], window: { lastDays: 90 } },
     { metrics: ['step_count'], window: { month: '2026-03' }, granularity: 'week', compareTo: 'none' },

@@ -14,6 +14,7 @@ import { TrendFigure } from '@/components/charts';
 import { PlanChangeCard } from '@/components/routine/shared';
 import type { AnalystAnswer, AnalystResponse } from '@/lib/analyst/types';
 import { partialAnswer } from '@/lib/analyst/partial-answer';
+import { DATA_TOOL_LABELS } from '@/lib/analyst/capabilities/manifest';
 
 // ── Pending state ──────────────────────────────────────
 
@@ -84,20 +85,8 @@ export function ReasoningBlock({ reasoning }: { reasoning: string }) {
   );
 }
 
-const DATA_LOOKUPS: Record<string, string> = {
-  list_capabilities: 'Checking what the app holds…',
-  get_metrics: 'Looking up your metrics…',
-  compare_periods: 'Comparing two periods…',
-  get_metric_series: 'Looking up your metric series…',
-  get_metric_relationship: 'Checking how two metrics move together…',
-  get_workouts: 'Looking up your workouts…',
-  get_sleep: 'Looking up your sleep…',
-  get_blood_pressure: 'Looking up your blood pressure…',
-  get_lab_results: 'Looking up your lab results…',
-  compare_lab_panels: 'Comparing your lab panels…',
-  get_medications: 'Looking up your medication log…',
-  get_app_data: 'Looking up your app data…',
-};
+/** The status line of every health-data tool: written once, in the capability manifest. */
+const DATA_LOOKUPS: Readonly<Record<string, string>> = DATA_TOOL_LABELS;
 
 /** A tool as a status line: a data lookup in plain words, a plan tool as "Using the plan tool: get routine progress…". */
 export function toolStatus(tool: string): string {
