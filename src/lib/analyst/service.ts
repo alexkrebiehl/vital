@@ -238,6 +238,12 @@ interface Prepared {
    * full context is only built if the tools are refused (see `withFullContext`).
    */
   onDemand?: { access: DataAccess; index: string; full: () => Promise<RetrievalBundle> };
+  /**
+   * The readers the data tools use, set for every question a configured provider may
+   * answer with tools, in either context mode. In `ondemand` mode it is the same object
+   * as `onDemand.access`. A question answered without tools never reads through it.
+   */
+  access?: DataAccess;
   /** What the size budget removed from the fixed context, if anything. */
   budgetDropped?: string[];
 }
@@ -377,14 +383,9 @@ async function prepareAnalyst(
   const onDemandMode = !isDemo && config.context === 'ondemand' && config.tools === 'auto';
   const fullBundle = () => loadFullBundle(validated.query, matched?.id ?? null, deps);
 
-  let bundle: RetrievalBundle;
-  let onDemand: Prepared['onDemand'];
-  let budgetDropped: string[] | undefined;
-  if (onDemandMode) {
-    // Nothing is pre-loaded: the model gets an index of what exists and fetches what
-    // the question needs. The full context is built only if the tools are refused.
-    bundle = retrieveNone(handlerId, REFERENCE_KEY);
-    const access = createDataAccess({
+  // The data tools read through this, in both context modes (design §2, decision 4).
+  const makeAccess = (): DataAccess =>
+    createDataAccess({
       system,
       refKey: REFERENCE_KEY,
       env: deps.env,
@@ -395,9 +396,19 @@ async function prepareAnalyst(
           lookbackDays: days,
         })) ?? unavailableMedicationSnapshot('The medication records could not be read.')),
     });
+  let access: DataAccess | undefined;
+  let bundle: RetrievalBundle;
+  let onDemand: Prepared['onDemand'];
+  let budgetDropped: string[] | undefined;
+  if (onDemandMode) {
+    // Nothing is pre-loaded: the model gets an index of what exists and fetches what
+    // the question needs. The full context is built only if the tools are refused.
+    bundle = retrieveNone(handlerId, REFERENCE_KEY);
+    access = makeAccess();
     const index = renderDataIndex(buildDataIndex(REFERENCE_KEY, await access.labSource()));
     onDemand = { access, index, full: fullBundle };
   } else {
+    if (!isDemo && config.tools === 'auto') access = makeAccess();
     try {
       bundle = await fullBundle();
     } catch (error) {
@@ -435,7 +446,7 @@ async function prepareAnalyst(
     }
   }
 
-  return { ok: true, config, query: validated.query, notes, notesEcho, bundle, handlerId, system, history, routineDeps, pageContext, goalContext, onDemand, budgetDropped };
+  return { ok: true, config, query: validated.query, notes, notesEcho, bundle, handlerId, system, history, routineDeps, pageContext, goalContext, onDemand, access, budgetDropped };
 }
 
 /** The runaway limits from the configuration. */
@@ -489,11 +500,12 @@ async function answerWithTools(
   const base = (status: AnalystStatus, fields: Partial<AnalystResponse> = {}) =>
     baseResponse(config, status, { untrustedNotes: notesEcho, ...fields });
   const onDemand = prep.onDemand;
-  // In on-demand mode the bundle the answer is checked against is the (empty) start plus
-  // whatever the model fetched; it is rebuilt from the fetch record each time it is read.
-  const currentBundle = (): RetrievalBundle => (onDemand ? mergeFetched(prep.bundle, onDemand.access) : prep.bundle);
+  const access = prep.access;
+  // The bundle the answer is checked against is the starting context (empty in on-demand
+  // mode) plus whatever the model fetched; it is rebuilt from the fetch record each time.
+  const currentBundle = (): RetrievalBundle => (access ? mergeFetched(prep.bundle, access) : prep.bundle);
   const withContext = () => ({ handlerId, retrieval: retrievalSummary(currentBundle()) });
-  const toolCtx: ToolContext = { system: prep.system, deps: prep.routineDeps, changes: [], ...(onDemand ? { data: onDemand.access } : {}) };
+  const toolCtx: ToolContext = { system: prep.system, deps: prep.routineDeps, changes: [], ...(access ? { data: access } : {}) };
   const notes = prep.notes.text.length > 0 ? prep.notes.text : undefined;
   const user = onDemand
     ? buildOnDemandUserMessage({ question: prep.query, index: onDemand.index, notes, history: prep.history, pageContext: prep.pageContext, goalContext: prep.goalContext })
@@ -506,7 +518,7 @@ async function answerWithTools(
         pageContext: prep.pageContext,
         goalContext: prep.goalContext,
       });
-  const systemPrompt = `${config.systemPrompt}${onDemand ? DATA_TOOLS_PROMPT : ''}${TRAINING_TOOLS_PROMPT}`;
+  const systemPrompt = `${config.systemPrompt}${access ? DATA_TOOLS_PROMPT : ''}${TRAINING_TOOLS_PROMPT}`;
   try {
     const guard = new StreamGuard(guardLimits(config));
     const looped = await runToolLoop(provider, systemPrompt, user, toolCtx, hooks, guard);
