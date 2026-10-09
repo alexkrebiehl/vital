@@ -17,6 +17,7 @@ import { createDataAccess } from '../dataAccess';
 import { availableTools } from '../tools';
 import { ALLOW_TRACKED, EXEMPTIONS, type Exemption } from './exemptions';
 import { CAPABILITY_MANIFEST } from './manifest';
+import { stale, unmapped } from './parity.guard';
 import { CAPABILITIES } from './registry';
 import type { SourceTag } from './types';
 
@@ -62,44 +63,6 @@ function accessorNames(): string[] {
 
 function metricIds(): string[] {
   return [...new Set([...getAllMetrics().map(m => m.id), ...dataset.availableMetricIds()])].sort();
-}
-
-// ── Checks (pure, so the guard itself can be tested) ────
-
-type Kind = Exemption['kind'];
-const WHERE: Record<Kind, string> = {
-  route: 'mirrors.routes',
-  accessor: 'mirrors.accessors',
-  page: 'mirrors.pages',
-  metric: 'mirrors.metrics',
-  source: 'a manifest `sources` tag',
-};
-
-/** Keys that are neither mirrored nor exempt, each with the exact fix. */
-function unmapped(kind: Kind, actual: readonly string[], mirrored: ReadonlySet<string>, exemptions: readonly Exemption[]): string[] {
-  const exempt = new Set(exemptions.filter(e => e.kind === kind).map(e => e.key));
-  return actual
-    .filter(k => !mirrored.has(k) && !exempt.has(k))
-    .map(
-      k =>
-        `${kind} ${k} has no capability and no exemption. Add it to ${WHERE[kind]} of the capability that serves it (src/lib/analyst/capabilities/areas/), ` +
-        `or add { kind: '${kind}', key: '${k}', reason: '<why the analyst does not need it>' } to src/lib/analyst/capabilities/exemptions.permanent.ts ` +
-        `(or exemptions.tracked.ts with tracked: true, naming the gate that closes it).`
-    );
-}
-
-/** Exemptions that are no longer needed: the key is mirrored now, or the thing is gone. */
-function stale(kind: Kind, actual: readonly string[], mirrored: ReadonlySet<string>, exemptions: readonly Exemption[]): string[] {
-  const exist = new Set(actual);
-  return exemptions
-    .filter(e => e.kind === kind)
-    .flatMap(e =>
-      mirrored.has(e.key)
-        ? [`STALE exemption: ${kind} ${e.key} is now covered by a capability. Delete its entry from the exemptions files.`]
-        : !exist.has(e.key)
-          ? [`STALE exemption: ${kind} ${e.key} no longer exists in the app. Delete its entry from the exemptions files.`]
-          : []
-    );
 }
 
 const WRITE_NAME = /^(write|insert|update|delete|replace|pgCreate|pgReplace|pgDelete|pgReorder)|^(createPlan|updateActivePlan|archiveActivePlan|regenerateBriefing|warmBriefing)$/;
@@ -263,6 +226,46 @@ describe('parity: the guard itself', () => {
     expect(stale('route', ['GET /api/x'], new Set(['GET /api/x']), ex)[0]).toMatch(/STALE exemption: route GET \/api\/x is now covered/);
     expect(stale('route', ['GET /api/other'], new Set(), ex)[0]).toMatch(/STALE exemption: route GET \/api\/x no longer exists/);
     expect(stale('route', ['GET /api/x'], new Set(), ex)).toEqual([]);
+  });
+});
+
+describe('parity: the guard fails on what the app gains', () => {
+  // The enumerated lists are injected with one invented entry; the real mirrors and exemptions judge them.
+  it('fails on a new GET route, naming it and the fix', () => {
+    const problems = unmapped('route', [...routes.get, 'GET /api/fake-new-thing'], mirrored(m => m.routes), EXEMPTIONS);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('route GET /api/fake-new-thing has no capability and no exemption');
+    expect(problems[0]).toContain('mirrors.routes');
+  });
+
+  it('fails on a new metric id, naming it and the fix', () => {
+    const problems = unmapped('metric', [...metricIds(), 'fake_new_metric'], mirrored(m => m.metrics), EXEMPTIONS);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('metric fake_new_metric has no capability and no exemption');
+    expect(problems[0]).toContain('mirrors.metrics');
+  });
+
+  it('fails on a new dataset accessor, naming it and the fix', () => {
+    const problems = unmapped('accessor', [...accessorNames(), 'fakeNewSeries'], mirrored(m => m.accessors), EXEMPTIONS);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('accessor fakeNewSeries has no capability and no exemption');
+    expect(problems[0]).toContain('mirrors.accessors');
+  });
+
+  it('fails on a new page and a new source the same way', () => {
+    expect(unmapped('page', [...pages, '/fake-page'], mirrored(m => m.pages), EXEMPTIONS)[0]).toContain('page /fake-page has no capability');
+    expect(unmapped('source', [...DATA_SOURCES.map(d => d.id), 'fake_source'], coveredSources(), EXEMPTIONS)[0]).toContain('source fake_source has no capability');
+  });
+
+  it('passes the real lists untouched, so the failures above come from the injected entry alone', () => {
+    expect(unmapped('route', routes.get, mirrored(m => m.routes), EXEMPTIONS)).toEqual([]);
+    expect(unmapped('metric', metricIds(), mirrored(m => m.metrics), EXEMPTIONS)).toEqual([]);
+    expect(unmapped('accessor', accessorNames(), mirrored(m => m.accessors), EXEMPTIONS)).toEqual([]);
+  });
+
+  it('refuses a tracked exemption now that the list is closed', () => {
+    expect(ALLOW_TRACKED).toBe(false);
+    expect(EXEMPTIONS.filter(e => e.tracked)).toEqual([]);
   });
 });
 

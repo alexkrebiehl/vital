@@ -23,7 +23,7 @@ export interface Exemption {
   tracked?: true;
 }
 
-/** AN-D7 flips this to false. */
-export const ALLOW_TRACKED = true;
+/** AN-D7 closed the list: a tracked exemption (a known gap) fails the parity test. */
+export const ALLOW_TRACKED = false;
 
 export const EXEMPTIONS: readonly Exemption[] = [...PERMANENT_EXEMPTIONS, ...TRACKED_EXEMPTIONS];
