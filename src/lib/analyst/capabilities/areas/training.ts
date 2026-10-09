@@ -45,9 +45,9 @@ export const plan: Capability<Args, unknown> = {
 
 export const sessions: Capability<Args, unknown> = {
   ...manifestEntry('training.sessions'),
-  description: 'Logged strength sessions, newest first: date, title, exercises with working sets and notes. Optionally filtered by exercise name.',
+  description: 'Logged strength sessions in the last N days or between two days, newest first: date, title, exercises with working sets and notes. At most 40; a page note says how many matched. Optionally filtered by exercise name.',
   owner: 'workout-sources',
-  mirrors: { routes: ['GET /api/workout-sources/sessions'] },
+  mirrors: { routes: ['GET /api/workout-sources/sessions', 'GET /api/workout-sources/match'] },
   time: 'window',
   sizeClass: 'per-record',
   page: { defaultLimit: 40, maxLimit: 40 },

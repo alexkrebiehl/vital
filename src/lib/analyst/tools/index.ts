@@ -27,6 +27,7 @@ import type { ToolSpec } from '../provider';
 import { checkArgs, type Schema } from './args';
 import type { DataAccess } from '../dataAccess';
 import { DATA_TOOLS } from './data';
+import { getTrainingSessions } from './training-sessions';
 
 export const MAX_TOOL_RESULT_CHARS = 14_000;
 export const MAX_WRITES_PER_QUESTION = 3;
@@ -119,7 +120,7 @@ export function overviewSummary(r: RoutineOverview, detailPathId?: string) {
     goal: r.goal,
     ...(r.exerciseData
       ? {}
-      : { exerciseData: 'No workout source (e.g. Hevy) is connected: paths with tracked=false cannot be judged, and their sessions are unknown rather than missed. Suggest connecting one in Settings → Sources.' }),
+      : { exerciseData: 'There is no connected workout source: paths with tracked=false cannot be judged, and their sessions are unknown rather than missed. Suggest connecting one in Settings → Sources.' }),
     week: r.started ? r.week : `starts ${r.startDate}`,
     currentPhase: r.currentPhase
       ? { phase: `${r.currentPhase.index + 1} of ${r.currentPhase.count}`, name: r.currentPhase.name, since: r.currentPhase.since, milestones: `${r.currentPhase.progress.met} of ${r.currentPhase.progress.total} required` }
@@ -197,52 +198,7 @@ export const ANALYST_TOOLS: AnalystTool[] = [
       return { content: { revision, plan } };
     },
   },
-  {
-    name: 'get_training_sessions',
-    kind: 'read',
-    description:
-      'Logged training sessions from the workout sources (e.g. Hevy), newest first: date, title, and each exercise with its working sets (reps, load, duration, distance, RPE) and notes. Optionally filter by exercise name.',
-    parameters: {
-      type: 'object',
-      properties: {
-        days: { type: 'integer', minimum: 1, maximum: 365, description: 'How many days back (default 42).' },
-        exercise: { type: 'string', maxLength: 80, description: 'Only sessions with an exercise whose name contains this text.' },
-      },
-      additionalProperties: false,
-    },
-    async run(args, ctx) {
-      const rc = await loadRoutineContext(ctx.deps);
-      const days = (args.days as number | undefined) ?? 42;
-      const from = new Date(Date.parse(`${rc.today}T12:00:00Z`) - days * 86_400_000).toISOString().slice(0, 10);
-      const needle = typeof args.exercise === 'string' ? nameKey(args.exercise) : null;
-      const sessions = rc.training.sessions
-        .filter(s => rc.dayOf(s.startTime) >= from)
-        .filter(s => !needle || s.exercises.some(e => nameKey(e.name).includes(needle)))
-        .reverse()
-        .slice(0, 40)
-        .map(s => ({
-          date: rc.dayOf(s.startTime),
-          title: s.title,
-          exercises: s.exercises
-            .filter(e => !needle || nameKey(e.name).includes(needle))
-            .map(e => ({
-              name: e.name,
-              templateId: e.sourceTemplateId,
-              load: e.loadMeaning,
-              sets: e.sets.filter(x => x.kind !== 'warmup').map(x => [x.reps !== undefined ? `${x.reps} reps` : null, x.weightKg ? `${x.weightKg} kg` : null, x.durationS !== undefined ? `${x.durationS} s` : null, x.distanceM !== undefined ? `${x.distanceM} m` : null, x.rpe !== undefined ? `RPE ${x.rpe}` : null, x.kind !== 'normal' ? x.kind : null].filter(Boolean).join(' ')),
-              ...(e.notes ? { notes: e.notes } : {}),
-            })),
-        }));
-      return {
-        content: {
-          origin: rc.training.origin,
-          sources: rc.training.statuses.map(s => ({ source: s.displayName, configured: s.configured || s.origin === 'demo', error: s.lastError })),
-          window: `${from} → ${rc.today}`,
-          sessions,
-        },
-      };
-    },
-  },
+  getTrainingSessions,
   {
     name: 'search_exercise_templates',
     kind: 'read',
