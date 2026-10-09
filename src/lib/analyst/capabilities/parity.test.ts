@@ -3,13 +3,13 @@
 // Fails the build when the app serves something the analyst cannot reach and
 // nobody has said why. Enumerates, from the code itself: API routes, the dataset
 // accessors, the registered metrics, the pages and the data sources, and checks
-// each against what the capabilities mirror and against EXEMPTIONS.
-//
-// Not covered yet: item 7 (the generated docs table) arrives with AN-D5.
+// each against what the capabilities mirror and against EXEMPTIONS. Item 7 checks
+// that the committed docs table is the render of the registry.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { renderCapabilityDoc } from './doc';
 import * as dataset from '../../adapters/dataset';
 import { getAllMetrics } from '../../metrics/registry';
 import { DATA_SOURCES, type DataSourceDef } from '../../sources/registry';
@@ -263,5 +263,12 @@ describe('parity: the guard itself', () => {
     expect(stale('route', ['GET /api/x'], new Set(['GET /api/x']), ex)[0]).toMatch(/STALE exemption: route GET \/api\/x is now covered/);
     expect(stale('route', ['GET /api/other'], new Set(), ex)[0]).toMatch(/STALE exemption: route GET \/api\/x no longer exists/);
     expect(stale('route', ['GET /api/x'], new Set(), ex)).toEqual([]);
+  });
+});
+
+describe('parity: docs', () => {
+  it('commits docs/analyst-capabilities.md exactly as the registry renders it (npm run analyst:capabilities)', () => {
+    const committed = fs.readFileSync(path.join(process.cwd(), 'docs/analyst-capabilities.md'), 'utf8');
+    expect(committed).toBe(renderCapabilityDoc(CAPABILITIES));
   });
 });

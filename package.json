@@ -10,6 +10,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "seed": "node scripts/seed.mjs",
+    "analyst:capabilities": "node scripts/analyst-capabilities.mjs",
     "db:init": "sh scripts/init-env.sh",
     "db:migrate": "node scripts/migrate.mjs",
     "test": "vitest run"
