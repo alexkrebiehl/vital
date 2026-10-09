@@ -16,38 +16,36 @@ import type { Capability } from './types';
 
 export type AnyCapability = Capability<Record<string, unknown>, unknown>;
 
-const BY_ID = new Map<string, AnyCapability>(
-  [
-    metrics.summary,
-    metrics.compare,
-    metrics.series,
-    metrics.relationship,
-    workouts.sessions,
-    workouts.summary,
-    sleep.nights,
-    sleep.summary,
-    heart.bloodPressure,
-    labs.series,
-    labs.compare,
-    medications.summary,
-    medications.doses,
-    training.progress,
-    training.plan,
-    training.sessions,
-    training.exerciseTemplates,
-    training.referencePlans,
-  ].map(c => [c.id, c])
-);
+const IMPLEMENTED: readonly AnyCapability[] = [
+  metrics.summary,
+  metrics.compare,
+  metrics.series,
+  metrics.relationship,
+  workouts.sessions,
+  workouts.summary,
+  sleep.nights,
+  sleep.summary,
+  heart.bloodPressure,
+  labs.series,
+  labs.compare,
+  medications.summary,
+  medications.doses,
+  training.progress,
+  training.plan,
+  training.sessions,
+  training.exerciseTemplates,
+  training.referencePlans,
+];
 
 /** Every capability, in manifest order. */
 export const CAPABILITIES: readonly AnyCapability[] = CAPABILITY_MANIFEST.map(entry => {
-  const cap = BY_ID.get(entry.id);
+  const cap = IMPLEMENTED.find(c => c.id === entry.id);
   if (!cap) throw new Error(`Capability "${entry.id}" is in the manifest but has no area implementation.`);
   return cap;
 });
 
-if (BY_ID.size !== CAPABILITIES.length) {
-  throw new Error(`Capabilities without a manifest entry: ${[...BY_ID.keys()].filter(id => !CAPABILITY_MANIFEST.some(e => e.id === id)).join(', ')}.`);
+if (IMPLEMENTED.length !== CAPABILITIES.length) {
+  throw new Error(`Capabilities without a manifest entry: ${IMPLEMENTED.filter(c => !CAPABILITY_MANIFEST.some(e => e.id === c.id)).map(c => c.id).join(', ')}.`);
 }
 
 export function capabilityById(id: string): AnyCapability | undefined {

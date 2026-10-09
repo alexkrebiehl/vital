@@ -8,6 +8,7 @@
 import { loadRoutineContext } from '../../routine/service';
 import { nameKey } from '../../routine/records';
 import { resolveWindow } from '../capabilities/window';
+import { scrubForModel } from '../scrub';
 import type { AnalystTool } from './index';
 
 export const MAX_TRAINING_SESSIONS = 40;
@@ -68,7 +69,7 @@ export const getTrainingSessions: AnalystTool = {
     return {
       content: {
         origin: rc.training.origin,
-        sources: rc.training.statuses.map(s => ({ source: s.displayName, configured: s.configured || s.origin === 'demo', error: s.lastError })),
+        sources: rc.training.statuses.map(s => ({ source: s.displayName, configured: s.configured || s.origin === 'demo', error: s.lastError === null ? null : scrubForModel(s.lastError) })),
         window: `${from} → ${to}`,
         ...(clipped ? { clipped } : {}),
         sessions,

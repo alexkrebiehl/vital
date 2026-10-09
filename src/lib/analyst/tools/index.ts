@@ -24,6 +24,7 @@ import type { PathProgress, RoutineOverview } from '../../routine/progress';
 import { loadExerciseTemplates } from '../../workout-sources/store';
 import { nameKey } from '../../routine/records';
 import type { ToolSpec } from '../provider';
+import { redactCredentials, scrubForModel } from '../scrub';
 import { checkArgs, type Schema } from './args';
 import type { DataAccess } from '../dataAccess';
 import { DATA_TOOLS } from './data';
@@ -416,11 +417,12 @@ export async function runTool(name: string, args: Record<string, unknown>, ctx: 
       try {
         outcome = await tool.run(args, ctx);
       } catch (error) {
-        outcome = { isError: true, content: { error: error instanceof Error ? error.message : 'The tool failed.' } };
+        outcome = { isError: true, content: { error: scrubForModel(error instanceof Error ? error.message : 'The tool failed.') } };
       }
     }
   }
-  let content = JSON.stringify(outcome.content);
+  // Whatever a tool says, no credential of the process or of the question's environment goes with it.
+  let content = redactCredentials(JSON.stringify(outcome.content), ctx.deps.env);
   if (content.length > MAX_TOOL_RESULT_CHARS) content = `${content.slice(0, MAX_TOOL_RESULT_CHARS)}… [truncated]`;
   return { content, isError: Boolean(outcome.isError) };
 }

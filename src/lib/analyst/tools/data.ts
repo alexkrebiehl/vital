@@ -14,6 +14,7 @@
 
 import { isPairedMetric, metricHasData, seriesFor, unavailableReasonFor } from '../../adapters/dataset';
 import { getMetric } from '../../metrics/registry';
+import { scrubForModel } from '../scrub';
 import { PAIRED_REASON, resolveMetric } from './metric-resolve';
 import { getMetricSeries } from './series-tool';
 import { getBloodPressure, getSleep, getWorkouts } from './records-tools';
@@ -328,7 +329,7 @@ const getLabResults: AnalystTool = {
     const access = need(ctx);
     if (isOutcome(access)) return access;
     const src = await access.labSource();
-    if (!src.available) return fail(src.reason ?? 'No lab results are available.');
+    if (!src.available) return fail(scrubForModel(src.reason ?? 'No lab results are available.'));
     let all = src.series;
     let windowEcho: { start: string; end: string; asked: string; clipped?: string } | null = null;
     if (args.window !== undefined) {
@@ -409,7 +410,7 @@ const compareLabPanels: AnalystTool = {
     const access = need(ctx);
     if (isOutcome(access)) return access;
     const src = await access.labSource();
-    if (!src.available) return fail(src.reason ?? 'No lab results are available.');
+    if (!src.available) return fail(scrubForModel(src.reason ?? 'No lab results are available.'));
     const A = String(args.dateA);
     const B = String(args.dateB);
     const dates = new Map<string, number>();

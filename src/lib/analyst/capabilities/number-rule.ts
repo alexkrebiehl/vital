@@ -6,7 +6,7 @@
 // coefficient are exempt by key name; a number that is not a finite number never
 // passes (a missing value is left out, not sent as NaN or zero).
 
-export const COUNT_KEYS: ReadonlySet<string> = new Set([
+export const COUNT_KEYS: readonly string[] = Object.freeze([
   'observations',
   'count',
   'total',
@@ -39,7 +39,7 @@ export function numberRuleViolations(value: unknown, path = '$'): string[] {
   for (const [key, v] of Object.entries(value)) {
     if (typeof v === 'number') {
       if (!Number.isFinite(v)) out.push(`${path}.${key}: ${String(v)} is not a finite number`);
-      else if (!COUNT_KEYS.has(key) && !displayed) out.push(`${path}.${key}: ${v} has no display string beside it`);
+      else if (!COUNT_KEYS.includes(key) && !displayed) out.push(`${path}.${key}: ${v} has no display string beside it`);
     } else if (key !== 'display') out.push(...numberRuleViolations(v, `${path}.${key}`));
   }
   return out;
