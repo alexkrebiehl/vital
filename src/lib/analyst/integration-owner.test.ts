@@ -87,7 +87,7 @@ describe.each(PATHS)('%s: ondemand mode', path => {
   it('sends the index and no selection, audits the claim, and ends without it', async () => {
     const seen = { audit: [] as string[], results: [] as Record<string, any>[] };
     const model = await fakeModel(scripted(seen));
-    const { response } = await run(path, { query: QUESTION }, quiet(modelEnv(model.url, { ANALYST_CONTEXT: 'ondemand' })));
+    const { response } = await run(path, { query: QUESTION }, quiet(modelEnv(model.url, { context: 'ondemand' })));
     const user = lastUser(model.bodies[0]!);
     expect(user).toContain('INDEX of the reader\'s data');
     expect(user).not.toContain('STARTING SELECTION');
@@ -104,7 +104,7 @@ describe.each(PATHS)('%s: tools refused before any tool', path => {
   for (const mode of ['full', 'ondemand']) {
     it(`${mode}: sends the no-tools selection wording and renders the uncertainty line`, async () => {
       const model = await fakeModel((_n, body) => (body.tools ? { refuse: 'tools are not supported by this model' } : { say: CLAIM }));
-      const { response } = await run(path, { query: QUESTION }, quiet(modelEnv(model.url, { ANALYST_CONTEXT: mode })));
+      const { response } = await run(path, { query: QUESTION }, quiet(modelEnv(model.url, { context: mode })));
       const plain = model.bodies.filter(b => !b.tools);
       expect(plain.length).toBeGreaterThan(0);
       const user = lastUser(plain.at(-1)!);

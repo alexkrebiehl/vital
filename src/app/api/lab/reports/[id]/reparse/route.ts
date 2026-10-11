@@ -8,6 +8,8 @@
 // it never edits the file and never merges two parses, because a mix of an old
 // and a new parse would be a result set that never existed.
 
+import { labAssistAllowed } from '@/lib/analyst/config';
+import { resolveAnalystConfig } from '@/lib/analyst/resolve-config';
 import { NextResponse } from 'next/server';
 import { extractLabDocument, sha256Of } from '@/lib/lab/extract';
 import { resolveLabConfig } from '@/lib/lab/config';
@@ -67,7 +69,8 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   const extraction = await extractLabDocument(bytes, {
     filename: report.sourceFilename,
     sha256: report.sourceSha256,
-    modelAssist: config.modelAssistEnabled,
+    // The Analyst's model reads an unfamiliar layout only when Settings allows it.
+    modelAssist: labAssistAllowed(await resolveAnalystConfig()),
   });
 
   if (extraction.kind !== 'results') {

@@ -5,6 +5,8 @@
 // the user message the provider would have sent — so the test proves the earlier
 // turns reach the model request, not merely that a function can trim an array.
 
+import { aiSettingsFor } from '@/lib/ai/test-settings';
+import type { AiSettings } from '@/lib/ai/types';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   MAX_MEMORY_CHARS,
@@ -37,14 +39,10 @@ afterEach(() => {
   captured.length = 0;
 });
 
-function openaiEnv(): NodeJS.ProcessEnv {
-  return {
-    ANALYST_PROVIDER: 'openai',
-    ANALYST_API_URL: 'http://127.0.0.1:9/v1',
-    ANALYST_MODEL: 'mock-analyst-1',
-    ANALYST_API_KEY: 'sk-test-not-a-real-key',
-    ANALYST_TOOLS: 'off',
-  } as unknown as NodeJS.ProcessEnv;
+function openaiSettings(): AiSettings {
+  return aiSettingsFor({
+    analyst: { baseUrl: 'http://127.0.0.1:9/v1', model: 'mock-analyst-1', apiKey: 'sk-test-not-a-real-key', options: { tools: 'off' } },
+  });
 }
 
 /** A minimal well-formed reply, grounded in the general bundle. */
@@ -134,7 +132,7 @@ describe('buildAnalystUserMessage — where memory travels', () => {
 describe('askAnalyst — memory reaches the provider request', () => {
   it('sends no earlier turns for a new conversation', async () => {
     stubFetch(analystReplyText());
-    const response = await askAnalyst({ query: 'How much caffeine have I logged?' }, { env: openaiEnv() });
+    const response = await askAnalyst({ query: 'How much caffeine have I logged?' }, { aiSettings: openaiSettings() });
     expect(response.status).toBe('ok');
     const user = captured[0].body.messages.find(m => m.role === 'user')!;
     expect(captured[0].body.messages[0].content).toBe(DEFAULT_ANALYST_SYSTEM_PROMPT);
@@ -147,7 +145,7 @@ describe('askAnalyst — memory reaches the provider request', () => {
       role: i % 2 === 0 ? ('user' as const) : ('assistant' as const),
       content: `earlier turn ${i}`,
     }));
-    await askAnalyst({ query: 'And what about last month?', history }, { env: openaiEnv() });
+    await askAnalyst({ query: 'And what about last month?', history }, { aiSettings: openaiSettings() });
 
     const user = captured[0].body.messages.find(m => m.role === 'user')!;
     expect(user.content).toContain('Earlier turns in this conversation');

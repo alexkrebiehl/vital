@@ -1,10 +1,12 @@
 // ── scripts/analyst-eval.mjs, run as a child process ────────────────────────
 //
 // The guards (no provider, no --yes) and one full pass against a scripted model on
-// 127.0.0.1. The child gets a minimal environment: nothing of the developer's shell,
-// no .env, no credential.
+// 127.0.0.1, chosen with --settings. The child gets a minimal environment: nothing of
+// the developer's shell, no .env, no database, no credential.
 
 import { spawn } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { closeModels, fakeModel, lastUser, reply } from '../integration.fake';
@@ -22,25 +24,38 @@ function runScript(args: string[], env: Record<string, string>): Promise<{ code:
   });
 }
 
-afterEach(closeModels);
+const dirs: string[] = [];
+afterEach(async () => {
+  await closeModels();
+  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+});
+
+/** A --settings file choosing this provider and model for the Analyst. */
+function settingsFile(value: Record<string, unknown>): string {
+  const dir = mkdtempSync(join(tmpdir(), 'vital-eval-'));
+  dirs.push(dir);
+  const file = join(dir, 'settings.json');
+  writeFileSync(file, JSON.stringify(value));
+  return file;
+}
 
 describe('analyst-eval guards', () => {
   it('refuses without a provider, and says why', async () => {
     const r = await runScript(['--yes'], {});
     expect(r.code).toBe(2);
-    expect(r.err).toMatch(/ANALYST_PROVIDER is not set to a model provider/);
+    expect(r.err).toMatch(/no model is chosen for the Analyst/);
     expect(r.out).toBe('');
   });
 
   it('refuses a provider that is not usable', async () => {
-    const r = await runScript(['--yes'], { ANALYST_PROVIDER: 'openai' });
+    const r = await runScript(['--yes', '--settings', settingsFile({ kind: 'openai', baseUrl: 'https://example.invalid/v1', model: 'm' })], {});
     expect(r.code).toBe(2);
     expect(r.err).toMatch(/not usable/);
   });
 
   it('refuses without --yes even when the provider is configured, and sends nothing', async () => {
     const model = await fakeModel(() => ({ say: reply('x') }));
-    const r = await runScript([], { ANALYST_PROVIDER: 'openai', ANALYST_API_URL: model.url, ANALYST_MODEL: 'm', ANALYST_API_KEY: 'test-key' });
+    const r = await runScript(['--settings', settingsFile({ kind: 'openai', baseUrl: model.url, model: 'm', apiKey: 'test-key' })], {});
     expect(r.code).toBe(2);
     expect(r.err).toMatch(/without --yes/);
     expect(model.bodies).toHaveLength(0);
@@ -54,13 +69,8 @@ describe('analyst-eval run', () => {
       const march = /March/.test(lastUser(body));
       return { call: [['get_workouts', { window: march ? { month: '2026-03' } : { start: '2024-01-01', end: '2024-12-31' }, view: 'summary' }]] };
     });
-    const r = await runScript(['--yes', '--only', '2,32'], {
-      ANALYST_PROVIDER: 'openai',
-      ANALYST_API_URL: model.url,
-      ANALYST_MODEL: 'm',
-      ANALYST_API_KEY: 'sk-test-canary-1234',
-      VITAL_DATA_MODE: 'demo',
-    });
+    const file = settingsFile({ kind: 'openai', baseUrl: model.url, model: 'm', apiKey: 'sk-test-canary-1234' });
+    const r = await runScript(['--yes', '--only', '2,32', '--settings', file], { VITAL_DATA_MODE: 'demo' });
     expect(r.err).toBe('');
     expect(r.code).toBe(0);
     expect(r.out).toContain('Q02 answered yes · expected tool called yes · window matched yes · absence violation no · tools: get_workouts');

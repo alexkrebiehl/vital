@@ -21,13 +21,12 @@
 // wire protocol, so JSON mode, timeouts, rate-limit retries and error scrubbing
 // cannot drift between the two callers.
 //
-// Credentials are read from the server environment only, are handed straight to
+// Credentials come from the encrypted AI settings (src/lib/ai), are handed straight to
 // fetch(), and never appear in a return value, an error message or a log.
 
 import {
   PROVIDER_DISPLAY_NAMES,
   REMOTE_SENDING_CATEGORIES,
-  readAnalystConfig,
   type AnalystConfig,
 } from './config';
 import { HANDLERS } from './handlers';
@@ -690,9 +689,9 @@ export class OpenAICompatibleProvider extends RemoteAnalystProviderBase {
       return 'The provider answered with an empty message, so there was nothing to validate.';
     }
     if (this.spentBudgetOnReasoning(choice, message)) {
-      return `The provider spent its whole ${this.config.maxTokens} token budget on the model's reasoning and never began an answer, so there was nothing to validate. Raise ANALYST_MAX_TOKENS, lower ANALYST_REASONING_EFFORT, or ask a narrower question.`;
+      return `The provider spent its whole ${this.config.maxTokens} token budget on the model's reasoning and never began an answer, so there was nothing to validate. Raise the token budget or lower the reasoning effort in Settings → Preferences → AI models, or ask a narrower question.`;
     }
-    return `The provider stopped at the ${this.config.maxTokens} token limit before producing an answer. Raise ANALYST_MAX_TOKENS or ask a narrower question.`;
+    return `The provider stopped at the ${this.config.maxTokens} token limit before producing an answer. Raise the token budget in Settings → Preferences → AI models or ask a narrower question.`;
   }
 
   /** True when a length-truncated reply produced reasoning but no content. */
@@ -860,7 +859,7 @@ export class AnthropicProvider extends RemoteAnalystProviderBase {
   if (!text.trim() && toolCalls.length === 0) {
     throw new AnalystProviderError(
       response.stop_reason === 'max_tokens'
-        ? `The provider stopped at the ${this.config.maxTokens} token limit before producing an answer. Raise ANALYST_MAX_TOKENS or ask a narrower question.`
+        ? `The provider stopped at the ${this.config.maxTokens} token limit before producing an answer. Raise the token budget in Settings → Preferences → AI models or ask a narrower question.`
         : 'The provider returned no text content, so there was nothing to validate.'
     );
   }
@@ -959,14 +958,14 @@ export function createProvider(config: AnalystConfig): AnalystProvider {
 }
 
 /**
- * Resolve the provider for an environment, falling back to the demo provider
+ * Build the provider for a configuration, falling back to the demo provider
  * when the configuration is unusable. The service does not use this: it calls
- * readAnalystConfig + createProvider so it can *report* a misconfiguration
- * instead of quietly degrading to demo output.
+ * createProvider so it can *report* a misconfiguration instead of quietly
+ * degrading to demo output.
  */
-export function resolveProvider(env: NodeJS.ProcessEnv = process.env): AnalystProvider {
+export function resolveProvider(config: AnalystConfig): AnalystProvider {
   try {
-    return createProvider(readAnalystConfig(env));
+    return createProvider(config);
   } catch {
     return new DemoAnalystProvider();
   }

@@ -9,6 +9,7 @@ const page = (key: string, reason: string): Exemption => ({ kind: 'page', key, r
 const accessor = (key: string, reason: string): Exemption => ({ kind: 'accessor', key, reason });
 
 const SOURCES = 'Connection and credential state; the analyst gets the app.pipeline capability for source status instead.';
+const AI_SETTINGS = 'AI provider and model configuration (credentials included); not data about the person.';
 const SELF = 'The analyst itself; reading its own conversations is out of scope (design §15).';
 const HELPER = 'A helper beneath seriesFor, which is the registered way to read a metric; it is not a data capability of its own.';
 
@@ -23,6 +24,9 @@ export const PERMANENT_EXEMPTIONS: readonly Exemption[] = [
   route('GET /api/sources/oura/app', SOURCES),
   route('GET /api/sources/oura/authorize', SOURCES),
   route('GET /api/sources/oura/callback', SOURCES),
+  route('GET /api/ai/providers', AI_SETTINGS),
+  route('GET /api/ai/providers/[id]/models', AI_SETTINGS),
+  route('GET /api/ai/assignments', AI_SETTINGS),
   route('GET /api/analyst', SELF),
   route('GET /api/analyst/stream', SELF),
   route('GET /api/analyst/conversations', SELF),

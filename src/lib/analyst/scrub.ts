@@ -5,6 +5,8 @@
 // bodies are reduced to a short excerpt so a provider cannot echo anything large
 // (or anything sensitive) back into the UI.
 
+import { knownAiKeys } from '@/lib/ai/key-registry';
+
 /** Any secret shorter than this is not string-replaced: it would match too much. */
 const MIN_SECRET_LENGTH = 6;
 
@@ -33,10 +35,14 @@ export function credentialValues(...envs: (NodeJS.ProcessEnv | undefined)[]): st
   );
 }
 
-/** `text` with every credential value of the process, and of the given environments, removed. */
+/**
+ * `text` with every credential value of the process, of the given environments,
+ * and every AI provider key stored in Settings, removed.
+ */
 export function redactCredentials(text: string, ...envs: (NodeJS.ProcessEnv | undefined)[]): string {
   let out = text;
-  for (const secret of credentialValues(process.env, ...envs)) out = out.split(secret).join(REDACTED);
+  const stored = knownAiKeys().filter(k => k.length >= MIN_SECRET_LENGTH);
+  for (const secret of [...credentialValues(process.env, ...envs), ...stored]) out = out.split(secret).join(REDACTED);
   return out;
 }
 

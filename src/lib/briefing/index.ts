@@ -60,6 +60,7 @@
 //   computed → `Computed from your data — analyst model offline`
 // The computed text can never be labelled as model output, and vice versa.
 
+import type { AiSettings } from '../ai/types';
 import { buildBriefing } from '../analytics/narrative';
 import { REFERENCE_KEY } from '../adapters/dataset';
 import type { UnitSystem } from '../prefs';
@@ -95,6 +96,8 @@ export interface BriefingDeps {
   system?: UnitSystem;
   env?: NodeJS.ProcessEnv;
   fetchImpl?: typeof fetch;
+  /** Test seam: the AI settings to resolve the summary model from instead of the stored ones. */
+  aiSettings?: AiSettings;
   /** Test seam: the clock the day schedule is computed against. */
   now?: () => Date;
   /** Test seam: an explicit profile instead of the one on disk. */

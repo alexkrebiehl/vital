@@ -20,7 +20,9 @@ import { REFERENCE_KEY } from '@/lib/adapters/dataset';
 import { retrieve } from '@/lib/analyst/retrieval';
 import { HANDLERS, BOUNDARY_NOTE, selectHandler, selectHandlerStrict } from '@/lib/analyst/handlers';
 import { askAnalyst } from '@/lib/analyst/service';
-import { REMOTE_SENDING_CATEGORIES, publicConfigState, readAnalystConfig } from '@/lib/analyst/config';
+import { REMOTE_SENDING_CATEGORIES, buildAnalystConfig, publicConfigState } from '@/lib/analyst/config';
+import { aiSettingsFor, NO_AI } from '@/lib/ai/test-settings';
+import { selectionFor } from '@/lib/ai/types';
 import {
   DEFAULT_ANALYST_SYSTEM_PROMPT,
   UNTRUSTED_END,
@@ -304,7 +306,7 @@ describe('the service attaches the lab block (SPEC §8)', () => {
   it('answers a lab question from the injected lab data', async () => {
     const response = await askAnalyst(
       { query: 'what were my cholesterol results?' },
-      { env: { ANALYST_PROVIDER: 'demo' } as unknown as NodeJS.ProcessEnv, labLoader: async () => labSnapshotFor(CHOLESTEROL_QUESTION) }
+      { aiSettings: NO_AI, labLoader: async () => labSnapshotFor(CHOLESTEROL_QUESTION) }
     );
     expect(response.status).toBe('ok');
     expect(response.handlerId).toBe('lab-results');
@@ -319,7 +321,7 @@ describe('the service attaches the lab block (SPEC §8)', () => {
     );
     const response = await askAnalyst(
       { query: 'How is my HRV trending?' },
-      { env: { ANALYST_PROVIDER: 'demo' } as unknown as NodeJS.ProcessEnv, labLoader: async () => snapshot }
+      { aiSettings: NO_AI, labLoader: async () => snapshot }
     );
     expect(response.status).toBe('ok');
     expect(response.handlerId).toBe('hrv-trend');
@@ -408,17 +410,15 @@ describe('the lab disclosure and prompt (SPEC §11, §8)', () => {
 
   it('exposes the lab category to the Settings list for a configured provider', () => {
     const state = publicConfigState(
-      readAnalystConfig({
-        ANALYST_PROVIDER: 'openai',
-        ANALYST_API_URL: 'https://analyst.example.invalid/v1',
-        ANALYST_API_KEY: 'key-value',
-        ANALYST_MODEL: 'some-model',
-      } as unknown as NodeJS.ProcessEnv)
+      buildAnalystConfig(
+        selectionFor(aiSettingsFor({ analyst: { baseUrl: 'https://analyst.example.invalid/v1', apiKey: 'key-value', model: 'some-model' } }), 'analyst'),
+        {} as NodeJS.ProcessEnv
+      )
     );
     // The Settings panel maps this array; the lab entry must be in it.
     expect(state.sendingCategories.some(category => /lab result/i.test(category))).toBe(true);
     // The demo analyst sends nothing, so its list stays empty.
-    expect(publicConfigState(readAnalystConfig({} as NodeJS.ProcessEnv)).sendingCategories).toEqual([]);
+    expect(publicConfigState(buildAnalystConfig(null, {} as NodeJS.ProcessEnv)).sendingCategories).toEqual([]);
   });
 
   it('states the lab rules in the system prompt', () => {

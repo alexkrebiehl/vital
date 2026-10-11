@@ -35,7 +35,7 @@ export const BRIEFING: BriefingView = {
   model: 'test-model',
   provider: 'a hosted provider label',
   destination: HOST,
-  engine: 'local',
+  engine: 'primary',
   engineDetail: `Resolved at ${HOST}`,
   generatedAt: `${REF}T07:00:00.000Z`,
   latencyMs: 900,

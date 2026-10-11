@@ -465,6 +465,6 @@ describe('the number-traceability guard', () => {
     const parsed = parseBriefingReply(cut, context);
     expect(parsed.ok).toBe(false);
     expect(parsed.reason).toMatch(/cut off/);
-    expect(parsed.reason).toMatch(/BRIEFING_MAX_TOKENS/);
+    expect(parsed.reason).toMatch(/Summary token budget/);
   });
 });

@@ -6,6 +6,7 @@
 // that a server which refuses tools still gets the whole question answered from the
 // fixed context. Also the size budget on that fixed context.
 
+import { analystOn } from '@/lib/ai/test-settings';
 import { COVERAGE_INDEX_MAX_CHARS } from './capabilities/coverage-index';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -14,7 +15,8 @@ import { askAnalyst, streamAnalyst, type AnalystStreamChunk } from './service';
 import { fitToBudget } from './budget';
 import { retrieveGeneral } from './retrieval';
 import { buildContextPayload } from './systemPrompt';
-import { readAnalystConfig } from './config';
+import { buildAnalystConfig } from './config';
+import { selectionFor } from '@/lib/ai/types';
 import { isDataTool } from './tools/names';
 import type { LabSeriesInput, LabSourceInput } from './labSnapshot';
 import type { LabContextSnapshot, RetrievalBundle } from './types';
@@ -50,7 +52,7 @@ const toolCall = (id: string, name: string, args: unknown): Reply => ({
 const said = (content: string): Reply => ({ status: 200, json: { model: 'm', choices: [{ index: 0, finish_reason: 'stop', message: { role: 'assistant', content } }] } });
 
 const env = (url: string, extra: Record<string, string> = {}) =>
-  ({ ANALYST_PROVIDER: 'openai', ANALYST_API_URL: url, ANALYST_MODEL: 'm', ANALYST_API_KEY: '***', ANALYST_CONTEXT: 'ondemand', VITAL_DATA_MODE: 'demo', ...extra }) as unknown as NodeJS.ProcessEnv;
+  ({ env: { VITAL_DATA_MODE: 'demo' } as unknown as NodeJS.ProcessEnv, aiSettings: analystOn(url, { context: 'ondemand', ...extra }, { apiKey: '***' }) });
 
 function obs(on: string, value: number) {
   return {
@@ -76,7 +78,7 @@ const ANSWER = (analysis: string, evidence: unknown[] = []) =>
 describe('on-demand mode', () => {
   it('sends an index and the tools, not the data', async () => {
     const model = await mockModel(() => said(ANSWER('Nothing to fetch.')));
-    const r = await askAnalyst({ query: 'What do my labs show?' }, { env: env(model.url), labSource: async () => SOURCE, medicationLoader: noMeds });
+    const r = await askAnalyst({ query: 'What do my labs show?' }, { ...env(model.url), labSource: async () => SOURCE, medicationLoader: noMeds });
     expect(r.status).toBe('ok');
     const first = model.bodies[0];
     const user = first.messages.at(-1).content as string;
@@ -98,7 +100,7 @@ describe('on-demand mode', () => {
         ? toolCall('c1', 'compare_lab_panels', { dateA: '2026-09-29', dateB: '2026-10-01' })
         : said(ANSWER('Total cholesterol went from 166 mg/dL to 231 mg/dL between the two panels.', [{ metricId: 'total_cholesterol' }]))
     );
-    const r = await askAnalyst({ query: 'Compare my Sept 29 and Oct 1 results' }, { env: env(model.url), labSource: async () => SOURCE, medicationLoader: noMeds });
+    const r = await askAnalyst({ query: 'Compare my Sept 29 and Oct 1 results' }, { ...env(model.url), labSource: async () => SOURCE, medicationLoader: noMeds });
     expect(r.status).toBe('ok');
     expect(r.toolsUsed).toEqual(['compare_lab_panels']);
     expect(model.bodies).toHaveLength(2);
@@ -118,7 +120,7 @@ describe('on-demand mode', () => {
     const model = await mockModel(n =>
       n === 0 ? toolCall('c1', 'get_lab_results', { analytes: ['ldl'] }) : said(ANSWER('LDL was 187 mg/dL.'))
     );
-    const r = await askAnalyst({ query: 'How is my LDL?' }, { env: env(model.url), labSource: async () => SOURCE, medicationLoader: noMeds });
+    const r = await askAnalyst({ query: 'How is my LDL?' }, { ...env(model.url), labSource: async () => SOURCE, medicationLoader: noMeds });
     expect(r.grounding?.unmatched).toContain('187');
   });
 
@@ -126,7 +128,7 @@ describe('on-demand mode', () => {
     const model = await mockModel(n =>
       n === 0 ? toolCall('c1', 'get_lab_results', { analytes: ['ldl'] }) : said(ANSWER('LDL is fine.', [{ metricId: 'ldl' }, { metricId: 'alt' }, { metricId: 'resting_heart_rate' }]))
     );
-    const r = await askAnalyst({ query: 'How is my LDL?' }, { env: env(model.url), labSource: async () => SOURCE, medicationLoader: noMeds });
+    const r = await askAnalyst({ query: 'How is my LDL?' }, { ...env(model.url), labSource: async () => SOURCE, medicationLoader: noMeds });
     expect(r.answer?.evidence.map(e => e.metricId)).toEqual(['ldl']);
   });
 
@@ -138,7 +140,7 @@ describe('on-demand mode', () => {
           ? toolCall('c2', 'compare_lab_panels', { dateA: '2026-09-29', dateB: '2026-10-01' })
           : said(ANSWER('Done.'))
     );
-    const r = await askAnalyst({ query: 'Compare' }, { env: env(model.url), labSource: async () => SOURCE, medicationLoader: noMeds });
+    const r = await askAnalyst({ query: 'Compare' }, { ...env(model.url), labSource: async () => SOURCE, medicationLoader: noMeds });
     expect(r.status).toBe('ok');
     const afterBad = model.bodies[1].messages.at(-1);
     expect(afterBad.content).toContain('No lab results are dated 2026-09-28');
@@ -150,7 +152,7 @@ describe('on-demand mode', () => {
     const model = await mockModel(() => said(ANSWER('Same answer.')));
     await askAnalyst(
       { query: 'and why did that happen?', history: [{ role: 'user', content: 'How did cholesterol change?' }, { role: 'assistant', content: 'It rose after the second panel.' }] },
-      { env: env(model.url), labSource: async () => SOURCE, medicationLoader: noMeds }
+      { ...env(model.url), labSource: async () => SOURCE, medicationLoader: noMeds }
     );
     const user = model.bodies[0].messages.at(-1).content as string;
     expect(user).toContain('It rose after the second panel.');
@@ -159,14 +161,14 @@ describe('on-demand mode', () => {
 
   it('says in the answer what it fetched', async () => {
     const model = await mockModel(n => (n === 0 ? toolCall('c1', 'get_lab_results', { analytes: ['alt'] }) : said(ANSWER('ALT is in range.'))));
-    const r = await askAnalyst({ query: 'ALT?' }, { env: env(model.url), labSource: async () => SOURCE, medicationLoader: noMeds });
+    const r = await askAnalyst({ query: 'ALT?' }, { ...env(model.url), labSource: async () => SOURCE, medicationLoader: noMeds });
     expect(r.retrieval.note).toContain('Fetched on demand: 1 lab series (ALT)');
   });
 
   it('never calls the loaders for data the model did not ask for', async () => {
     let meds = 0;
     const model = await mockModel(() => said(ANSWER('No fetch.')));
-    await askAnalyst({ query: 'Hello' }, { env: env(model.url), labSource: async () => SOURCE, medicationLoader: async () => (meds++, null) });
+    await askAnalyst({ query: 'Hello' }, { ...env(model.url), labSource: async () => SOURCE, medicationLoader: async () => (meds++, null) });
     expect(meds).toBe(0);
   });
 });
@@ -174,7 +176,7 @@ describe('on-demand mode', () => {
 describe('when tools are refused or off', () => {
   it('falls back to the full fixed context, and says so', async () => {
     const model = await mockModel(n => (n < 2 ? { status: 400, json: { error: { message: 'tools are not supported by this model' } } } : said(ANSWER('From the fixed context.'))));
-    const r = await askAnalyst({ query: 'What do my labs show?' }, { env: env(model.url), labLoader: async () => ({ available: true, reason: null, documents: 2, totalObservations: 5, totalSeries: 1, collisions: 0, selection: 'overview', requestedAnalyte: null, requestedName: null, found: true, shownSeries: 0, capped: false, note: 'n', notIncludedSeries: [], series: [] }) as LabContextSnapshot, labSource: async () => SOURCE, medicationLoader: noMeds });
+    const r = await askAnalyst({ query: 'What do my labs show?' }, { ...env(model.url), labLoader: async () => ({ available: true, reason: null, documents: 2, totalObservations: 5, totalSeries: 1, collisions: 0, selection: 'overview', requestedAnalyte: null, requestedName: null, found: true, shownSeries: 0, capped: false, note: 'n', notIncludedSeries: [], series: [] }) as LabContextSnapshot, labSource: async () => SOURCE, medicationLoader: noMeds });
     expect(r.status).toBe('ok');
     expect(r.toolsUnavailable).toMatch(/unavailable/);
     const last = model.bodies.at(-1)!;
@@ -190,7 +192,7 @@ describe('when tools are refused or off', () => {
 
   it('streams through the same fallback', async () => {
     const model = await mockModel(n => (n < 2 ? { status: 400, json: { error: { message: 'tools are not supported' } } } : said(ANSWER('Streamed fallback.'))));
-    const { chunks } = streamAnalyst({ query: 'What do my labs show?' }, { env: env(model.url), labSource: async () => SOURCE, medicationLoader: noMeds });
+    const { chunks } = streamAnalyst({ query: 'What do my labs show?' }, { ...env(model.url), labSource: async () => SOURCE, medicationLoader: noMeds });
     const out: AnalystStreamChunk[] = [];
     for await (const c of chunks) out.push(c);
     const last = out.at(-1)!;
@@ -198,18 +200,20 @@ describe('when tools are refused or off', () => {
     if (last.kind === 'result') expect(last.response.toolsUnavailable).toMatch(/unavailable/);
   });
 
-  it('ANALYST_TOOLS=off keeps the full context even when ondemand is asked for', async () => {
+  it('tools off keeps the full context even when ondemand is asked for', async () => {
     const model = await mockModel(() => said(ANSWER('Fixed.')));
-    await askAnalyst({ query: 'How is my sleep?' }, { env: env(model.url, { ANALYST_TOOLS: 'off' }), medicationLoader: noMeds, labLoader: async () => null });
+    await askAnalyst({ query: 'How is my sleep?' }, { ...env(model.url, { tools: 'off' }), medicationLoader: noMeds, labLoader: async () => null });
     const user = model.bodies[0].messages.at(-1).content as string;
     expect(user).toContain('"context"');
     expect(model.bodies[0].tools).toBeUndefined();
   });
 
   it('the default is the full context', () => {
-    expect(readAnalystConfig({ ANALYST_PROVIDER: 'openai', ANALYST_API_URL: 'http://x/v1', ANALYST_MODEL: 'm' } as unknown as NodeJS.ProcessEnv).context).toBe('full');
-    expect(readAnalystConfig({ ANALYST_PROVIDER: 'openai', ANALYST_API_URL: 'http://x/v1', ANALYST_MODEL: 'm', ANALYST_CONTEXT: 'ONDEMAND' } as unknown as NodeJS.ProcessEnv).context).toBe('ondemand');
-    expect(readAnalystConfig({ ANALYST_PROVIDER: 'openai', ANALYST_API_URL: 'http://x/v1', ANALYST_MODEL: 'm', ANALYST_CONTEXT: 'nonsense' } as unknown as NodeJS.ProcessEnv).context).toBe('full');
+    const contextOf = (options: Record<string, unknown>) =>
+      buildAnalystConfig(selectionFor(analystOn('http://x/v1', options), 'analyst'), {} as NodeJS.ProcessEnv).context;
+    expect(contextOf({})).toBe('full');
+    expect(contextOf({ context: 'ONDEMAND' })).toBe('ondemand');
+    expect(contextOf({ context: 'nonsense' })).toBe('full');
   });
 });
 
@@ -274,7 +278,7 @@ describe('the size budget on the fixed context', () => {
   it('applies to the fixed context the service sends', async () => {
     const model = await mockModel(() => said(ANSWER('ok')));
     const big: LabContextSnapshot = heavy().lab as LabContextSnapshot;
-    await askAnalyst({ query: 'How is my sleep?' }, { env: env(model.url, { ANALYST_CONTEXT: 'full', ANALYST_CONTEXT_MAX_CHARS: '12000' }), labLoader: async () => big, medicationLoader: noMeds });
+    await askAnalyst({ query: 'How is my sleep?' }, { ...env(model.url, { context: 'full', contextMaxChars: '12000' }), labLoader: async () => big, medicationLoader: noMeds });
     const user = model.bodies[0].messages.at(-1).content as string;
     expect(user).toContain('NOT SENT, to fit the size limit');
     // The fixed context honours its budget; the coverage index in front of it has its own bound.

@@ -21,7 +21,7 @@
 // context and must not be stored by a shared cache.
 
 import { NextResponse } from 'next/server';
-import { askAnalyst, publicConfigState, readAnalystConfig, supportedPrompts, validateQuery } from '@/lib/analyst';
+import { askAnalyst, publicConfigState, resolveAnalystConfig, supportedPrompts, validateQuery } from '@/lib/analyst';
 import { appendExchange, memoryTurnsFor, resolveConversations } from '@/lib/analyst/conversations';
 import { parsePageContextRef } from '@/lib/analyst/page-context-types';
 import type { UnitSystem } from '@/lib/prefs';
@@ -38,7 +38,7 @@ export async function GET() {
   // Only the configuration STATE is reported. The provider name, model, host and
   // prompt source are safe to show; the key itself never leaves the server and is
   // reduced to `hasKey`.
-  const state = publicConfigState(readAnalystConfig());
+  const state = publicConfigState(await resolveAnalystConfig());
   // Whether conversations can be saved, so the selector can say so honestly
   // before the reader has asked anything.
   const { availability } = resolveConversations();

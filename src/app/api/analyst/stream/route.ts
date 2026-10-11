@@ -24,7 +24,7 @@
 // If the client disconnects, the upstream request is aborted, not left running.
 // Responses are private and uncacheable: personal health context.
 
-import { askAnalyst, streamAnalyst, publicConfigState, readAnalystConfig, validateQuery } from '@/lib/analyst';
+import { askAnalyst, streamAnalyst, publicConfigState, resolveAnalystConfig, validateQuery } from '@/lib/analyst';
 import { appendExchange, memoryTurnsFor, resolveConversations } from '@/lib/analyst/conversations';
 import { parsePageContextRef } from '@/lib/analyst/page-context-types';
 import type { AnalystResponse } from '@/lib/analyst/types';
@@ -52,7 +52,7 @@ function sseFrame(event: string, data: unknown): string {
 export async function GET() {
   // The same configuration STATE the non-streaming route reports, so a client
   // can tell whether a provider is configured before it asks.
-  const state = publicConfigState(readAnalystConfig());
+  const state = publicConfigState(await resolveAnalystConfig());
   return new Response(JSON.stringify(state), {
     status: 200,
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store, private' },

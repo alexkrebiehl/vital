@@ -5,6 +5,7 @@
 // out. The answer is audited against the selection plus whatever the tools
 // returned.
 
+import { analystOn } from '@/lib/ai/test-settings';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -46,14 +47,14 @@ const said = (content: string): Reply => ({ status: 200, json: { model: 'm', cho
 const ANSWER = (analysis: string) => JSON.stringify({ title: 'Workouts', analysis, recommendations: [], summary: [], uncertainty: [], evidence: [], followUps: [] });
 
 const env = (url: string) =>
-  ({ ANALYST_PROVIDER: 'openai', ANALYST_API_URL: url, ANALYST_MODEL: 'm', ANALYST_API_KEY: '***', ANALYST_CONTEXT: 'full', VITAL_DATA_MODE: 'demo' }) as unknown as NodeJS.ProcessEnv;
+  ({ env: { VITAL_DATA_MODE: 'demo' } as unknown as NodeJS.ProcessEnv, aiSettings: analystOn(url, { context: 'full' }, { apiKey: '***' }) });
 const noMeds = async () => null;
 const noLabs = async () => null;
 
 describe('full context mode', () => {
   it('pre-attaches the selection and offers the data tools beside it', async () => {
     const model = await mockModel(() => said(ANSWER('Nothing to fetch.')));
-    await askAnalyst({ query: 'How was my week?' }, { env: env(model.url), medicationLoader: noMeds, labLoader: noLabs });
+    await askAnalyst({ query: 'How was my week?' }, { ...env(model.url), medicationLoader: noMeds, labLoader: noLabs });
 
     const names = (model.bodies[0].tools as { function: { name: string } }[]).map(t => t.function.name);
     expect(names).toEqual(expect.arrayContaining(['get_workouts', 'get_sleep', 'get_blood_pressure', 'get_metric_series', 'get_lab_results', 'get_routine_progress']));
@@ -77,7 +78,7 @@ describe('full context mode', () => {
     expect(in90).not.toBe(in30);
 
     const model = await mockModel(n => (n === 0 ? toolCall('get_workouts', { window: { lastDays: 90 }, limit: 5 }) : said(ANSWER(`You logged ${in90} workouts in the last 90 days.`))));
-    const r = await askAnalyst({ query: 'How many workouts did I log in the last 90 days?' }, { env: env(model.url), medicationLoader: noMeds, labLoader: noLabs });
+    const r = await askAnalyst({ query: 'How many workouts did I log in the last 90 days?' }, { ...env(model.url), medicationLoader: noMeds, labLoader: noLabs });
 
     expect(r.status).toBe('ok');
     expect(r.toolsUsed).toEqual(['get_workouts']);
@@ -94,7 +95,7 @@ describe('full context mode', () => {
 
   it('flags a figure that neither the selection nor a tool returned', async () => {
     const model = await mockModel(n => (n === 0 ? toolCall('get_workouts', { days: 90 }) : said(ANSWER('You logged 977 workouts in the last 90 days.'))));
-    const r = await askAnalyst({ query: 'How many workouts?' }, { env: env(model.url), medicationLoader: noMeds, labLoader: noLabs });
+    const r = await askAnalyst({ query: 'How many workouts?' }, { ...env(model.url), medicationLoader: noMeds, labLoader: noLabs });
     expect(r.grounding?.unmatched.length).toBeGreaterThan(0);
   });
 });

@@ -15,6 +15,8 @@
 // Nothing here returns a credential, a database address or a patient identity:
 // the draft carries the parser's redacted rows and its own bookkeeping only.
 
+import { labAssistAllowed } from '@/lib/analyst/config';
+import { resolveAnalystConfig } from '@/lib/analyst/resolve-config';
 import { NextResponse } from 'next/server';
 import { extractLabDocument, sha256Of } from '@/lib/lab/extract';
 import { buildDraft, isPdf } from '@/lib/lab/commit';
@@ -113,7 +115,8 @@ export async function POST(request: Request) {
   const extraction = await extractLabDocument(bytes, {
     filename,
     sha256,
-    modelAssist: config.modelAssistEnabled,
+    // The Analyst's model reads an unfamiliar layout only when Settings allows it.
+    modelAssist: labAssistAllowed(await resolveAnalystConfig()),
   });
   const draft = buildDraft(extraction, filename, sha256, bytes.byteLength);
 

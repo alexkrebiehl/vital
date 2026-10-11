@@ -1,4 +1,5 @@
 import { mkdtempSync, rmSync } from 'fs';
+import { aiSettingsFor, analystOn } from '@/lib/ai/test-settings';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'os';
@@ -72,7 +73,7 @@ describe('tool calling over the OpenAI-compatible protocol', () => {
     );
     const response = await askAnalyst(
       { query: 'How is my push-up progression going?' },
-      { env: { ANALYST_PROVIDER: 'openai', ANALYST_API_URL: model.url, ANALYST_MODEL: 'm', ANALYST_API_KEY: KEY } as unknown as NodeJS.ProcessEnv, routine: routineDeps() }
+      { aiSettings: analystOn(model.url, {}, { apiKey: KEY }), routine: routineDeps() }
     );
     expect(response.status).toBe('ok');
     expect(response.toolsUsed).toEqual(['get_routine_progress']);
@@ -107,7 +108,7 @@ describe('tool calling over the OpenAI-compatible protocol', () => {
     });
     const response = await askAnalyst(
       { query: 'How is my push-up progression going?' },
-      { env: { ANALYST_PROVIDER: 'openai', ANALYST_API_URL: model.url, ANALYST_MODEL: 'm', ANALYST_API_KEY: KEY } as unknown as NodeJS.ProcessEnv, routine: routineDeps() }
+      { aiSettings: analystOn(model.url, {}, { apiKey: KEY }), routine: routineDeps() }
     );
     expect(model.bodies).toHaveLength(3);
     expect(response.status).toBe('ok');
@@ -123,7 +124,7 @@ describe('tool calling over the OpenAI-compatible protocol', () => {
     );
     const response = await askAnalyst(
       { query: 'How is my push-up progression going?' },
-      { env: { ANALYST_PROVIDER: 'openai', ANALYST_API_URL: model.url, ANALYST_MODEL: 'm', ANALYST_API_KEY: KEY } as unknown as NodeJS.ProcessEnv, routine: routineDeps() }
+      { aiSettings: analystOn(model.url, {}, { apiKey: KEY }), routine: routineDeps() }
     );
     expect(response.status).toBe('ok');
     expect(response.toolsUsed).toBeUndefined();
@@ -150,7 +151,7 @@ describe('tool calling over the Anthropic protocol', () => {
     );
     const response = await askAnalyst(
       { query: 'My low back is sore after reverse crunches' },
-      { env: { ANALYST_PROVIDER: 'anthropic', ANALYST_API_URL: model.url, ANALYST_MODEL: 'claude-test', ANALYST_API_KEY: KEY } as unknown as NodeJS.ProcessEnv, routine: routineDeps() }
+      { aiSettings: aiSettingsFor({ analyst: { kind: 'anthropic', baseUrl: model.url, model: 'claude-test', apiKey: KEY } }), routine: routineDeps() }
     );
     expect(response.status).toBe('ok');
     expect(response.planChange).toMatchObject({ kind: 'update', fromRevision: 1, toRevision: 2 });

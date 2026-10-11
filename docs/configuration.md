@@ -6,90 +6,116 @@ The AI analyst, the profile and goals, the training routine, the daily briefing,
 
 ---
 
-# AI Analyst configuration
+# AI providers and models
 
-The analyst has **five configurable things**: provider, model, endpoint, credential and
-system prompt. All five are read from the **server** environment, so none of them can reach
-the browser bundle. With nothing configured it is the deterministic *Demo analyst* and the
-feature works exactly as before.
+AI is set up in the app, per user, not in the environment:
 
-## Providers
+- **Settings → Connections → AI providers** holds the model servers you use. Each has a name, a
+  type, an address and an optional API key. The key is stored encrypted under
+  `VITAL_SECRET_KEY` (created by `npm run db:init`) and never reaches the browser again after
+  you save it. Vital asks the server for its model list before it saves anything, so a wrong
+  address or a refused key is caught at once.
+- **Settings → Preferences → AI models** chooses the provider and model for each feature:
 
-| `ANALYST_PROVIDER` | What it talks to | Default path | Credential header |
+  | Use | What it does |
+  |---|---|
+  | **Analyst** | answers questions on `/analyst` (and, if allowed, reads unfamiliar lab reports) |
+  | **Summary** | writes today's briefing on the Overview and the training notes |
+  | **Summary fallback** | writes the summary when the Summary model is unusable or its local server is not running, and rewrites it once when the Summary's reply fails the number check |
+
+  Each use has an **Advanced** block with its tuning (below). A blank field means the default.
+
+With nothing chosen, the Analyst is the deterministic *Demo analyst*, the Summary is computed
+from your data, and nothing is sent anywhere. Providers and choices need the Postgres
+database; without one the app behaves as if nothing were chosen.
+
+## Provider types
+
+| Type | What it talks to | Default path | Credential header |
 |---|---|---|---|
-| `demo` (default) | nothing — deterministic handlers over the active dataset | — | — |
-| `openai` | **any** OpenAI-compatible `POST /chat/completions`: OpenAI, OpenRouter, LM Studio, llama.cpp, vLLM, Ollama, Together, … | `/chat/completions` | `Authorization: Bearer` |
-| `anthropic` | the Anthropic Messages API | `/v1/messages` | `x-api-key` |
+| OpenAI-compatible | **any** OpenAI-compatible `POST /chat/completions`: OpenAI, OpenRouter, LM Studio, llama.cpp, vLLM, Ollama, Together, … | `/chat/completions` | `Authorization: Bearer` |
+| Anthropic | the Anthropic Messages API | `/v1/messages` | `x-api-key` |
 
-`ANALYST_PROVIDER=openai` is deliberately generic: it is not tied to OpenAI. Any server that
-speaks the OpenAI chat-completions shape works, which is what makes a local model usable.
+"OpenAI-compatible" is deliberately generic: it is not tied to OpenAI. Any server that speaks
+the OpenAI chat-completions shape works, which is what makes a local model usable. The address
+is a base URL (`https://openrouter.ai/api/v1`) or a full endpoint; the default path is
+appended when missing. The model picker lists what `GET …/models` returns; a server with no
+model list (HTTP 404) is accepted and the model id is typed instead.
 
-## The five settings
+Common addresses, all offered as one-click hints in the form:
+
+| Server | Address | Key |
+|---|---|---|
+| OpenAI | `https://api.openai.com/v1` | required |
+| OpenRouter | `https://openrouter.ai/api/v1` | required |
+| LM Studio on the host | `http://host.docker.internal:1234/v1` | none |
+| Ollama on the host | `http://host.docker.internal:11434/v1` | none |
+| Anthropic | `https://api.anthropic.com` | required |
+
+`docker-compose.yml` sets `extra_hosts: ["host.docker.internal:host-gateway"]` so the
+container can reach a model server running on the host.
+
+## Tuning (Advanced)
+
+| Setting | Uses | Default | Meaning |
+|---|---|---|---|
+| Reasoning effort | all | not sent | `max`…`none`; set it for a reasoning model, whose reasoning can otherwise use the whole budget |
+| Reply budget (tokens) | all | 1200 analyst · 4000 summary | `max_tokens`; a reasoning model spends it on reasoning *and* the reply |
+| Temperature | all | 0.2 analyst · 0.3 summary | |
+| How your data is sent | Analyst | everything in one message | see [How the analyst gets your health data](#how-the-analyst-gets-your-health-data) |
+| Most data sent with one question | Analyst | 60,000 characters | bounds the one-message selection |
+| Tools | Analyst | allowed | off for a server without tool calling |
+| JSON replies | Analyst | ask for JSON | `auto` sends `response_format: {"type":"json_object"}` and retries once without it on HTTP 400; Anthropic never receives it |
+| Reasoning limit per turn | Analyst | 40,000 characters | stops a model that keeps reasoning |
+| Reply limit per turn | Analyst | 30,000 characters | stops a model that keeps writing |
+
+The Analyst block also has **Read unfamiliar lab reports with this model** (on by default).
+When a lab PDF's layout is not recognised, its text, with identifying lines removed, is sent to
+the Analyst's model and every value it proposes is checked against the document. Off: a lab
+upload never contacts a model.
+
+## What stays in the environment
+
+Only the system prompt and the timeouts are deployment settings:
 
 | Variable | Meaning | Default |
 |---|---|---|
-| `ANALYST_PROVIDER` | `demo` \| `openai` \| `anthropic` | `demo` |
-| `ANALYST_MODEL` | model id sent to the provider | none — **required** for a remote provider |
-| `ANALYST_API_URL` | base URL *or* full endpoint; the provider's default path is appended when missing | none |
-| `ANALYST_API_KEY` | credential — sent as `Authorization: Bearer` (openai) or `x-api-key` (anthropic) | none — **required** for non-loopback endpoints, optional for loopback |
 | `ANALYST_SYSTEM_PROMPT` | inline system prompt, replacing the built-in one | the built-in analyst prompt |
 | `ANALYST_SYSTEM_PROMPT_FILE` | path to a mounted `.md`/`.txt` prompt, re-read at request time when its mtime changes | none — **wins** over the inline value |
+| `ANALYST_TIMEOUT_MS` | one request to the analyst's model | `60000` |
+| `ANALYST_QUESTION_TIMEOUT_MS` | one whole analyst question, tool rounds included; also catches a stream that goes silent | `300000` (5 minutes) |
+| `BRIEFING_TIMEOUT_MS` | one briefing (or training-note) request | `60000` |
 
-Plus request tuning: `ANALYST_MAX_TOKENS` (1200), `ANALYST_TEMPERATURE` (0.2),
-`ANALYST_TIMEOUT_MS` (60000), `ANALYST_JSON_MODE` (`auto`).
+**No longer read** (since the AI providers moved to Settings): `ANALYST_PROVIDER`,
+`ANALYST_MODEL`, `ANALYST_API_URL`, `ANALYST_API_KEY`, `ANALYST_MAX_TOKENS`,
+`ANALYST_TEMPERATURE`, `ANALYST_JSON_MODE`, `ANALYST_TOOLS`, `ANALYST_CONTEXT`,
+`ANALYST_CONTEXT_MAX_CHARS`, `ANALYST_MAX_REASONING_CHARS`, `ANALYST_MAX_ANSWER_CHARS`,
+`ANALYST_REASONING_EFFORT`, `VITAL_LLM_BASE_URL`, `VITAL_LLM_MODEL`, `VITAL_LLM_API_KEY`,
+`VITAL_LLM_FALLBACK_BASE_URL`, `VITAL_LLM_FALLBACK_MODEL`, `VITAL_LLM_FALLBACK_API_KEY`,
+`BRIEFING_MAX_TOKENS`, `BRIEFING_TEMPERATURE` and `VITAL_LAB_MODEL_ASSIST`. Enter the provider
+once in Settings after upgrading.
 
 **Stopping a model that cannot stop.** A reasoning model can fail to end: it keeps thinking, or
-keeps writing, with no answer. `ANALYST_MAX_TOKENS` is far too high to catch that in time, so
-a streamed question also has three guards. Hitting one stops the question, closes the
-connection to the model, produces no answer, and shows a message that names the limit and the setting.
-
-| Setting | Default | Stops the question when |
-|---|---|---|
-| `ANALYST_MAX_REASONING_CHARS` | `40000` (about 10k tokens) | one model turn streams more reasoning than this |
-| `ANALYST_MAX_ANSWER_CHARS` | `30000` | one model turn streams more reply text than this |
-| `ANALYST_QUESTION_TIMEOUT_MS` | `300000` (5 minutes) | the whole question, tool rounds included, takes longer; also catches a stream that goes silent |
-
-The reasoning and reply limits count each model turn separately, so a question that fetches data
-in several rounds is not penalised for it. The analyst page also has a **Stop** button while a
+keeps writing, with no answer. The reply budget is far too high to catch that in time, so a
+streamed question also has three guards: the reasoning and reply limits above, and
+`ANALYST_QUESTION_TIMEOUT_MS`. Hitting one stops the question, closes the connection to the
+model, produces no answer, and shows a message that names the limit and where to change it. The
+two character limits count each model turn separately, so a question that fetches data in
+several rounds is not penalised for it. The analyst page also has a **Stop** button while a
 question is running: it closes the model connection at once and nothing is stored for that question.
 
 Rules worth knowing:
 
-- **Loopback endpoints need no key.** `127.0.0.1`, `localhost`, `[::1]` and
-  `host.docker.internal` are treated as local: `ANALYST_API_KEY` becomes optional, so a local
-  LM Studio just works. Every other host requires a key.
-- **A configured provider is used directly.** There is no per-request prompt in front of the
-  analyst in this single-user private deployment. `GET /api/analyst`, the Settings → AI
-  privacy tab and the Analyst page state which provider, model and destination host handle a
-  question.
-- **`ANALYST_JSON_MODE=auto`** sends `response_format: {"type":"json_object"}` and retries
-  once without it on HTTP 400, so servers that reject the field still work. Anthropic has no
-  such field and never receives it.
-- **Invalid configuration never crashes.** A bad URL, a missing model or a missing key for a
-  non-loopback host is reported as *misconfigured* with the reason, in `/api/analyst` and on
-  Settings → AI privacy. The analyst does not fall back to demo answers.
-
-## Local model example (LM Studio on the host)
-
-```bash
-# .env — no key needed, because the endpoint is on this machine
-ANALYST_PROVIDER=openai
-ANALYST_MODEL=local-model
-ANALYST_API_URL=http://host.docker.internal:1234/v1
-```
-
-`docker-compose.yml` sets `extra_hosts: ["host.docker.internal:host-gateway"]` so the
-container can reach a model server running on the host. Ollama and llama.cpp expose the same
-shape on their own ports (`.../v1`).
-
-## Hosted provider example
-
-```bash
-ANALYST_PROVIDER=openai
-ANALYST_MODEL=openai/gpt-4o-mini
-ANALYST_API_URL=https://openrouter.ai/api/v1
-ANALYST_API_KEY=…            # server-side only
-```
+- **Loopback addresses need no key.** `127.0.0.1`, `localhost`, `[::1]` and
+  `host.docker.internal` are treated as local, so a local LM Studio just works. Every other host
+  requires a key.
+- **A chosen provider is used directly.** There is no per-request prompt in front of the
+  analyst in this private deployment. `GET /api/analyst`, the Settings → AI privacy tab and the
+  Analyst page state which provider, model and destination host handle a question.
+- **An unusable choice never crashes.** A bad address, a missing model, a missing key for a
+  non-loopback host, or a key written under another `VITAL_SECRET_KEY` is reported as
+  *misconfigured* with the reason and where in Settings to fix it. The analyst does not fall back
+  to demo answers.
 
 ## Custom system prompt
 
@@ -105,8 +131,8 @@ and audits its numbers, but only the prompt can tell a model not to diagnose.
 
 ## What changes in the UI when a provider is configured
 
-- The badge on `/analyst` stops saying *Demo analyst* and shows the provider and model
-  (e.g. `OpenAI-compatible · gpt-4o-mini`). The key is never shown — only whether one is
+- The badge on `/analyst` stops saying *Demo analyst* and shows the provider's name and the
+  model (e.g. `OpenRouter · gpt-4o-mini`). The key is never shown — only whether one is
   present.
 - The context panel lists the destination host and the categories of data that are sent, and
   names the provider and model that handle the request.
@@ -245,19 +271,20 @@ assessment, the stage map, cues and checks, and recovery indicators.
   number in it traces to the computed figures.
 - **Stored as configuration.** Plans (never sessions) are saved in Postgres (migration 0007) or
   `./data/training-plans.json`, with a revision per change.
-- `ANALYST_TOOLS=off` keeps a configured model from calling tools (for servers without tool calling);
-  a server that rejects tool definitions is answered without them automatically.
+- **Tools: off** (Preferences → AI models → Analyst → Advanced) keeps a configured model from
+  calling tools (for servers without tool calling); a server that rejects tool definitions is
+  answered without them automatically.
 
 ### How the analyst gets your health data
 
 A question is answered from three things: a **coverage index**, a **starting selection**, and
-read-only **tools** the model calls during the answer. `ANALYST_CONTEXT` chooses the starting
-selection. The tools are offered in both modes.
+read-only **tools** the model calls during the answer. **How your data is sent** (Analyst →
+Advanced) chooses the starting selection. The tools are offered in both modes.
 
-| `ANALYST_CONTEXT` | What is sent with a question | Use it when |
+| How your data is sent | What is sent with a question | Use it when |
 |---|---|---|
-| `full` (default) | The question, the earlier turns, the coverage index and the selection for that question: metric summaries, the lab block and the medication log, in one message. The model can still look up anything the selection leaves out. | You want the likely data in front of the model from the start, or the model is weak at calling tools. |
-| `ondemand` | The question, the earlier turns and the coverage index only. The model fetches what it needs. | The model calls tools well. It sends less with each question and scales better as the lab history grows. |
+| Everything the question needs, in one message (`full`, default) | The question, the earlier turns, the coverage index and the selection for that question: metric summaries, the lab block and the medication log, in one message. The model can still look up anything the selection leaves out. | You want the likely data in front of the model from the start, or the model is weak at calling tools. |
+| A list of what exists (`ondemand`) | The question, the earlier turns and the coverage index only. The model fetches what it needs. | The model calls tools well. It sends less with each question and scales better as the lab history grows. |
 
 The **coverage index** is sent in both modes. It holds one line per kind of data the app has, with
 the first and last day and how much; the metrics with data; and the dates lab panels were
@@ -282,7 +309,7 @@ sleep…" while it works, and the answer lists which tools it used.
 Both modes only read health data. Nothing fetched is stored: it is read at request time and held
 for the life of the question.
 
-**When tools are off or refused.** With `ANALYST_TOOLS=off`, or when the model server rejects the
+**When tools are off or refused.** With tools off, or when the model server rejects the
 tool definitions, the model cannot look anything up. In `ondemand` mode the selection is then built
 and sent after all, so `ondemand` behaves as `full`. The coverage index is still sent, and the
 selection is labelled as a starting selection, so the model says that something was "not included
@@ -291,7 +318,7 @@ refuses the tools, the answer also carries a note saying the plan tools were una
 the answer cannot see or change the training plan. With tools off, the analyst cannot change the
 plan either.
 
-`ANALYST_CONTEXT_MAX_CHARS` (default 60,000, about 15,000 tokens) bounds the `full` selection. Over
+**Most data sent with one question** (default 60,000 characters, about 15,000 tokens) bounds the `full` selection. Over
 the limit, whole parts are removed — the daily series, then the less relevant blocks — and the
 message states what was left out, so the model says "I was not given X" instead of "X is not
 recorded". Nothing is cut mid-value. A model server that has a smaller window than the message
@@ -299,8 +326,8 @@ may drop the middle of it silently, which is where the data sits; set this below
 
 ## The daily briefing on `/`
 
-The Overview hero (*"Today's briefing"*) is written by the same provider stack described above —
-there is no second configuration. It receives only computed summaries (latest value, 7-day mean vs
+The Overview hero (*"Today's briefing"*) is written by the **Summary** model chosen in Preferences →
+AI models, through the same provider code the analyst uses. It receives only computed summaries (latest value, 7-day mean vs
 the preceding 7 days, previous 30-day baseline, coverage, and explicit missing-data notes), never raw
 records, and the request is bounded.
 
@@ -340,14 +367,14 @@ records, and the request is bounded.
   and activity, strength, heart and blood pressure, stress, eating, hydration, daylight, breathing).
   Those metrics lead the context, and the sleep block is left out unless sleep is itself a goal. A
   goal the map does not recognise falls back to the usual all-round briefing.
-- **Preferring a local model for the briefing only.** When `VITAL_LLM_BASE_URL` is set *and*
-  reachable, the briefing uses it instead of the analyst provider; if it is unset or unreachable the
-  briefing falls back to the `ANALYST_*` provider. `VITAL_LLM_MODEL=auto` resolves to the first model
-  id the local server advertises. The local server is resolved once per day (the `GET /v1/models`
-  response is memoized in the process for the day), so a retry does not re-probe it; the explicit
-  `Regenerate` re-probes. A local server on the host is reachable as `host.docker.internal`
-  (`extra_hosts` is already set in `docker-compose.yml`); `VITAL_LLM_API_KEY` is optional for a
-  loopback/LAN server. This switch affects the briefing only — the analyst keeps using `ANALYST_*`.
+- **A local model for the summary, with a hosted fallback.** The Summary can run on a different
+  provider from the Analyst, such as a model server on this machine or your network. A Summary
+  provider on this machine, or any Summary provider when a fallback is chosen, is first checked
+  with a bounded `GET …/models` (about 2 s), once per day (the answer is
+  memoized in the process for the day), so a server that is not running does not hold a generation
+  open; the explicit `Regenerate` checks again. When it does not answer, the **Summary fallback**
+  writes the briefing instead. The fallback is also asked exactly once when the Summary's reply
+  fails the number check, and never twice for the same briefing.
 
 ## Where each setting lives
 
@@ -355,7 +382,7 @@ Vital has two levels of settings.
 
 - **User level** is what you connect: your accounts and their keys. You enter them in
   **Settings**: Health Auto Export, Oura and Hevy under **Sources** (Hevy in
-  **Workout sources**). Vital checks them with one read-only request and, only if that works,
+  **Workout sources**), AI providers under **Connections**. Vital checks them with one read-only request and, only if that works,
   stores them in Postgres, **encrypted** with `VITAL_SECRET_KEY` (AES-256-GCM). A saved key is never
   shown again (Settings shows only its last 4 characters) and is never returned by the API.
 - **Admin level** is how the server runs. It lives in the environment (`.env`, passed through
@@ -366,17 +393,20 @@ Vital has two levels of settings.
 | User | Health Auto Export address and read key | Settings → Sources, Health Auto Export card |
 | User | Oura client ID, client secret and redirect URI | Settings → Sources, Oura card |
 | User | Hevy API key and address (optional) | Settings → Sources → Workout sources, Hevy card |
+| User | AI providers: name, type, address and API key | Settings → Connections → AI providers |
+| User | The provider, model and tuning for the Analyst, Summary and Summary fallback | Settings → Preferences → AI models |
 | Admin | `VITAL_SECRET_KEY`, the key that encrypts the stored connections | environment |
 | Admin | Database credentials (`VITAL_PG_*`, `DATABASE_URL`) and `VITAL_PORT` | environment |
 | Admin | `VITAL_DATA_MODE` (`demo` or `live`) | environment |
-| Admin | Analyst provider, key and limits (`ANALYST_*`, `VITAL_LLM_*`) | environment |
+| Admin | Analyst system prompt and the AI timeouts (`ANALYST_SYSTEM_PROMPT(_FILE)`, `ANALYST_TIMEOUT_MS`, `ANALYST_QUESTION_TIMEOUT_MS`, `BRIEFING_TIMEOUT_MS`) | environment |
 | Admin | Cache and tuning values (`HAE_*`, `OURA_*`, `HEVY_CACHE_TTL_SECONDS`, `WORKOUT_SOURCE_LOOKBACK_DAYS`, `ROUTE_CACHE_MAX_POINTS`) | environment |
 | Admin | `OURA_SCOPES`, `OURA_API_URL`, `HEVY_CACHE_TTL_SECONDS` | environment |
 
 These variables are **ignored** if they are set: `HAE_API_URL`, `HAE_API_KEY`, `OURA_CLIENT_ID`,
-`OURA_CLIENT_SECRET`, `OURA_REDIRECT_URI`, `HEVY_API_KEY` and `HEVY_API_URL`. After upgrading, each
+`OURA_CLIENT_SECRET`, `OURA_REDIRECT_URI`, `HEVY_API_KEY` and `HEVY_API_URL`, and the AI variables
+listed under [What stays in the environment](#what-stays-in-the-environment). After upgrading, each
 instance re-enters those credentials once: Health Auto Export and Oura in Settings → Sources, Hevy in
-Settings → Sources → Workout sources. Remove the old lines from
+Settings → Sources → Workout sources, and AI providers in Settings → Connections. Remove the old lines from
 `.env` when convenient; nothing reads them.
 
 `npm run db:init` generates `VITAL_SECRET_KEY` into `.env` when it is missing. Without a usable key
