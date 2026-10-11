@@ -267,3 +267,116 @@ describe('the metric-aware number guard', () => {
     expect(audit.traceability.unmatched).toContain('65400');
   });
 });
+
+// ── Units that start with a suffix letter, and the body goal's own figures ──
+//
+// A live reply that was right in every figure was discarded twice over: "kg" was
+// read as K (thousand) + g (grams), so a weight was audited as a protein figure;
+// and the body goal's target, maintenance calories and deficit belonged to no
+// group, so they matched nothing or a coincidental workout count. Synthetic
+// figures, same shape.
+
+describe('units the thousands suffix used to swallow', () => {
+  const nutrition: BriefingContext = {
+    ...CONTEXT,
+    metrics: [
+      metric('weight_body_mass', 'Weight', 'kg', { latest: { ...stat(81.4, '81.4 kg'), date: '2026-09-17' }, mean7: { ...stat(81.9, '81.9 kg'), observations: 5 } }),
+      metric('lean_body_mass', 'Lean Body Mass', 'kg', { latest: { ...stat(66.2, '66.2 kg'), date: '2026-09-17' } }),
+      metric('dietary_protein', 'Protein', 'g', { mean7: { ...stat(162, '162 g'), observations: 6 }, baseline30: { ...stat(81.4, '81.4 g'), observations: 30 } }),
+      metric('dietary_caffeine', 'Caffeine', 'mg', { mean7: { ...stat(210, '210 mg'), observations: 7 } }),
+      metric('apple_exercise_time', 'Exercise Minutes', 'min', { mean7: { ...stat(42, '42 min'), observations: 7 } }),
+    ],
+  };
+
+  it('reads "kg", "mg" and "min" as themselves, not as a suffix plus another unit', () => {
+    const audit = auditBriefingNumbers(
+      {
+        headline: 'Weight is 81.4 kg.',
+        body: 'Lean mass is 66.2 kg, protein 162 g a day, caffeine 210 mg, and exercise 42 min a day.',
+        recommendations: [],
+      },
+      nutrition
+    );
+    expect(audit.traceability.unmatched).toEqual([]);
+    expect(audit.attributionViolations).toEqual([]);
+  });
+
+  it('still holds a figure to the unit it is labelled with', () => {
+    // 81.4 is a protein value too (its baseline), but labelled kg it is a weight, and 66.2 g is no protein value.
+    const audit = auditBriefingNumbers({ headline: 'Protein reached 66.2 g.', body: '', recommendations: [] }, nutrition);
+    expect(audit.traceability.unmatched).toEqual(['66.2']);
+    expect(audit.attributionViolations).toEqual(['a value stated for Protein is what the context records for Lean Body Mass']);
+  });
+
+  it('still reads a thousands suffix in front of a unit', () => {
+    const steps: BriefingContext = {
+      ...CONTEXT,
+      metrics: [metric('step_count', 'Steps', 'count', { mean7: { ...stat(6300, '6.3K'), observations: 7 } })],
+    };
+    const audit = auditBriefingNumbers({ headline: 'You walked 6.3K steps a day.', body: '', recommendations: [] }, steps);
+    expect(audit.traceability.unmatched).toEqual([]);
+  });
+});
+
+describe('the body goal block', () => {
+  const goal = {
+    goal: 'Reach 14 % body fat',
+    setOn: '2026-08-01',
+    phase: 'Cutting',
+    phaseNote: null,
+    weightUnit: 'kg',
+    current: { weight: 81.4, bodyFatPct: 18.6, leanMass: 66.2 },
+    start: { weight: 84.0, bodyFatPct: 20.1 },
+    progressPct: 25,
+    trend: { perWeek: -0.7, pctBodyWeightPerWeek: -0.86, lastTwoWeeksPerWeek: -0.8, weighIns: 22, comparedWithRecommended: 'within' },
+    recommendedPacePctPerWeek: { min: 0.5, max: 1 },
+    paceInUse: null,
+    goalWeight: null,
+    arrivalAtPaceInUse: null,
+    trendNote: null,
+    maintenanceKcal: { fromWeightTrend: 2810, fromDevice: 2650, used: 2810, agreement: null },
+    foodLog: { loggedDays: 26, completeDays: 24, note: null },
+    intakeKcalPerDay: 2003,
+    balanceKcalPerDay: -807,
+    balanceFromWeightTrendKcalPerDay: -770,
+    targets: null,
+    flags: [],
+    logConsistency: null,
+  } as NonNullable<BriefingContext['bodyGoal']>;
+  const withGoal: BriefingContext = {
+    ...CONTEXT,
+    bodyGoal: goal,
+    metrics: [
+      CONTEXT.metrics[0]!,
+      metric('body_fat_percentage', 'Body Fat', '%', { latest: { ...stat(18.6, '18.6%'), date: '2026-09-17' } }),
+      metric('dietary_energy', 'Dietary Energy', 'kcal', { mean7: { ...stat(2003, '2,003 kcal'), observations: 6 } }),
+    ],
+    workouts: { last7: { sessions: 14, minutes: 600 }, prior7: { sessions: 12, minutes: 540 }, range: 'Sep 11 – Sep 17', priorRange: 'Sep 4 – Sep 10' },
+  };
+
+  it('accepts the goal target, maintenance calories and a deficit stated by its size', () => {
+    const audit = auditBriefingNumbers(
+      {
+        headline: 'On track to reach 14% body fat.',
+        body:
+          'You are losing 0.7 kg a week, within the 0.5–1% range. Maintenance is about 2,810 kcal, ' +
+          'so eating 2,003 kcal leaves a deficit of 807 kcal a day. The food log is complete on 24 of 26 days.',
+        recommendations: [],
+      },
+      withGoal
+    );
+    expect(audit.traceability.unmatched).toEqual([]);
+    expect(audit.attributionViolations).toEqual([]);
+  });
+
+  it('still rejects a goal figure that is not in the block', () => {
+    const audit = auditBriefingNumbers({ headline: 'Maintenance is about 3,400 kcal.', body: '', recommendations: [] }, withGoal);
+    expect(audit.traceability.unmatched).toEqual(['3,400']);
+  });
+
+  it('does not lend the goal’s figures to a metric it does not describe', () => {
+    const audit = auditBriefingNumbers({ headline: 'Resting heart rate averaged 26 bpm.', body: '', recommendations: [] }, withGoal);
+    expect(audit.traceability.unmatched).toEqual(['26']);
+    expect(audit.attributionViolations).toEqual(['a value stated for Resting Heart Rate is what the context records for the body goal']);
+  });
+});

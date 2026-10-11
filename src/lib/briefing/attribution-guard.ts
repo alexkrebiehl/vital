@@ -176,8 +176,16 @@ for (const [unit, words] of Object.entries(UNIT_SYNONYMS)) {
 
 // Longest synonym first so "minutes" is preferred over "min", "inches" over "in".
 const ALL_UNIT_WORDS = [...WORD_TO_UNIT.keys()].sort((a, b) => b.length - a.length).map(escapeRe);
-/** The unit that immediately follows a number, if any ("55.7 bpm", "6.3K steps"). */
-const UNIT_TAIL_RE = new RegExp(`^\\s*(?:[KkMm])?\\s*(${ALL_UNIT_WORDS.join('|')})(?![a-z])`, 'i');
+const UNIT_WORDS_ALT = ALL_UNIT_WORDS.join('|');
+/**
+ * The unit that immediately follows a number, if any ("55.7 bpm", "6.3K steps").
+ *
+ * A whole unit word is tried before the thousands/millions suffix: with the
+ * suffix first, the "k" of "kg" was taken as "thousand" and the rest read as
+ * grams, so a weight in kg was audited as a protein figure. The same trap read
+ * "mg" as M + grams, "ml" as m + litres and "min" as m + inches.
+ */
+const UNIT_TAIL_RE = new RegExp(`^\\s*(?:(${UNIT_WORDS_ALT})|[KkMm]\\s*(${UNIT_WORDS_ALT}))(?![a-z])`, 'i');
 
 /** A word-bounded test that a claim uses a given unit somewhere. */
 function unitMentionRe(unit: string): RegExp {
@@ -279,6 +287,39 @@ function workoutValues(workouts: BriefingWorkoutFact): number[] {
   return out;
 }
 
+/**
+ * The words a claim uses when it talks about the body goal: its target, its pace
+ * and the energy and protein figures it derives. The goal's figures are audited
+ * as their own group (they are not any core metric's 7-day values), and a claim
+ * about weight, body fat, lean mass, calories or protein may draw on them.
+ */
+const BODY_GOAL_NAMES = [
+  'goal', 'target', 'pace', 'phase', 'cutting', 'cut', 'bulking', 'bulk', 'maintenance', 'deficit', 'surplus',
+  'food log', 'logged', 'weigh-in', 'weigh-ins', 'weight', 'body weight', 'body fat', 'lean mass', 'lean body mass',
+  'calories', 'calorie', 'intake', 'protein', 'fat', 'carbs', 'carbohydrates', 'fiber', 'fibre',
+];
+
+/**
+ * Every figure the body goal block supplies, its goal sentence included ("Reach
+ * 15 % body fat"). A signed figure also counts by its size: the block records a
+ * deficit as a negative balance and a loss as a negative trend, and prose says
+ * "a 997 kcal deficit" or "losing 0.9 kg a week".
+ */
+function bodyGoalValues(goal: NonNullable<BriefingContext['bodyGoal']>): number[] {
+  const out: number[] = [];
+  const walk = (value: unknown): void => {
+    if (typeof value === 'number') {
+      pushNumeric(out, value);
+      if (value < 0) pushNumeric(out, -value);
+    }
+    else if (typeof value === 'string') out.push(...numbersInDisplay(value));
+    else if (Array.isArray(value)) value.forEach(walk);
+    else if (value && typeof value === 'object') Object.values(value).forEach(walk);
+  };
+  walk(goal);
+  return out;
+}
+
 const SLEEP_NAMES = ['sleep', 'asleep', 'night', 'nights', 'bedtime', 'time in bed', 'in bed', 'sleep duration', 'time asleep'];
 const WORKOUT_NAMES = ['workout', 'workouts', 'training', 'session', 'sessions'];
 
@@ -302,6 +343,15 @@ export function guardGroups(context: BriefingContext): GuardGroup[] {
       names: nameRegex(SLEEP_NAMES),
       units: new Set(['h', 'min']),
       values: sleepValues(context.sleep),
+    });
+  }
+  if (context.bodyGoal) {
+    groups.push({
+      id: 'body_goal',
+      label: 'the body goal',
+      names: nameRegex(BODY_GOAL_NAMES),
+      units: new Set([...unitsOf('weight_body_mass'), 'kcal', 'g']),
+      values: bodyGoalValues(context.bodyGoal),
     });
   }
   groups.push({
@@ -352,7 +402,8 @@ interface PositionedToken {
 
 function unitAfter(text: string, end: number): string | null {
   const match = UNIT_TAIL_RE.exec(text.slice(end, end + 18));
-  return match ? WORD_TO_UNIT.get(match[1].toLowerCase()) ?? null : null;
+  const word = match ? match[1] ?? match[2] : undefined;
+  return word ? WORD_TO_UNIT.get(word.toLowerCase()) ?? null : null;
 }
 
 /** Fractional digits a written figure states ("6.3" → 1, "5,900" → 0). */
