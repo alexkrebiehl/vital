@@ -4,6 +4,7 @@
 // tools off, the selection labelled, the capability map in the system prompt, the
 // routing of a configured provider, and the privacy hook on the fixed selection.
 
+import { analystOn } from '@/lib/ai/test-settings';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -40,7 +41,7 @@ async function mockModel() {
 }
 
 const env = (url: string, extra: Record<string, string> = {}) =>
-  ({ ANALYST_PROVIDER: 'openai', ANALYST_API_URL: url, ANALYST_MODEL: 'm', ANALYST_API_KEY: '***', ANALYST_CONTEXT: 'full', VITAL_DATA_MODE: 'demo', ...extra }) as unknown as NodeJS.ProcessEnv;
+  ({ env: { VITAL_DATA_MODE: 'demo' } as unknown as NodeJS.ProcessEnv, aiSettings: analystOn(url, { context: 'full', ...extra }, { apiKey: '***' }) });
 const noMeds = async () => null;
 const noLabs = async () => null;
 const userOf = (b: Body) => b.messages.at(-1)!.content;
@@ -49,7 +50,7 @@ const systemOf = (b: Body) => b.messages[0]!.content;
 describe('the coverage index reaches the model in every mode', () => {
   it('full mode: before the selection, with the starting-selection label and the tools wording', async () => {
     const model = await mockModel();
-    await askAnalyst({ query: 'How was my week?' }, { env: env(model.url), medicationLoader: noMeds, labLoader: noLabs });
+    await askAnalyst({ query: 'How was my week?' }, { ...env(model.url), medicationLoader: noMeds, labLoader: noLabs });
     const user = userOf(model.bodies[0]!);
     expect(user.indexOf('CAPABILITIES — id')).toBeGreaterThan(-1);
     expect(user.indexOf('CAPABILITIES — id')).toBeLessThan(user.indexOf('"selection"'));
@@ -60,7 +61,7 @@ describe('the coverage index reaches the model in every mode', () => {
 
   it('ondemand mode: the index and no selection', async () => {
     const model = await mockModel();
-    await askAnalyst({ query: 'How was my week?' }, { env: env(model.url, { ANALYST_CONTEXT: 'ondemand' }), medicationLoader: noMeds, labLoader: noLabs });
+    await askAnalyst({ query: 'How was my week?' }, { ...env(model.url, { context: 'ondemand' }), medicationLoader: noMeds, labLoader: noLabs });
     const user = userOf(model.bodies[0]!);
     expect(user).toContain('workouts.sessions · ');
     expect(user).not.toContain('"selection"');
@@ -68,7 +69,7 @@ describe('the coverage index reaches the model in every mode', () => {
 
   it('tools off: the index and the selection, with the wording that says nothing more can be fetched', async () => {
     const model = await mockModel();
-    await askAnalyst({ query: 'How was my week?' }, { env: env(model.url, { ANALYST_TOOLS: 'off' }), medicationLoader: noMeds, labLoader: noLabs });
+    await askAnalyst({ query: 'How was my week?' }, { ...env(model.url, { tools: 'off' }), medicationLoader: noMeds, labLoader: noLabs });
     const body = model.bodies[0]!;
     expect(body.tools).toBeUndefined();
     const user = userOf(body);
@@ -83,7 +84,7 @@ describe('the coverage index reaches the model in every mode', () => {
 describe('the capability map', () => {
   it('is in the system prompt whenever tools are offered', async () => {
     const model = await mockModel();
-    await askAnalyst({ query: 'How was my week?' }, { env: env(model.url), medicationLoader: noMeds, labLoader: noLabs });
+    await askAnalyst({ query: 'How was my week?' }, { ...env(model.url), medicationLoader: noMeds, labLoader: noLabs });
     const system = systemOf(model.bodies[0]!);
     expect(system).toContain('WHAT THE APP HOLDS');
     expect(system).toContain('list_capabilities');
@@ -94,7 +95,7 @@ describe('the capability map', () => {
 describe('routing for a configured provider (design §5.4)', () => {
   it('never uses a handler\'s narrower selection, even for the handler\'s own question', async () => {
     const model = await mockModel();
-    const r = await askAnalyst({ query: 'Is more sleep associated with higher HRV?' }, { env: env(model.url), medicationLoader: noMeds, labLoader: noLabs });
+    const r = await askAnalyst({ query: 'Is more sleep associated with higher HRV?' }, { ...env(model.url), medicationLoader: noMeds, labLoader: noLabs });
     expect(r.handlerId).toBe(GENERAL_HANDLER_ID);
   });
 
@@ -108,8 +109,8 @@ describe('routing for a configured provider (design §5.4)', () => {
     const modes: string[] = [];
     const labLoader = async (_q: string, spec: { mode: string } | null) => (modes.push(spec?.mode ?? 'none'), null as LabContextSnapshot | null);
     const model = await mockModel();
-    await askAnalyst({ query: 'What do my lab results show?' }, { env: env(model.url), medicationLoader: noMeds, labLoader });
-    await askAnalyst({ query: 'How was my week?' }, { env: env(model.url), medicationLoader: noMeds, labLoader });
+    await askAnalyst({ query: 'What do my lab results show?' }, { ...env(model.url), medicationLoader: noMeds, labLoader });
+    await askAnalyst({ query: 'How was my week?' }, { ...env(model.url), medicationLoader: noMeds, labLoader });
     expect(modes).toEqual(['analyte', 'overview']);
   });
 });
@@ -123,7 +124,7 @@ describe('the privacy hook on the fixed selection (design §9.2)', () => {
     let medReads = 0;
     await askAnalyst(
       { query: 'How was my week?' },
-      { env: env(model.url), policy, labLoader: async () => (labReads++, null), medicationLoader: async () => (medReads++, null) }
+      { ...env(model.url), policy, labLoader: async () => (labReads++, null), medicationLoader: async () => (medReads++, null) }
     );
     expect([labReads, medReads]).toEqual([0, 0]);
     const user = userOf(model.bodies[0]!);

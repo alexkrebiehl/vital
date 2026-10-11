@@ -6,7 +6,9 @@ import { askAnalyst, EDUCATIONAL_NOTICE, NOTES_MAX_CHARS, QUERY_MAX_CHARS, sanit
 import { HANDLERS, selectHandler, selectHandlerStrict, unsupportedHandlerIds } from '@/lib/analyst/handlers';
 import { GENERAL_HANDLER_ID, GENERAL_RETRIEVAL_METRICS, MAX_POINTS_PER_SERIES, RETRIEVAL_SPECS, retrieve, retrieveGeneral } from '@/lib/analyst/retrieval';
 import { DEMO_LABEL, resolveProvider } from '@/lib/analyst/provider';
-import { publicConfigState, readAnalystConfig } from '@/lib/analyst/config';
+import { buildAnalystConfig, publicConfigState } from '@/lib/analyst/config';
+import { aiSettingsFor, NO_AI } from '@/lib/ai/test-settings';
+import { selectionFor } from '@/lib/ai/types';
 import { SUPPORTED_PROMPTS } from '@/lib/analyst/prompts';
 import { labBundleFor } from '@/lib/analyst/lab-fixture';
 
@@ -237,7 +239,7 @@ describe('askAnalyst service (SPEC §8)', () => {
   it('still refuses a free-form question in demo mode, and reports no grounding audit', async () => {
     const response = await askAnalyst(
       { query: 'What is my VO2 max?' },
-      { env: { ANALYST_PROVIDER: 'demo' } as unknown as NodeJS.ProcessEnv }
+      { aiSettings: NO_AI }
     );
     expect(response.status).toBe('unsupported');
     expect(response.answer).toBeNull();
@@ -252,22 +254,18 @@ describe('askAnalyst service (SPEC §8)', () => {
 
 describe('provider configuration (SPEC §8, §11)', () => {
   it('ships with no provider configured', () => {
-    const config = readAnalystConfig({} as NodeJS.ProcessEnv);
+    const config = buildAnalystConfig(null, {} as NodeJS.ProcessEnv);
     expect(config.provider).toBe('demo');
     expect(config.misconfiguredReason).toBeNull();
-    expect(readAnalystConfig({ ANALYST_PROVIDER: 'demo' } as unknown as NodeJS.ProcessEnv).provider).toBe('demo');
-    expect(resolveProvider({} as NodeJS.ProcessEnv).configured).toBe(false);
+    expect(resolveProvider(config).configured).toBe(false);
   });
 
   it('calls the configured provider directly and names the provider and model on the answer', async () => {
-    const env = {
-      ANALYST_PROVIDER: 'openai',
-      ANALYST_API_URL: 'https://analyst.example.invalid/v1',
-      ANALYST_API_KEY: 'secret-key-value',
-      ANALYST_MODEL: 'some-model',
-    } as unknown as NodeJS.ProcessEnv;
+    const aiSettings = aiSettingsFor({
+      analyst: { baseUrl: 'https://analyst.example.invalid/v1', apiKey: 'secret-key-value', model: 'some-model', name: 'Example provider' },
+    });
 
-    const config = readAnalystConfig(env);
+    const config = buildAnalystConfig(selectionFor(aiSettings, 'analyst'), {} as NodeJS.ProcessEnv);
     expect(config.endpointHost).toBe('analyst.example.invalid');
     expect(config.hasKey).toBe(true);
     // The key itself is reduced to a boolean in anything that leaves the server.
@@ -276,41 +274,33 @@ describe('provider configuration (SPEC §8, §11)', () => {
     // No permission prompt stands in front of the configured provider: the
     // request goes out, and the honest failure of an unreachable host is
     // reported rather than replaced with demo text.
-    const response = await askAnalyst({ query: 'What changed this week?' }, { env });
+    const response = await askAnalyst({ query: 'What changed this week?' }, { aiSettings });
     expect(response.status).toBe('error');
     expect(response.answer).toBeNull();
     expect(response.providerConfigured).toBe(true);
-    expect(response.providerDisplayName).toBe('OpenAI-compatible');
+    expect(response.providerDisplayName).toBe('Example provider');
     expect(response.model).toBe('some-model');
     expect(response.message).not.toContain('not implemented');
   });
 
   it('never exposes a credential in a response payload', async () => {
-    const env = {
-      ANALYST_PROVIDER: 'openai',
-      ANALYST_API_URL: 'https://analyst.example.invalid/v1',
-      ANALYST_API_KEY: 'secret-key-value',
-      ANALYST_MODEL: 'some-model',
-    } as unknown as NodeJS.ProcessEnv;
-    const response = await askAnalyst({ query: 'How is my HRV trending?' }, { env });
+    const aiSettings = aiSettingsFor({
+      analyst: { baseUrl: 'https://analyst.example.invalid/v1', apiKey: 'secret-key-value', model: 'some-model', name: 'Example provider' },
+    });
+    const response = await askAnalyst({ query: 'How is my HRV trending?' }, { aiSettings });
     expect(JSON.stringify(response)).not.toContain('secret-key-value');
   });
 });
 
 // Defect B (round 2): the loose /sleep/ catch-all routed a two-topic question to
 // the one-month sleep bundle, so the caffeine half could not be answered at all.
-const REMOTE_ENV = {
-  ANALYST_PROVIDER: 'openai',
-  ANALYST_API_URL: 'https://analyst.example.invalid/v1',
-  ANALYST_API_KEY: 'test-key-value',
-  ANALYST_MODEL: 'test-model',
-} as unknown as NodeJS.ProcessEnv;
+const REMOTE = aiSettingsFor({ analyst: { baseUrl: 'https://analyst.example.invalid/v1', apiKey: 'test-key-value', model: 'test-model' } });
 
 const CAFFEINE_SLEEP = 'How much caffeine have I been logging, and how does it relate to my sleep?';
 
 describe('routing a free-form question to the right context (SPEC §8)', () => {
   it('sends a multi-topic question to the general bundle, not one handler', async () => {
-    const response = await askAnalyst({ query: CAFFEINE_SLEEP }, { env: REMOTE_ENV });
+    const response = await askAnalyst({ query: CAFFEINE_SLEEP }, { aiSettings: REMOTE });
     expect(response.handlerId).toBe(GENERAL_HANDLER_ID);
     const selected = response.retrieval.metrics.map(m => m.metricId);
     // Both halves of the question are answerable: caffeine and sleep.
@@ -320,7 +310,7 @@ describe('routing a free-form question to the right context (SPEC §8)', () => {
 
   it('routes every handler\'s canonical question to the general selection under a configured provider (design §5.4)', async () => {
     for (const prompt of SUPPORTED_PROMPTS) {
-      const response = await askAnalyst({ query: prompt }, { env: REMOTE_ENV });
+      const response = await askAnalyst({ query: prompt }, { aiSettings: REMOTE });
       expect(response.handlerId, prompt).toBe(GENERAL_HANDLER_ID);
       // The wider selection, not one handler's narrower bundle: the workout log and more than one metric.
       expect(response.retrieval.metrics.length, prompt).toBeGreaterThan(1);
@@ -330,7 +320,7 @@ describe('routing a free-form question to the right context (SPEC §8)', () => {
   it('keeps the demo catch-all exactly as it was for the same question', async () => {
     const demo = await askAnalyst(
       { query: CAFFEINE_SLEEP },
-      { env: { ANALYST_PROVIDER: 'demo' } as unknown as NodeJS.ProcessEnv }
+      { aiSettings: NO_AI }
     );
     // Demo routing is pattern matching, and a mention of sleep still lands on
     // the shortest sleep window: that behaviour is unchanged.
@@ -343,7 +333,7 @@ describe('routing a free-form question to the right context (SPEC §8)', () => {
   it('keeps the demo refusal for a question no handler matches', async () => {
     const demo = await askAnalyst(
       { query: 'Should I stop taking my medication?' },
-      { env: { ANALYST_PROVIDER: 'demo' } as unknown as NodeJS.ProcessEnv }
+      { aiSettings: NO_AI }
     );
     expect(demo.status).toBe('unsupported');
     expect(demo.answer).toBeNull();

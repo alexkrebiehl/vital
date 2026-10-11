@@ -6,6 +6,7 @@
 // the plan change. A server that refuses tool definitions still streams an
 // answer, with the note that the tools were unavailable.
 
+import { analystOn } from '@/lib/ai/test-settings';
 import { mkdtempSync, rmSync } from 'fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -57,8 +58,7 @@ async function mockModel(replies: Reply[]) {
   return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, bodies };
 }
 
-const env = (url: string) =>
-  ({ ANALYST_PROVIDER: 'openai', ANALYST_API_URL: url, ANALYST_MODEL: 'm', ANALYST_API_KEY: 'sk-never-leak' }) as unknown as NodeJS.ProcessEnv;
+const settings = (url: string) => analystOn(url, {}, { apiKey: 'sk-never-leak' });
 
 const FINAL = JSON.stringify({
   title: 'Core paused',
@@ -95,7 +95,7 @@ describe('streaming with the training-plan tools', () => {
 
     const { chunks } = streamAnalyst(
       { query: 'Pause this path, my lower back hurts', context: { kind: 'routine-path', pathId: core } },
-      { env: env(model.url), routine: routineDeps() }
+      { aiSettings: settings(model.url), routine: routineDeps() }
     );
     const out = await collect(chunks);
 
@@ -130,7 +130,7 @@ describe('streaming with the training-plan tools', () => {
       { status: 400, json: { error: { message: 'tools are not supported by this model' } } },
       { sse: [{ model: 'm', choices: [{ delta: { content: FINAL }, finish_reason: 'stop' }] }] },
     ]);
-    const { chunks } = streamAnalyst({ query: 'How is my routine going?' }, { env: env(model.url), routine: routineDeps() });
+    const { chunks } = streamAnalyst({ query: 'How is my routine going?' }, { aiSettings: settings(model.url), routine: routineDeps() });
     const out = await collect(chunks);
     const result = out.at(-1)!;
     if (result.kind !== 'result') throw new Error('no result');

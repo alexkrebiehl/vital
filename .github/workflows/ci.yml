@@ -113,7 +113,7 @@ jobs:
             -e VITAL_PG_HOST=vital-ci-pg -e VITAL_PG_PORT=5432 \
             -e VITAL_PG_DATABASE=vital -e VITAL_PG_USER=vital \
             -e VITAL_PG_PASSWORD="$PG_PASSWORD" -e VITAL_PG_SSL=false \
-            -e VITAL_DATA_MODE=demo -e ANALYST_PROVIDER=demo \
+            -e VITAL_DATA_MODE=demo \
             vital:ci
 
           healthy=false

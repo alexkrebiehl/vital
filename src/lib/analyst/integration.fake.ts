@@ -1,6 +1,6 @@
 // ── A scripted model for the analyst integration tests ──────────────────────
 //
-// The service builds its provider from the environment, so the fake model is a
+// The service builds its provider from the AI settings, so the fake model is a
 // small local HTTP server that speaks the OpenAI-compatible wire format. A test
 // writes a SCRIPT: one function from (turn number, request body) to what the
 // model does that turn. The same script serves the plain and the streamed path;
@@ -13,6 +13,8 @@ import { setActiveDataset } from '../adapters/dataset';
 import { testDataset } from './capabilities/test-dataset.fake';
 import { askAnalyst, streamAnalyst, type AnalystDeps, type AnalystStreamChunk } from './service';
 import type { AnalystRequest, AnalystResponse } from './types';
+import { analystOn } from '../ai/test-settings';
+import type { AiSettings } from '../ai/types';
 
 export type Message = { role: string; content?: string | null; tool_call_id?: string; tool_calls?: unknown[] };
 export interface Body {
@@ -92,11 +94,19 @@ export const reply = (analysis: string, uncertainty: string[] = []): string =>
 
 // ── Running a question ──────────────────────────────────
 
-export const modelEnv = (url: string, extra: Record<string, string> = {}): NodeJS.ProcessEnv =>
-  ({ ANALYST_PROVIDER: 'openai', ANALYST_API_URL: url, ANALYST_MODEL: 'm', ANALYST_API_KEY: 'test-key', ANALYST_CONTEXT: 'full', VITAL_DATA_MODE: 'demo', ...extra }) as unknown as NodeJS.ProcessEnv;
+/** What a question needs to reach the fake model: the Analyst on it, and the demo dataset. */
+export interface ModelSetup {
+  env: NodeJS.ProcessEnv;
+  aiSettings: AiSettings;
+}
+
+export const modelEnv = (url: string, options: Record<string, unknown> = {}): ModelSetup => ({
+  env: { VITAL_DATA_MODE: 'demo' } as unknown as NodeJS.ProcessEnv,
+  aiSettings: analystOn(url, { context: 'full', ...options }),
+});
 
 const none = async () => null;
-export const quiet = (env: NodeJS.ProcessEnv, extra: AnalystDeps = {}): AnalystDeps => ({ env, medicationLoader: none, labLoader: none, ...extra });
+export const quiet = (setup: ModelSetup, extra: AnalystDeps = {}): AnalystDeps => ({ ...setup, medicationLoader: none, labLoader: none, ...extra });
 
 export type Path = 'ask' | 'stream';
 export const PATHS: Path[] = ['ask', 'stream'];

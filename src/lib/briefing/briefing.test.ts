@@ -33,29 +33,23 @@ import {
 } from '@/lib/briefing';
 import { resetBriefingEngineMemo } from '@/lib/briefing/engine';
 import { defaultProfile, type VitalProfile } from '@/lib/profile/types';
+import { aiSettingsFor, NO_AI, type UseSpec } from '@/lib/ai/test-settings';
 
 const REAL_FETCH = globalThis.fetch;
 
-const LOCAL_ENV = {
-  VITAL_LLM_BASE_URL: 'http://127.0.0.1:1234/v1',
-  VITAL_LLM_MODEL: 'auto',
-} as unknown as NodeJS.ProcessEnv;
+/** The Summary on a model server on this machine (no key). */
+const LOCAL: UseSpec = { baseUrl: 'http://127.0.0.1:1234/v1', model: 'local-model-1', apiKey: null, name: 'Local model' };
 
-const ANALYST_ENV = {
-  ANALYST_PROVIDER: 'openai',
-  ANALYST_API_URL: 'https://provider.example/v1',
-  ANALYST_API_KEY: '«redacted:sk-…»',
-  ANALYST_MODEL: 'test-model',
-} as unknown as NodeJS.ProcessEnv;
+/** The Summary on a hosted provider. */
+const HOSTED: UseSpec = { baseUrl: 'https://provider.example/v1', model: 'test-model', apiKey: '«redacted:sk-…»', name: 'Hosted' };
 
-/** The hosted fallback provider a guard-rejected reply is re-asked from once. */
-const FALLBACK_ENV = {
-  VITAL_LLM_FALLBACK_BASE_URL: 'https://provider.example/v1',
-  VITAL_LLM_FALLBACK_MODEL: 'fallback-model',
-  VITAL_LLM_FALLBACK_API_KEY: '«redacted:fb-…»',
-} as unknown as NodeJS.ProcessEnv;
+/** The Summary fallback a guard-rejected reply is re-asked from once. */
+const FALLBACK: UseSpec = { baseUrl: 'https://provider.example/v1', model: 'fallback-model', apiKey: '«redacted:fb-…»', name: 'Fallback' };
 
-/** A configured server environment, without touching the real process env. */
+const LOCAL_ONLY = aiSettingsFor({ summary: LOCAL });
+const LOCAL_WITH_FALLBACK = aiSettingsFor({ summary: LOCAL, summary_fallback: FALLBACK });
+
+/** A server environment, without touching the real process env. */
 function envOf(overrides: Record<string, string>): NodeJS.ProcessEnv {
   return { ...overrides } as unknown as NodeJS.ProcessEnv;
 }
@@ -182,7 +176,7 @@ function wrongMetricReply(context: BriefingContext): string {
 
 type BriefingDepsArg = Parameters<typeof readBriefing>[0];
 const deps = (overrides: Partial<BriefingDepsArg> = {}): BriefingDepsArg => ({
-  env: LOCAL_ENV,
+  aiSettings: LOCAL_ONLY,
   profile: PROFILE,
   now: MIDDAY,
   ...overrides,
@@ -218,80 +212,109 @@ afterEach(() => {
 });
 
 describe('resolving the briefing engine', () => {
-  it('prefers the local model server and resolves `auto` to a real model id', async () => {
+  it('uses the Summary model chosen in Settings, after checking a local server answers', async () => {
     const seen: string[] = [];
     const engine = await resolveBriefingEngine({
-      env: LOCAL_ENV,
+      aiSettings: LOCAL_ONLY,
       fetchImpl: stubFetch({ models: ['qwen3-8b', 'second-model'], onCall: url => seen.push(url) }),
     });
 
-    expect(engine.kind).toBe('local');
-    expect(engine.model).toBe('qwen3-8b');
+    expect(engine.kind).toBe('primary');
+    expect(engine.label).toBe('Local model');
+    expect(engine.model).toBe('local-model-1');
     expect(engine.destination).toBe('127.0.0.1:1234');
-    expect(engine.detail).toMatch(/VITAL_LLM_MODEL=auto resolved to "qwen3-8b"/);
-    // The probe is a bounded GET /models on the configured base URL.
+    // The probe is a bounded GET /models on the provider's base URL.
     expect(seen).toEqual(['http://127.0.0.1:1234/v1/models']);
   });
 
-  it('uses a configured model id verbatim when it is not `auto`', async () => {
-    const engine = await resolveBriefingEngine({
-      env: { ...LOCAL_ENV, VITAL_LLM_MODEL: 'my-local-model' },
-      fetchImpl: stubFetch({ models: ['qwen3-8b'] }),
+  it('checks a server off this machine when a fallback could write instead', async () => {
+    const lan: UseSpec = { baseUrl: 'https://localai.example/v1', model: 'lan-model', apiKey: 'lan-key-123456', name: 'LAN' };
+    const seen: string[] = [];
+    const down = await resolveBriefingEngine({
+      aiSettings: aiSettingsFor({ summary: lan, summary_fallback: FALLBACK }),
+      fetchImpl: stubFetch({ probeFails: true, onCall: url => seen.push(url) }),
     });
-    expect(engine.model).toBe('my-local-model');
+    expect(seen).toEqual(['https://localai.example/v1/models']);
+    expect(down.kind).toBe('fallback');
+    const up = await resolveBriefingEngine({ aiSettings: aiSettingsFor({ summary: lan, summary_fallback: FALLBACK }), fetchImpl: stubFetch({}) });
+    expect(up.kind).toBe('primary');
+    expect(up.model).toBe('lan-model');
   });
 
-  it('falls through to the analyst provider when the local server does not answer', async () => {
+  it('does not probe a hosted provider with no fallback', async () => {
+    const seen: string[] = [];
+    const engine = await resolveBriefingEngine({ aiSettings: aiSettingsFor({ summary: HOSTED }), fetchImpl: stubFetch({ onCall: url => seen.push(url) }) });
+    expect(engine.kind).toBe('primary');
+    expect(engine.model).toBe('test-model');
+    expect(seen).toEqual([]);
+  });
+
+  it('falls through to the Summary fallback when the local server does not answer', async () => {
     const engine = await resolveBriefingEngine({
-      env: { ...LOCAL_ENV, ...ANALYST_ENV },
+      aiSettings: LOCAL_WITH_FALLBACK,
       fetchImpl: stubFetch({ probeFails: true }),
     });
 
-    expect(engine.kind).toBe('analyst');
-    expect(engine.model).toBe('test-model');
+    expect(engine.kind).toBe('fallback');
+    expect(engine.model).toBe('fallback-model');
     expect(engine.destination).toBe('provider.example');
     expect(engine.detail).toMatch(/could not be reached/);
-    expect(engine.detail).toMatch(/Falling back/);
+    expect(engine.detail).toMatch(/summary fallback/);
   });
 
-  it('gives the analyst-backed engine the briefing token budget, not the analyst one', async () => {
-    // A reasoning model spends the budget on its reasoning before it writes the
-    // reply, so inheriting ANALYST_MAX_TOKENS=1200 truncated the JSON mid-object.
-    const engine = await resolveBriefingEngine({
-      env: envOf({ ...ANALYST_ENV, ANALYST_MAX_TOKENS: '1200' }),
-      fetchImpl: stubFetch({}),
-    });
-
+  it('gives the summary the briefing token budget unless Settings chose another', async () => {
+    const engine = await resolveBriefingEngine({ aiSettings: aiSettingsFor({ summary: HOSTED }), fetchImpl: stubFetch({}) });
     expect(engine.config?.maxTokens).toBe(DEFAULT_BRIEFING_MAX_TOKENS);
-    expect(engine.config?.maxTokens).toBeGreaterThan(1200);
+    expect(engine.config?.tools).toBe('off');
+    expect(engine.config?.reasoningEffort).toBeNull();
 
-    // An explicit briefing budget is honoured, and the timeout is bounded.
+    // A chosen budget is honoured, and the timeout is still the environment's.
     const tuned = await resolveBriefingEngine({
-      env: envOf({ ...ANALYST_ENV, ANALYST_MAX_TOKENS: '1200', BRIEFING_MAX_TOKENS: '6000', ANALYST_TIMEOUT_MS: '60000' }),
+      aiSettings: aiSettingsFor({ summary: { ...HOSTED, options: { maxTokens: 6000, reasoningEffort: 'low' } } }),
+      env: envOf({ BRIEFING_TIMEOUT_MS: '30000' }),
       fetchImpl: stubFetch({}),
     });
     expect(tuned.config?.maxTokens).toBe(6000);
-    expect(tuned.config?.timeoutMs).toBe(DEFAULT_BRIEFING_TIMEOUT_MS);
+    expect(tuned.config?.reasoningEffort).toBe('low');
+    expect(tuned.config?.timeoutMs).toBe(30000);
+    const untimed = await resolveBriefingEngine({ aiSettings: aiSettingsFor({ summary: HOSTED }), env: envOf({}), fetchImpl: stubFetch({}) });
+    expect(untimed.config?.timeoutMs).toBe(DEFAULT_BRIEFING_TIMEOUT_MS);
   });
 
-  it('reports no engine when neither is available', async () => {
-    const engine = await resolveBriefingEngine({ env: envOf({}), fetchImpl: stubFetch({}) });
+  it('reports no engine when no summary model is chosen, and ignores the Analyst choice', async () => {
+    const engine = await resolveBriefingEngine({ aiSettings: NO_AI, fetchImpl: stubFetch({}) });
     expect(engine.kind).toBe('none');
     expect(engine.config).toBeNull();
-    expect(engine.detail).toMatch(/not set/);
+    expect(engine.detail).toMatch(/No summary model is chosen/);
+
+    const analystOnly = await resolveBriefingEngine({ aiSettings: aiSettingsFor({ analyst: HOSTED }), fetchImpl: stubFetch({}) });
+    expect(analystOnly.kind).toBe('none');
+  });
+
+  it('uses the fallback when the Summary choice is unusable', async () => {
+    const engine = await resolveBriefingEngine({
+      aiSettings: aiSettingsFor({ summary: { ...HOSTED, apiKey: null }, summary_fallback: FALLBACK }),
+      fetchImpl: stubFetch({}),
+    });
+    expect(engine.kind).toBe('fallback');
+    expect(engine.detail).toMatch(/needs an API key/);
+  });
+
+  it('states why when the settings could not be read', async () => {
+    const engine = await resolveBriefingEngine({ aiSettings: { ...NO_AI, unavailable: 'The AI settings could not be read from the database.' } });
+    expect(engine.kind).toBe('none');
+    expect(engine.detail).toMatch(/could not be read/);
   });
 
   it('never puts a credential in the resolved engine description', async () => {
     const engine = await resolveBriefingEngine({
-      env: { ...LOCAL_ENV, ...ANALYST_ENV, VITAL_LLM_API_KEY: 'local-secret-key' },
+      aiSettings: aiSettingsFor({ summary: { ...LOCAL, apiKey: 'local-secret-key' }, summary_fallback: FALLBACK }),
       fetchImpl: stubFetch({ probeFails: true }),
     });
-    const serialized = JSON.stringify({
-      ...engine,
-      config: engine.config ? { ...engine.config, apiKey: undefined } : null,
-    });
+    const strip = (e: typeof engine): unknown => ({ ...e, config: e.config ? { ...e.config, apiKey: undefined } : null, fallback: e.fallback ? strip(e.fallback) : undefined });
+    const serialized = JSON.stringify(strip(engine));
     expect(serialized).not.toContain('local-secret-key');
-    expect(serialized).not.toContain('«redacted:sk-…»');
+    expect(serialized).not.toContain('«redacted:fb-…»');
   });
 });
 
@@ -305,11 +328,11 @@ describe('resolving the local model engine once a day', () => {
       },
     });
 
-    const first = await resolveBriefingEngine({ env: LOCAL_ENV, fetchImpl, day: '2026-09-18' });
-    const second = await resolveBriefingEngine({ env: LOCAL_ENV, fetchImpl, day: '2026-09-18' });
+    const first = await resolveBriefingEngine({ aiSettings: LOCAL_ONLY, fetchImpl, day: '2026-09-18' });
+    const second = await resolveBriefingEngine({ aiSettings: LOCAL_ONLY, fetchImpl, day: '2026-09-18' });
 
-    expect(first.kind).toBe('local');
-    expect(second.model).toBe('qwen3-8b');
+    expect(first.kind).toBe('primary');
+    expect(second.model).toBe('local-model-1');
     // One GET /models for the whole day, not one per resolution.
     expect(probes).toBe(1);
   });
@@ -323,31 +346,31 @@ describe('resolving the local model engine once a day', () => {
       },
     });
 
-    await resolveBriefingEngine({ env: LOCAL_ENV, fetchImpl, day: '2026-09-18' });
-    await resolveBriefingEngine({ env: LOCAL_ENV, fetchImpl, day: '2026-09-19' });
+    await resolveBriefingEngine({ aiSettings: LOCAL_ONLY, fetchImpl, day: '2026-09-18' });
+    await resolveBriefingEngine({ aiSettings: LOCAL_ONLY, fetchImpl, day: '2026-09-19' });
     expect(probes).toBe(2);
   });
 
   it('does not let a memoized "unavailable" mask a recovery for the regenerate path', async () => {
-    // Day one: the local server is down, so the engine is the analyst fallback.
+    // Day one: the local server is down, so the engine is the fallback.
     const down = stubFetch({ probeFails: true });
-    const before = await resolveBriefingEngine({ env: { ...LOCAL_ENV, ...ANALYST_ENV }, fetchImpl: down, day: '2026-09-18' });
-    expect(before.kind).toBe('analyst');
+    const before = await resolveBriefingEngine({ aiSettings: LOCAL_WITH_FALLBACK, fetchImpl: down, day: '2026-09-18' });
+    expect(before.kind).toBe('fallback');
 
     // The server comes back. An automatic resolution still sees the memo…
     const up = stubFetch({ models: ['qwen3-8b'] });
-    const cached = await resolveBriefingEngine({ env: { ...LOCAL_ENV, ...ANALYST_ENV }, fetchImpl: up, day: '2026-09-18' });
-    expect(cached.kind).toBe('analyst');
+    const cached = await resolveBriefingEngine({ aiSettings: LOCAL_WITH_FALLBACK, fetchImpl: up, day: '2026-09-18' });
+    expect(cached.kind).toBe('fallback');
 
     // …but an explicit re-probe (the Regenerate control) recovers it.
     const forced = await resolveBriefingEngine({
-      env: { ...LOCAL_ENV, ...ANALYST_ENV },
+      aiSettings: LOCAL_WITH_FALLBACK,
       fetchImpl: up,
       day: '2026-09-18',
       forceProbe: true,
     });
-    expect(forced.kind).toBe('local');
-    expect(forced.model).toBe('qwen3-8b');
+    expect(forced.kind).toBe('primary');
+    expect(forced.model).toBe('local-model-1');
   });
 });
 
@@ -432,8 +455,8 @@ describe("reading today's briefing", () => {
     expect(view.kind).toBe('model');
     expect(view.attribution).toBe('Written by local-model-1');
     expect(view.model).toBe('local-model-1');
-    expect(view.provider).toBe('local model');
-    expect(view.engine).toBe('local');
+    expect(view.provider).toBe('Local model');
+    expect(view.engine).toBe('primary');
     expect(view.cached).toBe(true);
     expect(view.coversDay).toBe('2026-09-18');
     expect(view.recommendations).toHaveLength(2);
@@ -470,15 +493,15 @@ describe("reading today's briefing", () => {
     const counter = counting({ contents: [wrong, groundedReply(context)] });
     installFetch(counter.options);
 
-    readBriefing(deps({ env: { ...LOCAL_ENV, ...FALLBACK_ENV } }));
+    readBriefing(deps({ aiSettings: LOCAL_WITH_FALLBACK }));
     await awaitBriefingIdle();
 
-    const view = readBriefing(deps({ env: { ...LOCAL_ENV, ...FALLBACK_ENV } }));
+    const view = readBriefing(deps({ aiSettings: LOCAL_WITH_FALLBACK }));
     // The rejected reply was discarded; the fallback's grounded reply is what is
     // published, and the payload says the fallback wrote it.
     expect(view.kind).toBe('model');
     expect(view.engine).toBe('fallback');
-    expect(view.provider).toBe('fallback model');
+    expect(view.provider).toBe('Fallback');
     expect(view.destination).toBe('provider.example');
     expect(view.headline).not.toBe(JSON.parse(wrong).headline);
     expect(view.traceability.unmatched).toEqual([]);
@@ -493,11 +516,11 @@ describe("reading today's briefing", () => {
     const counter = counting({ contents: [wrong, wrong] });
     installFetch(counter.options);
 
-    const env = { ...LOCAL_ENV, ...FALLBACK_ENV };
-    readBriefing(deps({ env }));
+    const aiSettings = LOCAL_WITH_FALLBACK;
+    readBriefing(deps({ aiSettings }));
     await awaitBriefingIdle();
 
-    const view = readBriefing(deps({ env }));
+    const view = readBriefing(deps({ aiSettings }));
     expect(view.kind).toBe('computed');
     expect(view.attribution).toBe(COMPUTED_ATTRIBUTION);
     expect(view.reason).toMatch(/failed the same check/);
@@ -508,12 +531,27 @@ describe("reading today's briefing", () => {
     expect(counter.calls()).toBe(2);
   });
 
+  it('does not ask the fallback twice when it already wrote the rejected reply', async () => {
+    // The local server is down, so the fallback writes; its reply fails the guard.
+    const context = buildBriefingContext('metric');
+    const counter = counting({ contents: [wrongMetricReply(context), groundedReply(context)], probeFails: true });
+    installFetch(counter.options);
+
+    readBriefing(deps({ aiSettings: LOCAL_WITH_FALLBACK }));
+    await awaitBriefingIdle();
+
+    const view = readBriefing(deps({ aiSettings: LOCAL_WITH_FALLBACK }));
+    expect(view.kind).toBe('computed');
+    expect(view.reason).toMatch(/came from the summary fallback itself/);
+    expect(counter.calls()).toBe(1);
+  });
+
   it('serves the computed briefing with exactly one attempt when no fallback is configured', async () => {
     const context = buildBriefingContext('metric');
     const counter = counting({ contents: [wrongMetricReply(context)] });
     installFetch(counter.options);
 
-    // LOCAL_ENV only: no VITAL_LLM_FALLBACK_*.
+    // The Summary only: no fallback is chosen.
     readBriefing(deps());
     await awaitBriefingIdle();
 
@@ -530,15 +568,15 @@ describe("reading today's briefing", () => {
     const counter = counting({ contents: [wrongMetricReply(context), wrongMetricReply(context)] });
     installFetch(counter.options);
 
-    const env = { ...LOCAL_ENV, ...FALLBACK_ENV };
-    readBriefing(deps({ env }));
+    const aiSettings = LOCAL_WITH_FALLBACK;
+    readBriefing(deps({ aiSettings }));
     await awaitBriefingIdle();
     expect(counter.calls()).toBe(2);
 
     // Further reads the same day are served the computed briefing and open no
     // new request: a failed guard is not retried on every view.
-    const first = readBriefing(deps({ env }));
-    const second = readBriefing(deps({ env }));
+    const first = readBriefing(deps({ aiSettings }));
+    const second = readBriefing(deps({ aiSettings }));
     await awaitBriefingIdle();
     expect(first.kind).toBe('computed');
     expect(second.kind).toBe('computed');
@@ -551,10 +589,10 @@ describe("reading today's briefing", () => {
       chatBody: { error: { message: 'invalid api key «redacted:sk-…»' } },
     });
 
-    readBriefing(deps({ env: ANALYST_ENV }));
+    readBriefing(deps({ aiSettings: aiSettingsFor({ summary: HOSTED }) }));
     await awaitBriefingIdle();
 
-    const view = readBriefing(deps({ env: ANALYST_ENV }));
+    const view = readBriefing(deps({ aiSettings: aiSettingsFor({ summary: HOSTED }) }));
     expect(view.kind).toBe('computed');
     expect(view.attribution).toBe(COMPUTED_ATTRIBUTION);
     expect(view.reason).toMatch(/HTTP 401/);
@@ -563,13 +601,13 @@ describe("reading today's briefing", () => {
 
   it('degrades to the computed briefing when no engine is configured at all', async () => {
     installFetch();
-    readBriefing(deps({ env: envOf({}) }));
+    readBriefing(deps({ aiSettings: NO_AI }));
     await awaitBriefingIdle();
 
-    const view = readBriefing(deps({ env: envOf({}) }));
+    const view = readBriefing(deps({ aiSettings: NO_AI }));
     expect(view.kind).toBe('computed');
     expect(view.attribution).toBe(COMPUTED_ATTRIBUTION);
-    expect(view.reason).toMatch(/no model is available|not set/);
+    expect(view.reason).toMatch(/No summary model is chosen/);
   });
 
   it('degrades to the computed briefing when the provider does not answer in time', async () => {
@@ -586,7 +624,7 @@ describe("reading today's briefing", () => {
       });
     }) as unknown as typeof fetch;
 
-    const env = envOf({ ...LOCAL_ENV, BRIEFING_TIMEOUT_MS: '100' });
+    const env = envOf({ BRIEFING_TIMEOUT_MS: '100' });
     readBriefing(deps({ env }));
     await awaitBriefingIdle();
 
@@ -853,7 +891,7 @@ describe('the briefing warm-up entry point', () => {
     const outcome = await warmBriefing(deps());
     expect(outcome.ok).toBe(true);
     if (outcome.ok) {
-      expect(outcome.engine).toBe('local');
+      expect(outcome.engine).toBe('primary');
       expect(outcome.model).toBe('local-model-1');
     }
     expect(counter.calls()).toBe(1);
@@ -876,8 +914,8 @@ describe('the briefing warm-up entry point', () => {
 
   it('reports the absence of a model as an outcome rather than throwing', async () => {
     installFetch();
-    const outcome = await warmBriefing(deps({ env: envOf({}) }));
+    const outcome = await warmBriefing(deps({ aiSettings: NO_AI }));
     expect(outcome.ok).toBe(false);
-    if (!outcome.ok) expect(outcome.reason).toMatch(/no model is available|not set/);
+    if (!outcome.ok) expect(outcome.reason).toMatch(/No summary model is chosen/);
   });
 });

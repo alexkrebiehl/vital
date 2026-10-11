@@ -1,12 +1,19 @@
-// ── Analyst configuration (SPEC §8, §11) ────────────────
+// ── Model configuration (SPEC §8, §11) ──────────────────
 //
-// The single place where the five configurable things — provider, model,
-// endpoint, credential and system prompt — are resolved from the *server*
-// environment.
+// The single place where a provider, a model and its tuning become the
+// configuration a provider is built from (`AnalystConfig`).
+//
+// Where each part comes from:
+//   * the provider (protocol, address, key), the model and the tuning are chosen
+//     in Settings and stored per user (src/lib/ai). They arrive here as an
+//     `AiSelection`; `resolveAnalystConfig` (./resolve-config) reads them.
+//   * the system prompt and the timeouts stay deployment settings in the server
+//     environment (ANALYST_SYSTEM_PROMPT(_FILE), ANALYST_TIMEOUT_MS,
+//     ANALYST_QUESTION_TIMEOUT_MS).
 //
 // Why it is written this way:
-//   * every value is injected. `readAnalystConfig(env)` takes the environment as
-//     an argument, so tests never read or mutate the real process env.
+//   * every value is injected. `buildAnalystConfig(selection, env)` takes both as
+//     arguments, so tests never read the database or the real process env.
 //   * nothing here throws. A bad value becomes a stated `misconfiguredReason`
 //     that the UI can show, never a crash.
 //   * nothing here returns a credential. The key is reduced to `apiKey` (handed
@@ -20,20 +27,37 @@ import { CAPABILITY_MANIFEST } from './capabilities/manifest';
 import type { CapabilityManifestEntry } from './capabilities/types';
 import { statSync, readFileSync } from 'node:fs';
 import { DEFAULT_ANALYST_SYSTEM_PROMPT } from './systemPrompt';
+import {
+  AI_USE_LABELS,
+  DEFAULT_CONTEXT_MAX_CHARS,
+  DEFAULT_CONTEXT_MODE,
+  DEFAULT_MAX_ANSWER_CHARS,
+  DEFAULT_MAX_REASONING_CHARS,
+  DEFAULT_MAX_TOKENS,
+  DEFAULT_TEMPERATURE,
+  type AiSelection,
+  type AiUse,
+  type AnalystOptions,
+  type ContextMode,
+  type JsonMode,
+  type ReasoningEffort,
+  type ToolsMode,
+} from '@/lib/ai/types';
+
+export {
+  REASONING_EFFORTS,
+  DEFAULT_CONTEXT_MAX_CHARS,
+  DEFAULT_CONTEXT_MODE,
+  DEFAULT_MAX_ANSWER_CHARS,
+  DEFAULT_MAX_REASONING_CHARS,
+  DEFAULT_MAX_TOKENS,
+  DEFAULT_TEMPERATURE,
+  type JsonMode,
+  type ReasoningEffort,
+} from '@/lib/ai/types';
 
 export type AnalystProviderId = 'demo' | 'openai' | 'anthropic';
 export type SystemPromptSource = 'built-in' | 'custom';
-export type JsonMode = 'auto' | 'off';
-/**
- * Bounded reasoning effort, as the gateway's `reasoning.effort` field accepts
- * it. Sent only when `ANALYST_REASONING_EFFORT` is set to one of these values:
- * a reasoning model spends its completion budget on reasoning before it writes
- * an answer, and an unbounded effort can consume the whole budget with no
- * answer produced. Never sent when unset, so an endpoint that does not know the
- * field is never handed one.
- */
-export const REASONING_EFFORTS = ['max', 'xhigh', 'high', 'medium', 'low', 'minimal', 'none'] as const;
-export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
 
 /** Provider default request path, appended when the configured URL omits it. */
 export const PROVIDER_DEFAULT_PATHS: Record<Exclude<AnalystProviderId, 'demo'>, string> = {
@@ -62,24 +86,8 @@ export const LOOPBACK_HOSTS = new Set([
   'host.docker.internal',
 ]);
 
-export const DEFAULT_MAX_TOKENS = 1200;
-/** About 15k tokens: what a small local model can hold beside the instructions and the tool definitions. */
-export const DEFAULT_CONTEXT_MAX_CHARS = 60_000;
-/** The mode used when ANALYST_CONTEXT is unset. */
-export const DEFAULT_CONTEXT_MODE: 'ondemand' | 'full' = 'full';
-
-function contextModeOf(env: NodeJS.ProcessEnv): 'ondemand' | 'full' {
-  const v = env.ANALYST_CONTEXT?.trim().toLowerCase();
-  return v === 'full' || v === 'ondemand' ? v : DEFAULT_CONTEXT_MODE;
-}
-/**
- * The runaway guard (guard.ts). About 10k tokens of reasoning, and a reply twelve times
- * the length of a real answer, in one model turn; and five minutes for the whole question.
- */
-export const DEFAULT_MAX_REASONING_CHARS = 40_000;
-export const DEFAULT_MAX_ANSWER_CHARS = 30_000;
+/** Five minutes for one whole question, tool rounds included (guard.ts). */
 export const DEFAULT_QUESTION_TIMEOUT_MS = 300_000;
-export const DEFAULT_TEMPERATURE = 0.2;
 export const DEFAULT_TIMEOUT_MS = 60000;
 
 /**
@@ -98,7 +106,7 @@ export const REMOTE_SENDING_CATEGORIES: string[] = remoteSendingCategories(CAPAB
 export interface AnalystConfig {
   /** Resolved provider id. An unrecognised name resolves to 'demo' but is still reported as misconfigured. */
   provider: AnalystProviderId;
-  /** Display label. For an unrecognised provider this is the raw configured name. */
+  /** Display label: the name the provider was given in Settings, or "Demo analyst". */
   providerDisplayName: string;
   model: string | null;
   /** Normalized absolute request URL (provider default path appended when missing). */
@@ -118,15 +126,15 @@ export interface AnalystConfig {
   temperature: number;
   timeoutMs: number;
   jsonMode: JsonMode;
-  /** Whether a remote model may call the training-plan tools (ANALYST_TOOLS=off for servers without tool calling). */
-  tools: 'auto' | 'off';
+  /** Whether a remote model may call the training-plan tools (off for servers without tool calling). */
+  tools: ToolsMode;
   /**
    * How the health data reaches the model. `ondemand`: a short index of what exists,
    * and the model fetches what the question needs with read tools. `full`: the whole
    * selection is sent with every question (also the fallback when tools are off or
-   * refused). ANALYST_CONTEXT=full|ondemand.
+   * refused).
    */
-  context: 'ondemand' | 'full';
+  context: ContextMode;
   /** The most the fixed (full) context may weigh, in characters, before the least relevant parts are dropped and named. */
   contextMaxChars: number;
   /** Characters of reasoning one model turn may stream before the question is stopped. */
@@ -138,6 +146,8 @@ export interface AnalystConfig {
   /** Reasoning effort to request, or null when the endpoint is not told one. */
   reasoningEffort: ReasoningEffort | null;
   sendingCategories: string[];
+  /** Whether an unfamiliar lab report may be read by this model (Settings; default on). */
+  labAssist: boolean;
   /** Human explanation of why this configuration cannot be used, or null when it is usable. */
   misconfiguredReason: string | null;
 }
@@ -157,7 +167,7 @@ export interface NormalizedEndpoint {
 }
 
 /**
- * Turn ANALYST_API_URL into a request URL.
+ * Turn a provider's base URL into a request URL.
  *
  * A base URL (`https://openrouter.ai/api/v1`) gets the provider's default path
  * appended; a full endpoint that already ends in that path is used as-is. An
@@ -166,16 +176,16 @@ export interface NormalizedEndpoint {
  */
 export function normalizeEndpoint(raw: string, provider: Exclude<AnalystProviderId, 'demo'>): NormalizedEndpoint {
   const trimmed = raw.trim();
-  if (!trimmed) return { url: null, host: null, loopback: false, reason: 'ANALYST_API_URL is required for a remote provider.' };
+  if (!trimmed) return { url: null, host: null, loopback: false, reason: 'The provider has no address.' };
 
   let parsed: URL;
   try {
     parsed = new URL(trimmed);
   } catch {
-    return { url: null, host: null, loopback: false, reason: 'ANALYST_API_URL is not a valid URL.' };
+    return { url: null, host: null, loopback: false, reason: 'The provider address is not a valid URL.' };
   }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    return { url: null, host: null, loopback: false, reason: 'ANALYST_API_URL must use http or https.' };
+    return { url: null, host: null, loopback: false, reason: 'The provider address must use http or https.' };
   }
 
   const defaultPath = PROVIDER_DEFAULT_PATHS[provider];
@@ -267,9 +277,25 @@ export function resolveSystemPrompt(env: NodeJS.ProcessEnv): SystemPromptResolut
   return { prompt: DEFAULT_ANALYST_SYSTEM_PROMPT, source: 'built-in', file: null, warning: null };
 }
 
-// ── Scalar parsing ──────────────────────────────────────
+// ── Tuning ──────────────────────────────────────────────
 
-function numberOr(env: NodeJS.ProcessEnv, key: string, fallback: number, min: number, max: number): number {
+/** Every request parameter a provider is built with, defaults applied. */
+export interface ModelTuning {
+  maxTokens: number;
+  temperature: number;
+  timeoutMs: number;
+  jsonMode: JsonMode;
+  tools: ToolsMode;
+  context: ContextMode;
+  contextMaxChars: number;
+  maxReasoningChars: number;
+  maxAnswerChars: number;
+  questionTimeoutMs: number;
+  reasoningEffort: ReasoningEffort | null;
+}
+
+/** A bounded number from the environment, or the fallback. Only the timeouts are still read this way. */
+export function envNumber(env: NodeJS.ProcessEnv, key: string, fallback: number, min: number, max: number): number {
   const raw = env[key]?.trim();
   if (!raw) return fallback;
   const value = Number(raw);
@@ -277,119 +303,123 @@ function numberOr(env: NodeJS.ProcessEnv, key: string, fallback: number, min: nu
   return value;
 }
 
-/**
- * A bounded reasoning effort, or null. An unrecognised value is ignored rather
- * than guessed at: sending `reasoning.effort` with a value the endpoint does not
- * accept is a 400, so only the exact set the field documents is passed through.
- */
-function reasoningEffortOr(env: NodeJS.ProcessEnv): ReasoningEffort | null {
-  const raw = env.ANALYST_REASONING_EFFORT?.trim().toLowerCase();
-  if (!raw) return null;
-  return (REASONING_EFFORTS as readonly string[]).includes(raw) ? (raw as ReasoningEffort) : null;
-}
-
-// ── Main resolver ───────────────────────────────────────
-
-function demoConfig(env: NodeJS.ProcessEnv, prompt: SystemPromptResolution): AnalystConfig {
+/** The analyst's tuning: the options chosen in Settings, defaults for the rest, timeouts from the environment. */
+export function analystTuning(options: AnalystOptions, env: NodeJS.ProcessEnv = process.env): ModelTuning {
   return {
-    provider: 'demo',
-    providerDisplayName: PROVIDER_DISPLAY_NAMES.demo,
-    model: env.ANALYST_MODEL?.trim() || null,
-    endpoint: null,
-    endpointHost: null,
-    endpointLoopback: false,
-    apiKey: null,
-    hasKey: Boolean(env.ANALYST_API_KEY?.trim()),
-    systemPrompt: prompt.prompt,
-    systemPromptSource: prompt.source,
-    systemPromptFile: prompt.file,
-    systemPromptWarning: prompt.warning,
-    maxTokens: numberOr(env, 'ANALYST_MAX_TOKENS', DEFAULT_MAX_TOKENS, 1, 200000),
-    temperature: numberOr(env, 'ANALYST_TEMPERATURE', DEFAULT_TEMPERATURE, 0, 2),
-    timeoutMs: numberOr(env, 'ANALYST_TIMEOUT_MS', DEFAULT_TIMEOUT_MS, 100, 600000),
-    jsonMode: env.ANALYST_JSON_MODE?.trim().toLowerCase() === 'off' ? 'off' : 'auto',
-    tools: env.ANALYST_TOOLS?.trim().toLowerCase() === 'off' ? 'off' : 'auto',
-    context: contextModeOf(env),
-    contextMaxChars: numberOr(env, 'ANALYST_CONTEXT_MAX_CHARS', DEFAULT_CONTEXT_MAX_CHARS, 8000, 2000000),
-    maxReasoningChars: numberOr(env, 'ANALYST_MAX_REASONING_CHARS', DEFAULT_MAX_REASONING_CHARS, 1000, 2_000_000),
-    maxAnswerChars: numberOr(env, 'ANALYST_MAX_ANSWER_CHARS', DEFAULT_MAX_ANSWER_CHARS, 1000, 2_000_000),
-    questionTimeoutMs: numberOr(env, 'ANALYST_QUESTION_TIMEOUT_MS', DEFAULT_QUESTION_TIMEOUT_MS, 1000, 1_800_000),
-    reasoningEffort: reasoningEffortOr(env),
-    sendingCategories: [],
-    misconfiguredReason: null,
+    maxTokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
+    temperature: options.temperature ?? DEFAULT_TEMPERATURE,
+    timeoutMs: envNumber(env, 'ANALYST_TIMEOUT_MS', DEFAULT_TIMEOUT_MS, 100, 600000),
+    jsonMode: options.jsonMode ?? 'auto',
+    tools: options.tools ?? 'auto',
+    context: options.context ?? DEFAULT_CONTEXT_MODE,
+    contextMaxChars: options.contextMaxChars ?? DEFAULT_CONTEXT_MAX_CHARS,
+    maxReasoningChars: options.maxReasoningChars ?? DEFAULT_MAX_REASONING_CHARS,
+    maxAnswerChars: options.maxAnswerChars ?? DEFAULT_MAX_ANSWER_CHARS,
+    questionTimeoutMs: envNumber(env, 'ANALYST_QUESTION_TIMEOUT_MS', DEFAULT_QUESTION_TIMEOUT_MS, 1000, 1_800_000),
+    reasoningEffort: options.reasoningEffort ?? null,
   };
 }
 
+// ── Builders ────────────────────────────────────────────
+
+const PROVIDERS_HINT = 'Settings → Connections → AI providers';
+const MODELS_HINT = 'Settings → Preferences → AI models';
+
+export interface BuildExtras {
+  /** Whether the lab second pass may use this model. */
+  labAssist?: boolean;
+}
+
 /**
- * Resolve the analyst configuration.
+ * Build the configuration one use runs with.
  *
- * With `ANALYST_PROVIDER` unset, `demo` or `none` this returns the demo
- * configuration and never touches the network. With a remote provider it
- * validates the endpoint, the model and (for non-loopback hosts) the key, and
- * states the first problem it finds as `misconfiguredReason`.
+ * With no selection this is the demo configuration and nothing touches the
+ * network. With one, it validates the address, the model and (for a host that is
+ * not on this machine) the key, and states the first problem it finds as
+ * `misconfiguredReason`, naming where in Settings to fix it.
  */
-export function readAnalystConfig(env: NodeJS.ProcessEnv = process.env): AnalystConfig {
-  const rawProvider = env.ANALYST_PROVIDER?.trim().toLowerCase() ?? '';
-  const prompt = resolveSystemPrompt(env);
-
-  if (!rawProvider || rawProvider === 'demo' || rawProvider === 'none') {
-    return demoConfig(env, prompt);
-  }
-
-  const base: AnalystConfig = {
-    provider: 'demo',
-    providerDisplayName: env.ANALYST_PROVIDER!.trim(),
-    model: env.ANALYST_MODEL?.trim() || null,
-    endpoint: null,
-    endpointHost: null,
-    endpointLoopback: false,
-    apiKey: env.ANALYST_API_KEY?.trim() || null,
-    hasKey: Boolean(env.ANALYST_API_KEY?.trim()),
+export function buildModelConfig(
+  selection: AiSelection | null,
+  tuning: ModelTuning,
+  prompt: SystemPromptResolution,
+  use: AiUse,
+  extras: BuildExtras = {}
+): AnalystConfig {
+  const shared = {
     systemPrompt: prompt.prompt,
     systemPromptSource: prompt.source,
     systemPromptFile: prompt.file,
     systemPromptWarning: prompt.warning,
-    maxTokens: numberOr(env, 'ANALYST_MAX_TOKENS', DEFAULT_MAX_TOKENS, 1, 200000),
-    temperature: numberOr(env, 'ANALYST_TEMPERATURE', DEFAULT_TEMPERATURE, 0, 2),
-    timeoutMs: numberOr(env, 'ANALYST_TIMEOUT_MS', DEFAULT_TIMEOUT_MS, 100, 600000),
-    jsonMode: env.ANALYST_JSON_MODE?.trim().toLowerCase() === 'off' ? 'off' : 'auto',
-    tools: env.ANALYST_TOOLS?.trim().toLowerCase() === 'off' ? 'off' : 'auto',
-    context: contextModeOf(env),
-    contextMaxChars: numberOr(env, 'ANALYST_CONTEXT_MAX_CHARS', DEFAULT_CONTEXT_MAX_CHARS, 8000, 2000000),
-    maxReasoningChars: numberOr(env, 'ANALYST_MAX_REASONING_CHARS', DEFAULT_MAX_REASONING_CHARS, 1000, 2_000_000),
-    maxAnswerChars: numberOr(env, 'ANALYST_MAX_ANSWER_CHARS', DEFAULT_MAX_ANSWER_CHARS, 1000, 2_000_000),
-    questionTimeoutMs: numberOr(env, 'ANALYST_QUESTION_TIMEOUT_MS', DEFAULT_QUESTION_TIMEOUT_MS, 1000, 1_800_000),
-    reasoningEffort: reasoningEffortOr(env),
-    sendingCategories: REMOTE_SENDING_CATEGORIES,
-    misconfiguredReason: null,
+    ...tuning,
+    labAssist: extras.labAssist ?? true,
   };
 
-  if (rawProvider !== 'openai' && rawProvider !== 'anthropic') {
+  if (!selection) {
     return {
-      ...base,
-      misconfiguredReason: `ANALYST_PROVIDER "${env.ANALYST_PROVIDER!.trim()}" is not one of demo, openai or anthropic.`,
+      ...shared,
+      provider: 'demo',
+      providerDisplayName: PROVIDER_DISPLAY_NAMES.demo,
+      model: null,
+      endpoint: null,
+      endpointHost: null,
+      endpointLoopback: false,
+      apiKey: null,
+      hasKey: false,
+      sendingCategories: [],
+      misconfiguredReason: null,
     };
   }
 
-  const provider = rawProvider;
-  const endpoint = normalizeEndpoint(env.ANALYST_API_URL ?? '', provider);
+  const { provider } = selection;
+  const model = selection.model.trim() || null;
+  const endpoint = normalizeEndpoint(provider.baseUrl, provider.kind);
+  const name = `“${provider.name}”`;
+  const useLabel = AI_USE_LABELS[use];
 
   const reason =
-    endpoint.reason ??
-    (!base.model ? 'ANALYST_MODEL is required when a remote provider is configured.' : null) ??
-    (!endpoint.loopback && !base.hasKey
-      ? 'ANALYST_API_KEY is required because the configured endpoint is not a loopback host.'
+    (endpoint.reason ? `${endpoint.reason} Fix ${name} in ${PROVIDERS_HINT}.` : null) ??
+    (provider.keyState === 'needs_reentry'
+      ? `The API key stored for ${name} cannot be read with this server's secret key. Enter it again in ${PROVIDERS_HINT}.`
+      : null) ??
+    (!model ? `No model is chosen for the ${useLabel}. Choose one in ${MODELS_HINT}.` : null) ??
+    (!endpoint.loopback && !provider.apiKey
+      ? `${name} needs an API key because it is not on this machine. Add one in ${PROVIDERS_HINT}.`
       : null);
 
   return {
-    ...base,
-    provider,
-    providerDisplayName: PROVIDER_DISPLAY_NAMES[provider],
+    ...shared,
+    provider: provider.kind,
+    providerDisplayName: provider.name,
+    model,
     endpoint: endpoint.url,
     endpointHost: endpoint.host,
     endpointLoopback: endpoint.loopback,
+    apiKey: provider.apiKey,
+    hasKey: Boolean(provider.apiKey),
+    sendingCategories: REMOTE_SENDING_CATEGORIES,
     misconfiguredReason: reason,
   };
+}
+
+/**
+ * The analyst's configuration for a selection (null: the demo analyst). The
+ * system prompt and the timeouts are read from `env`.
+ */
+export function buildAnalystConfig(selection: AiSelection | null, env: NodeJS.ProcessEnv = process.env): AnalystConfig {
+  const options = (selection?.options ?? {}) as AnalystOptions;
+  return buildModelConfig(selection, analystTuning(options, env), resolveSystemPrompt(env), 'analyst', {
+    labAssist: options.labAssist ?? true,
+  });
+}
+
+/** The demo configuration with a stated reason it is not usable (the settings could not be read). */
+export function unavailableAnalystConfig(reason: string, env: NodeJS.ProcessEnv = process.env): AnalystConfig {
+  return { ...buildAnalystConfig(null, env), misconfiguredReason: reason };
+}
+
+/** Whether the lab second pass may run on this configuration. */
+export function labAssistAllowed(config: AnalystConfig): boolean {
+  return config.provider !== 'demo' && config.misconfiguredReason === null && config.labAssist;
 }
 
 /** Configuration state safe to return to a browser: never a key, never a full URL with credentials. */

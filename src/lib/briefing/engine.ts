@@ -1,15 +1,18 @@
 // ── Today's briefing: model engine (server-only) ─────────
 //
-// Which model, if any, writes the briefing. The precedence is the owner's, and
-// it is resolved *per generation*, not per view:
+// Which model, if any, writes the briefing (and the training notes, which share
+// this engine). The choice is the user's, made in Settings → Preferences → AI
+// models, and it is resolved *per generation*, not per view:
 //
-//   1. VITAL_LLM_BASE_URL — a model server on this machine (LM Studio, llama.cpp,
-//      vLLM, Ollama). It is probed with a short, bounded GET /models; when it
-//      answers, its first advertised model id is used when VITAL_LLM_MODEL=auto.
-//      A loopback endpoint needs no credential, and none is sent if none is set.
-//   2. ANALYST_* — the same provider the analyst answers with, reusing
-//      `readAnalystConfig` / `createProvider` rather than a second implementation.
-//   3. Nothing usable — the caller renders the computed briefing and says so.
+//   1. the Summary's provider and model. It is first checked with a short,
+//      bounded model-list request, memoized per day, when it is on this machine
+//      (LM Studio, llama.cpp, vLLM, Ollama) or a fallback is chosen, so a server
+//      that is not running does not hold a generation open until the request
+//      timeout and the fallback can write instead.
+//   2. the Summary fallback, when the Summary has no usable model or its server
+//      did not answer. It is also asked once when the Summary's reply
+//      fails the number guard (see `generateBriefingText`).
+//   3. nothing usable — the caller renders the computed briefing and says so.
 //
 // The HTTP call itself is the analyst's shared `complete(system, user)` path
 // (src/lib/analyst/provider.ts): JSON mode, the hard timeout, the rate-limit
@@ -20,46 +23,46 @@
 // message that is already safe to show.
 
 import {
-  DEFAULT_MAX_ANSWER_CHARS,
-  DEFAULT_MAX_REASONING_CHARS,
   DEFAULT_QUESTION_TIMEOUT_MS,
-  REMOTE_SENDING_CATEGORIES,
-  normalizeEndpoint,
-  readAnalystConfig,
+  buildModelConfig,
+  envNumber,
   type AnalystConfig,
 } from '../analyst/config';
 import { createProvider, supportsCompletion } from '../analyst/provider';
+import { listModels } from '../ai/models';
+import { readAiSettings, type AiSettingsDeps } from '../ai/settings';
+import {
+  AI_USE_LABELS,
+  DEFAULT_BRIEFING_MAX_TOKENS,
+  DEFAULT_BRIEFING_TEMPERATURE,
+  DEFAULT_CONTEXT_MAX_CHARS,
+  DEFAULT_MAX_ANSWER_CHARS,
+  DEFAULT_MAX_REASONING_CHARS,
+  selectionFor,
+  type AiSelection,
+  type AiSettings,
+  type SummaryOptions,
+} from '../ai/types';
 import type { BriefingContext } from './context';
 import { BRIEFING_SYSTEM_PROMPT, buildBriefingUserMessage } from './prompt';
 import type { BriefingEngineKind, BriefingTraceability } from './types';
 import { parseBriefingReply } from './validate';
 
 export type { BriefingEngineKind };
+export { DEFAULT_BRIEFING_MAX_TOKENS, DEFAULT_BRIEFING_TEMPERATURE };
 
-/** Bounded probe for the local seam. The owner asked for roughly two seconds. */
+/** Bounded probe of a model server on this machine. The owner asked for roughly two seconds. */
 export const LOCAL_PROBE_TIMEOUT_MS = 2000;
 export const DEFAULT_BRIEFING_TIMEOUT_MS = 60_000;
-/**
- * Output budget for one briefing.
- *
- * Deliberately generous: a reasoning model spends `max_tokens` on its reasoning
- * *and* its reply, and the reply itself is only ~200 tokens. At 1200 the budget
- * was consumed by reasoning alone and the JSON arrived cut off mid-sentence —
- * which is a truncation, not a bad answer. 4000 leaves room for ~1000 reasoning
- * tokens plus the full briefing, and the provider still reports a hard stop at
- * the limit if it is ever reached.
- */
-export const DEFAULT_BRIEFING_MAX_TOKENS = 4000;
-export const DEFAULT_BRIEFING_TEMPERATURE = 0.3;
 /**
  * How the briefing recovers from a reply the number guard rejects.
  *
  * The primary engine gets exactly one attempt. If its reply is received but
- * fails the guard, the configured fallback provider (VITAL_LLM_FALLBACK_*) gets
- * exactly one attempt, and if that also fails — or no fallback is configured —
- * the computed briefing is served instead. There is never a second roll at the
- * same provider: an attributed figure the guard refused must not be re-rolled
- * until it passes, and a transport/timeout failure still throws as before.
+ * fails the guard, the Summary fallback gets exactly one attempt, and if that
+ * also fails — or no fallback is chosen — the computed briefing is served
+ * instead. There is never a second roll at the same provider: an attributed
+ * figure the guard refused must not be re-rolled until it passes, and a
+ * transport/timeout failure still throws as before.
  */
 export const BRIEFING_FALLBACK_ATTEMPTS = 1;
 
@@ -73,6 +76,11 @@ export interface BriefingEngine {
   /** Why this engine was chosen, or why there is none. Safe to display. */
   detail: string;
   config: AnalystConfig | null;
+  /**
+   * The engine a guard-rejected reply is re-asked from, resolved with this one.
+   * Absent on an engine built elsewhere: `generateBriefingText` then resolves it.
+   */
+  fallback?: BriefingEngine;
 }
 
 /** Raised when a briefing could not be written. The message is safe to show. */
@@ -83,9 +91,10 @@ export class BriefingEngineError extends Error {
   }
 }
 
-export interface EngineDeps {
-  env?: NodeJS.ProcessEnv;
+export interface EngineDeps extends AiSettingsDeps {
   fetchImpl?: typeof fetch;
+  /** The settings to use instead of reading them (tests). */
+  aiSettings?: AiSettings;
   /**
    * The local calendar day the engine is being resolved for. Supplied by the
    * briefing layer so the probe below can be memoized per day (see
@@ -100,97 +109,54 @@ export interface EngineDeps {
   forceProbe?: boolean;
 }
 
-// ── Local seam ──────────────────────────────────────────
+// ── Local probe ─────────────────────────────────────────
 
 interface LocalProbe {
   ok: boolean;
-  models: string[];
   detail: string;
 }
 
-function numberOr(env: NodeJS.ProcessEnv, key: string, fallback: number, min: number, max: number): number {
-  const raw = env[key]?.trim();
-  if (!raw) return fallback;
-  const value = Number(raw);
-  if (!Number.isFinite(value) || value < min || value > max) return fallback;
-  return value;
-}
-
 /**
- * Ask the local model server for its model list, with a hard, short timeout.
- *
- * A probe that hangs would delay the fallback to ANALYST_*, so it is bounded at
- * LOCAL_PROBE_TIMEOUT_MS and any failure (refused, timed out, not JSON, no
- * models) is reported as unreachable rather than thrown.
+ * Ask a model server on this machine for its model list, with a hard, short
+ * timeout. A probe that hangs would delay the fallback, so it is bounded at
+ * LOCAL_PROBE_TIMEOUT_MS and any failure (refused, timed out, not JSON) is
+ * reported as unreachable rather than thrown. A server that has no model list
+ * (404) answered, so it counts as running.
  */
-export async function probeLocalModelServer(baseUrl: string, deps: EngineDeps = {}): Promise<LocalProbe> {
-  const trimmed = baseUrl.trim().replace(/\/+$/, '');
-  if (!trimmed) return { ok: false, models: [], detail: 'VITAL_LLM_BASE_URL is empty.' };
-
-  const endpoint = normalizeEndpoint(trimmed, 'openai');
-  if (!endpoint.url) {
-    return { ok: false, models: [], detail: endpoint.reason ?? 'VITAL_LLM_BASE_URL is not a usable URL.' };
-  }
-
-  const fetchImpl = deps.fetchImpl ?? globalThis.fetch;
-  if (typeof fetchImpl !== 'function') {
-    return { ok: false, models: [], detail: 'No fetch implementation is available in this runtime.' };
-  }
-
-  // The models list lives next to the chat endpoint: http://host:1234/v1/models
-  const url = new URL(endpoint.url);
-  url.pathname = url.pathname.replace(/\/chat\/completions$/, '/models');
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), LOCAL_PROBE_TIMEOUT_MS);
-  try {
-    const apiKey = (deps.env ?? process.env).VITAL_LLM_API_KEY?.trim();
-    const response = await fetchImpl(url.toString(), {
-      method: 'GET',
-      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
-      cache: 'no-store',
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      return { ok: false, models: [], detail: `The local model server at ${url.host} answered HTTP ${response.status}.` };
-    }
-    const payload = (await response.json()) as { data?: unknown };
-    const models = Array.isArray(payload?.data)
-      ? payload.data
-          .map(entry => (entry && typeof entry === 'object' ? (entry as { id?: unknown }).id : undefined))
-          .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
-      : [];
-    if (models.length === 0) {
-      return { ok: false, models: [], detail: `The local model server at ${url.host} advertised no model.` };
-    }
-    return { ok: true, models, detail: `The local model server at ${url.host} advertised ${models.length} model(s).` };
-  } catch (error) {
-    const aborted = error instanceof Error && error.name === 'AbortError';
-    return {
-      ok: false,
-      models: [],
-      detail: aborted
-        ? `The local model server did not answer within ${LOCAL_PROBE_TIMEOUT_MS} ms.`
-        : 'The local model server could not be reached.',
-    };
-  } finally {
-    clearTimeout(timer);
+export async function probeLocalModelServer(selection: AiSelection, deps: EngineDeps = {}): Promise<LocalProbe> {
+  const { provider } = selection;
+  const result = await listModels(
+    { kind: provider.kind, baseUrl: provider.baseUrl, apiKey: provider.apiKey },
+    { timeoutMs: LOCAL_PROBE_TIMEOUT_MS, fetchImpl: deps.fetchImpl }
+  );
+  switch (result.outcome) {
+    case 'ok':
+      return { ok: true, detail: `The model server at ${result.host} advertised ${result.models.length} model(s).` };
+    case 'not_listed':
+      return { ok: true, detail: `The model server at ${result.host} answered.` };
+    case 'timeout':
+      return { ok: false, detail: `The model server did not answer within ${LOCAL_PROBE_TIMEOUT_MS} ms.` };
+    case 'invalid_url':
+      return { ok: false, detail: result.reason };
+    case 'unauthorised':
+    case 'http_error':
+      return { ok: false, detail: `The model server at ${result.host} answered HTTP ${result.httpStatus}.` };
+    default:
+      return { ok: false, detail: 'The model server could not be reached.' };
   }
 }
 
 // ── The probe memo (per day, per process) ───────────────
 //
-// `probeLocalModelServer` sends a GET /v1/models whose body is ~700 KB, and the
-// local model has to be resolved once before each generation. Resolving it once
-// per DAY is enough: the answer (which model, or none) does not change within a
-// day, and a fresh 700 KB request per attempt is exactly the traffic this file
-// avoids.
+// A model list can be large (one server answered ~700 KB), and the engine is
+// resolved once before each generation. Resolving it once per DAY is enough: the
+// answer (running or not) is not re-asked within a day.
 //
 // The memo lives on `globalThis`, NOT in a module-level variable: Next.js builds
 // the page and the route handlers as separate server bundles, so a module-level
 // Map would be one copy per bundle and each bundle would still probe (the same
-// trap documented at the top of ./index). It is cleared when the day changes, so
-// a new day probes once and the rest of that day reuses the answer.
+// trap documented at the top of ./index). It is keyed by the provider address,
+// so choosing another server probes that one.
 //
 // An "unavailable" probe is memoized like any other: a generation is attempted
 // at most once a day, so a single probe decides the whole day. The ONE caller
@@ -210,16 +176,16 @@ function engineMemoStore(): { probes: Map<string, ProbeMemo> } {
 }
 
 /** Resolve the local server once per day; `forceProbe` (regenerate) probes afresh. */
-async function memoizedProbe(baseUrl: string, deps: EngineDeps): Promise<LocalProbe> {
-  // No day to key on: behave exactly as before and probe.
-  if (!deps.day) return probeLocalModelServer(baseUrl, deps);
+async function memoizedProbe(selection: AiSelection, deps: EngineDeps): Promise<LocalProbe> {
+  // No day to key on: probe.
+  if (!deps.day) return probeLocalModelServer(selection, deps);
 
   const store = engineMemoStore();
-  const key = baseUrl.trim().replace(/\/+$/, '');
+  const key = `${selection.provider.kind} ${selection.provider.baseUrl.trim().replace(/\/+$/, '')}`;
   const memo = store.probes.get(key);
   if (!deps.forceProbe && memo && memo.day === deps.day) return memo.probe;
 
-  const probe = await probeLocalModelServer(baseUrl, deps);
+  const probe = await probeLocalModelServer(selection, deps);
   store.probes.set(key, { day: deps.day, probe });
   return probe;
 }
@@ -229,189 +195,133 @@ export function resetBriefingEngineMemo(): void {
   engineMemoStore().probes.clear();
 }
 
-/** Configuration for a local OpenAI-compatible server, with the transient fields filled in. */
-function localConfig(env: NodeJS.ProcessEnv, baseUrl: string, model: string): AnalystConfig | null {
-  const endpoint = normalizeEndpoint(baseUrl, 'openai');
-  if (!endpoint.url) return null;
-  const apiKey = env.VITAL_LLM_API_KEY?.trim() || null;
+// ── Configuration ───────────────────────────────────────
+
+/**
+ * The configuration a summary selection runs with: the briefing's own budget
+ * and temperature unless Settings chose others, no tools, and the briefing
+ * timeout from the environment. The briefing passes its own system prompt to
+ * `complete()`, so the configuration carries it only because the provider is
+ * constructed from an AnalystConfig.
+ */
+export function buildSummaryConfig(
+  selection: AiSelection | null,
+  use: 'summary' | 'summary_fallback',
+  env: NodeJS.ProcessEnv = process.env
+): AnalystConfig {
+  const options = (selection?.options ?? {}) as SummaryOptions;
+  return buildModelConfig(
+    selection,
+    {
+      maxTokens: options.maxTokens ?? DEFAULT_BRIEFING_MAX_TOKENS,
+      temperature: options.temperature ?? DEFAULT_BRIEFING_TEMPERATURE,
+      timeoutMs: envNumber(env, 'BRIEFING_TIMEOUT_MS', DEFAULT_BRIEFING_TIMEOUT_MS, 100, 600_000),
+      jsonMode: 'auto',
+      tools: 'off',
+      context: 'full',
+      contextMaxChars: DEFAULT_CONTEXT_MAX_CHARS,
+      maxReasoningChars: DEFAULT_MAX_REASONING_CHARS,
+      maxAnswerChars: DEFAULT_MAX_ANSWER_CHARS,
+      questionTimeoutMs: DEFAULT_QUESTION_TIMEOUT_MS,
+      // The briefing's long-standing policy is to send no reasoning field; Settings may choose one.
+      reasoningEffort: options.reasoningEffort ?? null,
+    },
+    { prompt: BRIEFING_SYSTEM_PROMPT, source: 'built-in', file: null, warning: null },
+    use,
+    { labAssist: false }
+  );
+}
+
+async function settingsFor(deps: EngineDeps): Promise<AiSettings> {
+  return deps.aiSettings ?? (await readAiSettings(deps));
+}
+
+function noEngine(detail: string, label = 'analyst model offline'): BriefingEngine {
+  return { kind: 'none', label, model: null, destination: null, detail, config: null };
+}
+
+/** The fallback engine from settings already read. `kind: 'none'` means there is none to ask. */
+function fallbackFrom(settings: AiSettings, env: NodeJS.ProcessEnv): BriefingEngine {
+  const selection = selectionFor(settings, 'summary_fallback');
+  if (!selection) {
+    return noEngine(`No ${AI_USE_LABELS.summary_fallback.toLowerCase()} is chosen in Settings.`, 'no fallback provider');
+  }
+  const config = buildSummaryConfig(selection, 'summary_fallback', env);
+  if (config.misconfiguredReason) return { ...noEngine(config.misconfiguredReason, 'no fallback provider'), model: config.model };
   return {
-    provider: 'openai',
-    providerDisplayName: 'Local model',
-    model,
-    endpoint: endpoint.url,
-    endpointHost: endpoint.host,
-    endpointLoopback: endpoint.loopback,
-    apiKey,
-    hasKey: Boolean(apiKey),
-    // The briefing never uses the analyst's prompt file: `complete()` is given the
-    // briefing system prompt explicitly. These fields exist because the provider
-    // is constructed from an AnalystConfig.
-    systemPrompt: BRIEFING_SYSTEM_PROMPT,
-    systemPromptSource: 'built-in',
-    systemPromptFile: null,
-    systemPromptWarning: null,
-    maxTokens: numberOr(env, 'BRIEFING_MAX_TOKENS', DEFAULT_BRIEFING_MAX_TOKENS, 1, 200_000),
-    temperature: numberOr(env, 'BRIEFING_TEMPERATURE', DEFAULT_BRIEFING_TEMPERATURE, 0, 2),
-    timeoutMs: numberOr(env, 'BRIEFING_TIMEOUT_MS', DEFAULT_BRIEFING_TIMEOUT_MS, 100, 600_000),
-    jsonMode: 'auto',
-    tools: 'off',
-    context: 'full',
-    contextMaxChars: 60_000,
-    maxReasoningChars: DEFAULT_MAX_REASONING_CHARS,
-    maxAnswerChars: DEFAULT_MAX_ANSWER_CHARS,
-    questionTimeoutMs: DEFAULT_QUESTION_TIMEOUT_MS,
-    // The briefing keeps its own policy: it never sends a reasoning-effort field.
-    reasoningEffort: null,
-    sendingCategories: REMOTE_SENDING_CATEGORIES,
-    misconfiguredReason: null,
+    kind: 'fallback',
+    label: config.providerDisplayName,
+    model: config.model,
+    destination: config.endpointHost,
+    detail: `The summary fallback (${config.providerDisplayName}) is available for a rejected reply.`,
+    config,
   };
+}
+
+/**
+ * Resolve the Summary fallback — the model a guard-rejected reply is re-asked
+ * from. No probe is made (a probe would delay the recovery); an unconfigured or
+ * unusable fallback is reported as such and the caller serves the computed
+ * briefing. `kind: 'none'` means "no fallback available".
+ */
+export async function resolveBriefingFallback(deps: EngineDeps = {}): Promise<BriefingEngine> {
+  const settings = await settingsFor(deps);
+  if (settings.unavailable) return noEngine(settings.unavailable, 'no fallback provider');
+  return fallbackFrom(settings, deps.env ?? process.env);
 }
 
 /**
  * Resolve the engine that should write the briefing.
  *
- * `VITAL_LLM_BASE_URL` is tried first and only wins when the probe succeeds:
- * a configured-but-down local server must fall through to ANALYST_*, not fail
- * the briefing.
+ * The Summary's model wins when it is usable (and, on this machine, answering).
+ * Otherwise the Summary fallback writes it, and then nothing: a configured-but-
+ * down local server must fall through, not fail the briefing.
  */
 export async function resolveBriefingEngine(deps: EngineDeps = {}): Promise<BriefingEngine> {
   const env = deps.env ?? process.env;
-  const localUrl = env.VITAL_LLM_BASE_URL?.trim();
-  let localDetail = 'VITAL_LLM_BASE_URL is not set, so the local model seam was not probed.';
+  const settings = await settingsFor(deps);
+  if (settings.unavailable) return noEngine(settings.unavailable);
 
-  if (localUrl) {
-    const probe = await memoizedProbe(localUrl, deps);
-    localDetail = probe.detail;
-    if (probe.ok) {
-      const configured = env.VITAL_LLM_MODEL?.trim();
-      const wantsAuto = !configured || configured.toLowerCase() === 'auto';
-      const model = wantsAuto ? probe.models[0] : configured;
-      const config = model ? localConfig(env, localUrl, model) : null;
-      if (config) {
+  const fallback = fallbackFrom(settings, env);
+  const selection = selectionFor(settings, 'summary');
+
+  let why: string;
+  if (!selection) {
+    why = 'No summary model is chosen in Settings.';
+  } else {
+    const config = buildSummaryConfig(selection, 'summary', env);
+    if (config.misconfiguredReason) {
+      why = config.misconfiguredReason;
+    } else {
+      let detail = `Using ${config.providerDisplayName} with the chosen model "${config.model}".`;
+      let reachable = true;
+      // A server on this machine is checked so a stopped one fails fast; any other
+      // is checked only when a fallback could write instead (a LAN model server).
+      if (config.endpointLoopback || fallback.kind === 'fallback') {
+        const probe = await memoizedProbe(selection, deps);
+        detail = `${probe.detail} ${detail}`;
+        reachable = probe.ok;
+        if (!reachable) detail = probe.detail;
+      }
+      if (reachable) {
         return {
-          kind: 'local',
-          label: 'local model',
-          model,
+          kind: 'primary',
+          label: config.providerDisplayName,
+          model: config.model,
           destination: config.endpointHost,
-          detail: wantsAuto
-            ? `${probe.detail} VITAL_LLM_MODEL=auto resolved to "${model}".`
-            : `${probe.detail} Using the configured model "${model}".`,
+          detail,
           config,
+          fallback,
         };
       }
-      localDetail = `${probe.detail} Its endpoint could not be turned into a request URL.`;
+      why = detail;
     }
   }
 
-  const analyst = readAnalystConfig(env);
-  if (analyst.provider !== 'demo' && !analyst.misconfiguredReason) {
-    return {
-      kind: 'analyst',
-      label: analyst.providerDisplayName,
-      model: analyst.model,
-      destination: analyst.endpointHost,
-      detail: `${localDetail} Falling back to the configured analyst provider (${analyst.providerDisplayName}).`,
-      config: {
-        ...analyst,
-        // The analyst's own budget is sized for an answer with several sections;
-        // the briefing takes the briefing budget instead, because a reasoning
-        // model spends max_tokens on its reasoning before it writes anything and
-        // ANALYST_MAX_TOKENS=1200 truncates the reply mid-JSON.
-        maxTokens: numberOr(env, 'BRIEFING_MAX_TOKENS', DEFAULT_BRIEFING_MAX_TOKENS, 1, 200_000),
-        // The briefing runs in the background, so it also takes the shorter of
-        // the two timeouts rather than holding a refresh open for a minute.
-        timeoutMs: Math.min(
-          analyst.timeoutMs,
-          numberOr(env, 'BRIEFING_TIMEOUT_MS', DEFAULT_BRIEFING_TIMEOUT_MS, 100, 600_000)
-        ),
-      },
-    };
+  if (fallback.kind === 'fallback') {
+    return { ...fallback, detail: `${why} The summary fallback (${fallback.label}) writes it instead.` };
   }
-
-  return {
-    kind: 'none',
-    label: 'analyst model offline',
-    model: null,
-    destination: null,
-    detail: analyst.misconfiguredReason
-      ? `${localDetail} ${analyst.misconfiguredReason}`
-      : `${localDetail} No analyst provider is configured either, so no model is available.`,
-    config: null,
-  };
-}
-
-// ── Fallback provider ───────────────────────────────────
-
-/**
- * Resolve the configured fallback provider — the stronger hosted model in
- * `.env` (VITAL_LLM_FALLBACK_*) that a guard-rejected reply is re-asked from.
- *
- * It is deliberately separate from `resolveBriefingEngine`: it is never the
- * preferred engine, and it is only constructed when the primary reply has been
- * rejected. No probe is made (a probe would delay the recovery); an
- * unconfigured or unusable fallback is reported as such and the caller serves
- * the computed briefing. `kind: 'none'` means "no fallback available".
- */
-export function resolveBriefingFallback(deps: EngineDeps = {}): BriefingEngine {
-  const env = deps.env ?? process.env;
-  const baseUrl = env.VITAL_LLM_FALLBACK_BASE_URL?.trim();
-  const model = env.VITAL_LLM_FALLBACK_MODEL?.trim();
-  const apiKey = env.VITAL_LLM_FALLBACK_API_KEY?.trim() || null;
-
-  const unavailable = (detail: string): BriefingEngine => ({
-    kind: 'none',
-    label: 'no fallback provider',
-    model: model ?? null,
-    destination: null,
-    detail,
-    config: null,
-  });
-
-  if (!baseUrl) return unavailable('VITAL_LLM_FALLBACK_BASE_URL is not set, so there is no fallback provider.');
-  if (!model) return unavailable('VITAL_LLM_FALLBACK_MODEL is not set, so there is no usable fallback provider.');
-
-  const endpoint = normalizeEndpoint(baseUrl, 'openai');
-  if (!endpoint.url) {
-    return unavailable(endpoint.reason ?? 'VITAL_LLM_FALLBACK_BASE_URL is not a usable URL.');
-  }
-  if (!endpoint.loopback && !apiKey) {
-    return unavailable('VITAL_LLM_FALLBACK_API_KEY is required because the fallback endpoint is not a loopback host.');
-  }
-
-  return {
-    kind: 'fallback',
-    label: 'fallback model',
-    model,
-    destination: endpoint.host,
-    detail: `The fallback provider (${endpoint.host}) is available for a rejected reply.`,
-    config: {
-      provider: 'openai',
-      providerDisplayName: 'Fallback model',
-      model,
-      endpoint: endpoint.url,
-      endpointHost: endpoint.host,
-      endpointLoopback: endpoint.loopback,
-      apiKey,
-      hasKey: Boolean(apiKey),
-      systemPrompt: BRIEFING_SYSTEM_PROMPT,
-      systemPromptSource: 'built-in',
-      systemPromptFile: null,
-      systemPromptWarning: null,
-      maxTokens: numberOr(env, 'BRIEFING_MAX_TOKENS', DEFAULT_BRIEFING_MAX_TOKENS, 1, 200_000),
-      temperature: numberOr(env, 'BRIEFING_TEMPERATURE', DEFAULT_BRIEFING_TEMPERATURE, 0, 2),
-      timeoutMs: numberOr(env, 'BRIEFING_TIMEOUT_MS', DEFAULT_BRIEFING_TIMEOUT_MS, 100, 600_000),
-      jsonMode: 'auto',
-      tools: 'off',
-      context: 'full',
-      contextMaxChars: 60_000,
-      maxReasoningChars: DEFAULT_MAX_REASONING_CHARS,
-      maxAnswerChars: DEFAULT_MAX_ANSWER_CHARS,
-      questionTimeoutMs: DEFAULT_QUESTION_TIMEOUT_MS,
-      reasoningEffort: null,
-      sendingCategories: REMOTE_SENDING_CATEGORIES,
-      misconfiguredReason: null,
-    },
-  };
+  return noEngine(`${why} ${fallback.detail}`.trim());
 }
 
 // ── Generation ──────────────────────────────────────────
@@ -503,7 +413,11 @@ export async function generateBriefingText(
     first.reason ?? "The model's briefing could not be read.",
     first.traceability
   );
-  const fallback = resolveBriefingFallback(deps);
+  // The fallback is asked once, and never when it already wrote the rejected reply.
+  const fallback =
+    resolved.kind === 'fallback'
+      ? noEngine('The rejected reply came from the summary fallback itself.', 'no fallback provider')
+      : resolved.fallback ?? (await resolveBriefingFallback(deps));
   if (fallback.kind !== 'fallback' || !fallback.config) {
     throw new BriefingEngineError(
       `${rejection.message} No fallback provider is available, so the computed briefing is shown instead. ${fallback.detail}`,

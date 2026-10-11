@@ -9,10 +9,19 @@
 //   * when the stream fails before a result, the caller can fall back rather than
 //     being left with a half turn.
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createServer, type Server, type ServerResponse } from 'node:http';
 import { AddressInfo } from 'node:net';
 import { retrieveGeneral } from '@/lib/analyst/retrieval';
+import { aiSettingsFor } from '@/lib/ai/test-settings';
+import type { AiSettings } from '@/lib/ai/types';
+
+// The route reads the stored AI settings; here they are the ones each test points at its mock.
+const stored = vi.hoisted(() => ({ settings: null as AiSettings | null }));
+vi.mock('@/lib/ai/settings', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/lib/ai/settings')>();
+  return { ...actual, readAiSettings: async () => stored.settings ?? actual.EMPTY_AI_SETTINGS };
+});
 
 const servers: Server[] = [];
 afterEach(async () => {
@@ -57,16 +66,17 @@ function analystReplyText(): string {
   });
 }
 
-function openaiEnv(baseUrl: string): NodeJS.ProcessEnv {
-  return {
-    ANALYST_PROVIDER: 'openai',
-    ANALYST_API_URL: baseUrl,
-    ANALYST_MODEL: 'mock-analyst-1',
-    ANALYST_API_KEY: 'sk-test-key-that-must-never-leak',
-    // These cases pin the plain (tool-less) stream; the plan-tool stream is
-    // covered in src/lib/analyst/stream-tools.test.ts.
-    ANALYST_TOOLS: 'off',
-  } as unknown as NodeJS.ProcessEnv;
+function openaiSettings(baseUrl: string): AiSettings {
+  return aiSettingsFor({
+    analyst: {
+      baseUrl,
+      model: 'mock-analyst-1',
+      apiKey: 'sk-test-key-that-must-never-leak',
+      // These cases pin the plain (tool-less) stream; the plan-tool stream is
+      // covered in src/lib/analyst/stream-tools.test.ts.
+      options: { tools: 'off' },
+    },
+  });
 }
 
 /** Drive the route handler with a JSON request, returning the raw SSE text. */
@@ -97,9 +107,8 @@ describe('streaming analyst route (SPEC §8)', () => {
       res.end();
     });
 
-    // Point the route at the mock by rewriting the process env it reads.
-    const original = { ...process.env };
-    Object.assign(process.env, openaiEnv(baseUrl));
+    // Point the route at the mock through the settings it reads.
+    stored.settings = openaiSettings(baseUrl);
     try {
       const { text } = await callStreamRoute(baseUrl, 'How has my sleep changed?');
       expect(text).toContain('event: reasoning');
@@ -122,7 +131,7 @@ describe('streaming analyst route (SPEC §8)', () => {
       expect(payload.answer!.followUps.length).toBeGreaterThan(0);
       expect(payload.model).toBe('mock-analyst-1');
     } finally {
-      process.env = original;
+      stored.settings = null;
     }
   });
 
@@ -134,8 +143,7 @@ describe('streaming analyst route (SPEC §8)', () => {
       res.end();
     });
 
-    const original = { ...process.env };
-    Object.assign(process.env, openaiEnv(baseUrl));
+    stored.settings = openaiSettings(baseUrl);
     try {
       const { text } = await callStreamRoute(baseUrl, 'What changed this week?');
       const resultFrame = text.split('\n\n').filter(f => f.startsWith('event: result')).at(-1)!;
@@ -143,7 +151,7 @@ describe('streaming analyst route (SPEC §8)', () => {
       expect(payload.status).toBe('error');
       expect(payload.answer).toBeNull();
     } finally {
-      process.env = original;
+      stored.settings = null;
     }
   });
 });
@@ -159,7 +167,7 @@ describe('streaming service generator (SPEC §8)', () => {
     });
 
     const { streamAnalyst } = await import('@/lib/analyst/service');
-    const { chunks } = streamAnalyst({ query: 'How has my sleep changed?' }, { env: openaiEnv(baseUrl) });
+    const { chunks } = streamAnalyst({ query: 'How has my sleep changed?' }, { aiSettings: openaiSettings(baseUrl) });
 
     const kinds: string[] = [];
     let result: { status: string; answer: unknown; message: string | null } | null = null;
@@ -194,7 +202,7 @@ describe('streaming service generator (SPEC §8)', () => {
     const { streamAnalyst } = await import('@/lib/analyst/service');
     const { chunks } = streamAnalyst(
       { query: 'How is my resting heart rate trending?' },
-      { env: openaiEnv(baseUrl) }
+      { aiSettings: openaiSettings(baseUrl) }
     );
 
     let result: { status: string; message: string | null } | null = null;

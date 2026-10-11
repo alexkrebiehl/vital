@@ -248,28 +248,21 @@ together; the rules, and what happens when you remove a source, are in
 
 ### Turn on the AI analyst and briefing
 
-Add a model in `.env`. A hosted one:
+1. *Settings → Connections → AI providers* — add a model server: a hosted one such as
+   OpenRouter (`https://openrouter.ai/api/v1`, with its API key) or one on your own machine such
+   as LM Studio (`http://host.docker.internal:1234/v1`, no key needed). Vital checks it before
+   saving, and stores the key encrypted.
+2. *Settings → Preferences → AI models* — choose a provider and model for the **Analyst** and for
+   the **Summary** (the daily briefing), and optionally a **Summary fallback**.
 
-```bash
-ANALYST_PROVIDER=openai
-ANALYST_MODEL=openai/gpt-4o-mini
-ANALYST_API_URL=https://openrouter.ai/api/v1
-ANALYST_API_KEY=…
-```
-
-or one running on your own machine (no key needed):
-
-```bash
-ANALYST_PROVIDER=openai
-ANALYST_MODEL=local-model
-ANALYST_API_URL=http://host.docker.internal:1234/v1
-```
+See [Configuration](docs/configuration.md#ai-providers-and-models) for the tuning each one offers.
 
 ### Make it yours
 
 - *Settings → Account* — your name, timezone, the hour the briefing is written, and your **Goals**.
 - *Settings → Sources* — every connection: Health Auto Export, Oura, *Workout sources* (Hevy) and *Map sources* (which map providers are ready).
-- *Settings → Connections* — the data pipeline and data quality (with Silence and Restore).
+- *Settings → Connections* — your AI providers, the data pipeline and data quality (with Silence and Restore).
+- *Settings → Preferences* — units, theme and the AI model for each feature.
 - *Themes* — pick a look for light and dark.
 
 The app listens on port **8080** (change it with `VITAL_PORT`) and Postgres on `127.0.0.1:5433`.

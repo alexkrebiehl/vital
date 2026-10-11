@@ -1,4 +1,5 @@
 import { mkdtempSync, rmSync } from 'fs';
+import { analystOn } from '@/lib/ai/test-settings';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'os';
@@ -143,7 +144,7 @@ async function answeringModel() {
   await new Promise<void>(r => server.listen(0, '127.0.0.1', r));
   servers.push(server);
   const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`;
-  return { env: { ANALYST_PROVIDER: 'openai', ANALYST_API_URL: url, ANALYST_MODEL: 'm', ANALYST_API_KEY: 'sk-test' } as unknown as NodeJS.ProcessEnv, bodies };
+  return { aiSettings: analystOn(url, {}, { apiKey: 'sk-test' }), bodies };
 }
 
 describe('askAnalyst with a page context', () => {
@@ -152,7 +153,7 @@ describe('askAnalyst with a page context', () => {
     const model = await answeringModel();
     const response = await askAnalyst(
       { query: 'How is this going?', context: { kind: 'routine-path', pathId: 'horizontal-push' } },
-      { env: model.env, routine: deps() }
+      { aiSettings: model.aiSettings, routine: deps() }
     );
     expect(response.status).toBe('ok');
     expect(response.grounding.unmatched).toEqual([]);
@@ -164,7 +165,7 @@ describe('askAnalyst with a page context', () => {
   it('sends no page state when the question names no page', async () => {
     await withPlan();
     const model = await answeringModel();
-    const response = await askAnalyst({ query: 'How is this going?' }, { env: model.env, routine: deps() });
+    const response = await askAnalyst({ query: 'How is this going?' }, { aiSettings: model.aiSettings, routine: deps() });
     expect(response.status).toBe('ok');
     expect(JSON.stringify(model.bodies[0])).not.toContain('The reader asked this from');
   });
@@ -174,7 +175,7 @@ describe('askAnalyst with a page context', () => {
     const model = await answeringModel();
     const response = await askAnalyst(
       { query: 'How is this going?', context: { kind: 'routine-path', pathId: 'removed-path' } },
-      { env: model.env, routine: deps() }
+      { aiSettings: model.aiSettings, routine: deps() }
     );
     expect(response.status).toBe('ok');
     expect(JSON.stringify(model.bodies[0])).not.toContain('The reader asked this from');

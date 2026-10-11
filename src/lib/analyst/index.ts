@@ -93,8 +93,13 @@ export {
   type AnalystStreamEvent,
 } from './stream';
 
+export { resolveAnalystConfig, type AnalystConfigDeps } from './resolve-config';
+
 export {
-  readAnalystConfig,
+  buildAnalystConfig,
+  buildModelConfig,
+  analystTuning,
+  labAssistAllowed,
   publicConfigState,
   normalizeEndpoint,
   isLoopbackHost,
@@ -113,6 +118,7 @@ export {
   type AnalystProviderId,
   type SystemPromptSource,
   type JsonMode,
+  type ModelTuning,
 } from './config';
 
 export {

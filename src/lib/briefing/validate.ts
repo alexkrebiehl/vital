@@ -190,7 +190,7 @@ export function parseBriefingReply(raw: string, context: BriefingContext): Brief
     return fail(
       opened
         ? "The model's reply started a JSON object but was cut off before it closed, so it could not be " +
-            'read. Raising BRIEFING_MAX_TOKENS is the usual fix.'
+            'read. Raising the Summary token budget in Settings → Preferences → AI models is the usual fix.'
         : "The model's reply did not contain a JSON object, so it could not be read."
     );
   }

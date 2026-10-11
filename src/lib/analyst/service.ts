@@ -54,7 +54,9 @@ import { runToolLoop, type AbsenceAudit, type ToolLoopHooks } from './tool-loop'
 import { combineChanges, type ToolContext } from './tools';
 import { demoPlanAnswer, PLAN_PROMPTS } from './demo-plan';
 import type { RoutineDeps } from '../routine/service';
-import { readAnalystConfig, type AnalystConfig } from './config';
+import type { AnalystConfig } from './config';
+import { resolveAnalystConfig } from './resolve-config';
+import type { AiSettings } from '@/lib/ai/types';
 import { checkGrounding, parseAnalystReply, proseAnswerText } from './validate';
 import { boundedHistory, type ChatTurn } from './memory';
 import { resolvePageContext, type ResolvedPageContext } from './page-context';
@@ -216,6 +218,8 @@ export type AnalystStreamChunk =
 /** What the service reads besides the request. Every field is injectable for tests. */
 export interface AnalystDeps {
   env?: NodeJS.ProcessEnv;
+  /** The AI settings to answer with instead of the stored ones (tests). */
+  aiSettings?: AiSettings;
   labLoader?: LabLoader;
   medicationLoader?: MedicationLoader;
   /** Test seam: the dose records of a window, for get_medications. */
@@ -345,7 +349,7 @@ async function prepareAnalyst(
   request: AnalystRequest,
   deps: AnalystDeps
 ): Promise<Preparation> {
-  const config = readAnalystConfig(deps.env ?? process.env);
+  const config = await resolveAnalystConfig({ env: deps.env, aiSettings: deps.aiSettings });
   const validated = validateQuery(request?.query);
   const notes = sanitizeUntrustedNotes(request?.notes);
   const notesEcho = { received: notes.received, characters: notes.characters, note: notes.note };
@@ -633,8 +637,8 @@ async function answerWithTools(
  * a provider configured the same request goes to that provider — a configured
  * provider is used directly — and the reply is validated before it is returned.
  *
- * `deps.env` exists so the provider configuration can be injected in tests; in
- * production it defaults to the server process environment.
+ * `deps.aiSettings` exists so the provider configuration can be injected in
+ * tests; in production it is read from the current user's stored AI settings.
  */
 export async function askAnalyst(
   request: AnalystRequest,
@@ -646,7 +650,7 @@ export async function askAnalyst(
   const provider = providerFor(prep);
   if ('response' in provider) return provider.response;
 
-  // A configured model may use the training-plan tools (ANALYST_TOOLS=off disables them).
+  // A configured model may use the training-plan tools (switched off in Settings for a server without tool calling).
   let toolsUnavailable: string | null = null;
   let ready = prep;
   if (usesTools(prep.config, provider.provider)) {
@@ -921,7 +925,7 @@ export function streamAnalyst(
           ...withContext,
           message:
             finishReason === 'length' && (reasoningTokens ?? 0) > 0
-              ? `The provider spent its whole ${config.maxTokens} token budget on the model's reasoning and never began an answer, so there was nothing to validate. Raise ANALYST_MAX_TOKENS, lower ANALYST_REASONING_EFFORT, or ask a narrower question.`
+              ? `The provider spent its whole ${config.maxTokens} token budget on the model's reasoning and never began an answer, so there was nothing to validate. Raise the token budget or lower the reasoning effort in Settings → Preferences → AI models, or ask a narrower question.`
               : `The provider streamed no answer text${finishReason === 'length' ? ` and stopped at the ${config.maxTokens} token limit` : ''}, so there was nothing to validate.`,
         }),
       };

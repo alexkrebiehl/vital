@@ -760,5 +760,5 @@ Workouts page:
 - The path note may be rewritten by a model from a fact sheet; it is shown only when every number traces to the computed figures and it names the computed light, otherwise the computed text is shown and the page says why.
 
 AI analyst (§8 amended):
-- A configured model may call tools to read the routine, sessions, exercise catalogue and example plans, and to create or change the plan. Every change is validated as a whole plan, stored as a revision, reported in the answer and undoable. Numbers quoted from tool results count as grounded. Rounds, tool calls and plan changes per question are bounded; ANALYST_TOOLS=off disables tools.
+- A configured model may call tools to read the routine, sessions, exercise catalogue and example plans, and to create or change the plan. Every change is validated as a whole plan, stored as a revision, reported in the answer and undoable. Numbers quoted from tool results count as grounded. Rounds, tool calls and plan changes per question are bounded; the Tools setting (Settings → Preferences → AI models → Analyst → Advanced) disables them.
 - The demo analyst handles plan requests by pattern through the same actions.

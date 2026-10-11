@@ -1,6 +1,7 @@
 // The runaway guard: a model that reasons or writes without end is stopped, with a message
 // that names the limit and the setting; a long but bounded answer is left alone.
 
+import { analystOn } from '@/lib/ai/test-settings';
 import { createServer, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -28,13 +29,13 @@ describe('StreamGuard', () => {
     g.reasoning('x'.repeat(60));
     expect(() => g.reasoning('x'.repeat(60))).toThrow(AnalystProviderError);
     expect(g.reason).toMatch(/kept reasoning for more than 100 characters/);
-    expect(g.reason).toMatch(/ANALYST_MAX_REASONING_CHARS/);
+    expect(g.reason).toMatch(/reasoning limit in Settings/);
   });
 
   it('stops an endless reply', () => {
     const g = new StreamGuard(LIMITS);
     g.beginTurn();
-    expect(() => g.answer('y'.repeat(201))).toThrow(/ANALYST_MAX_ANSWER_CHARS/);
+    expect(() => g.answer('y'.repeat(201))).toThrow(/reply limit in Settings/);
   });
 
   it('stops a question past its deadline, at the next turn, with the clock injected', () => {
@@ -91,8 +92,11 @@ async function endlessModel(frame: () => unknown) {
   return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, stats: () => ({ open, sent, closedByClient }) };
 }
 
-const envFor = (url: string, extra: Record<string, string> = {}) =>
-  ({ ANALYST_PROVIDER: 'openai', ANALYST_API_URL: url, ANALYST_MODEL: 'm', ANALYST_API_KEY: 'k', VITAL_DATA_MODE: 'demo', ...extra }) as unknown as NodeJS.ProcessEnv;
+/** The Analyst on the endless model with these options; the question timeout is still an environment setting. */
+const setupFor = (url: string, options: Record<string, unknown>, questionTimeoutMs?: string) => ({
+  env: { VITAL_DATA_MODE: 'demo', ...(questionTimeoutMs ? { ANALYST_QUESTION_TIMEOUT_MS: questionTimeoutMs } : {}) } as unknown as NodeJS.ProcessEnv,
+  aiSettings: analystOn(url, options, { apiKey: 'k' }),
+});
 
 async function collect(chunks: AsyncGenerator<AnalystStreamChunk>) {
   const out: AnalystStreamChunk[] = [];
@@ -107,8 +111,8 @@ describe('a model that never stops, through the streamed service', () => {
   for (const tools of ['auto', 'off'] as const) {
     it(`cuts endless reasoning and hangs up on the model (tools ${tools})`, async () => {
       const model = await endlessModel(reasoningFrame);
-      const env = envFor(model.url, { ANALYST_TOOLS: tools, ANALYST_MAX_REASONING_CHARS: '2000', ANALYST_QUESTION_TIMEOUT_MS: '60000' });
-      const chunks = await collect(streamAnalyst({ query: 'Tell me about my sleep this month' }, { env }).chunks);
+      const setup = setupFor(model.url, { tools, maxReasoningChars: 2000 }, '60000');
+      const chunks = await collect(streamAnalyst({ query: 'Tell me about my sleep this month' }, setup).chunks);
       const result = chunks.find(c => c.kind === 'result');
       expect(result?.kind).toBe('result');
       if (result?.kind !== 'result') return;
@@ -126,8 +130,8 @@ describe('a model that never stops, through the streamed service', () => {
 
   it('cuts an endless reply', async () => {
     const model = await endlessModel(answerFrame);
-    const env = envFor(model.url, { ANALYST_TOOLS: 'off', ANALYST_MAX_ANSWER_CHARS: '1500' });
-    const chunks = await collect(streamAnalyst({ query: 'Tell me about my sleep this month' }, { env }).chunks);
+    const setup = setupFor(model.url, { tools: 'off', maxAnswerChars: 1500 });
+    const chunks = await collect(streamAnalyst({ query: 'Tell me about my sleep this month' }, setup).chunks);
     const result = chunks.find(c => c.kind === 'result');
     expect(result?.kind === 'result' && result.response.message).toMatch(/reply ran past 1,500 characters/);
   });
@@ -144,9 +148,9 @@ describe('a model that never stops, through the streamed service', () => {
     await new Promise<void>(r => server.listen(0, '127.0.0.1', r));
     servers.push(server);
     const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`;
-    const env = envFor(url, { ANALYST_TOOLS: 'auto', ANALYST_QUESTION_TIMEOUT_MS: '1000' });
+    const setup = setupFor(url, { tools: 'auto' }, '1000');
     const started = Date.now();
-    const chunks = await collect(streamAnalyst({ query: 'Tell me about my sleep this month' }, { env }).chunks);
+    const chunks = await collect(streamAnalyst({ query: 'Tell me about my sleep this month' }, setup).chunks);
     const result = chunks.find(c => c.kind === 'result');
     expect(result?.kind === 'result' && result.response.message).toMatch(/1-second limit/);
     expect(Date.now() - started).toBeLessThan(5000);
@@ -154,8 +158,8 @@ describe('a model that never stops, through the streamed service', () => {
 
   it('stops when the caller aborts (the Stop button), and says nothing was answered', async () => {
     const model = await endlessModel(reasoningFrame);
-    const env = envFor(model.url, { ANALYST_TOOLS: 'auto', ANALYST_MAX_REASONING_CHARS: '2000000', ANALYST_QUESTION_TIMEOUT_MS: '600000' });
-    const { chunks, abort } = streamAnalyst({ query: 'Tell me about my sleep this month' }, { env });
+    const setup = setupFor(model.url, { tools: 'auto', maxReasoningChars: 2000000 }, '600000');
+    const { chunks, abort } = streamAnalyst({ query: 'Tell me about my sleep this month' }, setup);
     const seen: AnalystStreamChunk[] = [];
     for await (const c of chunks) {
       seen.push(c);

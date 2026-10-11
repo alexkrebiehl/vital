@@ -131,7 +131,7 @@ Everything the analyst reads is bounded, and it says when it is showing part of 
   total, and the results together are capped at 48,000 characters. When the budget is used up, the
   analyst answers from what it has and says what it could not fetch.
 - **The starting material is bounded too.** The coverage index is at most 6,000 characters, and the
-  fixed starting selection is held to `ANALYST_CONTEXT_MAX_CHARS` (see
+  fixed starting selection is held to the **Most data sent with one question** limit (see
   [Configuration](configuration.md#how-the-analyst-gets-your-health-data)). Whatever is left out
   is named in the context, so the analyst says "I was not given X" rather than "X is not recorded".
 
@@ -161,14 +161,14 @@ shows what is sent, and the way to send none of it is to use the demo analyst.
   your age, sex, time zone and the notes you wrote.
 - **Locations are coarse.** The analyst sees distance and workout counts per map area you saved,
   never a route or a coordinate.
-- **The demo analyst sends nothing.** With `ANALYST_PROVIDER` unset or `demo`, answers come from
-  fixed local handlers and nothing leaves the machine.
-- **`ANALYST_TOOLS=off`** stops the model from calling any tool, so it cannot look anything up and
+- **The demo analyst sends nothing.** With no model chosen for the Analyst (Settings →
+  Preferences → AI models), answers come from fixed local handlers and nothing leaves the machine.
+- **Tools: off** (Analyst → Advanced) stops the model from calling any tool, so it cannot look anything up and
   cannot change the training plan. The fixed starting selection is sent instead, and the coverage
   index still tells the model what else exists, so it says "not included" rather than "not
   recorded". Use it for a model server without tool calling. A server that rejects the tool
   definitions is handled the same way, and the answer says tools were unavailable.
-- **`ANALYST_CONTEXT=full|ondemand`** chooses the starting selection: the whole selection for the
+- **How your data is sent** (Analyst → Advanced) chooses the starting selection: the whole selection for the
   question (`full`, the default) or only the question and the coverage index (`ondemand`). In both
   modes the model can look up the rest. See
   [Configuration](configuration.md#how-the-analyst-gets-your-health-data).
@@ -346,11 +346,13 @@ ones and the answer reads, grounds and passes the absence audit. That says nothi
 model's judgement. To measure one, the owner runs the set live:
 
 ```
-ANALYST_PROVIDER=... ANALYST_MODEL=... ANALYST_API_URL=... ANALYST_API_KEY=... \
-  npm run analyst:eval -- --yes [--only 1,4,32]
+VITAL_PG_PASSWORD=... VITAL_SECRET_KEY=... npm run analyst:eval -- --yes [--only 1,4,32]
+# or, to try a model without changing Settings:
+npm run analyst:eval -- --yes --settings eval-model.json
+#   { "kind": "openai", "baseUrl": "...", "apiKey": "...", "model": "...", "options": { } }
 ```
 
-It sends each question, and every tool round, to the configured model, so run it on demand. It
-refuses to run with the demo analyst or without `--yes`, reads configuration from the process
-environment only, and prints tool names and yes/no results: no value, no answer text and no key. If the new
+It sends each question, and every tool round, to the model chosen for the Analyst (or the one in
+the `--settings` file), so run it on demand. It refuses to run with the demo analyst or without
+`--yes`, reads the database and secret key from the process environment only, and prints tool names and yes/no results: no value, no answer text and no key. If the new
 capability adds a tool or changes how a question is best asked, add or adjust a question.

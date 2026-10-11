@@ -16,7 +16,7 @@ import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  Bell, Clock, Database, Info, Palette, Ruler, Save, Shield, Trash2, TriangleAlert, UserRound,
+  Bell, Bot, Clock, Database, Info, Palette, Ruler, Save, Shield, Trash2, TriangleAlert, UserRound,
 } from 'lucide-react';
 import { getAllMetrics, getMetric } from '@/lib/metrics';
 import { convertValue, displayUnit, formatMetricWithUnit, hasConversion } from '@/lib/metrics/format';
@@ -37,6 +37,7 @@ import {
 import { FreshnessIndicator } from '@/components/shell/FreshnessIndicator';
 import { useProfile } from '@/components/profile/ProfileProvider';
 import { LabUpload } from '@/components/settings/LabUpload';
+import { AiModels } from '@/components/settings/AiModels';
 import { ConnectionsTab } from '@/components/settings/ConnectionsTab';
 import { SectionHead } from '@/components/settings/SectionHead';
 import { SourcesTab } from '@/components/settings/SourcesTab';
@@ -247,6 +248,12 @@ function SettingsView() {
               </Link>
               .
             </p>
+          </Card>
+
+          {/* ── AI models ──────────────────────────── */}
+          <Card className="p-6">
+            <SectionHead icon={<Bot size={18} className="text-text-secondary" />} title="AI models" />
+            <AiModels />
           </Card>
 
           {/* ── Notifications ──────────────────────── */}
@@ -799,6 +806,13 @@ function PrivacyTab() {
               }
               tone="muted"
             />
+            <p className="text-xs text-text-secondary">
+              The provider and model are chosen in{' '}
+              <Link href="/settings?tab=preferences" className="text-primary hover:underline">
+                Preferences → AI models
+              </Link>
+              .
+            </p>
             {state.misconfiguredReason && (
               <div className="flex items-start gap-2 rounded-control border border-category-attention/40 p-3">
                 <TriangleAlert size={13} className="mt-0.5 shrink-0 text-category-attention" aria-hidden="true" />

@@ -45,14 +45,15 @@ What is still demo or unwired in this build, exhaustively:
 - **Demo mode reads committed fixtures**, `src/data/health-fixtures.json`, generated
   deterministically by `scripts/seed.mjs` (fixed PRNG seed, 180 days ending on the dataset's
   reference date). Demo mode remains the default and is unchanged by the live integration.
-- **The analyst runs in one of two modes**, decided by `ANALYST_PROVIDER`:
-  - **Demo (default, and the state this checkout ships in).** `demo`/unset means no provider,
+- **The analyst runs in one of two modes**, decided by the Analyst model chosen in Settings →
+  Preferences → AI models:
+  - **Demo (default, and the state this checkout ships in).** No model chosen means no provider,
     no credential and nothing sent anywhere. Answers come from fixed local handlers over the
     active dataset, labelled "Demo analyst", and anything outside the supported question list
     is refused rather than guessed at.
-  - **Live (configured).** `openai` or `anthropic` sends the question plus a bounded selection
-    of the dataset to the endpoint you configure, and the model's reply is parsed, validated
-    and grounding-checked server-side before it is shown. See *AI Analyst configuration*. A
+  - **Live (configured).** An OpenAI-compatible or Anthropic provider sends the question plus a
+    bounded selection of the dataset to that provider's address, and the model's reply is parsed,
+    validated and grounding-checked server-side before it is shown. See *AI providers and models*. A
     provider that is misconfigured or fails is reported honestly — the feature never
     substitutes demo output for a model reply.
 - **The pipeline panel checks only the stages this build actually has.** Health Auto Export and

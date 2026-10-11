@@ -8,14 +8,15 @@
 // nothing else.
 
 /**
- * Which stack wrote (or would write) the briefing.
+ * Which model wrote (or would write) the briefing.
  *
- * `fallback` is the hosted provider a rejected primary reply is re-asked from
- * once (VITAL_LLM_FALLBACK_*). It is reported in the payload so a briefing that
- * exists only because the local model's reply failed the number guard is not
- * attributed to the local model.
+ * `primary` is the Summary model chosen in Settings. `fallback` is the Summary
+ * fallback: it writes when the Summary model is unusable or its local server is
+ * not running, and a rejected primary reply is re-asked from it once. It is
+ * reported in the payload so a briefing that exists only because the primary
+ * reply failed the number guard is not attributed to the primary model.
  */
-export type BriefingEngineKind = 'local' | 'analyst' | 'fallback' | 'none';
+export type BriefingEngineKind = 'primary' | 'fallback' | 'none';
 
 /** Numeric audit of generated text against the context it was written from. */
 export interface BriefingTraceability {
@@ -36,7 +37,7 @@ export interface BriefingPayload {
    */
   attribution: string;
   model: string | null;
-  /** Display label of the provider, e.g. "OpenAI-compatible". Never a key. */
+  /** Display label of the provider: the name it was given in Settings. Never a key. */
   provider: string | null;
   /** Host only, never a URL that carried a credential. */
   destination: string | null;

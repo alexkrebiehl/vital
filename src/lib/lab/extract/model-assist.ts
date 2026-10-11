@@ -20,7 +20,9 @@
 // Rows that survive carry `extractionMethod: 'model'`, and the caller records
 // which pass produced the document's rows.
 
-import { readAnalystConfig } from '@/lib/analyst/config';
+import { labAssistAllowed } from '@/lib/analyst/config';
+import { resolveAnalystConfig } from '@/lib/analyst/resolve-config';
+import type { AiSettings } from '@/lib/ai/types';
 import { createProvider, supportsCompletion } from '@/lib/analyst/provider';
 import type { ExtractedObservation, ExtractionWarning } from '../types';
 import { analyteKeyFor, confidenceOf, parseFlag, redact } from './parse';
@@ -46,10 +48,11 @@ export interface ModelAssistInput {
   columns: { dateText: string; date: string | null }[];
 }
 
-/** Injected for tests: a completion function, or an environment. */
+/** Injected for tests: a completion function, or the AI settings to resolve the analyst from. */
 export interface ModelAssistDeps {
   complete?: (system: string, user: string) => Promise<{ text: string }>;
   env?: NodeJS.ProcessEnv;
+  aiSettings?: AiSettings;
 }
 
 export interface DroppedCandidate {
@@ -114,11 +117,12 @@ export async function assistExtraction(
   if (!complete) {
     let resolved;
     try {
-      resolved = readAnalystConfig(deps.env ?? process.env);
+      resolved = await resolveAnalystConfig({ env: deps.env, aiSettings: deps.aiSettings });
     } catch {
       return empty;
     }
-    if (resolved.provider === 'demo' || resolved.misconfiguredReason) return empty;
+    // The Analyst's model, and only when the lab-report switch in Settings is on.
+    if (!labAssistAllowed(resolved)) return empty;
     let instance;
     try {
       instance = createProvider(resolved);

@@ -2,13 +2,15 @@
 
 // ── Settings → Connections ──────────────────────────────────────────────────
 //
-// The data pipeline: each stage's status, and the data-quality section with its
-// findings, Silence and Silenced issues. Nothing else lives on this tab.
+// The AI providers the Analyst and the Summary can run on, then the data
+// pipeline: each stage's status, and the data-quality section with its
+// findings, Silence and Silenced issues.
 
 import { useCallback } from 'react';
-import { Database } from 'lucide-react';
+import { Bot, Database } from 'lucide-react';
 import { Badge, BadgeSpinner, Button, Card, DataStateNote, ErrorState } from '@/components/ui/primitives';
 import { STAGE_STATUS_LABEL, type StageStatus } from '@/lib/pipeline/types';
+import { AiProviders } from './AiProviders';
 import { DataQualitySection } from './DataQuality';
 import { SectionHead } from './SectionHead';
 import { usePipelineReport } from './usePipelineReport';
@@ -21,6 +23,9 @@ export function ConnectionsTab() {
 
   return (
     <div className="space-y-5">
+      <Card className="p-6">
+        <AiProviders heading={title => <SectionHead icon={<Bot size={18} className="text-text-secondary" />} title={title} />} />
+      </Card>
       <Card className="p-6">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <SectionHead icon={<Database size={18} className="text-text-secondary" />} title="Data pipeline" />

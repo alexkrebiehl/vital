@@ -55,7 +55,7 @@ export class StreamGuard {
     this.reasoningInTurn += text.length;
     if (this.reasoningInTurn > this.limits.maxReasoningChars) {
       this.trip(
-        `The model kept reasoning for more than ${this.limits.maxReasoningChars.toLocaleString('en-US')} characters without reaching an answer, so the question was stopped and no answer was produced. Ask a narrower question, lower ANALYST_REASONING_EFFORT, or raise ANALYST_MAX_REASONING_CHARS.`
+        `The model kept reasoning for more than ${this.limits.maxReasoningChars.toLocaleString('en-US')} characters without reaching an answer, so the question was stopped and no answer was produced. Ask a narrower question, or lower the reasoning effort or raise the reasoning limit in Settings → Preferences → AI models.`
       );
     }
   }
@@ -64,7 +64,7 @@ export class StreamGuard {
     this.answerInTurn += text.length;
     if (this.answerInTurn > this.limits.maxAnswerChars) {
       this.trip(
-        `The model's reply ran past ${this.limits.maxAnswerChars.toLocaleString('en-US')} characters, far more than an answer needs, so the question was stopped and no answer was produced. Ask a narrower question or raise ANALYST_MAX_ANSWER_CHARS.`
+        `The model's reply ran past ${this.limits.maxAnswerChars.toLocaleString('en-US')} characters, far more than an answer needs, so the question was stopped and no answer was produced. Ask a narrower question or raise the reply limit in Settings → Preferences → AI models.`
       );
     }
   }

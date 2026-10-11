@@ -24,7 +24,12 @@ describe('Sources tab', () => {
 });
 
 describe('Connections tab', () => {
-  it('holds the data pipeline with its data quality, and nothing else', () => {
+  it('opens with the AI providers, above the data pipeline', () => {
+    expect(connections.indexOf('<AiProviders')).toBeGreaterThan(0);
+    expect(connections.indexOf('<AiProviders')).toBeLessThan(connections.indexOf('title="Data pipeline"'));
+  });
+
+  it('holds the data pipeline with its data quality, and no data source', () => {
     expect(connections).toContain('title="Data pipeline"');
     expect(connections).toContain('<DataQualitySection report={report} onReady={refreshDataset} checkKey={loads} />');
     expect(connections).not.toMatch(/<HaeConnection|<OuraConnection|<WorkoutSources|<MapProvidersCard/);
@@ -35,6 +40,11 @@ describe('Settings page', () => {
   it('renders each tab component from its own tab id', () => {
     expect(page).toContain("tab === 'sources' && <SourcesTab />");
     expect(page).toContain("tab === 'connections' && <ConnectionsTab />");
+  });
+
+  it('chooses the AI models on the Preferences tab', () => {
+    const preferences = page.slice(page.indexOf("tab === 'preferences'"), page.indexOf("tab === 'data'"));
+    expect(preferences).toContain('<AiModels />');
   });
 
   it('shows the setup banner above the tabs', () => {

@@ -456,8 +456,8 @@ The implementation lives in `src/lib/adapters/`:
 | `live.ts` | `LiveHealthDataAdapter` + `loadLiveDataset()` (bounded windows, fetch-once aggregate-server-side) and the boot-time `warmLiveDataset()` cache fill |
 | `runtime.ts` | The mode switch used by the layout and the server routes; raises `LiveDataUnavailableError` instead of falling back to demo |
 
-The `ANALYST_*` variables are live configuration: with `ANALYST_PROVIDER=openai` or
-`anthropic` a request *is* sent to the endpoint you configure (see *AI Analyst
-configuration*); with `demo` nothing leaves the machine. The profile is not configuration at
+The AI providers are live configuration: once a model is chosen for the Analyst or the
+Summary in Settings, a request *is* sent to that provider's address (see *AI providers and
+models*); with no model chosen nothing leaves the machine. The profile is not configuration at
 all: it is the `profile` row in Postgres (`id = 1`, see *The profile*) rather than an
 environment variable, and it holds no secret.

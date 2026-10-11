@@ -114,77 +114,34 @@ services:
       # The profile is NOT an environment variable: it is the `profile` row in
       # the Postgres database above (id = 1), written by Settings → Account.
       # There is no file-backed profile.
-      # ── AI analyst (server-side only; five configurable things) ─────────────
-      # provider · model · endpoint · credential · system prompt
-      # `demo` (the default) needs no provider and sends nothing anywhere.
-      # ANALYST_PROVIDER=openai means ANY OpenAI-compatible /chat/completions
-      # (OpenAI, OpenRouter, LM Studio, llama.cpp, vLLM, Ollama, Together…).
-      ANALYST_PROVIDER: "${ANALYST_PROVIDER:-demo}"
-      ANALYST_MODEL: "${ANALYST_MODEL:-}"
-      ANALYST_API_URL: "${ANALYST_API_URL:-}"
-      ANALYST_API_KEY: "${ANALYST_API_KEY:-}"
+      # ── AI (server-side only) ───────────────────────────────────────────────
+      # Providers, models and their tuning are set in Settings (Connections →
+      # AI providers, Preferences → AI models) and stored encrypted under
+      # VITAL_SECRET_KEY. Only the system prompt and the timeouts stay here.
       # A prompt file wins over the inline prompt and is re-read when it changes.
       ANALYST_SYSTEM_PROMPT: "${ANALYST_SYSTEM_PROMPT:-}"
       ANALYST_SYSTEM_PROMPT_FILE: "${ANALYST_SYSTEM_PROMPT_FILE:-}"
-      ANALYST_MAX_TOKENS: "${ANALYST_MAX_TOKENS:-1200}"
-      ANALYST_TEMPERATURE: "${ANALYST_TEMPERATURE:-0.2}"
+      # One model request; one whole analyst question, tool rounds included; one
+      # briefing request.
       ANALYST_TIMEOUT_MS: "${ANALYST_TIMEOUT_MS:-60000}"
-      ANALYST_JSON_MODE: "${ANALYST_JSON_MODE:-auto}"
-      # `auto` lets the model call tools; `off` for a server without tool calling.
-      ANALYST_TOOLS: "${ANALYST_TOOLS:-auto}"
-      # How health data reaches the model: `full` sends the selection with every
-      # question (within ANALYST_CONTEXT_MAX_CHARS); `ondemand` sends an index and the
-      # model fetches only what the question needs. See docs/configuration.md.
-      ANALYST_CONTEXT: "${ANALYST_CONTEXT:-full}"
-      ANALYST_CONTEXT_MAX_CHARS: "${ANALYST_CONTEXT_MAX_CHARS:-60000}"
-      # The runaway guard: one model turn may stream this many characters of reasoning or
-      # of reply, and one whole question (tool rounds included) this many milliseconds,
-      # before it is stopped. See docs/configuration.md.
-      ANALYST_MAX_REASONING_CHARS: "${ANALYST_MAX_REASONING_CHARS:-40000}"
-      ANALYST_MAX_ANSWER_CHARS: "${ANALYST_MAX_ANSWER_CHARS:-30000}"
       ANALYST_QUESTION_TIMEOUT_MS: "${ANALYST_QUESTION_TIMEOUT_MS:-300000}"
-      # Bounded reasoning effort for a reasoning model, or empty to send none.
-      # One of max|xhigh|high|medium|low|minimal|none. An unbounded reasoning
-      # model can spend the whole completion budget reasoning and emit no answer.
-      ANALYST_REASONING_EFFORT: "${ANALYST_REASONING_EFFORT:-}"
-      # ── Today's briefing (server-side only) ────────────────────────────────
-      # The optional local seam: a model server on this machine, reachable as
-      # host.docker.internal (mapped below). It is probed with a bounded GET
-      # /models; when it does not answer, the briefing uses ANALYST_* instead.
-      # VITAL_LLM_MODEL=auto resolves to the first model id the server advertises.
-      VITAL_LLM_BASE_URL: "${VITAL_LLM_BASE_URL:-}"
-      VITAL_LLM_MODEL: "${VITAL_LLM_MODEL:-}"
-      VITAL_LLM_API_KEY: "${VITAL_LLM_API_KEY:-}"
-      # The fallback provider: a stronger hosted model the briefing is re-asked
-      # from, ONCE, when the preferred engine's reply fails the number guard.
-      # Server-side only. If it is unset or unusable, a rejected reply simply
-      # leaves the computed briefing on screen.
-      VITAL_LLM_FALLBACK_BASE_URL: "${VITAL_LLM_FALLBACK_BASE_URL:-}"
-      VITAL_LLM_FALLBACK_MODEL: "${VITAL_LLM_FALLBACK_MODEL:-}"
-      VITAL_LLM_FALLBACK_API_KEY: "${VITAL_LLM_FALLBACK_API_KEY:-}"
+      BRIEFING_TIMEOUT_MS: "${BRIEFING_TIMEOUT_MS:-60000}"
       # There is deliberately NO briefing cache TTL. The briefing's cache key
       # carries the local calendar day, so one briefing is reused for the whole
       # day it belongs to and a new one is written lazily on the first request
       # at/after the profile's briefingHour. A TTL on top of that would be a
       # second, weaker answer to the same question.
-      # A reasoning model spends this budget on reasoning AND its reply, so it is
-      # generous: the reply itself is only a few hundred tokens.
-      BRIEFING_MAX_TOKENS: "${BRIEFING_MAX_TOKENS:-4000}"
-      BRIEFING_TEMPERATURE: "${BRIEFING_TEMPERATURE:-0.3}"
-      BRIEFING_TIMEOUT_MS: "${BRIEFING_TIMEOUT_MS:-60000}"
       # ── Uploaded lab reports (server-side only) ────────────────────────────
       # Uploaded PDFs are stored content-addressed under this directory, which
       # lives inside the writable ./data mount. VITAL_LAB_MAX_BYTES caps an
-      # upload; VITAL_LAB_MODEL_ASSIST (`auto`|`on`|`off`) controls the OPTIONAL
-      # second extraction pass — `off` guarantees no network call.
+      # upload. The OPTIONAL model second pass is switched in Settings.
       VITAL_LAB_DIR: "${VITAL_LAB_DIR:-/app/data/lab}"
       VITAL_LAB_MAX_BYTES: "${VITAL_LAB_MAX_BYTES:-15728640}"
-      VITAL_LAB_MODEL_ASSIST: "${VITAL_LAB_MODEL_ASSIST:-auto}"
     # A model server running on the host (LM Studio, llama.cpp, Ollama, vLLM,
     # together.ai proxy, …) is reachable as host.docker.internal. Without this the
     # name does not resolve from inside the bridge. A loopback endpoint needs no
-    # credential.
-    #   ANALYST_API_URL=http://host.docker.internal:1234/v1   (LM Studio)
+    # credential. In Settings → Connections → AI providers, LM Studio is
+    #   http://host.docker.internal:1234/v1
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

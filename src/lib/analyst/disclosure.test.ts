@@ -4,7 +4,9 @@ import { describe, expect, it } from 'vitest';
 import { ALWAYS_SENT, SENDING_CATEGORY_SENTENCES } from './capabilities/categories';
 import { CAPABILITY_MANIFEST } from './capabilities/manifest';
 import { CAPABILITIES } from './capabilities/registry';
-import { publicConfigState, readAnalystConfig, REMOTE_SENDING_CATEGORIES, remoteSendingCategories } from './config';
+import { buildAnalystConfig, publicConfigState, REMOTE_SENDING_CATEGORIES, remoteSendingCategories } from './config';
+import { analystOn } from '@/lib/ai/test-settings';
+import { selectionFor } from '@/lib/ai/types';
 
 describe('REMOTE_SENDING_CATEGORIES', () => {
   const categoriesInUse = [...new Set(CAPABILITIES.map(c => c.category))];
@@ -44,8 +46,9 @@ describe('REMOTE_SENDING_CATEGORIES', () => {
   });
 
   it('is what Settings shows for a configured provider, and nothing for the demo', () => {
-    const remote = { ANALYST_PROVIDER: 'openai', ANALYST_API_URL: 'https://analyst.example.invalid/v1', ANALYST_API_KEY: 'k', ANALYST_MODEL: 'm' } as unknown as NodeJS.ProcessEnv;
-    expect(publicConfigState(readAnalystConfig(remote)).sendingCategories).toEqual(REMOTE_SENDING_CATEGORIES);
-    expect(publicConfigState(readAnalystConfig({} as NodeJS.ProcessEnv)).sendingCategories).toEqual([]);
+    const remote = selectionFor(analystOn('https://analyst.example.invalid/v1', {}, { apiKey: 'k' }), 'analyst');
+    const env = {} as NodeJS.ProcessEnv;
+    expect(publicConfigState(buildAnalystConfig(remote, env)).sendingCategories).toEqual(REMOTE_SENDING_CATEGORIES);
+    expect(publicConfigState(buildAnalystConfig(null, env)).sendingCategories).toEqual([]);
   });
 });
