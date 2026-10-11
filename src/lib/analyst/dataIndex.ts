@@ -1,10 +1,8 @@
-// ── The data index (pure) ───────────────────────────────
+// ── The data index parts (pure) ─────────────────────────
 //
-// What the model is given INSTEAD of the data in on-demand mode: a map of what
-// exists and for what dates, small enough to read every time (a few thousand
-// characters whatever the amount of data) and complete enough that "this is not
-// recorded" can be said truthfully — a name that is absent from the index is absent
-// from the data. It carries no values: to see a value the model calls a tool.
+// The metric and lab lines of the coverage index (capabilities/coverage-index.ts,
+// which renders them): what exists and for which dates, small enough to read every
+// time. No values: to see a value the model calls a tool.
 
 import { availableMetricIds, coverageFor, metricHasData } from '../adapters/dataset';
 import { getMetric } from '../metrics/registry';
@@ -30,14 +28,6 @@ export interface LabIndex {
   panelDates: { on: string; series: number }[];
   /** Series by category: the display names the tools accept. */
   categories: { category: string; series: { key: string; name: string; observations: number; latest: string }[] }[];
-}
-
-export interface DataIndex {
-  referenceDay: string;
-  metrics: MetricIndexEntry[];
-  labs: LabIndex;
-  medications: string;
-  workouts: string;
 }
 
 export function buildMetricIndex(): MetricIndexEntry[] {
@@ -81,38 +71,4 @@ export function buildLabIndex(source: LabSourceInput): LabIndex {
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([category, series]) => ({ category, series: series.sort((a, b) => a.name.localeCompare(b.name)) })),
   };
-}
-
-export function buildDataIndex(referenceDay: string, lab: LabSourceInput): DataIndex {
-  return {
-    referenceDay,
-    metrics: buildMetricIndex(),
-    labs: buildLabIndex(lab),
-    medications: 'Logged doses are available from get_medications (last N days).',
-    workouts: 'The workout log is available from get_workouts (last N days).',
-  };
-}
-
-/** The index as text for the user message: compact lines, no values. */
-export function renderDataIndex(index: DataIndex): string {
-  const lines: string[] = [];
-  lines.push(`Today (latest day in the data): ${index.referenceDay}.`);
-  lines.push('');
-  lines.push('METRICS — id | name | first..last day | days recorded | how often. Fetch with get_metrics / compare_periods / get_metric_relationship.');
-  for (const m of index.metrics) lines.push(`${m.id} | ${m.name} | ${m.from}..${m.to} | ${m.days} | ${m.frequency}`);
-  lines.push('');
-  const L = index.labs;
-  if (!L.available) {
-    lines.push(`LAB RESULTS — not available: ${L.reason ?? 'unknown reason'}`);
-  } else {
-    lines.push(`LAB RESULTS — ${L.documents} documents, ${L.observations} observations. Fetch with get_lab_results / compare_lab_panels.`);
-    lines.push(`Panel dates (date: series measured): ${L.panelDates.map(d => `${d.on}: ${d.series}`).join(', ') || 'none'}`);
-    for (const c of L.categories) {
-      lines.push(`${c.category}: ${c.series.map(s => `${s.name}${s.observations > 1 ? ` (${s.observations}×)` : ''}`).join(', ')}`);
-    }
-  }
-  lines.push('');
-  lines.push(index.medications);
-  lines.push(index.workouts);
-  return lines.join('\n');
 }

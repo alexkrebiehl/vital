@@ -11,6 +11,7 @@ Routes, what is still demo or unwired in this build, and the quality commands.
 | Route | Page |
 |-------|------|
 | `/` | Overview — the daily briefing, today's signals and your health story |
+| `/dashboard` | Your own cards: pick any metric and a day or a date range, and arrange the cards by drag or from each card's menu |
 | `/trends` | Compare periods; explore how two metrics move together |
 | `/health` | Heart, blood pressure and other health signals |
 | `/activity` | Steps, exercise and movement |
@@ -32,7 +33,7 @@ Routes, what is still demo or unwired in this build, and the quality commands.
 | `/metric/[metricId]` | One metric in detail |
 
 The API lives under `/api/*`: `activity-coverage`, `activity-maps`, `analyst` (with `conversations`
-and `stream`), `body-goal`, `briefing`, `geocode`, `lab`, `medications`, `pipeline/status`, `preferences`,
+and `stream`), `body-goal`, `briefing`, `dashboard` (the cards, and their order), `geocode`, `lab`, `medications`, `pipeline/status`, `preferences`,
 `profile`, `routine`, `workout-sources` and a `health` liveness probe.
 
 ---
@@ -96,3 +97,5 @@ What is still demo or unwired in this build, exhaustively:
 | `npm run lint` | ESLint (`next lint`) |
 | `npm run test` | Vitest suite |
 | `npm run build` | Production build (standalone output) |
+| `npm run analyst:capabilities` | Regenerate `docs/analyst-capabilities.md` from the capability registry (`node scripts/analyst-capabilities.mjs --check` exits 1 when it is out of date) |
+| `npm run analyst:eval -- --yes` | Send the 32 evaluation questions to the configured model and print, per question, whether the expected tool was called and the window resolved (live and owner-run, not part of `npm run test`; prints tool names and yes/no, no values) |

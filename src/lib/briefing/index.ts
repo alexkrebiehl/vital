@@ -505,6 +505,18 @@ export function readBriefing(deps: BriefingDeps = {}): BriefingView {
   };
 }
 
+/**
+ * The briefing already written for the current day, or null. Read only: unlike
+ * `readBriefing` it never starts a generation, never counts as a page view and never
+ * records an attempt, so a reader that is not the Overview (the analyst's tools) can
+ * look without opening a model connection. A cold day is null, not a computed
+ * stand-in: nothing has been written.
+ */
+export function peekBriefing(deps: BriefingDeps = {}): BriefingView | null {
+  const cached = peekPayload(resolve(deps).key);
+  return cached ? { ...cached, pending: state.inFlight.size > 0, cached: true } : null;
+}
+
 // ── Manual regeneration ─────────────────────────────────
 
 /**

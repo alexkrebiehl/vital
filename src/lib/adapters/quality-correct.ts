@@ -9,7 +9,7 @@
 // are, for the report and for this correction alike.
 //
 // The correction is on by default. The reader can turn it off per check
-// (stored as configuration in `quality_correction_off`, migration 0015); the
+// (stored as configuration in `quality_correction_off`, migration 0016); the
 // finding then comes back with a "Fix it" button that turns it on again.
 
 import { compactRecords, findRedundant, CORRECTABLE_CHECKS, type CorrectableCheck } from './quality';

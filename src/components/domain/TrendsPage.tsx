@@ -6,7 +6,9 @@ import { getAllMetrics, getMetric, searchMetrics } from '@/lib/metrics';
 import { listedMetrics } from '@/lib/metrics/listed';
 import { useDatasetMeta } from '@/components/data/DatasetProvider';
 import { describeChange, formatMetricWithUnit, formatPercent } from '@/lib/metrics/format';
-import { seriesFor, metricHasData, REFERENCE_KEY, WINDOW_START_KEY } from '@/lib/adapters/dataset';
+import {
+  isPairedMetric, metricHasData, metricObservationsInWindow, seriesFor, REFERENCE_KEY, WINDOW_START_KEY,
+} from '@/lib/adapters/dataset';
 import {
   addDays,
   compareWindows,
@@ -28,6 +30,7 @@ import { MetricChart, RelationshipScatter } from '@/components/charts';
 import { useUnits } from '@/components/ui/UnitsProvider';
 import { RangeControl } from '@/components/ui/RangeControl';
 import { DomainHeader, SectionTitle } from './DomainShared';
+import { BloodPressureAligned, BloodPressureComparison } from './BloodPressureCompare';
 import type { MetricDefinition } from '@/lib/metrics/types';
 
 const DEFAULT_SELECTION = ['resting_heart_rate', 'heart_rate_variability', 'sleep_analysis'];
@@ -76,9 +79,9 @@ function CompareTab() {
   // Owner request 2: a metric with no observation in this window is neither
   // charted nor listed as a comparison row; the sections disappear with their
   // last entry.
-  const plottable = selected.filter(id =>
-    seriesFor(id).some(p => p.key >= window.startKey && p.key <= window.endKey)
-  );
+  const plottable = selected.filter(id => metricObservationsInWindow(id, window) > 0);
+  // Blood pressure is a pair: it has its own chart and its own comparison.
+  const singles = plottable.filter(id => !isPairedMetric(id));
 
   return (
     <div className="space-y-6">
@@ -118,11 +121,14 @@ function CompareTab() {
 
       {/* Comparison table — accumulating metrics use complete days on both sides */}
       <ComparisonTable
-        metricIds={plottable}
+        metricIds={singles}
         days={Number(days)}
         mode={mode}
         comparatorAvailable={mode === 'previous' || lastYearAvailable}
       />
+      {plottable.some(isPairedMetric) && (mode === 'previous' || lastYearAvailable) && (
+        <BloodPressureComparison evaluated={window} comparator={comparator} units={units} />
+      )}
 
       {/* Aligned charts */}
       {plottable.length > 0 && (
@@ -131,15 +137,19 @@ function CompareTab() {
             Aligned charts
           </SectionTitle>
           <Card className="p-4 md:p-6 space-y-6">
-            {plottable.map((metricId, i) => (
-              <AlignedChart
-                key={metricId}
-                metricId={metricId}
-                window={window}
-                units={units}
-                showXAxis={i === plottable.length - 1}
-              />
-            ))}
+            {plottable.map((metricId, i) =>
+              isPairedMetric(metricId) ? (
+                <BloodPressureAligned key={metricId} window={window} units={units} showXAxis={i === plottable.length - 1} />
+              ) : (
+                <AlignedChart
+                  key={metricId}
+                  metricId={metricId}
+                  window={window}
+                  units={units}
+                  showXAxis={i === plottable.length - 1}
+                />
+              )
+            )}
             <DataStateNote>
               Charts share exactly the same date window and axis domain so their shapes line up. Each
               metric keeps its own unit and y-axis, so the vertical scales are not comparable. A
@@ -529,7 +539,8 @@ function MetricSelect({
   const [query, setQuery] = useState('');
   const metrics: MetricDefinition[] = useMemo(() => {
     const q = query.trim();
-    return q ? searchMetrics(q).slice(0, 6) : getAllMetrics().slice(0, 6);
+    // A relationship pairs ONE number per day; blood pressure is two, so it is not offered.
+    return (q ? searchMetrics(q) : getAllMetrics()).filter(m => !isPairedMetric(m.id)).slice(0, 6);
   }, [query]);
   const activeSources = useDatasetMeta().activeSources;
 
@@ -542,7 +553,7 @@ function MetricSelect({
         aria-label={label}
         className="w-full bg-surface border border-border rounded-control px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-accent min-h-[44px]"
       >
-        {listedMetrics(getAllMetrics(), activeSources, metricHasData).map(m => (
+        {listedMetrics(getAllMetrics(), activeSources, metricHasData).filter(m => !isPairedMetric(m.id)).map(m => (
           <option key={m.id} value={m.id}>
             {m.displayName}{metricHasData(m.id) ? '' : ' — no data in dataset'}
           </option>

@@ -216,7 +216,7 @@ function sleepAnswer(id: string, days: number, title: string, ctx: HandlerContex
     uncertainty,
     evidence: [evidenceFor(sleep)],
     charts: [chartFor(sleep)],
-    followUps: ['Are my workouts associated with better sleep?', 'How is my HRV trending?'],
+    followUps: ['Is more sleep associated with higher HRV?', 'How is my HRV trending?'],
     boundaryNote: BOUNDARY_NOTE,
   };
 }
@@ -299,7 +299,7 @@ const hrvTrend: AnalystHandler = {
       uncertainty,
       evidence: [evidenceFor(short), evidenceFor(long)],
       charts: [chartFor(short), chartFor(long)],
-      followUps: ['Why was my resting heart rate higher this week?', 'Are my workouts associated with better sleep?'],
+      followUps: ['Why was my resting heart rate higher this week?', 'Is more sleep associated with higher HRV?'],
       boundaryNote: BOUNDARY_NOTE,
     };
   },
@@ -368,8 +368,9 @@ const stepsVsBaseline: AnalystHandler = {
 
 const sleepVsRecovery: AnalystHandler = {
   id: 'sleep-vs-recovery',
-  prompt: 'Are my workouts associated with better sleep?',
-  matches: q => /(workout|exercise|training)/.test(q) && /(sleep|recover|hrv)/.test(q),
+  prompt: 'Is more sleep associated with higher HRV?',
+  // The handler computes sleep against HRV, so it answers that question; the old workouts wording still routes here in the demo.
+  matches: q => (/(workout|exercise|training)/.test(q) && /(sleep|recover|hrv)/.test(q)) || (/sleep/.test(q) && /(hrv|recover)/.test(q)),
   run: ({ bundle, system }) => {
     const pair = pairOf(bundle, 'sleep_analysis', 'heart_rate_variability');
     const sleep = summaryOf(bundle, 'sleep_analysis');
@@ -514,7 +515,7 @@ const workoutFrequency: AnalystHandler = {
         },
       ],
       charts: [],
-      followUps: ['Are my workouts associated with better sleep?', 'How do my steps compare with my baseline?'],
+      followUps: ['Is more sleep associated with higher HRV?', 'How do my steps compare with my baseline?'],
       boundaryNote: BOUNDARY_NOTE,
     };
   },

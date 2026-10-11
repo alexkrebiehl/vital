@@ -111,7 +111,7 @@ Vital** with how many records were left out. Vital never writes to the export se
 readers of it (Grafana, say) still see the doubled records; repair those at the source as below.
 **Stop correcting** next to a corrected check counts every record again, and the finding comes
 back with a **Fix it** button that turns the correction back on. The choice is stored as
-configuration only (`quality_correction_off`, migration 0015). Missing days, a late start and a
+configuration only (`quality_correction_off`, migration 0016). Missing days, a late start and a
 stalled automation cannot be corrected by Vital: the data never reached the server, so those
 findings keep their steps.
 
@@ -258,6 +258,7 @@ conversations tagged with it, and then behaves as if the source had never existe
 | Analyst conversations and thread memory (Postgres) | Conversations tagged with the source are deleted whole, messages included |
 | Stored credential (Postgres) | Deleted |
 | Lab reports and files | The per-report delete. Deleting the **last** report also erases the lab-tagged conversations; the app asks first and says how many |
+| Dashboard cards (Postgres) | Kept: they hold metric ids only; a card whose data is gone shows that it has no readings |
 | Logs | Nothing to erase: Vital logs outcomes, never values or tokens |
 
 Only a deliberate removal erases conversations. A source that is merely inactive (not yet

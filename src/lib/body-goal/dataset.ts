@@ -6,7 +6,7 @@
 import { REFERENCE_KEY, REFERENCE_TZ, seriesFor, workoutList } from '../adapters/dataset';
 import { dayKey } from '../analytics/windows';
 import type { UnitSystem } from '../prefs';
-import { bodyGoalReport, type BodyGoalInputs } from './report';
+import { bodyGoalReport, type BodyGoalInputs, type BodyGoalReport } from './report';
 import { bodyGoalSummary, type BodyGoalSummary } from './summary';
 import type { BodyGoal } from './types';
 
@@ -20,7 +20,12 @@ export function inputsFromDataset(system: UnitSystem, sex: 'male' | 'female' | n
   };
 }
 
+/** The whole report of a goal over the active dataset (what the Body and Nutrition pages render). */
+export function goalReportFromDataset(goal: BodyGoal, system: UnitSystem, sex: 'male' | 'female' | null): BodyGoalReport {
+  return bodyGoalReport(goal, inputsFromDataset(system, sex));
+}
+
 /** The model-facing summary of a goal over the active dataset. */
 export function goalSummaryFromDataset(goal: BodyGoal, system: UnitSystem, sex: 'male' | 'female' | null): BodyGoalSummary {
-  return bodyGoalSummary(bodyGoalReport(goal, inputsFromDataset(system, sex)), system);
+  return bodyGoalSummary(goalReportFromDataset(goal, system, sex), system);
 }

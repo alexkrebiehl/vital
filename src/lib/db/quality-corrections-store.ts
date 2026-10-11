@@ -1,6 +1,6 @@
 // ── Data-quality corrections turned off: Postgres (SERVER ONLY) ──────────────
 //
-// The `quality_correction_off` table (db/migrations/0015). CONFIGURATION ONLY:
+// The `quality_correction_off` table (db/migrations/0016). CONFIGURATION ONLY:
 // a check id. A row means the reader turned that correction off; no row means
 // the default, on. Every pg* function takes its client, so the SQL runs against
 // an injected stand-in in the offline tests.

@@ -24,7 +24,6 @@ import {
   seriesFor,
   sleepSeries,
   hasSleepStages,
-  bloodPressureSeries,
   coverageFor,
   isAccumulating,
   pointOn,
@@ -51,12 +50,14 @@ import { useUnits } from '@/components/ui/UnitsProvider';
 import { RangeControl } from '@/components/ui/RangeControl';
 import { rangeDays } from '@/lib/ranges';
 import { useDatasetMeta } from '@/components/data/DatasetProvider';
-
-/** After the shared 7/30/90 presets and Custom: the long views this page also offers. */
-const RANGE_EXTRAS = [
-  { value: '1y', label: '1Y' },
-  { value: 'all', label: 'All' },
-];
+import {
+  RANGE_EXTRAS,
+  RelatedMetricsList,
+  SummaryCard,
+  actualRangeWindow,
+  isKnownRange,
+} from './detailShared';
+import { BloodPressureDetail } from './BloodPressureDetail';
 
 const EVALUATED_DAYS = 7;
 const BASELINE_DAYS = 30;
@@ -82,14 +83,9 @@ export function MetricDetailPage() {
     );
   }
 
+  // Blood pressure is a pair, not a series of one number: its page is its own.
+  if (metricId === 'blood_pressure') return <BloodPressureDetail />;
   return <MetricDetailContent metaId={metricId} />;
-}
-
-const RANGE_TOKENS = ['1y', 'all'];
-
-/** A ?range= value the page can open at: a day count such as 45d, 1y, or all. */
-function isKnownRange(token: string | null): token is string {
-  return token !== null && (RANGE_TOKENS.includes(token) || rangeDays(token, 'token') !== null);
 }
 
 function MetricDetailContent({ metaId }: { metaId: string }) {
@@ -107,10 +103,6 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
   const [view, setView] = useState<'chart' | 'table'>('chart');
 
   const all: DayPoint[] = useMemo(() => seriesFor(metaId), [metaId]);
-  const bpRecords = useMemo(
-    () => (metaId === 'blood_pressure' ? bloodPressureSeries() : []),
-    [metaId]
-  );
 
   const yesterdayKey = useMemo(() => {
     const d = new Date(`${REFERENCE_KEY}T12:00:00.000Z`);
@@ -226,7 +218,7 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
           <div className="w-full max-w-[260px] rounded-2xl border border-border bg-surface/80 p-4 shadow-card backdrop-blur-sm">
             <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-text-secondary">Latest reading</div>
             <div className="mt-1 text-[34px] font-semibold leading-none tnum tracking-[-0.03em] text-text-primary">
-              {displayLatest(metaId, latest, units, bpRecords)}
+              {displayLatest(metaId, latest, units)}
             </div>
             <div className="mt-1 text-[11px] text-text-secondary">{formatDayKeyLong(latest!.key)}</div>
             <div className="mt-3" aria-hidden="true">
@@ -287,7 +279,7 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
               <SummaryCard
                 label="Latest reading"
-                value={displayLatest(metaId, latest, units, bpRecords)}
+                value={displayLatest(metaId, latest, units)}
                 sub={`${formatDayKeyLong(latest!.key)} · ${coverage ? `${coverage.observedDays}/${coverage.expectedDays} days recorded` : 'coverage unavailable'}`}
               />
               <SummaryCard
@@ -516,43 +508,6 @@ function MetricDetailContent({ metaId }: { metaId: string }) {
 
 // ── Sub-components ────────────────────────────────────
 
-function RelatedMetricsList({ metrics }: { metrics: ReturnType<typeof getAllMetrics> }) {
-  if (metrics.length === 0) return null;
-  return (
-    <section aria-label="Related metrics">
-      <h3 className="text-sm font-semibold text-text-primary mb-3">Related metrics</h3>
-      <div className="flex flex-wrap gap-2">
-        {metrics.map(m => (
-          <Link
-            key={m.id}
-            href={`/metric/${m.id}`}
-            className="px-3 py-1.5 text-xs font-medium bg-surface-muted text-text-secondary hover:text-text-primary hover:bg-surface border border-border rounded-control transition-colors"
-          >
-            {m.displayName}
-          </Link>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function SummaryCard({ label, value, sub, highlight }: {
-  label: string;
-  value: string;
-  sub: string;
-  highlight?: boolean;
-}) {
-  return (
-    <Card className={`p-4 ${highlight ? 'ring-1 ring-category-attention/30' : ''}`}>
-      <div className="mb-2 text-[12px] font-medium text-text-secondary">{label}</div>
-      <div className={`mb-1.5 text-[22px] md:text-[26px] font-semibold tracking-[-0.03em] tnum ${highlight ? 'text-category-attention' : 'text-text-primary'} leading-none`}>
-        {value}
-      </div>
-      <div className="text-[10px] text-text-secondary">{sub}</div>
-    </Card>
-  );
-}
-
 function SleepTimingNote() {
   const sleep = useMemo(() => sleepSeries(), []);
   const latest = sleep[sleep.length - 1];
@@ -577,29 +532,8 @@ function SleepTimingNote() {
   );
 }
 
-/** Blood pressure is a paired observation; every other metric is a single value. */
-function displayLatest(
-  metricId: string,
-  latest: DayPoint | undefined,
-  units: 'metric' | 'imperial',
-  bpRecords: ReturnType<typeof bloodPressureSeries>
-): string {
-  if (metricId === 'blood_pressure') {
-    const last = bpRecords[bpRecords.length - 1];
-    if (last) return `${last.systolic}/${last.diastolic} mmHg`;
-  }
+/** The latest reading of a single-number metric. Blood pressure has its own page (BloodPressureDetail). */
+function displayLatest(metricId: string, latest: DayPoint | undefined, units: 'metric' | 'imperial'): string {
   if (!latest) return '—';
   return formatMetricWithUnit(metricId, latest.value, units);
-}
-
-/** Resolve a range token to actual day-key bounds for the loaded series. */
-function actualRangeWindow(range: string, all: DayPoint[]): DayWindow {
-  if (range === 'all') {
-    const first = all[0]?.key ?? REFERENCE_KEY;
-    return { startKey: first, endKey: REFERENCE_KEY, label: 'All time' };
-  }
-  const match = /^(\d+)d$/.exec(range);
-  if (match) return trailingWindow(REFERENCE_KEY, Number(match[1]));
-  if (range === '1y') return trailingWindow(REFERENCE_KEY, 365);
-  return trailingWindow(REFERENCE_KEY, 90);
 }

@@ -148,9 +148,26 @@ export interface Adherence {
 
 const inside = (v: number, r: Range) => v >= r.min && v <= r.max;
 
+/** How one day's value sits against a target range: on it, near it, or off it. */
+export type Verdict = 'met' | 'ok' | 'above' | 'below';
+
+/** Calories against the target range and the wider OK range, as the Nutrition page judges a day. */
+export function calorieVerdict(kcal: number, target: Range, okRange: Range = target): Verdict {
+  return inside(kcal, target) ? 'met' : kcal > okRange.max ? 'above' : kcal < okRange.min ? 'below' : 'ok';
+}
+
+/** Protein against the floor and the OK floor, as the Nutrition page judges a day. */
+export function proteinVerdict(grams: number, targets: Pick<NutritionTargets, 'proteinFloor' | 'proteinOkFloor'>): Exclude<Verdict, 'above'> {
+  return grams >= targets.proteinFloor ? 'met' : grams >= targets.proteinOkFloor ? 'ok' : 'below';
+}
+
+/** The page's window: the four weeks ending yesterday. */
 export function adherence(series: (id: string) => DayValue[], today: string, targets: NutritionTargets): Adherence {
-  const to = addDays(today, -1);
-  const from = addDays(today, -TREND_DAYS);
+  return adherenceBetween(series, addDays(today, -TREND_DAYS), addDays(today, -1), targets);
+}
+
+/** Adherence over any run of days (the last one should be a finished day: today is still being logged). */
+export function adherenceBetween(series: (id: string) => DayValue[], from: string, to: string, targets: NutritionTargets): Adherence {
   const split = splitLoggedDays(between(series('dietary_energy'), from, to));
   const keys = split.complete.map(d => d.key);
   const kcal = new Map(split.complete.map(d => [d.key, d.value]));

@@ -40,7 +40,7 @@ import { FALLBACK_CLIENT_META } from './fallback-meta';
 
 const FALLBACK_META = FALLBACK_CLIENT_META;
 
-const DatasetMetaContext = createContext<ClientDatasetMeta>(FALLBACK_META);
+export const DatasetMetaContext = createContext<ClientDatasetMeta>(FALLBACK_META);
 const DatasetReadyContext = createContext(true);
 
 export interface DatasetProviderProps {

@@ -572,7 +572,7 @@ export function OverviewPage({ initialGreeting }: { initialGreeting: string }) {
                 {[
                   'Why was my resting heart rate higher this week?',
                   'How has my sleep changed over the last 3 months?',
-                  'Are my workouts associated with better sleep?',
+                  'Is more sleep associated with higher HRV?',
                 ].map(q => (
                   <Link
                     key={q}

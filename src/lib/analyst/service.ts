@@ -19,10 +19,11 @@
 import { REFERENCE_KEY } from '../adapters/dataset';
 import type { UnitSystem } from '../prefs';
 import { getMetric } from '../metrics/registry';
-import { selectHandler, selectHandlerStrict } from './handlers';
+import { selectHandler } from './handlers';
 import { SUPPORTED_PROMPTS } from './prompts';
 import {
   AnalysisNotAvailable,
+  ANALYTE_LAB_SPEC,
   DEFAULT_LAB_SPEC,
   GENERAL_HANDLER_ID,
   labSpecOf,
@@ -33,15 +34,23 @@ import {
 import { loadLabSnapshot, type LabLoader } from './labContext';
 import { loadMedicationSnapshot, type MedicationLoader } from './medicationsContext';
 import { unavailableMedicationSnapshot } from './medicationSnapshot';
+import type { MedicationLogReader } from './medicationLog';
 import { AnalystProviderError, createProvider, DEMO_LABEL, supportsStreaming, supportsTools, type ToolCallingProvider } from './provider';
 import { parseAnalystSse } from './stream';
 import { StreamGuard, type GuardLimits } from './guard';
-import { buildAnalystUserMessage, buildOnDemandUserMessage, DATA_TOOLS_PROMPT, TRAINING_TOOLS_PROMPT } from './systemPrompt';
+import { buildAnalystUserMessage, buildDataToolsPrompt, buildOnDemandUserMessage, TRAINING_TOOLS_PROMPT } from './systemPrompt';
 import { fitToBudget } from './budget';
 import { createDataAccess, mergeFetched, type DataAccess } from './dataAccess';
-import { buildDataIndex, renderDataIndex } from './dataIndex';
+import { appUncertaintyLines, answerFields, auditAbsence, correctiveTurn, type AuditEntry, type Violation } from './capabilities/absence';
+import { auditEntries, buildCoverageIndex } from './capabilities/coverage-index';
+import { renderCapabilityMap } from './capabilities/map';
+import { CAPABILITIES } from './capabilities/registry';
+import { ALLOW_ALL, type PrivacyPolicy } from './capabilities/types';
+import { applyPolicy } from './selection';
+import { isLabQuestion } from './questionKind';
+import { capabilityContext, isOutcome } from './tools/capability-tool';
 import type { LabSourceInput } from './labSnapshot';
-import { runToolLoop, type ToolLoopHooks } from './tool-loop';
+import { runToolLoop, type AbsenceAudit, type ToolLoopHooks } from './tool-loop';
 import { combineChanges, type ToolContext } from './tools';
 import { demoPlanAnswer, PLAN_PROMPTS } from './demo-plan';
 import type { RoutineDeps } from '../routine/service';
@@ -209,12 +218,16 @@ export interface AnalystDeps {
   env?: NodeJS.ProcessEnv;
   labLoader?: LabLoader;
   medicationLoader?: MedicationLoader;
+  /** Test seam: the dose records of a window, for get_medications. */
+  medicationLog?: MedicationLogReader;
   /** The stored lab series, for the on-demand tools and the data index. */
   labSource?: () => Promise<LabSourceInput>;
   /** Where the training plan is read and written (plan tools, page context). */
   routine?: RoutineDeps;
   /** Test seam: the body-goal summary instead of the stored goal. */
   bodyGoal?: (system: UnitSystem) => Promise<BodyGoalSummary | null>;
+  /** The AI privacy setting (design §9.2). Unset means everything is allowed, the only policy there is today. */
+  policy?: PrivacyPolicy;
 }
 
 interface Prepared {
@@ -237,7 +250,17 @@ interface Prepared {
    * index the model is given in place of the data. `bundle` is then empty, and the
    * full context is only built if the tools are refused (see `withFullContext`).
    */
-  onDemand?: { access: DataAccess; index: string; full: () => Promise<RetrievalBundle> };
+  onDemand?: { access: DataAccess; full: () => Promise<RetrievalBundle> };
+  /** The coverage index (capabilities/coverage-index.ts): in the message of every question a configured provider answers, in both modes. */
+  index?: string;
+  /** What the index said each capability holds, joined to what the absence audit needs (capabilities/absence.ts). */
+  coverage?: AuditEntry[];
+  /**
+   * The readers the data tools use, set for every question a configured provider may
+   * answer with tools, in either context mode. In `ondemand` mode it is the same object
+   * as `onDemand.access`. A question answered without tools never reads through it.
+   */
+  access?: DataAccess;
   /** What the size budget removed from the fixed context, if anything. */
   budgetDropped?: string[];
 }
@@ -250,13 +273,17 @@ type Preparation = Prepared | { ok: false; response: AnalystResponse };
  * own in full mode, and as the fallback when on-demand tools are refused.
  */
 async function loadFullBundle(query: string, matchedId: string | null, deps: AnalystDeps): Promise<RetrievalBundle> {
+  const policy = deps.policy ?? ALLOW_ALL;
   let bundle: RetrievalBundle = matchedId ? retrieve(matchedId, REFERENCE_KEY) : retrieveGeneral(REFERENCE_KEY);
   const handlerId = matchedId ?? GENERAL_HANDLER_ID;
+  // What the privacy setting withholds is never read into the selection (design §9.2).
+  bundle = applyPolicy(bundle, policy);
 
-  const labSpec = labSpecOf(handlerId) ?? DEFAULT_LAB_SPEC;
+  // A lab question gets the lab block in analyte mode, whichever route it took (design §5.4).
+  const labSpec = labSpecOf(handlerId) ?? (isLabQuestion(query) ? ANALYTE_LAB_SPEC : DEFAULT_LAB_SPEC);
   let lab: LabContextSnapshot | null = null;
   try {
-    lab = await (deps.labLoader ?? loadLabSnapshot)(query, labSpec);
+    lab = policy.allows('lab-results') ? await (deps.labLoader ?? loadLabSnapshot)(query, labSpec) : null;
   } catch {
     lab = null;
   }
@@ -275,9 +302,9 @@ async function loadFullBundle(query: string, matchedId: string | null, deps: Ana
   // "no medications were taken".
   let medications: MedicationContextSnapshot | null = null;
   try {
-    medications = await (deps.medicationLoader ?? loadMedicationSnapshot)(query, {
-      ...(deps.env ? { env: deps.env } : {}),
-    });
+    medications = policy.allows('medication-records')
+      ? await (deps.medicationLoader ?? loadMedicationSnapshot)(query, { ...(deps.env ? { env: deps.env } : {}) })
+      : null;
   } catch {
     medications = null;
   }
@@ -362,7 +389,9 @@ async function prepareAnalyst(
     }
   }
 
-  const matched = isDemo ? selectHandler(validated.query) : selectHandlerStrict(validated.query);
+  // A configured provider is never routed to a handler's narrower selection: that is how a
+  // workouts question was answered with a bundle that had none (design §5.4). The demo keeps its handlers.
+  const matched = isDemo ? selectHandler(validated.query) : null;
 
   if (isDemo && !matched) {
     return {
@@ -377,27 +406,46 @@ async function prepareAnalyst(
   const onDemandMode = !isDemo && config.context === 'ondemand' && config.tools === 'auto';
   const fullBundle = () => loadFullBundle(validated.query, matched?.id ?? null, deps);
 
-  let bundle: RetrievalBundle;
-  let onDemand: Prepared['onDemand'];
-  let budgetDropped: string[] | undefined;
-  if (onDemandMode) {
-    // Nothing is pre-loaded: the model gets an index of what exists and fetches what
-    // the question needs. The full context is built only if the tools are refused.
-    bundle = retrieveNone(handlerId, REFERENCE_KEY);
-    const access = createDataAccess({
+  // The data tools read through this, in both context modes (design §2, decision 4).
+  const makeAccess = (): DataAccess =>
+    createDataAccess({
       system,
       refKey: REFERENCE_KEY,
       env: deps.env,
+      ...(deps.policy ? { policy: deps.policy } : {}),
       ...(deps.labSource ? { labSource: deps.labSource } : {}),
+      ...(deps.medicationLog ? { medicationLog: deps.medicationLog } : {}),
       medications: async days =>
         ((await (deps.medicationLoader ?? loadMedicationSnapshot)(validated.query, {
           ...(deps.env ? { env: deps.env } : {}),
           lookbackDays: days,
         })) ?? unavailableMedicationSnapshot('The medication records could not be read.')),
     });
-    const index = renderDataIndex(buildDataIndex(REFERENCE_KEY, await access.labSource()));
-    onDemand = { access, index, full: fullBundle };
+  let access: DataAccess | undefined;
+  let index: string | undefined;
+  let coverage: AuditEntry[] | undefined;
+  let bundle: RetrievalBundle;
+  let onDemand: Prepared['onDemand'];
+  let budgetDropped: string[] | undefined;
+  // The coverage index goes to every question a configured provider answers, with tools or
+  // without. Its readers are the question's own, so the lab source is read once and shared.
+  const readers = isDemo ? undefined : makeAccess();
+  if (readers) {
+    const cctx = capabilityContext({ system, deps: routineDeps, changes: [], data: readers });
+    if (!isOutcome(cctx)) {
+      const built = await buildCoverageIndex(CAPABILITIES, cctx);
+      index = built.text;
+      coverage = auditEntries(CAPABILITIES, built.rows);
+    }
+  }
+  if (onDemandMode) {
+    // Nothing is pre-loaded: the model gets an index of what exists and fetches what
+    // the question needs. The full context is built only if the tools are refused.
+    bundle = retrieveNone(handlerId, REFERENCE_KEY);
+    access = readers;
+    onDemand = { access: readers!, full: fullBundle };
   } else {
+    if (!isDemo && config.tools === 'auto') access = readers;
     try {
       bundle = await fullBundle();
     } catch (error) {
@@ -435,7 +483,7 @@ async function prepareAnalyst(
     }
   }
 
-  return { ok: true, config, query: validated.query, notes, notesEcho, bundle, handlerId, system, history, routineDeps, pageContext, goalContext, onDemand, budgetDropped };
+  return { ok: true, config, query: validated.query, notes, notesEcho, bundle, handlerId, system, history, routineDeps, pageContext, goalContext, onDemand, index, coverage, access, budgetDropped };
 }
 
 /** The runaway limits from the configuration. */
@@ -460,6 +508,7 @@ function providerContext(prep: Prepared): AnalystProviderContext {
     history: prep.history,
     pageContext: prep.pageContext,
     goalContext: prep.goalContext,
+    index: prep.index,
   };
 }
 
@@ -472,6 +521,23 @@ export function toolsUnavailableNote(reason: string): string {
 /** True when this question goes through the training-plan tools. */
 function usesTools(config: AnalystConfig, provider: ReturnType<typeof createProvider>): provider is ReturnType<typeof createProvider> & ToolCallingProvider {
   return config.tools === 'auto' && supportsTools(provider);
+}
+
+/**
+ * The app's own account of what an answer left out, added to `uncertainty` (design §5.5).
+ * Computed from the coverage the question started with, so it needs no grounding: it is added
+ * after the grounding check and carries no figure the model produced.
+ */
+function withAbsenceLines(answer: AnalystAnswer, violations: Violation[]): AnalystAnswer {
+  const lines = appUncertaintyLines(violations);
+  return lines.length ? { ...answer, uncertainty: [...answer.uncertainty, ...lines] } : answer;
+}
+
+/** An answer from a model with no tools: no lookup was possible, so any absence claim the app holds records against is stated. */
+function auditWithoutTools(answer: AnalystAnswer, prep: Prepared): AnalystAnswer {
+  if (!prep.coverage) return answer;
+  const text = { analysis: [answer.analysis, ...answer.observed, ...answer.interpretation].filter(Boolean).join('\n'), summary: answer.summary, uncertainty: answer.uncertainty };
+  return withAbsenceLines(answer, auditAbsence(text, prep.coverage, []));
 }
 
 /**
@@ -489,14 +555,15 @@ async function answerWithTools(
   const base = (status: AnalystStatus, fields: Partial<AnalystResponse> = {}) =>
     baseResponse(config, status, { untrustedNotes: notesEcho, ...fields });
   const onDemand = prep.onDemand;
-  // In on-demand mode the bundle the answer is checked against is the (empty) start plus
-  // whatever the model fetched; it is rebuilt from the fetch record each time it is read.
-  const currentBundle = (): RetrievalBundle => (onDemand ? mergeFetched(prep.bundle, onDemand.access) : prep.bundle);
+  const access = prep.access;
+  // The bundle the answer is checked against is the starting context (empty in on-demand
+  // mode) plus whatever the model fetched; it is rebuilt from the fetch record each time.
+  const currentBundle = (): RetrievalBundle => (access ? mergeFetched(prep.bundle, access) : prep.bundle);
   const withContext = () => ({ handlerId, retrieval: retrievalSummary(currentBundle()) });
-  const toolCtx: ToolContext = { system: prep.system, deps: prep.routineDeps, changes: [], ...(onDemand ? { data: onDemand.access } : {}) };
+  const toolCtx: ToolContext = { system: prep.system, deps: prep.routineDeps, changes: [], ...(access ? { data: access } : {}) };
   const notes = prep.notes.text.length > 0 ? prep.notes.text : undefined;
   const user = onDemand
-    ? buildOnDemandUserMessage({ question: prep.query, index: onDemand.index, notes, history: prep.history, pageContext: prep.pageContext, goalContext: prep.goalContext })
+    ? buildOnDemandUserMessage({ question: prep.query, index: prep.index ?? '', notes, history: prep.history, pageContext: prep.pageContext, goalContext: prep.goalContext })
     : buildAnalystUserMessage({
         question: prep.query,
         bundle: prep.bundle,
@@ -505,11 +572,19 @@ async function answerWithTools(
         history: prep.history,
         pageContext: prep.pageContext,
         goalContext: prep.goalContext,
+        index: prep.index,
+        tools: true,
       });
-  const systemPrompt = `${config.systemPrompt}${onDemand ? DATA_TOOLS_PROMPT : ''}${TRAINING_TOOLS_PROMPT}`;
+  const systemPrompt = `${config.systemPrompt}${access ? buildDataToolsPrompt(renderCapabilityMap(CAPABILITIES)) : ''}${TRAINING_TOOLS_PROMPT}`;
   try {
     const guard = new StreamGuard(guardLimits(config));
-    const looped = await runToolLoop(provider, systemPrompt, user, toolCtx, hooks, guard);
+    const audit: AbsenceAudit | undefined = prep.coverage
+      ? (text, lookups) => {
+          const violations = auditAbsence(answerFields(text), prep.coverage!, lookups);
+          return violations.length ? { instruction: correctiveTurn(violations), violations } : null;
+        }
+      : undefined;
+    const looped = await runToolLoop(provider, systemPrompt, user, toolCtx, hooks, guard, audit);
     const bundle = currentBundle();
     const planChange = combineChanges(toolCtx.changes);
     let parsed = parseAnalystReply(looped.text, { bundle });
@@ -532,7 +607,7 @@ async function answerWithTools(
       response: base('ok', {
         ...withContext(),
         model: looped.model ?? config.model,
-        answer: parsed.answer,
+        answer: withAbsenceLines(parsed.answer, looped.unaddressed),
         grounding: checkGrounding(parsed.answer, bundle, prep.system, [...pageGrounding(prep), ...looped.toolOutputs]),
         planChange,
         toolsUsed: looped.toolsUsed,
@@ -642,8 +717,8 @@ async function answerWithoutTools(
           message: parsed.reason ?? "The model's reply could not be read as an answer.",
         });
       }
-      answer = parsed.answer;
-      grounding = checkGrounding(answer, bundle, prep.system, pageGrounding(prep));
+      grounding = checkGrounding(parsed.answer, bundle, prep.system, pageGrounding(prep));
+      answer = auditWithoutTools(parsed.answer, prep);
     }
   } catch (error) {
     if (error instanceof AnalystProviderError) {
@@ -869,7 +944,7 @@ export function streamAnalyst(
       kind: 'result',
       response: base('ok', {
         ...withContext,
-        answer: parsed.answer,
+        answer: auditWithoutTools(parsed.answer, ready),
         message: null,
         grounding: checkGrounding(parsed.answer, bundle, ready.system, pageGrounding(ready)),
         // The streaming path reports the model the provider named, so the

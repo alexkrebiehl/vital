@@ -238,6 +238,26 @@ describe("the briefing context", () => {
     expect(JSON.stringify(context)).not.toContain('"vo2max"');
   });
 
+  it('never describes blood pressure by its systolic number alone, nor calls recorded readings absent', () => {
+    const readings = [
+      { date: '2026-09-16', systolic: 111, diastolic: 71, units: 'mmHg', source: 'test cuff' },
+      { date: '2026-09-17', systolic: 118, diastolic: 76, units: 'mmHg', source: 'test cuff' },
+    ];
+    const dataset = syntheticDataset({ sleep: [], extraMetrics: { blood_pressure: readings } });
+    dataset.coverage.blood_pressure = {
+      firstObservation: '2026-09-16', lastObservation: '2026-09-17', observedDays: 2, expectedDays: 18,
+      samplingFrequency: 'sporadic', sourceNames: ['test cuff'],
+    };
+    setActiveDataset(dataset, { mode: 'demo', dataAsOf: '2026-09-18T04:00:00.000Z' });
+    const context = buildBriefingContext('metric');
+
+    // A pair is not a single-number metric fact: skipped, not shown as 118 mmHg.
+    expect(context.metrics.some(m => m.metricId === 'blood_pressure')).toBe(false);
+    // But the readings exist, so the context must not claim there are none.
+    const notes = context.missing.join(' ');
+    expect(notes).not.toMatch(/Blood Pressure has no reading/i);
+  });
+
   it('builds the sleep block from the corrected night series', () => {
     const full = stagedNight('2026-09-15', 500, '2026-09-15T05:00:00.000Z', '2026-09-15T14:30:00.000Z');
     setActiveDataset(

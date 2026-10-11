@@ -3,14 +3,18 @@
 import Link from 'next/link';
 import { ChevronRight, Info } from 'lucide-react';
 import { getMetric, getAllMetrics, getMetricsByCategory } from '@/lib/metrics';
-import { formatMetricWithUnit } from '@/lib/metrics/format';
+import { formatBloodPressure, formatMetricWithUnit } from '@/lib/metrics/format';
 import {
   REFERENCE_KEY,
   seriesInWindow,
   seriesFor,
+  bloodPressureSeries,
+  isPairedMetric,
+  metricObservationsInWindow,
   coverageFor,
 } from '@/lib/adapters/dataset';
 import {
+  bloodPressureInWindow,
   buildSeriesSummary,
   trailingWindow,
   windowRangeLabel,
@@ -24,6 +28,7 @@ import { useDatasetMeta } from '@/components/data/DatasetProvider';
 import type { MetricDefinition } from '@/lib/metrics/types';
 import { PageHero } from '@/components/art/PageHero';
 import { Spark } from '@/components/art/Spark';
+import { BloodPressureSpark } from '@/components/art/BloodPressureSpark';
 import { CATEGORY_VAR } from '@/components/art/categories';
 import type { ArtCategory } from '@/components/art/categories';
 
@@ -111,7 +116,7 @@ export function TotalCard({ label, value, sub, title }: { label: string; value: 
  * about coverage, not an empty box.
  */
 export function hasObservationsInWindow(metricId: string, win: DayWindow): boolean {
-  return seriesInWindow(metricId, win).length > 0;
+  return metricObservationsInWindow(metricId, win) > 0;
 }
 
 /** Apply the shared rule to a set of built summaries: only those with a point in the window survive. */
@@ -245,6 +250,41 @@ export function MetricGrid({
 }
 
 export function MetricTile({ metric, days }: { metric: MetricDefinition; days: number }) {
+  // A paired metric (blood pressure) is two numbers per reading: its own tile.
+  if (isPairedMetric(metric.id)) return <PairedMetricTile metric={metric} days={days} />;
+  return <SingleMetricTile metric={metric} days={days} />;
+}
+
+function PairedMetricTile({ metric, days }: { metric: MetricDefinition; days: number }) {
+  const { units } = useUnits();
+  const all = bloodPressureSeries();
+  const win = trailingWindow(REFERENCE_KEY, days);
+  const inWindow = bloodPressureInWindow(all, win);
+  const latest = all[all.length - 1];
+  if (inWindow.length === 0 || !latest) return null;
+  const color = CATEGORY_VAR[artCategoryOf(metric.id)];
+  return (
+    <Card className="group relative flex flex-col overflow-hidden p-4">
+      <span className="absolute inset-y-0 left-0 w-[3px]" style={{ background: color }} aria-hidden="true" />
+      <div className="mb-1 flex items-start justify-between gap-2">
+        <span className="text-[13px] font-medium text-text-primary">{metric.displayName}</span>
+        <Badge variant="default" className="shrink-0 text-[10px]">{all.length} obs</Badge>
+      </div>
+      <div className="text-[24px] font-semibold leading-tight tnum tracking-[-0.025em] text-text-primary">
+        {formatBloodPressure(latest.systolic, latest.diastolic, units)}
+      </div>
+      <div className="my-2" aria-hidden="true"><BloodPressureSpark readings={inWindow} height={32} /></div>
+      <p className="text-[11px] text-text-secondary">
+        Latest · {formatDayKeyLong(latest.date)} · {inWindow.length} readings in {windowRangeLabel(win)}
+      </p>
+      <Link href={`/metric/${metric.id}`} className="mt-2 text-xs font-medium text-primary hover:underline">
+        View detail
+      </Link>
+    </Card>
+  );
+}
+
+function SingleMetricTile({ metric, days }: { metric: MetricDefinition; days: number }) {
   const { units } = useUnits();
   const all = seriesFor(metric.id);
   const win = trailingWindow(REFERENCE_KEY, days);

@@ -15,6 +15,9 @@
 //   * the system prompt file is re-read when its mtime changes, so editing a
 //     mounted prompt takes effect on the next request without a restart.
 
+import { ALWAYS_SENT, sendingSentences } from './capabilities/categories';
+import { CAPABILITY_MANIFEST } from './capabilities/manifest';
+import type { CapabilityManifestEntry } from './capabilities/types';
 import { statSync, readFileSync } from 'node:fs';
 import { DEFAULT_ANALYST_SYSTEM_PROMPT } from './systemPrompt';
 
@@ -79,13 +82,18 @@ export const DEFAULT_QUESTION_TIMEOUT_MS = 300_000;
 export const DEFAULT_TEMPERATURE = 0.2;
 export const DEFAULT_TIMEOUT_MS = 60000;
 
+/**
+ * What a remote provider receives, in plain sentences, built from the categories of the
+ * capabilities offered (capabilities/manifest.ts) so the list cannot fall behind the
+ * registry. Always ends with what is sent whatever the capabilities: the question and the
+ * coverage statements.
+ */
+export function remoteSendingCategories(entries: readonly Pick<CapabilityManifestEntry, 'category'>[]): string[] {
+  return [...sendingSentences(entries.map(e => e.category)), ALWAYS_SENT];
+}
+
 /** Categories of health context a remote provider receives. */
-export const REMOTE_SENDING_CATEGORIES = [
-  'Metric summaries (averages, medians, totals, comparison deltas and observation counts)',
-  'Bounded record windows (at most 90 points per metric)',
-  'Lab results from your uploaded documents (per analyte: the latest value with its unit and observation date, the reference interval the report printed and where it came from, the previous observation, and a bounded series of earlier observations)',
-  'Date windows, coverage statements and the text of your question',
-];
+export const REMOTE_SENDING_CATEGORIES: string[] = remoteSendingCategories(CAPABILITY_MANIFEST);
 
 export interface AnalystConfig {
   /** Resolved provider id. An unrecognised name resolves to 'demo' but is still reported as misconfigured. */
